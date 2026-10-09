@@ -1,5 +1,6 @@
 import path from "node:path";
 import {
+  fail,
   machines,
   sessions,
   type PluginServerApi,
@@ -66,7 +67,7 @@ export default async function accountPool(bb: PluginServerApi): Promise<void> {
     return account;
   };
   const missing = (id: string): never => {
-    throw new Error(`Account ${id} does not exist.`);
+    fail("not_found", `Account ${id} does not exist.`);
   };
 
   const logins = new Logins({ ...shared, add: adopt });
@@ -103,7 +104,7 @@ export default async function accountPool(bb: PluginServerApi): Promise<void> {
         return adopt(await importAccount(provider), named, priority);
       }
       if (provider !== "claude") {
-        throw new Error("API keys are only supported for the claude provider.");
+        fail("invalid", "API keys are only supported for the claude provider.");
       }
       const blank = { email: null, accountUuid: null, subscriptionType: null };
       const shown = { label: named ?? "Claude API key", priority };

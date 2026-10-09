@@ -80,9 +80,9 @@ it("registers, refreshes, lists and removes a device", async () => {
     id: first.body.id,
     removed: true,
   });
-  expect((await op("delete", { subscriptionId: first.body.id })).status).toBe(
-    400,
-  );
+  const gone = await op("delete", { subscriptionId: first.body.id });
+  expect(gone.status).toBe(404);
+  expect(gone.body).toMatchObject({ code: "not_found" });
   expect((await op("status")).body).toMatchObject({
     subscriptionCount: 0,
     relayUrl: relay.url,
@@ -133,5 +133,6 @@ it("refuses a test for a disabled channel", async () => {
   await server.settings({ webEnabled: false });
   const refused = await server.op("test", { channel: "web" });
   expect(refused.status).toBe(400);
+  expect(refused.body).toMatchObject({ code: "channel_disabled" });
   expect(JSON.stringify(refused.body)).toContain("disabled");
 });

@@ -94,6 +94,13 @@ it("round-trips tasks, labels, comments and mentions over rpc", async () => {
   await expect(rpc("createTask", grandchild)).rejects.toThrow("one level");
   const foreign = { taskId: task.id, labelIds: [ulid("ZZ")] };
   await expect(rpc("updateTask", foreign)).rejects.toThrow("must belong");
+  const missing = await fetch(`${url}/api/v1/ops/tasks.updateTask`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ taskId: ulid("YY"), title: "Gone" }),
+  });
+  expect(missing.status).toBe(404);
+  expect(await missing.json()).toMatchObject({ code: "task_not_found" });
 
   const search = `${url}/api/v1/sessions/mentions?query=fix&projectId=proj_1`;
   const groups = (await (await fetch(search)).json()) as Row[];

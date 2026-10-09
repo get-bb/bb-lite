@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   cliCommand,
   defineCli,
+  fail,
   PluginCliError,
   projects,
   threads,
@@ -95,7 +96,7 @@ export default function promptLibraryServer(bb: PluginServerApi): void {
 
   function star(text: string): StarredPrompt {
     if (text.trim().length === 0) {
-      throw new Error("A starred prompt needs some text.");
+      fail("invalid", "A starred prompt needs some text.");
     }
     const existing = byText(text);
     if (existing !== null) return existing;

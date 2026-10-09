@@ -1,6 +1,6 @@
 import {
   environments,
-  OpError,
+  fail,
   projects,
   sessions,
   threads,
@@ -166,7 +166,7 @@ export default function githubServer(bb: PluginServerApi): void {
         ? `GitHub CLI not found. ${GH_HINT}`
         : `GitHub CLI is not authenticated. ${GH_HINT}`;
       bb.status.needsConfiguration(authError);
-      throw new Error(authError);
+      fail("unavailable", authError, { reason: "github_unavailable" });
     }
   };
 
@@ -266,8 +266,8 @@ export default function githubServer(bb: PluginServerApi): void {
       repos.find((entry) => entry.repo === repo)?.projectId ??
       ((await settings.get()).defaultProject || null);
     if (projectId === null) {
-      throw new OpError(
-        "invalid_input",
+      fail(
+        "invalid",
         `${repo} is not attached to a BB project. Set the GitHub plugin's Default BB project.`,
       );
     }
@@ -503,7 +503,7 @@ export default function githubServer(bb: PluginServerApi): void {
     async ({ environmentId, title, body, base, draft }) => {
       const where = await checkout(environmentId);
       if (where === null) {
-        throw new OpError("invalid_input", "This environment has no checkout");
+        fail("invalid", "This environment has no checkout");
       }
       const args = ["pr", "create", "--title", title, "--body", body ?? ""];
       if (base !== undefined) args.push("--base", base);

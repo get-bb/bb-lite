@@ -102,7 +102,7 @@ into the Dockerfile, save it, and run a new sandbox to verify them.
 Exec passes arguments literally; use `bash -lc` for shell expressions. Commands
 have a 60-second timeout and output is capped at 128 KiB per stream with a
 truncation marker. Plain output prints stdout, stderr and, when it is not 0,
-`Exit code N`; the CLI itself exits 0 when the command ran. `--json` returns
+`Exit code N`; the CLI exits with the command's own exit code. `--json` returns
 `{exitCode,stdout,stderr}`. Stopping is idempotent for known debug sandboxes.
 Exec/stop only accept sandboxes created by this plugin's debug workflow in the
 original Modal account. Stop removes compute without deleting the cached image.

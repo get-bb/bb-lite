@@ -1,5 +1,5 @@
 import path from "node:path";
-import { files, OpError, threads, type PluginServerApi } from "@bb/plugin";
+import { fail, files, threads, type PluginServerApi } from "@bb/plugin";
 import { inlineVis } from "./contract.js";
 
 export const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
@@ -11,12 +11,13 @@ const KINDS = new Map<string, "html" | "markdown">([
   [".markdown", "markdown"],
 ]);
 
-const invalid = (message: string) => new OpError("invalid_input", message);
+const invalid: (message: string) => never = (message) =>
+  fail("invalid", message);
 
 function previewKind(file: string): "html" | "markdown" {
   const kind = KINDS.get(path.posix.extname(file).toLowerCase());
   if (kind === undefined) {
-    throw invalid(
+    invalid(
       `"file" must end with .html, .htm, .md, or .markdown, got ${JSON.stringify(file)}`,
     );
   }
@@ -25,21 +26,21 @@ function previewKind(file: string): "html" | "markdown" {
 
 export function relativePreviewFile(value: string): string {
   const file = value.trim();
-  if (file.length === 0) throw invalid(`"file" must be a non-empty string`);
+  if (file.length === 0) invalid(`"file" must be a non-empty string`);
   if (
     path.isAbsolute(file) ||
     /^[a-zA-Z]:[\\/]/.test(file) ||
     file.startsWith("\\\\")
   ) {
-    throw invalid(`"file" must be source-relative, not absolute: ${file}`);
+    invalid(`"file" must be source-relative, not absolute: ${file}`);
   }
   const slashed = file.replace(/\\/g, "/");
   if (slashed.split("/").includes("..")) {
-    throw invalid(`"file" must not contain traversal segments: ${file}`);
+    invalid(`"file" must not contain traversal segments: ${file}`);
   }
   const normalized = path.posix.normalize(slashed);
   if (normalized === "." || normalized.startsWith("/")) {
-    throw invalid(`"file" must not escape its source: ${file}`);
+    invalid(`"file" must not escape its source: ${file}`);
   }
   previewKind(normalized);
   return normalized;
@@ -57,7 +58,7 @@ export default function inlineVisServer(bb: PluginServerApi): void {
     }
     const storage = await bb.call(threads.storageLocation, { threadId });
     if (storage === null) {
-      throw new Error("This thread has no storage directory.");
+      fail("not_found", "This thread has no storage directory.");
     }
     const readPath = path.posix.join(storage.path, file);
     const { url } = await bb.call(files.url, {
@@ -75,7 +76,7 @@ export default function inlineVisServer(bb: PluginServerApi): void {
     if (read === null) return { kind: "not-found" as const, file };
     const sizeBytes = Buffer.byteLength(read.content);
     if (sizeBytes > MAX_PREVIEW_BYTES) {
-      throw invalid(
+      invalid(
         `Preview file is too large (${sizeBytes} bytes; max ${MAX_PREVIEW_BYTES}).`,
       );
     }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
-  OpError,
+  fail,
   interactions,
   server,
   threads,
@@ -125,10 +125,10 @@ export default function pushNotificationsServer(bb: PluginServerApi): void {
   bb.implement(pushNotifications.test, async ({ channel }, { caller }) => {
     const config = await settings.get();
     if (!(channel === "web" ? config.webEnabled : config.desktopEnabled)) {
-      throw new OpError(
-        "invalid_input",
-        `${channel} notifications are disabled. Turn them on with \`bb plugin config push-notifications set ${channel}Enabled true\`.`,
-      );
+      fail("invalid", `${channel} notifications are disabled.`, {
+        reason: "channel_disabled",
+        hint: `Turn them on with \`bb plugin config push-notifications set ${channel}Enabled true\`.`,
+      });
     }
     publish(
       {
@@ -186,10 +186,9 @@ export default function pushNotificationsServer(bb: PluginServerApi): void {
         (row) => row.id === subscriptionId && row.userId === caller.user,
       );
       if (!found) {
-        throw new OpError(
-          "invalid_input",
-          `Push subscription not found: ${subscriptionId}. Run \`bb push-notifications list\` for the registered ids.`,
-        );
+        fail("not_found", `Push subscription not found: ${subscriptionId}.`, {
+          hint: "Run `bb push-notifications list` for the registered ids.",
+        });
       }
       await bb.storage.kv.delete(`${PREFIX}${subscriptionId}`);
       bb.changed(pushNotifications.list);

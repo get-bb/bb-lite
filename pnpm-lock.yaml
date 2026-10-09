@@ -1544,6 +1544,9 @@ importers:
       '@bb/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
+      '@bb/runner':
+        specifier: workspace:*
+        version: link:../../packages/runner
       '@bb/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui

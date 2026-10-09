@@ -1,4 +1,5 @@
 import { exec } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { join } from "node:path";
 import { machines } from "@bb/plugin";
@@ -162,6 +163,26 @@ it("builds the image and runs, execs in and stops a debug sandbox", async () => 
   await expect(
     scope.call(modal.createSandboxCommand, { sandboxId: "sb-1", command }),
   ).rejects.toThrow("Debug sandbox has stopped or expired");
+});
+
+it("reads image set --file from the CLI's directory and exits with exec's code", async () => {
+  const { server, scope, home } = await modalWorld();
+  writeFileSync(join(home, "Dockerfile"), "FROM alpine:3\nRUN true\n");
+  const response = await server.send(`/plugins/${PLUGIN}/cli`, {
+    argv: ["image", "set", "--file", "Dockerfile"],
+    cwd: home,
+  });
+  const set: unknown = JSON.parse((await response.text()).trim());
+  expect(set).toMatchObject({ exitCode: 0 });
+  expect(await scope.call(modal.image, {})).toEqual({
+    dockerfile: "FROM alpine:3\nRUN true\n",
+    customized: true,
+  });
+  const door = modal.createSandboxCommand.doors.cli;
+  const failed = { exitCode: 3, stdout: "", stderr: "no\n" };
+  const input = { sandboxId: "sb-1", command: ["false"] };
+  expect(door?.exitCode?.(failed, input)).toBe(3);
+  expect(door?.print?.(failed, input)).toBe("no\nExit code 3\n");
 });
 
 it("terminates a sandbox left running after its machine was suspended", async () => {

@@ -1,6 +1,7 @@
 import {
   cliCommand,
   defineCli,
+  fail,
   PluginCliError,
   sessions,
   type PluginServerApi,
@@ -22,11 +23,18 @@ const json = {
   description: "Emit machine-readable JSON",
 } as const;
 const limit = (description: string) =>
-  ({ type: "integer", default: 20, description }) as const;
+  ({
+    type: "integer",
+    default: 20,
+    min: 1,
+    max: MAX_RESULT_LIMIT,
+    description,
+  }) as const;
 const tag = (description: string) =>
   ({
     type: "string",
     repeatable: true,
+    split: ",",
     placeholder: "TAG",
     aliases: ["tags"],
     description,
@@ -36,20 +44,8 @@ const text = (description: string, aliases: string[] = []) =>
 const reason = (description: string) =>
   ({ ...text(description), required: true }) as const;
 const expectedVersion = (description: string) =>
-  ({ type: "integer", required: true, description }) as const;
+  ({ type: "integer", required: true, min: 1, description }) as const;
 const id = [{ name: "id", description: "Memory id", required: true }] as const;
-
-function bounded(name: string, value: number, min: number, max: number) {
-  if (value < min || value > max) {
-    throw new PluginCliError(`--${name} must be between ${min} and ${max}`, {
-      code: "usage",
-    });
-  }
-  return value;
-}
-
-const splitTags = (values: string[]): string[] =>
-  values.flatMap((value) => value.split(",")).filter((tag) => tag !== "");
 
 const output = (stdout: string) => ({ exitCode: 0, stdout });
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
@@ -115,9 +111,17 @@ function catalog(store: MemoryStore, projectId: string): string {
 
 export default function memoryPlugin(bb: PluginServerApi): void {
   const store = memoryStore(bb.storage.database(MIGRATIONS), () => bb.now());
-  const admin = (memoryId: string) => {
-    const found = store.getAdmin(memoryId);
-    if (!found) throw new Error(`memory "${memoryId}" was not found`);
+  const admin = (memoryId: string, expectedVersion: number) => {
+    const found =
+      store.getAdmin(memoryId) ??
+      fail("not_found", `memory "${memoryId}" was not found`);
+    if (found.version !== expectedVersion) {
+      fail(
+        "conflict",
+        `version conflict for ${memoryId}: expected ${expectedVersion}, current ${found.version}`,
+        { hint: "Reload the memory and apply the change again." },
+      );
+    }
     return found.projectId ?? undefined;
   };
 
@@ -131,7 +135,7 @@ export default function memoryPlugin(bb: PluginServerApi): void {
         sourceThreadId: null,
         writeReason: "Edited in Memory settings",
       },
-      admin(memoryId),
+      admin(memoryId, expectedVersion),
     );
     bb.changed(memory.list);
     return { memory: updated };
@@ -142,7 +146,7 @@ export default function memoryPlugin(bb: PluginServerApi): void {
       expectedVersion,
       "Deleted in Memory settings",
       null,
-      admin(memoryId),
+      admin(memoryId, expectedVersion),
     );
     bb.changed(memory.list);
     return { deleted: { id: gone.id, version: gone.version } };
@@ -159,7 +163,7 @@ export default function memoryPlugin(bb: PluginServerApi): void {
       aliases: ["list"],
       options: { scope, limit: limit("How many memories to list"), json },
       run({ options }, ctx) {
-        const count = bounded("limit", options.limit, 1, MAX_RESULT_LIMIT);
+        const count = options.limit;
         const result = store.list(options.scope, ctx.projectId, count);
         return output(
           options.json
@@ -188,7 +192,7 @@ export default function memoryPlugin(bb: PluginServerApi): void {
       run({ options, positionals }, ctx) {
         const query = positionals.query.join(" ").trim();
         if (!query) throw new PluginCliError("search requires a query");
-        const count = bounded("limit", options.limit, 1, MAX_RESULT_LIMIT);
+        const count = options.limit;
         const found = store.search(query, options.scope, ctx.projectId, count);
         return output(
           options.json
@@ -271,6 +275,8 @@ export default function memoryPlugin(bb: PluginServerApi): void {
         importance: {
           type: "integer",
           default: 50,
+          min: 0,
+          max: 100,
           description: "Ranking weight for the injected catalog",
         },
         pinned: {
@@ -293,8 +299,8 @@ export default function memoryPlugin(bb: PluginServerApi): void {
           summary: options.summary,
           details: options.details,
           kind: options.kind,
-          tags: splitTags(options.tag),
-          importance: bounded("importance", options.importance, 0, 100),
+          tags: options.tag,
+          importance: options.importance,
           pinned: options.pinned,
           sourceThreadId: ctx.threadId ?? null,
           writeReason: options.reason,
@@ -327,6 +333,8 @@ export default function memoryPlugin(bb: PluginServerApi): void {
         tag: tag("Replacement tags; repeat or pass a comma-separated list"),
         importance: {
           type: "integer",
+          min: 0,
+          max: 100,
           description: "Replacement ranking weight",
         },
         pinned: {
@@ -336,8 +344,21 @@ export default function memoryPlugin(bb: PluginServerApi): void {
         },
         json,
       },
+      constraints: [
+        {
+          kind: "at-least-one",
+          options: [
+            "summary",
+            "details",
+            "kind",
+            "tag",
+            "importance",
+            "pinned",
+          ],
+        },
+      ],
       run({ options, positionals }, ctx) {
-        const tags = splitTags(options.tag);
+        const tags = options.tag;
         const {
           summary: newSummary,
           details,
@@ -345,34 +366,15 @@ export default function memoryPlugin(bb: PluginServerApi): void {
           importance,
           pinned,
         } = options;
-        if (
-          [newSummary, details, kind, importance, pinned].every(
-            (value) => value === undefined,
-          ) &&
-          tags.length === 0
-        ) {
-          throw new PluginCliError(
-            "pass at least one of --summary, --details, --kind, --tag, --importance, --pinned",
-            { code: "usage" },
-          );
-        }
         const updated = store.update(
           positionals.id,
           {
-            expectedVersion: bounded(
-              "expected-version",
-              options["expected-version"],
-              1,
-              Number.MAX_SAFE_INTEGER,
-            ),
+            expectedVersion: options["expected-version"],
             summary: newSummary,
             details,
             kind,
             tags: tags.length > 0 ? tags : undefined,
-            importance:
-              importance === undefined
-                ? undefined
-                : bounded("importance", importance, 0, 100),
+            importance: importance,
             pinned: pinned === undefined ? undefined : pinned === "true",
             sourceThreadId: ctx.threadId ?? null,
             writeReason: options.reason,
@@ -399,12 +401,7 @@ export default function memoryPlugin(bb: PluginServerApi): void {
       run({ options, positionals }, ctx) {
         const gone = store.forget(
           positionals.id,
-          bounded(
-            "expected-version",
-            options["expected-version"],
-            1,
-            Number.MAX_SAFE_INTEGER,
-          ),
+          options["expected-version"],
           options.reason,
           ctx.threadId ?? null,
           ctx.projectId,
@@ -428,7 +425,7 @@ export default function memoryPlugin(bb: PluginServerApi): void {
       },
       run({ options, positionals }, ctx) {
         const memoryId = positionals.id;
-        const count = bounded("limit", options.limit, 1, MAX_RESULT_LIMIT);
+        const count = options.limit;
         const history = store.history(memoryId, ctx.projectId, count);
         if (history.length === 0) {
           throw new PluginCliError(

@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
-import { join, resolve } from "node:path";
+import { join, posix } from "node:path";
+import { machineFiles } from "@bb/runner";
 import {
   environments,
+  fail,
   machines,
   terminals,
   threads,
@@ -150,7 +152,7 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
 
   async function requireSettings(): Promise<Resolved> {
     const resolved = resolveSettings(await settings.get());
-    if (!resolved.ok) throw new Error(resolved.message);
+    if (!resolved.ok) fail("unavailable", resolved.message);
     return resolved.settings;
   }
 
@@ -158,7 +160,7 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
     const resolved = await requireSettings();
     const api = bb.pick(modal.api);
     if (api === null) {
-      throw new Error("No Modal client is available in this build of bb.");
+      fail("unavailable", "No Modal client is available in this build of bb.");
     }
     return { api: api.connect(resolved), settings: resolved };
   }
@@ -189,7 +191,7 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
   function requireUnique(kind: string, entries: { name: string }[]) {
     const names = entries.map((entry) => entry.name.toLocaleLowerCase());
     if (new Set(names).size !== names.length) {
-      throw new Error(`${kind} names must be unique.`);
+      fail("invalid", `${kind} names must be unique.`);
     }
   }
 
@@ -201,14 +203,14 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
         ? (options.presets[0] ?? null)
         : options.presets.find((entry) => entry.name === inputs.preset);
     if (preset === undefined) {
-      throw new Error(`There is no sandbox size named ${inputs.preset}.`);
+      fail("invalid", `There is no sandbox size named ${inputs.preset}.`);
     }
     const image =
       inputs.image === undefined
         ? options.images[0]
         : options.images.find((entry) => entry.name === inputs.image);
     if (image === undefined) {
-      throw new Error(`There is no Modal image named ${inputs.image}.`);
+      fail("invalid", `There is no Modal image named ${inputs.image}.`);
     }
     return { preset, image };
   }
@@ -550,7 +552,7 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
   bb.implement(modal.machine, async ({ hostId }) => {
     const resource = await storedResource(hostId);
     if (resource === null) {
-      throw new Error("No provider resource for this machine.");
+      fail("not_found", "No provider resource for this machine.");
     }
     const { api } = await client();
     const running =
@@ -565,10 +567,19 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
   });
 
   bb.implement(modal.image, imageDefinition);
-  bb.implement(modal.updateImage, async ({ file }) => {
-    const dockerfile = dockerfileSchema.parse(
-      await readFile(resolve(file), "utf8"),
-    );
+  bb.implement(modal.updateImage, async ({ file, cwd, hostId }) => {
+    const machine = hostId ?? bb.server.hostId;
+    const path = posix.resolve(cwd ?? process.cwd(), file);
+    const read = await bb.runners
+      .call(machine, machineFiles.read, { path })
+      .catch((error: unknown) =>
+        fail("not_found", `Could not read ${path}: ${errorMessage(error)}`),
+      );
+    const text =
+      read.contentEncoding === "base64"
+        ? Buffer.from(read.content, "base64").toString("utf8")
+        : read.content;
+    const dockerfile = dockerfileSchema.parse(text);
     await kv.set(DOCKERFILE_KEY, dockerfile);
     return { dockerfile, customized: true };
   });
@@ -582,7 +593,8 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
     const parsed = launchOptionsSchema.parse(value);
     const [standard, ...extra] = parsed.images;
     if (standard?.name !== "Default" || standard.source !== "dockerfile") {
-      throw new Error(
+      fail(
+        "invalid",
         'The first image must be the bundled "Default" Dockerfile.',
       );
     }
@@ -616,14 +628,15 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
   async function debugSandbox(sandboxId: string) {
     const stored = await kv.get<unknown>(`debug/${sandboxId}`);
     if (stored === undefined) {
-      throw new Error(
-        "Unknown debug sandbox; use an ID returned by bb modal sandbox run",
-      );
+      fail("not_found", "Unknown debug sandbox.", {
+        hint: "Use an ID returned by bb modal sandbox run.",
+      });
     }
     const record = debugSchema.parse(stored);
     const { api } = await client();
     if (record.accountIdentity !== (await api.accountIdentity())) {
-      throw new Error(
+      fail(
+        "conflict",
         "Restore the Modal account that created this debug sandbox",
       );
     }
@@ -661,9 +674,9 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
   bb.implement(modal.createSandboxCommand, async ({ sandboxId, command }) => {
     const { api, running } = await debugSandbox(sandboxId);
     if (!running) {
-      throw new Error(
-        "Debug sandbox has stopped or expired; run a new sandbox",
-      );
+      fail("conflict", "Debug sandbox has stopped or expired.", {
+        hint: "Run a new sandbox with bb modal sandbox run.",
+      });
     }
     return api.exec(sandboxId, command, {
       timeoutMs: 60_000,

@@ -106,8 +106,13 @@ export const modal = contract("modal", {
         .string()
         .min(1)
         .describe(
-          "Dockerfile to save; a relative path resolves from the server's working directory",
+          "Dockerfile to save; a relative path resolves from cwd on hostId",
         ),
+      cwd: z.string().optional().describe("Directory a relative path uses"),
+      hostId: z
+        .string()
+        .optional()
+        .describe("Machine to read the file on; default this server"),
     }),
     output: imageDefinition,
     kind: "write",
@@ -115,6 +120,7 @@ export const modal = contract("modal", {
       cli: {
         path: "modal image set",
         summary: "Save a Dockerfile for future machines",
+        from: { cwd: "cwd", hostId: "hostId" },
         print: () => "Saved the Dockerfile for future machines.",
       },
     },
@@ -183,6 +189,7 @@ export const modal = contract("modal", {
             output.stderr,
             output.exitCode === 0 ? "" : `Exit code ${output.exitCode}\n`,
           ].join(""),
+        exitCode: (output) => output.exitCode,
       },
     },
   }),

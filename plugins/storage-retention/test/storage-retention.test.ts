@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { scratch } from "../../../apps/server/test/helpers.js";
 import { createThreadServer } from "../../../apps/server/test/thread-harness.js";
+import { storageRetention } from "../contract.js";
 import { nodeFs, storageOps } from "../runner.js";
 
 const DAY = 86_400_000;
@@ -165,6 +166,16 @@ it("scans thread storage and clears orphans and archived files", async () => {
   );
   expect(retry.json()).toEqual({ retriedCount: 0 });
   expect((await server.cli("retry-worktree-cleanup")).exitCode).toBe(1);
+  await expect(
+    server.ctx.kernel.call(storageRetention.removeOrphans, {
+      hostId: "host_missing",
+    }),
+  ).rejects.toMatchObject({ code: "conflict" });
+  await expect(
+    server.ctx.kernel.call(storageRetention.retryWorktreeCleanup, {
+      hostId: "host_missing",
+    }),
+  ).rejects.toMatchObject({ code: "not_found" });
   const machine = ["--machine", server.hostId, "--yes"];
   const cleanup = await server.cli(
     "cleanup",

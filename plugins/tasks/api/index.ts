@@ -1,4 +1,4 @@
-import { threads, type PluginServerApi } from "@bb/plugin";
+import { fail, threads, type PluginServerApi } from "@bb/plugin";
 import type { z } from "zod";
 import type { TasksStore } from "../db/store.js";
 import {
@@ -101,7 +101,10 @@ export function publish({ bb }: TasksContext, ...changes: TaskChange[]): void {
 
 export function requireTask(store: TasksStore, taskId: string): Task {
   const task = store.getTask(taskId);
-  if (!task) throw new Error(`Task not found: ${taskId}`);
+  if (!task)
+    fail("not_found", `Task not found: ${taskId}`, {
+      reason: "task_not_found",
+    });
   return task;
 }
 
@@ -113,17 +116,17 @@ function checkParent(
 ): void {
   if (parentTaskId === null) return;
   if (parentTaskId === ownId) {
-    throw new Error("A task cannot be its own parent");
+    fail("invalid", "A task cannot be its own parent");
   }
   const parent = requireTask(store, parentTaskId);
   if (parent.projectId !== projectId) {
-    throw new Error("A sub-task must belong to the same project as its parent");
+    fail("invalid", "A sub-task must belong to the same project as its parent");
   }
   if (parent.parentTaskId !== null) {
-    throw new Error("Tasks support at most one level of sub-tasks");
+    fail("invalid", "Tasks support at most one level of sub-tasks");
   }
   if (ownId && store.listTasks({ parentTaskId: ownId }).length > 0) {
-    throw new Error("A task with sub-tasks cannot itself become a sub-task");
+    fail("invalid", "A task with sub-tasks cannot itself become a sub-task");
   }
 }
 
@@ -134,7 +137,8 @@ function checkLabels(
 ): void {
   for (const labelId of labelIds) {
     if (store.getLabel(labelId)?.projectId !== projectId) {
-      throw new Error(
+      fail(
+        "invalid",
         `Task labels must belong to the task project: ${labelId}`,
       );
     }
@@ -265,7 +269,7 @@ export async function taskDetail(
 ): Promise<TaskDetail> {
   const { store } = ctx;
   const project = store.getProject(task.projectId);
-  if (!project) throw new Error(`Project not found: ${task.projectId}`);
+  if (!project) fail("not_found", `Project not found: ${task.projectId}`);
   return {
     task,
     project,

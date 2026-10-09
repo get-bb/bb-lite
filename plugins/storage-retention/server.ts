@@ -1,6 +1,7 @@
 import { basename, dirname } from "node:path";
 import {
   environments,
+  fail,
   machines,
   threads,
   type PluginServerApi,
@@ -147,7 +148,7 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
     const host = (await bb.call(machines.list, {})).find(
       (entry) => entry.id === hostId,
     );
-    if (host === undefined) throw new Error(`Unknown machine ${hostId}.`);
+    if (host === undefined) fail("not_found", `Unknown machine ${hostId}.`);
     return host;
   };
 
@@ -161,11 +162,11 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
   const scanHost = async (hostId: string): Promise<Usage> => {
     const host = await machine(hostId);
     if (host.status !== "connected")
-      throw new Error(`Machine ${hostId} is offline.`);
+      fail("unavailable", `Machine ${hostId} is offline.`);
     const known = await listThreads({ hostId });
     const rootPath = host.threadStorageRootPath;
     if (rootPath === null)
-      throw new Error(`No thread storage is known on machine ${hostId}.`);
+      fail("unavailable", `No thread storage is known on machine ${hostId}.`);
     const measured = await bb.runners.call(hostId, storageRetention.measure, {
       rootPath,
     });
@@ -228,7 +229,9 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
   const requireScan = async (hostId: string) => {
     const report = await cached(hostId);
     if (report === null)
-      throw new Error(`Scan machine ${hostId} first with storage usage.`);
+      fail("conflict", `Scan machine ${hostId} first with storage usage.`, {
+        hint: `bb storage usage --machine ${hostId}`,
+      });
     return report;
   };
 
@@ -253,7 +256,7 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
   const retryWorktreeCleanup = async ({ hostId }: { hostId: string }) => {
     const host = await machine(hostId);
     if (host.status !== "connected")
-      throw new Error(`Machine ${hostId} is offline.`);
+      fail("unavailable", `Machine ${hostId} is offline.`);
     const [all, known] = await Promise.all([
       bb.call(environments.list, { hostId }),
       listThreads(),
@@ -289,15 +292,15 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
 
   const clearThread = async ({ threadId }: { threadId: string }) => {
     if (clearing.has(threadId))
-      throw new Error(`Thread ${threadId} is already being cleared.`);
+      fail("conflict", `Thread ${threadId} is already being cleared.`);
     clearing.add(threadId);
     try {
       const thread = await bb.call(threads.get, { threadId });
       if (!stopped(thread))
-        throw new Error("Stop the thread before clearing its storage.");
+        fail("conflict", "Stop the thread before clearing its storage.");
       const location = await bb.call(threads.storageLocation, { threadId });
       if (location === null)
-        throw new Error(`Thread ${threadId} has no storage machine.`);
+        fail("not_found", `Thread ${threadId} has no storage machine.`);
       await bb.runners.call(location.hostId, storageRetention.clear, {
         rootPath: dirname(location.path),
         names: [basename(location.path)],
@@ -360,7 +363,7 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
     for (const report of reports) {
       if (!online.has(report.hostId)) {
         if (hostId === undefined) continue;
-        throw new Error(`Machine ${report.hostId} is offline.`);
+        fail("unavailable", `Machine ${report.hostId} is offline.`);
       }
       const names = await archivedNames(report);
       if (names.length === 0) continue;

@@ -199,9 +199,48 @@ it("adds the memory index to a project thread's instructions and edits from sett
     kind: "procedure",
     writeReason: "Edited in Memory settings",
   });
+  await expect(
+    ctx.kernel.call(memory.delete, {
+      memoryId: saved.memory.id,
+      expectedVersion: 1,
+    }),
+  ).rejects.toMatchObject({ code: "conflict" });
+  await expect(
+    ctx.kernel.call(memory.delete, {
+      memoryId: "mem_none",
+      expectedVersion: 1,
+    }),
+  ).rejects.toMatchObject({ code: "not_found" });
   await ctx.kernel.call(memory.delete, {
     memoryId: saved.memory.id,
     expectedVersion: 2,
   });
   expect((await ctx.kernel.call(memory.list, {})).memories).toEqual([]);
+});
+
+it("checks flag ranges, comma-split tags and update fields while parsing", async () => {
+  const { cli } = await memoryServer();
+  const saved = await cli(
+    add("split", "project", ["--tag", "a, b", "--tag", "c", "--json"]),
+    project,
+  );
+  expect(saved.json().memory.tags).toEqual(["a", "b", "c"]);
+  const tooMany = await cli(["catalog", "--limit", "500", "--json"], project);
+  expect(tooMany.exitCode).not.toBe(0);
+  expect(tooMany.stdout + tooMany.stderr).toContain("from 1 to 100");
+  const nothing = await cli(
+    [
+      "update",
+      saved.json().memory.id,
+      "--expected-version",
+      "1",
+      "--reason",
+      "x",
+    ],
+    project,
+  );
+  expect(nothing.exitCode).not.toBe(0);
+  expect(nothing.stdout + nothing.stderr).toContain(
+    "one of --summary, --details, --kind, --tag, --importance, --pinned",
+  );
 });
