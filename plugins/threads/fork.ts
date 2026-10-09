@@ -1,7 +1,7 @@
 import { fail, threads } from "@bb/plugin";
 import type { PromptInput } from "@bb/domain";
 import type { ThreadResponse } from "@bb/server-contract";
-import type { z } from "zod";
+import { z } from "zod";
 import { actorUserId, viewerId } from "@bb/server-kit/auth/actor";
 import {
   latestSequence,
@@ -74,6 +74,15 @@ function inheritedRows(db: Db, threadId: string, end: number) {
   );
 }
 
+function withInheritedSession(row: InheritedRow): string {
+  if (row.type !== "turn/completed" || row.providerThreadId === null) {
+    return row.data;
+  }
+  const data = z.record(z.string(), z.unknown()).parse(JSON.parse(row.data));
+  const inheritedProviderThreadId = row.providerThreadId;
+  return JSON.stringify({ ...data, inheritedProviderThreadId });
+}
+
 function inheritHistory(db: Db, sourceId: string, forkId: string, end: number) {
   const remapped = new Map<number, number>();
   inheritedRows(db, sourceId, end).forEach((row, index) => {
@@ -82,6 +91,7 @@ function inheritHistory(db: Db, sourceId: string, forkId: string, end: number) {
     remapped.set(row.sequence, sequence);
     insertRow(db, "events", {
       ...event,
+      data: withInheritedSession(row),
       id: newId("evt"),
       threadId: forkId,
       providerThreadId: null,

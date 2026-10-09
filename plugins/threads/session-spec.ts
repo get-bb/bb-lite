@@ -57,7 +57,8 @@ export function rewindPoint(db: Db, threadId: string, before: number) {
     providerThreadId: string | null;
     checkpointId: string | null;
   }>(
-    `SELECT sequence, provider_thread_id AS providerThreadId,
+    `SELECT sequence, COALESCE(provider_thread_id,
+         json_extract(data, '$.inheritedProviderThreadId')) AS providerThreadId,
        json_extract(data, '$.providerCheckpointId') AS checkpointId
      FROM events
      WHERE thread_id = ? AND type = 'turn/completed' AND sequence < ?
@@ -70,37 +71,8 @@ export function rewindPoint(db: Db, threadId: string, before: number) {
   if (turn === undefined || turn.sequence < cleared) return "fresh";
   const { checkpointId } = turn;
   if (checkpointId === null) return null;
-  const providerThreadId =
-    turn.providerThreadId ?? inheritedSession(db, threadId, checkpointId);
+  const { providerThreadId } = turn;
   return providerThreadId === null ? null : { providerThreadId, checkpointId };
-}
-
-function inheritedSession(
-  db: Db,
-  threadId: string,
-  checkpointId: string,
-): string | null {
-  let current = threadId;
-  for (let hops = 0; hops < 16; hops += 1) {
-    const fork = db.get<{ sourceThreadId: string | null }>(
-      "SELECT source_thread_id AS sourceThreadId FROM threads WHERE id = ?",
-      current,
-    );
-    const source = fork?.sourceThreadId ?? null;
-    if (source === null) return null;
-    const turn = db.get<{ providerThreadId: string | null }>(
-      `SELECT provider_thread_id AS providerThreadId FROM events
-       WHERE thread_id = ? AND type = 'turn/completed'
-         AND json_extract(data, '$.providerCheckpointId') = ?
-       ORDER BY sequence DESC LIMIT 1`,
-      source,
-      checkpointId,
-    );
-    if (turn === undefined) return null;
-    if (turn.providerThreadId !== null) return turn.providerThreadId;
-    current = source;
-  }
-  return null;
 }
 
 function rewoundFrom(db: Db, thread: ThreadRow) {

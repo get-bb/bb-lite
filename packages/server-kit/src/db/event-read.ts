@@ -374,11 +374,13 @@ export function latestCheckpoint(
   atOrBefore = UNBOUNDED,
 ) {
   const row = db.get<{ providerThreadId: string; checkpointId: string }>(
-    `SELECT provider_thread_id AS providerThreadId,
+    `SELECT COALESCE(provider_thread_id,
+         json_extract(data, '$.inheritedProviderThreadId')) AS providerThreadId,
        json_extract(data, '$.providerCheckpointId') AS checkpointId
      FROM events
      WHERE thread_id = ? AND type = 'turn/completed'
-       AND provider_thread_id IS NOT NULL
+       AND COALESCE(provider_thread_id,
+         json_extract(data, '$.inheritedProviderThreadId')) IS NOT NULL
        AND json_extract(data, '$.providerCheckpointId') IS NOT NULL
        AND sequence <= ?
      ORDER BY sequence DESC LIMIT 1`,

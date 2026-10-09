@@ -161,6 +161,40 @@ it("edits the first message of a fork by forking the source again", async () => 
   });
 });
 
+it("still edits in a fork after its source's history is rewritten", async () => {
+  const s = await forkScenario();
+  await s.send(s.id, "count");
+  const forked = await s.created({});
+  await s.send(forked, "count");
+  const requests = (threadId: string) =>
+    s.ctx.db.all<{ sequence: number }>(
+      `SELECT sequence FROM events WHERE thread_id = ?
+       AND type = 'client/turn/requested' ORDER BY sequence`,
+      threadId,
+    );
+  const update = (threadId: string, seq: number) =>
+    s.request(`/threads/${threadId}/messages/update`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ seq, input: text("count") }),
+    });
+  const rewritten = await update(s.id, requests(s.id)[0]?.sequence ?? 0);
+  expect(rewritten.status).toBe(200);
+  await vi.waitFor(async () => {
+    expect((await s.conversation(s.id)).at(-1)).toBe(
+      "assistant: Turn count: 1",
+    );
+  });
+  const last = requests(forked).at(-1)?.sequence ?? 0;
+  const edited = await update(forked, last);
+  expect(edited.status).toBe(200);
+  await vi.waitFor(async () => {
+    expect((await s.conversation(forked)).at(-1)).toBe(
+      "assistant: Turn count: 3",
+    );
+  });
+});
+
 it("seeds a transcript when the provider cannot fork a checkpoint", async () => {
   const s = await forkScenario();
   const definition = findProviderDefinition(s.ctx.db, "echo");
