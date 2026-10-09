@@ -42,6 +42,7 @@ export const keepAwake = contract("keep-awake", {
     input: z.object({ enabled: z.boolean() }).strict(),
     output: z.object({ enabled: z.boolean(), supported: z.boolean() }),
     kind: "write",
+    audit: false,
     internal: true,
   }),
 });

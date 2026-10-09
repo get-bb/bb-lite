@@ -16,7 +16,8 @@
     "test": "vitest run",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
     "postinstall": "node scripts/ensure-native.mjs",
-    "api:lock": "pnpm -C packages/plugin run api:lock"
+    "api:lock": "pnpm -C packages/plugin run api:lock",
+    "gen:builtins": "node scripts/gen-builtins.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

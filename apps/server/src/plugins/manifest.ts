@@ -23,6 +23,7 @@ const packageSchema = z.object({
       ])
       .default([]),
     forkOf: z.string().min(1).optional(),
+    enabledByDefault: z.boolean().default(true),
     skills: z.array(z.string().min(1)).default([]),
     themes: z
       .array(
@@ -72,6 +73,7 @@ export interface PluginManifest {
   requires: string[];
   requiredVersions: Record<string, string>;
   forkOf: string | null;
+  enabledByDefault: boolean;
   skillDirs: string[];
   themes: ManifestTheme[];
 }
@@ -127,6 +129,7 @@ export async function readManifest(path: string): Promise<PluginManifest> {
     requires: required,
     requiredVersions: ranged,
     forkOf: bb.forkOf ?? null,
+    enabledByDefault: bb.enabledByDefault,
     skillDirs: bb.skills.map(inside),
     themes: bb.themes.map(({ css, codeTheme, ...theme }) => ({
       ...theme,

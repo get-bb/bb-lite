@@ -247,7 +247,9 @@ export class PluginHost extends PluginRegistry {
   private isEnabled(record: PluginRecord): boolean {
     const { id } = record.manifest;
     if (this.isCore(id)) return true;
-    return record.configEnabled && isPluginEnabled(this.options.db, id);
+    const { enabledByDefault } = record.manifest;
+    const chosen = isPluginEnabled(this.options.db, id, enabledByDefault);
+    return record.configEnabled && chosen;
   }
 
   private describe(record: PluginRecord): InstalledPlugin {

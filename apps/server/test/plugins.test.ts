@@ -353,9 +353,7 @@ it("answers the thread engine's queries from what plugins register", async () =>
   const { kernel } = ctx;
   const sections = await kernel.call(sessions.instructions, codex);
   const instructions = ["Use Shout sparingly.", "Thread thr_1"];
-  const builtIn = ["bb-guide", "memory"];
-  const probed = sections.filter(({ source }) => !builtIn.includes(source));
-  expect(probed.map(({ text }) => text)).toEqual(instructions);
+  expect(sections.map(({ text }) => text)).toEqual(instructions);
   const claude = { ...codex, providerId: "claude-code" };
   expect(await kernel.call(sessions.tools, claude)).toEqual([]);
   const inputSchema = { type: "object", required: ["text"] };

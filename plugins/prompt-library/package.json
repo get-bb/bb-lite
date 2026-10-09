@@ -15,7 +15,8 @@
     "app": "./app.tsx",
     "skills": [
       "skills"
-    ]
+    ],
+    "enabledByDefault": false
   },
   "keywords": [
     "bb-plugin"

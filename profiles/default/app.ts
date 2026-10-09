@@ -1,4 +1,6 @@
 import type { PluginAppEntry } from "@bb/plugin/app";
+import { appLoaders } from "./builtins.app";
+import { CORE, LOADED_FIRST } from "./profiles";
 import composer from "../../plugins/composer/app";
 import settings from "../../plugins/settings/app";
 import shell from "../../plugins/shell/app";
@@ -26,60 +28,13 @@ export const coreAppPlugins: readonly CoreAppPlugin[] = [
   core("settings", settings),
 ];
 
-export const appPlugins: readonly BuiltinAppPlugin[] = [
-  {
-    id: "thread-list",
-    load: () => import("../../plugins/thread-list/app"),
-  },
-  {
-    id: "navigation",
-    load: () => import("../../plugins/navigation/app"),
-  },
-  { id: "tasks", load: () => import("../../plugins/tasks/app") },
-  { id: "bb-guide", load: () => import("../../plugins/bb-guide/app") },
-  { id: "drafts", load: () => import("../../plugins/drafts/app") },
-  {
-    id: "plugin-api-tester",
-    load: () => import("../../plugins/plugin-api-tester/app"),
-  },
-  {
-    id: "provider-usage",
-    load: () => import("../../plugins/provider-usage/app"),
-  },
-  {
-    id: "connect",
-    load: () => import("../../plugins/connect/app"),
-  },
-  {
-    id: "scheduled-send",
-    load: () => import("../../plugins/scheduled-send/app"),
-    id: "memory",
-    load: () => import("../../plugins/memory/app"),
-  },
-  {
-    id: "secrets",
-    load: () => import("../../plugins/secrets/app"),
-  },
-  {
-    id: "ask-user-question",
-    load: () => import("../../plugins/ask-user-question/app"),
-  },
-  {
-    id: "account-pool",
-    load: () => import("../../plugins/account-pool/app"),
-  },
-  {
-    id: "inline-vis",
-    load: () => import("../../plugins/inline-vis/app"),
-  },
-  {
-    id: "pdf-preview",
-    load: () => import("../../plugins/pdf-preview/app"),
-    id: "concurrency-limit",
-    load: () => import("../../plugins/concurrency-limit/app"),
-  },
-  { id: "keep-awake", load: () => import("../../plugins/keep-awake/app") },
-    id: "prompt-library",
-    load: () => import("../../plugins/prompt-library/app"),
-  },
+const ids = Object.keys(appLoaders).filter((id) => !CORE.includes(id));
+const ordered = [
+  ...LOADED_FIRST.filter((id) => ids.includes(id)),
+  ...ids.filter((id) => !LOADED_FIRST.includes(id)).sort(),
 ];
+
+export const appPlugins: readonly BuiltinAppPlugin[] = ordered.flatMap((id) => {
+  const load = appLoaders[id];
+  return load === undefined ? [] : [{ id, load }];
+});

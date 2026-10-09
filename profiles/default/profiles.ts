@@ -4,6 +4,15 @@ export interface Profile {
 }
 
 const PROVIDERS = ["provider-codex", "provider-claude-code", "provider-echo"];
+const SCREEN = [
+  "thread-list",
+  "navigation",
+  "pdf-preview",
+  "inline-vis",
+  "scheduled-send",
+  "prompt-library",
+  "provider-usage",
+];
 const AGENT_FEATURES = [
   "secrets",
   "ask-user-question",
@@ -11,36 +20,23 @@ const AGENT_FEATURES = [
   "bb-guide",
   "drafts",
   "provider-retry",
-  "scheduled-send",
   "memory",
   "audit",
   "plugin-dev",
+  "plugin-api-tester",
 ];
-const SCREEN = ["thread-list", "navigation", "pdf-preview", "inline-vis"];
-const PRODUCT = ["connect", "account-pool", "tasks"];
-const SCREEN = ["thread-list", "navigation"];
-const PRODUCT = ["connect", "account-pool", "tasks", "concurrency-limit"];
-const SCREEN = ["thread-list", "navigation"];
-const PRODUCT = ["connect", "account-pool", "tasks", "keep-awake"];
-const SCREEN = ["thread-list", "navigation"];
-const PRODUCT = ["connect", "account-pool", "tasks", "prompt-library"];
-const SCREEN = ["thread-list", "navigation"];
-const PRODUCT = ["connect", "account-pool", "tasks", "provider-usage"];
+const PRODUCT = [
+  "connect",
+  "account-pool",
+  "tasks",
+  "concurrency-limit",
+  "keep-awake",
+];
 
 export const profiles: Record<string, Profile> = {
   default: {
     description: "The whole product.",
     plugins: [...PROVIDERS, ...SCREEN, ...AGENT_FEATURES, ...PRODUCT],
-  },
-  development: {
-    description: "The whole product plus the Plugin API Tester.",
-    plugins: [
-      ...PROVIDERS,
-      ...SCREEN,
-      ...AGENT_FEATURES,
-      ...PRODUCT,
-      "plugin-api-tester",
-    ],
   },
   headless: {
     description:
@@ -52,3 +48,22 @@ export const profiles: Record<string, Profile> = {
     plugins: [...PROVIDERS, "plugin-dev"],
   },
 };
+
+export const CORE = [
+  "identity",
+  "settings",
+  "projects",
+  "machines",
+  "sessions",
+  "threads",
+  "environments",
+  "terminals",
+  "workspace",
+  "audit-log",
+  "shell",
+  "thread-view",
+  "composer",
+  "side-panel",
+];
+
+export const LOADED_FIRST = [...PROVIDERS, "thread-list", "navigation"];

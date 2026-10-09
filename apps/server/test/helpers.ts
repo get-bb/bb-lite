@@ -8,12 +8,13 @@ import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { devNull, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import {
   PERSONAL_PROJECT_ID,
   type RealtimeSubscriptionTarget,
@@ -34,9 +35,12 @@ import type { ServerRunner } from "@bb/server-kit/context";
 import {
   insertRow,
   openDatabase,
+  type Db,
   type RowValues,
 } from "@bb/server-kit/db/index";
+import { setPluginEnabled } from "@bb/server-kit/db/plugins";
 import { localRunnerFor } from "@bb/server-kit/runners/local";
+import { builtinPlugins } from "../src/plugins/builtin.js";
 import { createServer } from "../src/server.js";
 
 export type Json = Record<string, unknown>;
@@ -235,10 +239,53 @@ function facades({ kernel }: HostContext) {
   return { threads, environments };
 }
 
+const BASELINE = [
+  "provider-codex",
+  "provider-claude-code",
+  "provider-echo",
+  "thread-list",
+  "navigation",
+  "secrets",
+  "ask-user-question",
+  "custom-instructions",
+  "connect",
+  "audit",
+  "plugin-dev",
+  "account-pool",
+  "tasks",
+];
+
+function requiredBy(id: string, seen: string[] = []): string[] {
+  if (seen.includes(id)) return seen;
+  const file = new URL(`../../../plugins/${id}/package.json`, import.meta.url);
+  const manifest = JSON.parse(readFileSync(file, "utf8")) as {
+    bb?: { requires?: string[] | Record<string, string> };
+  };
+  const requires = manifest.bb?.requires ?? [];
+  const needed = Array.isArray(requires) ? requires : Object.keys(requires);
+  return needed.reduce((found, next) => requiredBy(next, found), [...seen, id]);
+}
+
+function pluginsUnderTest(
+  wanted: "all" | readonly string[] | undefined,
+  db: Db,
+) {
+  if (wanted === "all") return builtinPlugins;
+  const path = expect.getState().testPath ?? "";
+  const own = /[\\/]plugins[\\/]([^\\/]+)[\\/]test[\\/]/u.exec(path)?.[1];
+  const named = wanted ?? (own === undefined ? [] : [own]);
+  const ids = named.reduce((found, id) => requiredBy(id, found), BASELINE);
+  for (const id of named) setPluginEnabled(db, id, true);
+  return builtinPlugins.filter(({ directory }) =>
+    ids.includes(basename(directory)),
+  );
+}
+
 export async function createTestServer(
   overrides: Partial<ServerConfig> = {},
   kind: RunnerKind = "fake",
   databasePath = ":memory:",
+  plugins?: "all" | readonly string[],
 ) {
   const dataDir = scratch();
   const env = { BB_DATA_DIR: dataDir, BB_SERVER_PORT: "0" };
@@ -251,7 +298,8 @@ export async function createTestServer(
   const connect = localRunner(kind, config, runner);
   const tunnelToken = "1";
   const wiring = { config, now, db, tunnelToken };
-  const server = createServer({ ...wiring, localRunner: connect });
+  const builtins = pluginsUnderTest(plugins, db);
+  const server = createServer({ ...wiring, localRunner: connect, builtins });
   const { url } = await server.listen();
   onTestFinished(() => server.close());
   const request = (path: string, init: RequestInit = {}) =>

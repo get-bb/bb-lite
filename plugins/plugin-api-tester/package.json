@@ -12,7 +12,8 @@
     "description": "Exercise and inspect bb plugin API surfaces during development.",
     "icon": "Beaker",
     "server": "./server.ts",
-    "app": "./app.tsx"
+    "app": "./app.tsx",
+    "enabledByDefault": false
   },
   "keywords": [
     "bb-plugin"

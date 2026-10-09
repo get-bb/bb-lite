@@ -2,12 +2,12 @@ import { insertRow, type Db } from "./index.js";
 
 export type PluginRowTable = "plugin_kv" | "plugin_settings";
 
-export function isPluginEnabled(db: Db, id: string): boolean {
+export function isPluginEnabled(db: Db, id: string, byDefault = true): boolean {
   const row = db.get<{ enabled: number }>(
     "SELECT enabled FROM plugins WHERE id = ?",
     id,
   );
-  return row === undefined || row.enabled === 1;
+  return row === undefined ? byDefault : row.enabled === 1;
 }
 
 export function setPluginEnabled(db: Db, id: string, enabled: boolean): void {

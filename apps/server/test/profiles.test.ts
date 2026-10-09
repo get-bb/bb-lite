@@ -1,5 +1,8 @@
 import { readdirSync } from "node:fs";
 import { basename, sep } from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { profiles } from "@bb/profile-default/profiles";
 import { corePlugins, profilePlugins } from "@bb/profile-default/server";
 import { expect, it } from "vitest";
 import { SERVER_RUNTIME_MODULES } from "../src/plugins/runtime.js";
@@ -17,10 +20,16 @@ it("picks the in-repo plugins a profile names", () => {
   ]);
   expect(ids("headless")).not.toContain("thread-list");
   expect(ids("default")).toContain("thread-list");
-  expect(ids("default")).toHaveLength(15);
-  expect(ids("default")).not.toContain("plugin-api-tester");
-  expect(ids("development")).toContain("plugin-api-tester");
+  expect(ids("default").sort()).toEqual([...profiles.default.plugins].sort());
   expect(() => profilePlugins("nope")).toThrow('Unknown profile "nope"');
+});
+
+it("registers every plugin directory through the generated tables", () => {
+  const cwd = fileURLToPath(new URL("../../..", import.meta.url));
+  const check = ["scripts/gen-builtins.mjs", "--check"];
+  expect(execFileSync("node", check, { cwd, encoding: "utf8" })).toContain(
+    "current",
+  );
 });
 
 it("loads core through the plugin loader, in the order requirements give", async () => {

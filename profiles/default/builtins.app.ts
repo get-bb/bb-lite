@@ -1,0 +1,29 @@
+import type { PluginAppEntry } from "@bb/plugin/app";
+
+type Load = () => Promise<{ default: PluginAppEntry }>;
+
+export const appLoaders: Record<string, Load> = {
+  "account-pool": () => import("../../plugins/account-pool/app"),
+  "ask-user-question": () => import("../../plugins/ask-user-question/app"),
+  "bb-guide": () => import("../../plugins/bb-guide/app"),
+  composer: () => import("../../plugins/composer/app"),
+  "concurrency-limit": () => import("../../plugins/concurrency-limit/app"),
+  connect: () => import("../../plugins/connect/app"),
+  drafts: () => import("../../plugins/drafts/app"),
+  "inline-vis": () => import("../../plugins/inline-vis/app"),
+  "keep-awake": () => import("../../plugins/keep-awake/app"),
+  memory: () => import("../../plugins/memory/app"),
+  navigation: () => import("../../plugins/navigation/app"),
+  "pdf-preview": () => import("../../plugins/pdf-preview/app"),
+  "plugin-api-tester": () => import("../../plugins/plugin-api-tester/app"),
+  "prompt-library": () => import("../../plugins/prompt-library/app"),
+  "provider-usage": () => import("../../plugins/provider-usage/app"),
+  "scheduled-send": () => import("../../plugins/scheduled-send/app"),
+  secrets: () => import("../../plugins/secrets/app"),
+  settings: () => import("../../plugins/settings/app"),
+  shell: () => import("../../plugins/shell/app"),
+  "side-panel": () => import("../../plugins/side-panel/app"),
+  tasks: () => import("../../plugins/tasks/app"),
+  "thread-list": () => import("../../plugins/thread-list/app"),
+  "thread-view": () => import("../../plugins/thread-view/app"),
+};

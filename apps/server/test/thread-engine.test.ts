@@ -80,7 +80,7 @@ it("creates a thread, records provisioning and submits the first turn", async ()
     },
     customModels: [tuned],
   });
-  expect(session.instructions).toContain("You are working inside bb");
+  expect(session.instructions).not.toContain("You are working inside bb");
   const tools = session.dynamicTools.map((tool) => tool.name);
   expect(tools).toEqual(["AskUserQuestion"]);
   const providerOptions = { memoryEnabled: true };
