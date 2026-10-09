@@ -11,7 +11,7 @@ import { lookup } from "mime-types";
 import { dataPaths } from "../config.js";
 import type { ServerServices } from "../context.js";
 import { newId, type Db } from "../db/index.js";
-import { invalidRequest, notFound } from "../http/errors.js";
+import { ApiError, invalidRequest, notFound } from "../http/errors.js";
 
 interface AttachmentRecord {
   projectId: string;
@@ -90,7 +90,9 @@ export async function storeAttachment(
   }
   if (file.size > PROMPT_ATTACHMENT_MAX_BYTES) {
     const limit = megabytes(PROMPT_ATTACHMENT_MAX_BYTES);
-    throw invalidRequest(
+    throw new ApiError(
+      413,
+      "file_too_large",
       `${file.name} is ${megabytes(file.size)}MB, over the ${limit}MB ` +
         "attachment limit",
     );

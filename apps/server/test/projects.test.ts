@@ -147,7 +147,10 @@ it("stores attachments and serves them with ranges", async () => {
   expect(served.headers.get("x-content-type-options")).toBe("nosniff");
   const tooLarge = new File([new Uint8Array(35 * 1024 * 1024 + 1)], "big.bin");
   const message = "big.bin is 35MB, over the 35MB attachment limit";
-  expect(await upload(tooLarge)).toMatchObject({ uploaded: { message } });
+  expect(await upload(tooLarge)).toMatchObject({
+    status: 413,
+    uploaded: { message },
+  });
   const json = { sourceProjectId: project.id, paths: [attachment.path] };
   const copy = server.api.projects[":id"].attachments.copy;
   expect((await copy.$post({ param: personal, json })).status).toBe(200);
