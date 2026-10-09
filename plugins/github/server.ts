@@ -509,6 +509,8 @@ export default function githubServer(bb: PluginServerApi): void {
       if (base !== undefined) args.push("--base", base);
       if (draft === true) args.push("--draft");
       const url = (await gh(args, where)).trim().split("\n").at(-1) ?? "";
+      bb.changed(pullRequests.get);
+      bb.changed(pullRequests.forThread);
       return toPull(
         await json(["pr", "view", url, "--json", PR_FIELDS], where),
       );
@@ -537,6 +539,7 @@ export default function githubServer(bb: PluginServerApi): void {
     const { where, refresh } = await openPull(environmentId);
     await gh(["pr", "ready", ...(draft ? ["--undo"] : [])], where);
     bb.changed(pullRequests.get);
+    bb.changed(pullRequests.details);
     return refresh();
   });
   bb.implement(pullRequests.merge, async ({ environmentId, method }) => {
@@ -548,6 +551,7 @@ export default function githubServer(bb: PluginServerApi): void {
     }
     await gh(["pr", "merge", `--${method}`], where);
     bb.changed(pullRequests.get);
+    bb.changed(pullRequests.details);
     return refresh();
   });
   bb.implement(pullRequests.details, ({ repo, number }) =>

@@ -237,12 +237,21 @@ export function PullPanelTab({ threadId }: SidePanelPanelProps) {
     return <div className="p-4 text-sm text-muted-foreground">Loading…</div>;
   }
   if (selected === null) {
+    const open = filterItems(pulls.data?.items ?? [], "is:open", null);
+    const empty =
+      pulls.error?.message ??
+      (pulls.data === undefined
+        ? "Loading…"
+        : "No open pull requests in the tracked repos.");
     return (
       <div className="flex flex-col gap-2 p-4">
         <p className="text-xs text-muted-foreground">
           No pull request is linked to this thread yet. Pick one:
         </p>
-        {filterItems(pulls.data?.items ?? [], "is:open", null).map((item) => (
+        {open.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{empty}</p>
+        ) : null}
+        {open.map((item) => (
           <button
             key={`${item.repo}#${item.number}`}
             type="button"
