@@ -111,7 +111,8 @@ it("keeps environment variable values encrypted and write-only", async () => {
 });
 
 it("reports each enabled provider's install and login state", async () => {
-  const { api, runner } = await createTestServer();
+  const server = await createTestServer();
+  const { runner } = server;
   const base = { executablePath: null, message: null, version: "1.0.0" };
   runner.script.listProviders = async () => [
     { ...base, providerId: "echo", installed: true, auth: "ready" },
@@ -127,8 +128,8 @@ it("reports each enabled provider's install and login state", async () => {
     { ...base, providerId: "claude-code", installed: false, auth: "unknown" },
     { ...base, providerId: "nope", installed: true, auth: "ready" },
   ];
-  const response = await api.sessions["provider-status"].$get({ query: {} });
-  const statuses = await response.json();
+  type Status = { providerId: string; state: string };
+  const statuses = await server.read<Status[]>("/sessions/provider-status");
   expect(statuses.map(({ providerId, state }) => [providerId, state])).toEqual([
     ["echo", "ready"],
     ["codex", "update_required"],

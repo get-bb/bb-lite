@@ -1,13 +1,12 @@
 import { getDefaultStore } from "jotai";
-import type { threads } from "@bb/plugin/app";
-import type { z } from "zod";
+import type { EventPayload, threads } from "@bb/plugin/app";
 import { listPanes } from "@bb/app-kit/lib/split-layout";
 import {
   maximizedPaneIdAtom,
   splitLayoutAtom,
 } from "@bb/app-kit/lib/split-layout/atoms";
 
-type PaneAction = z.output<(typeof threads.paneAction)["payload"]>;
+type PaneAction = EventPayload<typeof threads.paneAction>;
 
 export function performPaneAction({ threadId, action }: PaneAction): void {
   const store = getDefaultStore();
@@ -17,14 +16,14 @@ export function performPaneAction({ threadId, action }: PaneAction): void {
     ({ content }) => content.kind === "thread" && content.threadId === threadId,
   );
   if (pane === undefined) return;
-  const maximized = store.get(maximizedPaneIdAtom) === pane.id;
+  const maximized = store.get(maximizedPaneIdAtom) === pane.paneId;
   const next =
     action === "maximize" || action === "spotlight"
-      ? pane.id
+      ? pane.paneId
       : action === "toggle"
         ? maximized
           ? null
-          : pane.id
+          : pane.paneId
         : maximized
           ? null
           : store.get(maximizedPaneIdAtom);

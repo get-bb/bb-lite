@@ -16,7 +16,6 @@ import {
 import { z } from "zod";
 import { sideChat } from "./contract";
 
-const PLUGIN_ID = "side-chat";
 const PANEL_ID = "side-chat";
 const PANEL_TITLE = "Side chat";
 

@@ -95,6 +95,8 @@ export interface EventDef<Payload extends z.ZodType = z.ZodType> {
   readonly description?: string;
 }
 
+export type EventPayload<Event extends EventDef> = z.output<Event["payload"]>;
+
 export type SlotCheck<Item> = (
   item: Item,
   mine: readonly Item[],

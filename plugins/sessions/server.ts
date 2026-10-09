@@ -100,13 +100,11 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
     const enabled = listEnabledProviders(db).some(
       ({ info }) => info.id === providerId,
     );
-    const status = !enabled
-      ? findProviderDefinition(db, providerId) === undefined
-        ? "unknown-provider"
-        : "disabled"
-      : bb.runners.isConnected(machineId)
-        ? "ready"
-        : "offline";
+    const known = findProviderDefinition(db, providerId) !== undefined;
+    const reachable = bb.runners.isConnected(machineId);
+    const off = known ? ("disabled" as const) : ("unknown-provider" as const);
+    const on = reachable ? ("ready" as const) : ("offline" as const);
+    const status = enabled ? on : off;
     return { providerId, machineId, status, label: null, statusMessage: null };
   });
   bb.implement(sessions.providerCatalog, () => listProviderCatalog(db));
