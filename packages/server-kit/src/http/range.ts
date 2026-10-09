@@ -74,8 +74,10 @@ export async function fileResponse(
   const headers = new Headers({
     "accept-ranges": "bytes",
     "cache-control": options.cacheControl,
+    "content-security-policy": "sandbox",
     "content-type": options.contentType,
     etag,
+    "x-content-type-options": "nosniff",
   });
   if (options.ifNoneMatch?.split(",").some((tag) => tag.trim() === etag)) {
     return new Response(null, { status: 304, headers });

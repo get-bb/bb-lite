@@ -135,6 +135,16 @@ it("stores attachments and serves them with ranges", async () => {
   const image = uploadedPromptAttachmentSchema.parse(empty.uploaded);
   expect(image.type).toBe("localImage");
   expect(await read("bytes=0-99", image.path)).toBe("416|bytes */0|");
+  const html = { type: "text/html" };
+  const page = await upload(new File(["<script>1</script>"], "x.html", html));
+  const { path: pagePath } = uploadedPromptAttachmentSchema.parse(
+    page.uploaded,
+  );
+  const served = await fetch(
+    `${base}/${id}/attachments/content?path=${pagePath}`,
+  );
+  expect(served.headers.get("content-security-policy")).toBe("sandbox");
+  expect(served.headers.get("x-content-type-options")).toBe("nosniff");
   const tooLarge = new File([new Uint8Array(35 * 1024 * 1024 + 1)], "big.bin");
   const message = "big.bin is 35MB, over the 35MB attachment limit";
   expect(await upload(tooLarge)).toMatchObject({ uploaded: { message } });
