@@ -33,8 +33,12 @@ renamed copy that runs beside the original.
   implementation. `bb.call(op, input)` calls any operation. `bb.on(op, hook)` wraps one:
   `hook(input, next)`; call `next()` to continue, change what you pass or return to rewrite, and on
   operations that allow it return without `next` to answer or `deny("reason")` to refuse.
-- **Doors**: `doors.cli` makes `bb <path>`; `doors.agent` offers the operation to agents as a tool.
-  Every operation is callable from an app.
+- **Doors**: `doors.cli` makes `bb <path>`; `doors.agent` offers the operation to agents as a tool;
+  `doors.http` serves it at a REST path under `/api/v1` (path parameters, query or JSON body become
+  the one input object). Every operation is callable from an app with `callOp`, `useOp` or
+  `useCall`, and from any program with `createOpClient().call(op, input)`. Core's REST API is the
+  core contracts' operations (`threads.get`, `machines.list`, …); call those instead of fetching
+  URLs.
 - **Event**: `bb.emit(event, payload)`, `bb.on(event, listener)`.
 - **Slot**: a list other plugins add to. `bb.add(slot, item)`, `bb.wrap(slot, matcher, change)`.
   `service<T>()` is a slot with one winner that holds an object: `bb.use(service)`.

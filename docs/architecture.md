@@ -16,13 +16,12 @@ budgets; this file has the shapes.
 | `packages/app-kit`                            | What app parts of core plugins share: the client data layer and hooks, UI primitives, the app's plugin runtime (registry, slots, parts) and components more than one feature uses. A file only one screen plugin uses lives in that plugin. Imported as `@bb/app-kit/<path>`                                                                                                       |
 | `packages/thread-view`                        | Events → timeline rows. Projection runs in the server; row helpers run in the browser                                                                                                                                                                                                                                                                                              |
 | `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes                                                                                                                                                                                                                                                                                                                                     |
-| `packages/sdk`                                | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `packages/app-kit/lib/ws.ts`)                                                                                                                                                                                                                                                           |
 | `apps/relay`                                  | bb-next relay: a Cloudflare Worker with one Durable Object per linked server. Accounts, device linking, and the public address `<label>.<domain>` that tunnels to a bb server. See `docs/relay.md`                                                                                                                                                                                 |
 | `packages/plugin`                             | The kernel and the plugin API: contracts, operations, slots, core contracts, app hooks                                                                                                                                                                                                                                                                                             |
 | `plugins/*`                                   | In-repo plugins. Core: ten server plugins (`identity`, `settings`, `projects`, `machines`, `sessions`, `threads`, `environments`, `terminals`, `workspace`, `audit-log`) and five app plugins (`shell`, `thread-view`, `composer`, `side-panel`, and the app part of `settings`). The rest are providers and add-ons (thread list, tasks, connect, audit, plugin tools and others) |
 | `profiles/default`                            | Which in-repo plugins make up the product, as one table per runtime (`server.ts`, `runner.ts`, `app.ts`) and named profiles                                                                                                                                                                                                                                                        |
 
-Dependency direction: `domain` ← `server-contract` ← `thread-view`, `sdk`, `runner` ← `server-kit` ←
+Dependency direction: `domain` ← `server-contract` ← `thread-view`, `plugin`, `runner` ← `server-kit` ←
 `plugins/*` ← `profiles/default` ← `server` ← `cli`; in the browser `client-core`, `shared-ui` ←
 `app-kit` ← `plugins/*` ← `profiles/default` ← `app`. A plugin imports `@bb/plugin`, the kits and the
 shared schema packages, never `@bb/server`, `apps/` or another plugin's files (its `contract` aside).
@@ -149,7 +148,7 @@ sign-in-link` on the server machine is how the owner signs a remote browser in t
   machine credentials there).
 - A request without the tunnel marker that carries `Authorization: Bearer bbr_…` is judged by that token
   alone, whatever its peer address: a token that matches a host is the same runner-class principal as a
-  gate-authenticated machine (so `/api/v1/*` minus the machine and settings writes), any other is
+  gate-authenticated machine (so `/api/v1/*` minus the operations a machine may not call), any other is
   anonymous. This is how the runner's loopback CLI proxy reaches the API on a direct connection; through
   the tunnel the gate's verdict stands and the bearer token only authenticates the runner socket.
 - The server's public URL (`publicServerUrl(ctx)`: the `Origin` allow-list above, join commands, the URL
@@ -394,11 +393,14 @@ this product writes. Facts the code no longer states in comments:
 
 ## HTTP and WebSocket surface
 
-Routes are declared once in `packages/server-contract/src/public-api.ts` and implemented with
-`typedRoutes` from `@bb/hono-typed-routes`, so handlers are checked against the contract. The SDK sends
-every request through the same descriptors (`packages/sdk/src/http.ts`: path parameters, query and JSON
-body typed by the route, one place for timeouts and error bodies). A descriptor types the success
-response only. Errors are
+Every JSON route is the HTTP door of an operation (`doors.http` in
+`packages/plugin/src/core-contracts.ts`), served by `apps/server/src/http/doors.ts`: path parameters,
+the query or the JSON body become the operation's one input, the kernel validates it, checks who may
+call it, runs the hooks and records the call. A path starts with its contract's name
+(`/threads`, `/machines`, `/sections`, `/sessions/providers`). `packages/plugin/src/client.ts` is the
+one client: `call(op, input)` builds the request from the same declaration, with one place for
+timeouts and error bodies. Raw routes remain only for sign-in (cookies), uploads, file bytes and
+plugin assets. Errors are
 `{code, message, details?, retryable?}` with the HTTP status. Research note 01 lists every kept route, its
 callers, the response shapes and the change notifications each mutation must emit.
 
@@ -464,10 +466,11 @@ hold one kernel.
 - **Caller.** `currentCaller()` (`kernel/caller.ts`) is the actor plus an origin: `door` (`agent` when
   the request named a thread, else the `x-bb-door` header when it is `app` or `cli`, else `http`;
   `system` with no actor), the agent `thread`, and `via`, the plugin ids the call passed through. A
-  request made with a machine credential is a `member` whoever it acts for, so it cannot call
-  owner-only operations. A
-  plugin's `bb.call` and its CLI handlers add the plugin to `via`. The SDK and the native CLI send
-  `x-bb-door`. An agent's tool call runs as the user who last wrote in that thread.
+  request made with a machine credential has the role `machine` whoever it acts for: it cannot call
+  owner-only operations, nor those marked `allow: "user"` (changing machines, settings, users,
+  providers or the machine environment), through REST or by name. A
+  plugin's `bb.call` and its CLI handlers add the plugin to `via`. The app, the client and the
+  native CLI send `x-bb-door`. An agent's tool call runs as the user who last wrote in that thread.
 - **Audit.** The kernel writes one `audit_log` row (third schema step) per `write` operation, and per
   read that a hook answered or refused or that failed: time, operation, user, role, door, thread,
   `via`, the hooks that acted (`rewrote-input`, `rewrote-output`, `answered`, `denied`, `failed`),
@@ -582,8 +585,6 @@ and plugins share one hook chain.
   `plugin_table_migrations` and may only define the plugin's own objects; `run` only writes to
   them; `all` and `get` take a `SELECT`. A contract's `table()` member is a one-item slot holding
   the physical name, so publishing and reading go through the kernel like any service.
-- **`bb.sdk`.** The typed client, bound to `HttpApp.inner` (`apps/server/src/http/app.ts`): the
-  request is handled in-process with the current actor and caller chain, plus the plugin's id.
 - **Storage.** KV rows in `plugin_kv`, non-secret settings in `plugin_settings`, secret settings as
   0600 files in `<dataDir>/plugins/<id>/secrets/`, the plugin's SQLite file at
   `<dataDir>/plugins/<id>/data.db`. A setting defined with `{ scope: "user" }` is stored per
@@ -700,7 +701,8 @@ when one exists and this Node CLI otherwise; the Node CLI is the reference for b
   then group help, then plugin dispatch), flag and argument parsing, `--help` at every level, the short
   "did you mean" errors, and the reference `bb guide commands` prints. Every command gets `--json` and
   `--help`. A failure with `--json` prints `{"ok": false, "error": {code, message, hint?}}` on stdout.
-- Handlers reach the server only through `@bb/sdk`. The SDK and `@bb/domain` are loaded just before a
+- Handlers reach the server only by calling operations (`c.op(c.ops.threads.get, …)`, built on
+  `createOpClient`). `@bb/plugin` and `@bb/domain` are loaded just before a
   handler runs, never for help, `bb guide`, `bb server` or `bb runner`, so those start without them.
 - A first word that is not in the table is looked up in `GET /plugins/contributions` and dispatched to
   the server. That list holds each plugin's registered CLI and the commands built from operations

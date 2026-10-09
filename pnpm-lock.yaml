@@ -735,9 +735,6 @@ importers:
       '@bb/domain':
         specifier: workspace:*
         version: link:../domain
-      hono:
-        specifier: ^4.7.0
-        version: 4.11.9
       zod:
         specifier: 4.6.5
         version: 4.6.5

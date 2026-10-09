@@ -811,6 +811,20 @@
                 <code>docs/plugin-migration-gaps.md</code> has the tables.
               </td>
             </tr>
+            <tr>
+              <td>The REST API and its client</td>
+              <td>Done</td>
+              <td>
+                Every JSON route is the HTTP door of an operation
+                (<code>doors.http</code>), with one flat input and a path that
+                starts with its contract's name. The hand-written client and the
+                separate route table are gone: the app, the CLI and tests call
+                operations through one generic client. Only sign-in, uploads and
+                file bytes remain raw routes. A machine's credential is held
+                back by the operation (<code>allow: "user"</code>), not by a URL
+                pattern.
+              </td>
+            </tr>
           </table>
         </div>
 

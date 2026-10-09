@@ -18,6 +18,7 @@ import { createRunnerPlugins } from "@bb/runner";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { runAs } from "@bb/server-kit/auth/actor";
+import { pruneAudit } from "@bb/server-kit/db/audit";
 import { insertRow } from "@bb/server-kit/db/index";
 import { PluginHost } from "../src/plugins/host.js";
 import { scratch } from "./helpers.js";
@@ -701,6 +702,8 @@ it("answers an operation at its REST path with one flat input", async () => {
   expect(recorded.sort()).toEqual(["notes.delete http", "notes.replace http"]);
   plugin.dispose();
   expect((await server.http("GET", "/notes/recent")).status).toBe(404);
+  expect(pruneAudit(ctx.db, Number.MAX_SAFE_INTEGER)).toBeGreaterThan(1);
+  expect(await auditOf(server)).toEqual([]);
 });
 
 it("gives a runner part the same handle as the other parts", async () => {

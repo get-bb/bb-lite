@@ -31,6 +31,9 @@ scope and without `bb-plugin-`.
    returns. Events are named for what happened (`created`, `deleted`, `connected`) or the state
    entered (`active`, `idle`). Inputs are one object with named fields.
 6. **Core has no private API.** The built-in plugins are written with exactly what is described here.
+7. **The REST API is operations.** Every JSON route under `/api/v1` is the HTTP door of an operation,
+   and its path starts with the contract's name. The app, the CLI and other programs call operations;
+   there is no separate client library to keep in step.
 
 ## The contract
 
@@ -57,6 +60,7 @@ export const notes = contract("notes", {
         summary: "Remember a note",
         positionals: ["text"],
       },
+      http: { method: "POST", path: "/notes", status: 201 },
     },
   }),
   created: event(z.object({ note: Note })),
@@ -70,9 +74,12 @@ export const notes = contract("notes", {
 ```
 
 - `op` options: `input`, `output` (zod), `kind` (`"read"` default, `"write"` is recorded in the audit
-  log), `hooks` (what another plugin's hook may do: `"observe"`, `"rewrite"` default, `"answer"`),
-  `allow` (`"member"` default, `"owner"`), `secret` (input field names kept out of the audit log),
+  log), `audit` (`false` keeps a frequent write out of the log), `hooks` (what another plugin's hook
+  may do: `"observe"`, `"rewrite"` default, `"answer"`), `allow` (`"member"` default; `"user"` refuses
+  a machine's credential; `"owner"`), `secret` (input field names kept out of the audit log),
   `internal` (not callable over HTTP; use it when the schema cannot validate the input), `doors`.
+- An input is one flat object. Ids are named for what they identify (`threadId`, `hostId`), never
+  `id`.
 - `event(schema)`: something that happened. `live(schema)`: a value the server holds and pushes.
 - `slot<Item>({ key?, pick?, check? })`: a list other plugins add to. `key` names the field that
   identifies an item (one winner per key). `pick: "one"` has one winner. `check(item, mine)` returns
@@ -149,7 +156,6 @@ export default function server(bb: PluginServerApi): void {
 | `bb.background.service(name, { start })` | A supervised long-running task. `bb.background.schedule(name, "*/15 * * * *", run)` runs on a five-field cron                      |
 | `bb.cli.register(defineCli(...))`        | A hand-written CLI, for commands that are not one operation. It is merged with the plugin's `doors.cli` commands                   |
 | `bb.status.needsConfiguration(message)`  | Shows the plugin as waiting for setup                                                                                              |
-| `bb.sdk`                                 | The typed client the app and CLI use, in-process and attributed to the plugin. For what core has no operation for                  |
 
 Storage is in two places, by who owns the data:
 
@@ -157,8 +163,9 @@ Storage is in two places, by who owns the data:
   SQLite file; `bb.storage.tables` for tables of your own in the shared database.
 - **Everyone's.** `bb.db` queries the shared database, including tables other plugins published.
 
-Prefer an operation to a route when another plugin might want to hook or call it; core's routes call
-their own operations for that reason. A plugin reaches another plugin only through a contract.
+Prefer an operation to a route: another plugin can hook or call it, it is recorded, and it can be
+served over REST with `doors.http`. Core keeps raw routes only for what an operation cannot carry:
+cookies (sign-in), uploads and file bytes. A plugin reaches another plugin only through a contract.
 
 ### Doors
 
@@ -171,26 +178,59 @@ enabledFor?(context) }`. The implementation sees `caller.thread` (the calling th
   from the input schema (`projectKey` is `--project-key`; booleans are switches; arrays repeat;
   `.describe()` is the help text). `--json` prints the output. All of a plugin's CLI doors share their
   first word.
+- `doors.http` serves it at a REST path: `{ method, path, status?, empty?, body? }` under `/api/v1`.
+  `:name` segments, the query (for `GET`) or the JSON body (otherwise) are merged into the one input
+  object and validated by the input schema, so a query flag or count may arrive as text
+  (`flagField`, `countField` in `@bb/server-contract` accept both forms). `body: "lines"` puts a body
+  that is not an object into that field. `status: 201` answers a creation; `empty: 204` answers
+  `null` with no content. An operation that returns nothing answers `{ "ok": true }`. A path with a
+  fixed segment wins over one with a parameter in the same place. The path's first segment is the
+  contract's name, and a test holds core to that.
+
+Callers outside the server use one function for every operation:
+
+```ts
+import { createOpClient, threads } from "@bb/plugin";
+
+const bb = createOpClient({ baseUrl: "http://127.0.0.1:48886", door: "cli" });
+const thread = await bb.call(threads.get, { threadId });
+```
+
+`call` uses the operation's REST door when it has one and `POST /api/v1/ops/<name>` otherwise, takes
+`{ signal }` as a third argument, and throws `CallError` (`status`, `code`, `body`, `details`). The
+app's `callOp`, `useOp` and `useCall` and the CLI are built on it.
 
 ### What core offers (`packages/plugin/src/core-contracts.ts`)
 
-| Contract                        | Operations                                                                                                                                                                                                                                                                                                                                           | Events, slots, services, tables                                                                                                                                                 |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `threads`                       | `create`, `get`, `list`, `update`, `delete`, `send`, `stop`, `archive`, `unarchive`, `compact`, `clearContext`, `output`, `events`, `workspace`, `storageLocation`, `addRow`, `createQueuedMessage`, `updateQueuedMessage`, `deleteQueuedMessage`, `sendQueuedMessage`, `hold` (hook it to keep a message queued), `release`, `waitSettled`, `sweep` | events `created`, `active`, `idle`, `failed`, `archived`, `unarchived`, `deleted`, `retired`, `appended`, `messageQueued`, `messageDispatched`, `messageDeleted`; table `table` |
-| `interactions`                  | `ask` (ask the user through a thread), `resolve`, `respond`, `cancel`                                                                                                                                                                                                                                                                                | event `pending`                                                                                                                                                                 |
-| `sessions`                      | `instructions`, `env`, `tools`, `skillDirs` (hook these to contribute or filter per thread); `providers`, `executionOptions`, `title`, `searchMentions`, `resolveMention`                                                                                                                                                                            | slots `provider`, `mention`, `inference`, `usage`; service `titleFallback`                                                                                                      |
-| `files`                         | `read`, `write`, `list`, `mkdir`, `delete`, `move` (in a thread's workspace)                                                                                                                                                                                                                                                                         |                                                                                                                                                                                 |
-| `machines`                      | `list`, `enroll`, `waitConnected`, `update`, `suspend`, `resume`, `delete`                                                                                                                                                                                                                                                                           | events `connected`, `disconnected`, `deleted`, `signaled`; slot `provider`; services `access`, `guard`                                                                          |
-| `environments`                  | `get`, `list`, `instructions`, `delete`, `sweep`; `ensure` in `bb-plugin-environments/contract`                                                                                                                                                                                                                                                      | slot `kind`; event `destroyed`                                                                                                                                                  |
-| `terminals`                     | `resize`                                                                                                                                                                                                                                                                                                                                             | event `inputReceived`                                                                                                                                                           |
-| `projects`, `users`, `sections` | `projects.list`; `users.current`, `users.list`; `sections.list`, `sections.create`                                                                                                                                                                                                                                                                   | table `projects.table`; event `projects.deleted`                                                                                                                                |
-| `plugins`                       | `inspect`, `describe`, `install`, `uninstall`, `reload`; `agentTools`, `callAgentTool`, `agentInstructions`, `skillDirs` (the host answers these)                                                                                                                                                                                                    |                                                                                                                                                                                 |
-| `server`, `appearance`, `audit` | `audit.list`                                                                                                                                                                                                                                                                                                                                         | services `server.publicUrl`, `server.authenticator`; slot `appearance.theme`                                                                                                    |
+| Contract                        | Operations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Events, slots, services, tables                                                                                                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `threads`                       | `create`, `get`, `list`, `search`, `update`, `delete`, `send`, `stop`, `archive`, `unarchive`, `compact`, `clearContext`, `pin`, `unpin`, `reorderPinned`, `markRead`, `markUnread`, `open`, `tabs`, `updateTabs`, `timeline`, `timelineTurnSummaryDetails`, `output`, `events`, `nextEvent`, `childSummary`, `promptHistory`, `defaultExecutionOptions`, `resolveMentions`, `listQueuedMessages`, `createQueuedMessage`, `updateQueuedMessage`, `deleteQueuedMessage`, `sendQueuedMessage`; server only: `workspace`, `storageLocation`, `addRow`, `hold` (hook it to keep a message queued), `release`, `waitSettled`, `sweep` | events `created`, `active`, `idle`, `failed`, `archived`, `unarchived`, `deleted`, `retired`, `appended`, `messageQueued`, `messageDispatched`, `messageDeleted`; table `table` |
+| `interactions`                  | `list`, `get`, `resolve`, `respond`, `cancel`; server only: `ask` (ask the user through a thread)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | event `pending`                                                                                                                                                                 |
+| `projects`                      | `list`, `create`, `get`, `update`, `delete`, `sidebar`, `createSource`, `updateSource`, `deleteSource`, `paths`, `commands`, `branches`, `branchOptions`, `promptHistory`, `defaultExecutionOptions`, `copyAttachments`, `machineEnvironment`, `updateMachineEnvironment`                                                                                                                                                                                                                                                                                                                                                        | table `table`; event `deleted`                                                                                                                                                  |
+| `environments`                  | `list`, `get`, `update`, `delete`, `providers`, `status`, `diffFiles`, `diffFile`, `diffPatch`, `diffBranches`, `paths`, `runAction`, `archiveThreads`; server only: `instructions`, `sweep`; `ensure` in `bb-plugin-environments/contract`                                                                                                                                                                                                                                                                                                                                                                                      | slot `kind`; event `destroyed`                                                                                                                                                  |
+| `machines`                      | `list`, `create`, `get`, `update`, `updateSharing`, `updatePermissionCeiling`, `delete`, `enrollmentCommand`, `createReconnectCommand`, `directory`, `pathsExist`, `readFile`, `writeFile`, `listFiles`, `openTargets`, `open`; server only: `enroll`, `waitConnected`, `suspend`, `resume`                                                                                                                                                                                                                                                                                                                                      | events `connected`, `disconnected`, `deleted`, `signaled`; slot `provider`; services `access`, `guard`                                                                          |
+| `terminals`                     | `list`, `create`, `get`, `update`, `close`, `write`, `output`; server only: `resize`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | event `inputReceived`                                                                                                                                                           |
+| `sessions`                      | `providers`, `providerCatalog`, `updateProvider`, `executionOptions`; `instructions`, `env`, `tools`, `skillDirs` (hook these to contribute or filter per thread); server only: `title`, `searchMentions`, `resolveMention`                                                                                                                                                                                                                                                                                                                                                                                                      | slots `provider`, `mention`, `inference`, `usage`; service `titleFallback`                                                                                                      |
+| `files`                         | server only: `read`, `write`, `list`, `mkdir`, `delete`, `move` (in a thread's workspace)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |                                                                                                                                                                                 |
+| `sections`                      | `list`, `create`, `update`, `delete`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |                                                                                                                                                                                 |
+| `users`                         | `list`, `update`, `setPassword`, `createSignInLink`, `listInvites`, `createInvite`, `deleteInvite`, `presence`, `current`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |                                                                                                                                                                                 |
+| `settings`                      | `updateGeneral`, `updateKeyboard`, `updateAppearance`, `uiPreferences`, `updateUiPreference`, `resetUiPreference`, `machineEnvironment`, `updateMachineEnvironment`                                                                                                                                                                                                                                                                                                                                                                                                                                                              | in the app: slots `page`, `section`                                                                                                                                             |
+| `plugins`                       | `list`, `contributions`, `reload`, `enable`, `disable`, `settings`, `updateSettings`, `inspect`, `describe`, `install`, `uninstall`; server only: `agentTools`, `callAgentTool`, `agentInstructions`, `skillDirs` (the host answers these)                                                                                                                                                                                                                                                                                                                                                                                       |                                                                                                                                                                                 |
+| `server`, `appearance`, `audit` | `server.config`, `audit.list`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | services `server.publicUrl`, `server.authenticator`; slot `appearance.theme`                                                                                                    |
 
+- Every operation not marked "server only" has a REST door; `GET /api/v1/kernel` lists each one with
+  its doors. `threads.get` is `GET /threads/:threadId`, `machines.list` is `GET /machines`,
+  `sections.create` is `POST /sections`.
 - `threads.create` takes a `CreateThreadRequest`; a plugin sets `origin: "plugin"` and
-  `originPluginId`. `threads.send` takes `{ threadId, request }`; `threads.update` takes
-  `{ threadId, patch }`. The queue operations take `{ threadId, queuedMessageId, … }` and the
-  interaction operations `{ threadId, interactionId, … }`.
+  `originPluginId`. `threads.send` takes `{ threadId, input, mode, … }`; `threads.update` takes
+  `{ threadId, title?, sectionId?, … }`. The queue operations take `{ threadId, queuedMessageId, … }`
+  and the interaction operations `{ threadId, interactionId, … }`. `threads.get` and
+  `environments.get` fail with 404 when there is nothing to return.
+- Writes that happen constantly (`threads.markRead`, `pin`, `updateTabs`, `open`, `terminals.write`,
+  `settings.updateUiPreference`) are not recorded in the audit log. Records older than the audit
+  plugin's "Days to keep" setting (90) are removed nightly.
+- A machine's own credential may call operations, but not those marked `allow: "user"`: changing
+  machines, settings, users, providers or the machine environment.
 - Contributions that depend on the thread are hooks on an operation (`sessions.instructions`,
   `env`, `tools`, `skillDirs`): the hook gets the thread's context and may filter what others added.
   Registrations that do not are slot entries (`sessions.provider`, `mention`, `inference`, `usage`).
@@ -312,7 +352,10 @@ function Notes() {
 ```
 
 `bb` in an app part is the shared handle and nothing more. `bb.call(op, input)` and
-`callOp(op, input)` run an operation the app implements locally, else on the server.
+`callOp(op, input, { signal? })` run an operation the app implements locally, else on the server.
+The core contracts (`threads`, `projects`, `machines`, …) are exported from `@bb/plugin/app` too. An
+app part may implement a server operation to act first: the shell implements `threads.update` to
+update the sidebar at once and batch the requests.
 
 ### Slots
 
@@ -346,7 +389,7 @@ Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills
 | Group                | Names                                                                                                                                                                                                                                                                                        |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Operations and slots | `useOp(op, input, { enabled? })` gives `{ status, data, error, refetch }` and refetches on `bb.changed(op)`; `useCall(op)`; `callOp`; `useLive(live)`; `useChanged(member, handler)`; `useSlot`, `useSlotEntries` (with the plugin id), `useSlotEntry(slot, key)`; `SlotMount`               |
-| The host             | `usePluginId`, `useSdk`, `useSettings`, `useRealtimeConnectionState`, `useBbContext`, `useBbNavigate` (`toThread`, `toProject`, `toPluginPanel`, `toCompose`, `openThreadPanel`, `openUrl`, `openFile`), `useProviders`, `useEnvironmentProviders`, `useQuestionFormHost`                    |
+| The host             | `usePluginId`, `useSettings`, `useRealtimeConnectionState`, `useBbContext`, `useBbNavigate` (`toThread`, `toProject`, `toPluginPanel`, `toCompose`, `openThreadPanel`, `openUrl`, `openFile`), `useProviders`, `useEnvironmentProviders`, `useQuestionFormHost`                              |
 | Components           | `Icon`, `ProviderIcon`, `UrlLink`, `Markdown`, `ImageLightbox`, `ThreadViewers`                                                                                                                                                                                                              |
 | From the shell       | `useSidebarThreads`, `useSidebarThreadActions`, `useSidebarThreadSplit`, `useSidebarNavigationSplit`, `useSidebarSplitLayout`, `useSidebarThreadShortcut`, `useSidebarThreadDraft`, `useSidebarThreadDraftIds`, `useSidebarThreadRowStatus`, `useSidebarNavigation`, `SidebarNavigationIcon` |
 | From the thread view | `ThreadChat`, `ThreadTitle`                                                                                                                                                                                                                                                                  |
@@ -393,7 +436,7 @@ A plugin declares palettes in its manifest and needs no code for them:
 
 The CSS sets the same custom properties the built-in palettes do (`--canvas`, `--ink`, `--primary`
 and the rest, under `:root, .light` and `.dark`). The theme appears in Settings as
-`plugin:<plugin id>:<theme id>` and is listed on `bb.sdk.system.config().themes`. `codeTheme` takes
+`plugin:<plugin id>:<theme id>` and is listed in `themes` of the `server.config` operation. `codeTheme` takes
 names of syntax themes bb already has, not files.
 
 ### Using another feature's components

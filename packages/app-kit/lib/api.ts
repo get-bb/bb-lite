@@ -9,10 +9,6 @@ import {
   type FilePreviewTarget,
 } from "@bb/client-core";
 
-export function requestOptions(signal?: AbortSignal) {
-  return signal ? { init: { signal } } : undefined;
-}
-
 async function httpError(response: Response): Promise<CallError> {
   const text = await response.text().catch(() => "");
   let body: unknown;
@@ -35,10 +31,6 @@ async function ok(pending: Promise<Response>): Promise<Response> {
   const response = await pending;
   if (!response.ok) throw await httpError(response);
   return response;
-}
-
-export async function request<T>(pending: Promise<Response>): Promise<T> {
-  return (await (await ok(pending)).json()) as T;
 }
 
 function mimeTypeOf(response: Response): string {

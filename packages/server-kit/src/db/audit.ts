@@ -46,6 +46,10 @@ export function recordAudit(db: Db, entry: AuditRecord): void {
   });
 }
 
+export function pruneAudit(db: Db, before: number): number {
+  return db.run("DELETE FROM audit_log WHERE at < ?", before).changes;
+}
+
 export function listAudit(db: Db, query: AuditQuery): AuditEntry[] {
   const { userId, op, threadId, plugin, before, limit } = query;
   const named = plugin === undefined ? undefined : `%"${plugin}"%`;
