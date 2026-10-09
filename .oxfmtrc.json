@@ -28,6 +28,7 @@
     "apps/mobile/.expo/",
     "apps/mobile/expo-env.d.ts",
     "apps/mobile/build-output/",
-    "packages/plugin/api.lock.json"
+    "packages/plugin/api.lock.json",
+    "crates/*/tests/fixtures/"
   ]
 }

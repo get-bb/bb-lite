@@ -624,8 +624,9 @@
                 <code>fail(code, message, { reason, hint })</code> and
                 <code>deny()</code> refuse with a code that maps to an HTTP
                 status and a CLI message. Live values, <code>changed</code> and
-                events can be addressed to one user. <code>bb.implement</code>
-                takes <code>offered</code> to hide an agent tool per session.
+                events can be addressed to one user.
+                <code>bb.implement</code> takes <code>offered</code> to hide an
+                agent tool per session.
               </td>
             </tr>
             <tr>
@@ -662,8 +663,8 @@
               <td>Runner parts; providers as plugins</td>
               <td>Built</td>
               <td>
-                Codex, Claude Code, Pi and echo are plugins with a machine part. A
-                third-party machine part is bundled by the server and sent to
+                Codex, Claude Code, Pi and echo are plugins with a machine part.
+                A third-party machine part is bundled by the server and sent to
                 each runner when it connects.
               </td>
             </tr>
@@ -674,8 +675,8 @@
                 A plugin can add a kind or replace a built-in one (a different
                 <code>git-worktree</code>, for example). The three built-in
                 kinds (project checkout, worktree, personal workspace) are
-                plugins of their own, and the Modal sandbox is an add-on kind.
-                A kind declares its workspace type, requirements and a default
+                plugins of their own, and the Modal sandbox is an add-on kind. A
+                kind declares its workspace type, requirements and a default
                 rank, so core picks a default without naming a kind.
               </td>
             </tr>
@@ -727,11 +728,12 @@
               <td>Profiles</td>
               <td>Built, simple</td>
               <td>
-                In-repo plugins are registered from their manifests
-                (<code>pnpm gen:builtins</code> writes the server, runner and
-                app tables, and a test fails when they are stale).
-                <code>BB_PROFILE</code> picks which of them load
-                (<code>default</code>, <code>headless</code>,
+                In-repo plugins are registered from their manifests (<code
+                  >pnpm gen:builtins</code
+                >
+                writes the server, runner and app tables, and a test fails when
+                they are stale). <code>BB_PROFILE</code> picks which of them
+                load (<code>default</code>, <code>headless</code>,
                 <code>minimal</code>); <code>bb.enabledByDefault: false</code>
                 ships a plugin switched off. Pick-one choices are still app
                 preferences, not profile entries.
@@ -757,14 +759,14 @@
                   >bb dev new | watch | validate | inspect | types | install |
                   fork | port</code
                 >, reload on save, an authoring skill, and a small test harness
-                (<code>@bb/plugin/testing</code>). <code>bb dev install</code>
-                takes git or npm version ranges and a repository subdirectory
-                and refuses an <code>engines.bb</code> mismatch before loading.
-                A marketplace plugin installs, updates and removes plugins from
-                catalogs and records where each came from.
-                <code>plugins.contracts</code>, <code>plugins.describe</code>
-                (with what a plugin uses) and <code>describeApp</code> in the
-                app describe the live API.
+                (<code>@bb/plugin/testing</code>).
+                <code>bb dev install</code> takes git or npm version ranges and
+                a repository subdirectory and refuses an
+                <code>engines.bb</code> mismatch before loading. A marketplace
+                plugin installs, updates and removes plugins from catalogs and
+                records where each came from. <code>plugins.contracts</code>,
+                <code>plugins.describe</code> (with what a plugin uses) and
+                <code>describeApp</code> in the app describe the live API.
               </td>
             </tr>
             <tr>
@@ -831,8 +833,8 @@
               <td>
                 40 of the original's bundled plugins now live in
                 <code>plugins/</code> on this API (among them automations,
-                workflows, GitHub, memory, docs, Monaco, browser automation,
-                Pi, side chat, push notifications, the Modal sandbox);
+                workflows, GitHub, memory, docs, Monaco, browser automation, Pi,
+                side chat, push notifications, the Modal sandbox);
                 <code>agent-annotations</code>, <code>provider-acp</code> and
                 <code>t3sidebar</code> are not ported. Porting them added
                 <code>threads.fork</code>, voice transcription, composer popups
