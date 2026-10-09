@@ -1,4 +1,0 @@
-{
-  "extends": "./.bb/tsconfig.json",
-  "include": ["*.ts", "*.tsx"]
-}
