@@ -74,6 +74,13 @@ function fieldOf(value: unknown, name: string): unknown {
   return (value as Record<string, unknown>)[name];
 }
 
+function doorResult(op: Op, body: unknown): unknown {
+  const acknowledged =
+    fieldOf(body, "ok") === true && Object.keys(body ?? {}).length === 1;
+  const empty = acknowledged && op.output.safeParse(undefined).success;
+  return empty ? undefined : body;
+}
+
 function messageOf(body: unknown): string | null {
   for (const name of ["message", "detail", "error"]) {
     const text = fieldOf(body, name);
@@ -225,7 +232,7 @@ export function createOpClient(options: OpClientOptions = {}): OpClient {
       const response = await request(path, sent);
       if (response.status === 204) return null as never;
       const body: unknown = await response.json();
-      if (op.doors.http !== undefined) return body as never;
+      if (op.doors.http !== undefined) return doorResult(op, body) as never;
       return (fieldOf(body, "result") ?? null) as never;
     },
   };
