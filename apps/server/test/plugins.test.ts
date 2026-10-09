@@ -234,9 +234,16 @@ it("reloads a changed external plugin and refuses rewritten migrations", async (
   await call("echo.echo", { text: "a" });
   edit('default: "hello"', 'default: "howdy"');
   edit('NOT NULL)"]', 'NOT NULL)", "CREATE TABLE extra (id INTEGER)"]');
+  const contract = join(directory, "contract.ts");
+  const input = "z.object({ text: z.string() })";
+  const wider = "z.object({ text: z.string(), tail: z.string() })";
+  writeFileSync(contract, readFileSync(contract, "utf8").replace(input, wider));
+  edit("async ({ text })", "async ({ text, tail })");
+  edit("${greeting} ${text}", "${greeting} ${text}${tail}");
   await reload("echo");
-  const echoed = { text: "howdy b", calls: 2 };
-  expect(await call("echo.echo", { text: "b" })).toEqual([200, echoed]);
+  const echoed = { text: "howdy b!", calls: 2 };
+  const input2 = { text: "b", tail: "!" };
+  expect(await call("echo.echo", input2)).toEqual([200, echoed]);
   edit("extra (id INTEGER)", "extra (id TEXT)");
   const statusMessage = expect.stringContaining("Migration 1 changed");
   const failed = { status: "error", statusMessage };

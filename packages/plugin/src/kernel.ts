@@ -786,6 +786,7 @@ export function createKernel(options: KernelOptions): Kernel {
           run: implementation as Implementation<unknown, unknown>,
           offered,
         };
+        state.op = op;
         state.owner = owner;
         implemented += 1;
         undo.push(() => {
