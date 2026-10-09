@@ -150,10 +150,14 @@ export interface SlotEntryView<Item> {
   plugin: string;
   item: Item;
 }
+export interface Audience {
+  userId?: string;
+}
+
 export interface LiveHandle<Value> {
-  get(): Value;
-  set(value: Value): void;
-  update(change: (value: Value) => Value): void;
+  get(audience?: Audience): Value;
+  set(value: Value, audience?: Audience): void;
+  update(change: (value: Value) => Value, audience?: Audience): void;
 }
 
 export interface OpCalls {
@@ -162,14 +166,18 @@ export interface OpCalls {
     input: z.input<O["input"]>,
     options?: CallOptions,
   ): Promise<Out<O>>;
-  emit<E extends EventDef>(event: E, payload: z.input<E["payload"]>): void;
+  emit<E extends EventDef>(
+    event: E,
+    payload: z.input<E["payload"]>,
+    audience?: Audience,
+  ): void;
   read<Item>(slot: Slot<Item>): Item[];
   entries<Item>(slot: Slot<Item>): SlotEntryView<Item>[];
   find<Item>(slot: Slot<Item>, key: string): Item | null;
   pick<Item>(slot: Slot<Item>): Item | null;
   use<Item>(slot: Slot<Item>): Item;
   value<L extends Live>(live: L): ValueOf<L> | undefined;
-  changed(member: Op | Live): void;
+  changed(member: Op | Live, audience?: Audience): void;
 }
 
 export interface ImplementOptions {
@@ -261,8 +269,8 @@ export interface KernelOptions {
     input: unknown,
     context: { caller: Caller; signal: AbortSignal },
   ): Promise<unknown>;
-  changed?(name: string): void;
-  emitted?(event: EventDef, payload: unknown): void;
+  changed?(name: string, userId?: string): void;
+  emitted?(event: EventDef, payload: unknown, userId?: string): void;
   hookBudgetMs?: number;
 }
 
@@ -325,6 +333,7 @@ interface LiveState {
   live: Live;
   owner: string;
   value: unknown;
+  users: Map<string, unknown>;
 }
 
 const TIER_RANK: Record<Tier, number> = { policy: 0, installed: 1, product: 2 };
@@ -675,8 +684,10 @@ export function createKernel(options: KernelOptions): Kernel {
     ) {
       return run(op, input, caller(), signal) as Promise<Out<O>>;
     },
-    emit(event, payload) {
-      if (announce(event, payload, HERE)) options.emitted?.(event, payload);
+    emit(event, payload, audience = {}) {
+      if (announce(event, payload, HERE)) {
+        options.emitted?.(event, payload, audience.userId);
+      }
     },
     read<Item>(slot: Slot<Item>): Item[] {
       return shownOf(slot).items as Item[];
@@ -702,10 +713,17 @@ export function createKernel(options: KernelOptions): Kernel {
       return items.at(-1) as Item;
     },
     value<L extends Live>(live: L): ValueOf<L> | undefined {
-      return lives.get(live.name)?.value as ValueOf<L> | undefined;
+      const state = lives.get(live.name);
+      const user = caller().user;
+      if (state === undefined) return undefined;
+      const value =
+        user !== null && state.users.has(user)
+          ? state.users.get(user)
+          : state.value;
+      return value as ValueOf<L>;
     },
-    changed(member) {
-      options.changed?.(member.name);
+    changed(member, audience = {}) {
+      options.changed?.(member.name, audience.userId);
     },
   });
 
@@ -746,10 +764,10 @@ export function createKernel(options: KernelOptions): Kernel {
         const work = () => run(op, input, caller, signal) as Promise<Out<O>>;
         return options.enter(caller, work);
       },
-      emit(event, payload) {
+      emit(event, payload, audience) {
         alive();
         learn(plugin, event, undo);
-        own.emit(event, payload);
+        own.emit(event, payload, audience);
       },
       implement(op, implementation, { offered = null } = {}) {
         alive();
@@ -857,6 +875,7 @@ export function createKernel(options: KernelOptions): Kernel {
           live: definition,
           owner: plugin,
           value: definition.value.parse(initial),
+          users: new Map(),
         };
         lives.set(definition.name, state);
         undo.push(() => {
@@ -864,15 +883,21 @@ export function createKernel(options: KernelOptions): Kernel {
             lives.delete(definition.name);
           }
         });
-        const set = (value: ValueOf<L>) => {
+        const get = ({ userId }: Audience = {}) =>
+          (userId !== undefined && state.users.has(userId)
+            ? state.users.get(userId)
+            : state.value) as ValueOf<L>;
+        const set = (value: ValueOf<L>, { userId }: Audience = {}) => {
           alive();
-          state.value = definition.value.parse(value);
-          options.changed?.(definition.name);
+          const parsed = definition.value.parse(value);
+          if (userId === undefined) state.value = parsed;
+          else state.users.set(userId, parsed);
+          options.changed?.(definition.name, userId);
         };
         return {
-          get: () => state.value as ValueOf<L>,
+          get,
           set,
-          update: (change) => set(change(state.value as ValueOf<L>)),
+          update: (change, audience) => set(change(get(audience)), audience),
         };
       },
       dispose() {

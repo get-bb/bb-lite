@@ -45,7 +45,7 @@ type SettingsListener<Values> = (next: Values, previous: Values) => void;
 export type SettingScope = "workspace" | "user";
 
 export interface SettingsHandle<D extends SettingDescriptors> {
-  get(): Promise<SettingValues<D>>;
+  get(options?: { userId?: string | null }): Promise<SettingValues<D>>;
   set(values: SettingsUpdate<D>): Promise<SettingValues<D>>;
   onChange(listener: SettingsListener<SettingValues<D>>): void;
 }
@@ -241,7 +241,12 @@ export interface Realtime {
   environment(id: string, changes: Domain.EnvironmentChangeKind[]): void;
   host(id: string, changes: Domain.HostChangeKind[]): void;
   system(changes: Domain.SystemChangeKind[]): void;
-  pluginSignal(pluginId: string, channel: string, payload: unknown): number;
+  pluginSignal(
+    pluginId: string,
+    channel: string,
+    payload: unknown,
+    userId?: string,
+  ): number;
   threadOpen(
     signal: Omit<Contract.ThreadOpenSignal, "type">,
     userId?: string | null,
@@ -377,7 +382,7 @@ export interface PluginServerApi extends PluginBase {
     ): void;
   };
   readonly cli: { register(registration: CliRegistration): void };
-  readonly status: { needsConfiguration(message: string): void };
+  readonly status: { needsConfiguration(message: string): void; ready(): void };
 }
 
 export type PluginServerEntry = (bb: PluginServerApi) => MaybePromise<void>;

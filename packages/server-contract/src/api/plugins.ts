@@ -50,6 +50,13 @@ export const pluginSettingDescriptorSchema = z.discriminatedUnion("type", [
       default: z.number().optional(),
     })
     .strict(),
+  z
+    .object({
+      ...pluginSettingBaseSchema,
+      type: z.literal("project"),
+      default: z.string().optional(),
+    })
+    .strict(),
 ]);
 export type PluginSettingDescriptor = z.infer<
   typeof pluginSettingDescriptorSchema

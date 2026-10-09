@@ -47,27 +47,33 @@ interface Pending {
 }
 
 export default function pushNotificationsServer(bb: PluginServerApi): void {
-  const settings = bb.settings.define({
-    mobileEnabled: {
-      type: "boolean",
-      label: "Mobile notifications",
-      description: "Send push messages to your registered phones and tablets.",
-      default: true,
+  const settings = bb.settings.define(
+    {
+      mobileEnabled: {
+        type: "boolean",
+        label: "Mobile notifications",
+        description:
+          "Send push messages to your registered phones and tablets.",
+        default: true,
+      },
+      webEnabled: {
+        type: "boolean",
+        label: "Web notifications",
+        description:
+          "Show system notifications while bb is open in a browser. Each browser needs notification permission.",
+        default: true,
+      },
+      desktopEnabled: {
+        type: "boolean",
+        label: "Desktop notifications",
+        description:
+          "Show system notifications while the bb desktop app is running.",
+        default: true,
+      },
     },
-    webEnabled: {
-      type: "boolean",
-      label: "Web notifications",
-      description:
-        "Show system notifications while bb is open in a browser. Each browser needs notification permission.",
-      default: true,
-    },
-    desktopEnabled: {
-      type: "boolean",
-      label: "Desktop notifications",
-      description:
-        "Show system notifications while the bb desktop app is running.",
-      default: true,
-    },
+    { scope: "user" },
+  );
+  const relay = bb.settings.define({
     expoPushUrl: {
       type: "string",
       label: "Expo push relay URL",
@@ -107,11 +113,16 @@ export default function pushNotificationsServer(bb: PluginServerApi): void {
   const mine = async (userId: string | null) =>
     (await serial(readAll)).filter((row) => row.userId === userId);
 
-  function publish(message: Omit<ClientNotification, "id">): void {
-    notification.set({ id: randomUUID(), ...message });
+  function publish(
+    message: Omit<ClientNotification, "id">,
+    userId: string | null,
+  ): void {
+    const value = { id: randomUUID(), ...message };
+    if (userId === null) notification.set(value);
+    else notification.set(value, { userId });
   }
 
-  bb.implement(pushNotifications.test, async ({ channel }) => {
+  bb.implement(pushNotifications.test, async ({ channel }, { caller }) => {
     const config = await settings.get();
     if (!(channel === "web" ? config.webEnabled : config.desktopEnabled)) {
       throw new OpError(
@@ -119,12 +130,15 @@ export default function pushNotificationsServer(bb: PluginServerApi): void {
         `${channel} notifications are disabled. Turn them on with \`bb plugin config push-notifications set ${channel}Enabled true\`.`,
       );
     }
-    publish({
-      title: "bb notifications are working",
-      body: "You’ll be notified when a thread needs your attention.",
-      threadId: null,
-      channels: [channel],
-    });
+    publish(
+      {
+        title: "bb notifications are working",
+        body: "You’ll be notified when a thread needs your attention.",
+        threadId: null,
+        channels: [channel],
+      },
+      caller.user,
+    );
     return { ok: true as const };
   });
 
@@ -186,13 +200,14 @@ export default function pushNotificationsServer(bb: PluginServerApi): void {
   bb.implement(pushNotifications.status, async (_input, { caller }) => {
     await loaded;
     const config = await settings.get();
+    const { expoPushUrl } = await relay.get();
     return {
       enabled: true as const,
       subscriptionCount: (await mine(caller.user)).length,
       mobileEnabled: config.mobileEnabled,
       webEnabled: config.webEnabled,
       desktopEnabled: config.desktopEnabled,
-      relayUrl: config.expoPushUrl,
+      relayUrl: expoPushUrl,
       lastSendOutcome: lastOutcome,
     };
   });
@@ -276,15 +291,15 @@ export default function pushNotificationsServer(bb: PluginServerApi): void {
     });
     const title = truncate(threadDisplayTitle(thread), 80);
     const body = truncate(preview || FALLBACK_BODIES[resolved.kind], 180);
-    const config = await settings.get();
+    const owner = thread.createdByUserId;
+    const config = await settings.get({ userId: owner });
     const channels = (["web", "desktop"] as const).filter(
       (channel) => config[`${channel}Enabled`],
     );
     if (channels.length > 0) {
-      publish({ title, body, threadId: thread.id, channels });
+      publish({ title, body, threadId: thread.id, channels }, owner);
     }
     if (!config.mobileEnabled) return;
-    const owner = thread.createdByUserId;
     const rows = (await serial(readAll)).filter(
       (row) => owner === null || row.userId === owner,
     );
@@ -293,7 +308,7 @@ export default function pushNotificationsServer(bb: PluginServerApi): void {
     const result = await deliver(
       {
         relay: fetchRelay,
-        url: config.expoPushUrl,
+        url: (await relay.get()).expoPushUrl,
         warn: (message) => bb.log.warn(message),
         unregistered: async (subscription) => {
           await serial(() => bb.storage.kv.delete(PREFIX + subscription.id));

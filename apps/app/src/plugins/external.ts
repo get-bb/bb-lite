@@ -21,6 +21,7 @@ import { BUILTIN_PLUGINS, CORE_PLUGINS, type BuiltinPlugin } from "./builtin";
 import { wsManager } from "@bb/app-kit/lib/ws";
 import { OP_QUERY_KEY, pluginAppHost } from "./host";
 import {
+  appKernel,
   markPluginsSettled,
   registerPluginApp,
   unregisterPluginApp,
@@ -243,7 +244,13 @@ export function bootPlugins(): Promise<void> {
     pluginApp.installPluginAppHost(pluginAppHost);
     onPluginsChanged(reloadPlugins);
     wsManager.onPluginSignal(({ pluginId, channel, payload }) => {
-      if (pluginId !== KERNEL_SIGNAL || channel !== "changed") return;
+      if (pluginId !== KERNEL_SIGNAL) return;
+      if (channel === "emitted") {
+        const event = payload as { name: string; payload: unknown };
+        appKernel().deliver(event.name, event.payload, { hostId: null });
+        return;
+      }
+      if (channel !== "changed") return;
       const { name } = payload as { name?: unknown };
       const queryKey = [OP_QUERY_KEY, name];
       void appQueryClient.invalidateQueries({ queryKey });

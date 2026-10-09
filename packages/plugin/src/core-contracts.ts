@@ -1355,6 +1355,7 @@ export const terminals = contract("terminals", {
 
 export const appearance = contract("appearance", {
   theme: slot<Domain.PluginTheme>({ key: "id" }),
+  changed: event(Domain.appThemeSchema),
 });
 
 export const server = contract("server", {

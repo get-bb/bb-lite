@@ -19,8 +19,12 @@ export function createServerKernel(options: {
     enter: enterCaller,
     now,
     warn: (message, fields) => log.warn(message, fields),
-    changed: (name) =>
-      void hub.pluginSignal(KERNEL_SIGNAL, "changed", { name }),
+    changed: (name, userId) =>
+      void hub.pluginSignal(KERNEL_SIGNAL, "changed", { name }, userId),
+    emitted: ({ name }, payload, userId) => {
+      if (userId === undefined) return;
+      hub.pluginSignal(KERNEL_SIGNAL, "emitted", { name, payload }, userId);
+    },
     record(entry) {
       try {
         recordAudit(db, entry);

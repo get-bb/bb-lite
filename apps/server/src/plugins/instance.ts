@@ -205,7 +205,12 @@ export function createPluginInstance(
         const typed = (values: SettingRecord) =>
           values as plugin.SettingValues<D>;
         const handle: plugin.SettingsHandle<D> = {
-          get: async () => typed(await settings.read(user())),
+          get: async (options) =>
+            typed(
+              await settings.read(
+                options?.userId === undefined ? user() : options.userId,
+              ),
+            ),
           set: async (values) => typed(await settings.write(values, user())),
           onChange: (listener) => {
             settings.listeners.push((next, previous) => {
@@ -282,6 +287,11 @@ export function createPluginInstance(
     status: {
       needsConfiguration(message) {
         instance.needsConfiguration = message;
+        hub.system(["plugins-changed"]);
+      },
+      ready() {
+        if (instance.needsConfiguration === null) return;
+        instance.needsConfiguration = null;
         hub.system(["plugins-changed"]);
       },
     },

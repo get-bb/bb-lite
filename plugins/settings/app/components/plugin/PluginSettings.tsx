@@ -1,4 +1,4 @@
-import { settings } from "@bb/plugin/app";
+import { projects, settings, useOp } from "@bb/plugin/app";
 import { useOwned } from "@bb/app-kit/plugins/slots";
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
@@ -137,6 +137,12 @@ function PluginSetting({
               ))}
             </SelectContent>
           </Select>
+        ) : descriptor.type === "project" ? (
+          <ProjectSetting
+            value={typeof stored === "string" ? stored : ""}
+            onChange={(value) => save.mutate(value)}
+            aria={aria}
+          />
         ) : descriptor.type === "number" ? (
           <Input
             {...aria}
@@ -525,5 +531,40 @@ export function PluginSettingsPage({ pluginId }: { pluginId: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ProjectSetting({
+  value,
+  onChange,
+  aria,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  aria: { "aria-label": string };
+}) {
+  const listed = useOp(projects.list, {});
+  const options = listed.data ?? [];
+  return (
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        if (next !== null) onChange(next);
+      }}
+    >
+      <SelectTrigger {...aria} className="h-7 w-full text-xs sm:w-64">
+        <SelectValue>
+          {options.find(({ id }) => id === value)?.name ??
+            (value === "" ? "Choose a project" : value)}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((project) => (
+          <SelectItem key={project.id} value={project.id}>
+            {project.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

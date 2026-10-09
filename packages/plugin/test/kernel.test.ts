@@ -55,7 +55,10 @@ function harness(initial: Partial<Caller> = {}, hookBudgetMs = 10_000) {
     record: (entry) => records.push(entry),
     now: () => 5,
     warn: (message) => warnings.push(message),
-    changed: (name) => changes.push(name),
+    changed: (name, userId) =>
+      changes.push(userId === undefined ? name : `${name}@${userId}`),
+    emitted: ({ name }, _payload, userId) =>
+      changes.push(`${name}!${userId ?? "all"}`),
     hookBudgetMs,
   });
   const core = kernel.scope("core", "product");
@@ -391,6 +394,31 @@ it("provides services and live values, and announces changes", () => {
   expect(kernel.live("demo.unread")).toBe(demo.unread);
   plugin.dispose();
   expect(kernel.value(demo.unread)).toBeUndefined();
+});
+
+it("keeps a live value per user and aims changes and events at one user", () => {
+  const { kernel, changes, state } = harness();
+  const plugin = kernel.scope("plugin", "product");
+  const heard: string[] = [];
+  plugin.on(demo.renamed, ({ name }) => heard.push(name));
+  const unread = plugin.provide(demo.unread, 1);
+  unread.set(7, { userId: "usr_owner" });
+  unread.update((count) => count + 1, { userId: "usr_owner" });
+  expect([unread.get(), unread.get({ userId: "usr_owner" })]).toEqual([1, 8]);
+  expect(kernel.value(demo.unread)).toBe(8);
+  state.caller = { ...state.caller, user: "usr_other" };
+  expect(kernel.value(demo.unread)).toBe(1);
+  plugin.changed(demo.greet, { userId: "usr_other" });
+  plugin.emit(demo.renamed, { name: "a" }, { userId: "usr_other" });
+  plugin.emit(demo.renamed, { name: "b" });
+  expect(heard).toEqual(["a", "b"]);
+  expect(changes).toEqual([
+    "demo.unread@usr_owner",
+    "demo.unread@usr_owner",
+    "demo.greet@usr_other",
+    "demo.renamed!usr_other",
+    "demo.renamed!all",
+  ]);
 });
 
 it("skips a hook that runs past its budget but not one waiting on next", async () => {

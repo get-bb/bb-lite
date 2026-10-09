@@ -6,7 +6,7 @@ See a theme on bb surfaces before you commit to it, and find contrast problems w
 - A mock **Preview** screen (sidebar rows, messages, diff, status chips, composer) painted with the selected theme.
 - A **Components** section with buttons, inputs, switches, chips, a dialog and a menu over a scrim.
 - A **Style sheet** that lists each resolved token with its value and a WCAG contrast ratio against the surface it sits on.
-- A live reload. While the panel is open, each save of the active theme's CSS file repaints the app and the preview.
+- A live reload. Each save of a plugin theme's CSS file repaints the app (the host refreshes the theme's versioned style sheet), and while the panel is open the preview follows the active theme and each change of it.
 
 ## How it works
 

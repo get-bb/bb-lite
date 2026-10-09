@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@bb/shared-ui/button";
 import { Input } from "@bb/shared-ui/input";
 import { Pill } from "@bb/shared-ui/pill";
@@ -115,18 +115,6 @@ function surfaceFor(token: string): string {
   return token.startsWith("sidebar") ? "sidebar" : "canvas";
 }
 
-function useLiveThemeCss(catalog: ThemeCatalog | undefined): void {
-  const css = catalog && catalog.revision > 0 ? catalog.activeCss : null;
-  useEffect(() => {
-    if (!css) return;
-    const style = document.createElement("style");
-    style.dataset.themePreview = "live";
-    style.textContent = css;
-    document.head.append(style);
-    return () => style.remove();
-  }, [css]);
-}
-
 function Swatches({ swatch }: { swatch: ThemeSwatch | null }) {
   const colors = [swatch?.canvas, swatch?.primary, swatch?.accent];
   return (
@@ -152,7 +140,6 @@ function ThemePreviewPanel() {
   const [area, setArea] = useState<Area>("preview");
   const [error, setError] = useState<string | null>(null);
   const data = catalog.data;
-  useLiveThemeCss(data);
 
   async function choose(themeId: string) {
     setError(null);

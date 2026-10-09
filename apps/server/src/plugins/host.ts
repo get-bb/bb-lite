@@ -1,10 +1,11 @@
 import { API_VERSION, satisfies } from "@bb/plugin";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { watch as watchDirectory, type FSWatcher } from "node:fs";
+import { statSync, watch as watchDirectory, type FSWatcher } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { derivePluginId, pluginThemeId } from "@bb/domain";
 import {
   appearance,
+  server as serverContract,
   type ApiRoutes,
   type Kernel,
   type Runners,
@@ -85,6 +86,7 @@ export class PluginHost extends PluginRegistry {
     if (id !== undefined) await this.load(this.record(id));
     else await this.inOrder(() => this.loadAll());
     await this.announce();
+    this.options.kernel.changed(serverContract.config);
   }
 
   private async loadAll(): Promise<void> {
@@ -380,14 +382,15 @@ export class PluginHost extends PluginRegistry {
         record.external && serverEntry !== null
           ? await importServerEntry(serverEntry, cacheDir, fallbacks)
           : record.server;
-      for (const { id: themeId, cssFile: _, ...theme } of record.manifest
-        .themes) {
+      for (const { id: themeId, cssFile, ...theme } of record.manifest.themes) {
+        const version = statSync(cssFile, { throwIfNoEntry: false });
         api.add(appearance.theme, {
           ...theme,
           id: pluginThemeId(id, themeId),
           pluginId: id,
-          cssUrl: `/api/v1/plugins/${id}/themes/${themeId}.css`,
+          cssUrl: `/api/v1/plugins/${id}/themes/${themeId}.css?v=${Math.trunc(version?.mtimeMs ?? 0)}`,
         });
+        if (record.external && !record.watch) this.watchTheme(id, cssFile);
       }
       await entry?.(api);
       record.instance = instance;
@@ -427,6 +430,26 @@ export class PluginHost extends PluginRegistry {
       if (manifest.directory === directory) return manifest.id;
     }
     return null;
+  }
+
+  private watchTheme(id: string, cssFile: string): void {
+    const key = `${id}:${cssFile}`;
+    if (this.watchers.has(key)) return;
+    try {
+      const watcher = watchDirectory(cssFile, () => {
+        watcher.close();
+        this.watchers.delete(key);
+        this.reload(id).catch((error: unknown) => {
+          const fields = { pluginId: id, err: error };
+          this.options.log.warn("Plugin reload on theme change failed", fields);
+        });
+      });
+      watcher.on("error", () => watcher.close());
+      this.watchers.set(key, watcher);
+    } catch (error) {
+      const fields = { pluginId: id, err: error };
+      this.options.log.warn("Plugin theme cannot be watched", fields);
+    }
   }
 
   private watch(record: PluginRecord): void {

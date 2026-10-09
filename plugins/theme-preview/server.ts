@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { plugins, server, type PluginServerApi } from "@bb/plugin";
+import { appearance, plugins, server, type PluginServerApi } from "@bb/plugin";
 import { builtInThemes } from "@bb/domain";
 import { z } from "zod";
 import { themePreview, type ThemeSwatch } from "./contract.js";
@@ -149,6 +149,11 @@ export default function themePreviewServer(bb: PluginServerApi): void {
       bb.log.warn(`theme-preview: cannot watch ${path}: ${error}`);
     }
   };
+
+  bb.on(appearance.changed, () => {
+    revision += 1;
+    bb.changed(themePreview.catalog);
+  });
 
   bb.implement(themePreview.catalog, async () => {
     const config = await bb.call(server.config, {});

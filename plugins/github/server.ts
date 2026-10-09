@@ -126,11 +126,10 @@ export default function githubServer(bb: PluginServerApi): void {
       default: "",
     },
     defaultProject: {
-      type: "string",
+      type: "project",
       label: "Default BB project",
       description:
-        "Project id where agent threads spawn for repos that are not attached to a BB project.",
-      default: "",
+        "Project where agent threads spawn for repos that are not attached to a BB project.",
     },
   });
 
@@ -161,6 +160,7 @@ export default function githubServer(bb: PluginServerApi): void {
     try {
       await gh(["auth", "status", "--hostname", "github.com", "--active"]);
       authError = null;
+      bb.status.ready();
     } catch (error) {
       authError = /not found/i.test(messageOf(error))
         ? `GitHub CLI not found. ${GH_HINT}`

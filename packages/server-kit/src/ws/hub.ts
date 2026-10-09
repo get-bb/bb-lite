@@ -132,10 +132,17 @@ export class Hub implements Realtime {
     this.publish({ type: "changed", entity: "system", changes });
   }
 
-  pluginSignal(pluginId: string, channel: string, payload: unknown): number {
+  pluginSignal(
+    pluginId: string,
+    channel: string,
+    payload: unknown,
+    userId?: string,
+  ): number {
     const type = "plugin-signal";
     const signal: PluginSignal = { type, pluginId, channel, payload };
-    return this.send(this.keysBySocket.keys(), signal);
+    if (userId === undefined)
+      return this.send(this.keysBySocket.keys(), signal);
+    return this.send(this.socketsOf(userId), signal);
   }
 
   threadOpen(
@@ -143,9 +150,7 @@ export class Hub implements Realtime {
     userId: string | null = null,
   ): number {
     const message: ThreadOpenSignal = { type: "thread-open", ...signal };
-    const own = [...this.viewers]
-      .filter(([, viewer]) => userId !== null && viewer.userId === userId)
-      .map(([socket]) => socket);
+    const own = userId === null ? [] : this.socketsOf(userId);
     return this.send(own.length > 0 ? own : this.keysBySocket.keys(), message);
   }
 
@@ -214,6 +219,12 @@ export class Hub implements Realtime {
       clearTimeout(pending.timer);
     }
     this.pendingListEvents.clear();
+  }
+
+  private socketsOf(userId: string): HubSocket[] {
+    return [...this.viewers]
+      .filter(([, viewer]) => viewer.userId === userId)
+      .map(([socket]) => socket);
   }
 
   private announcePresence(): boolean {

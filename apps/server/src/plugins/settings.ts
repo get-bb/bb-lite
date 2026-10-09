@@ -15,6 +15,8 @@ export type SettingRecord = Record<string, SettingValue | undefined>;
 type SettingsListener = (next: SettingRecord, previous: SettingRecord) => void;
 
 const SECRET_FILE_MODE = 0o600;
+const PROJECT_EXISTS =
+  "SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL";
 
 function isSecret(descriptor: SettingDescriptor): boolean {
   return descriptor.type === "string" && descriptor.secret === true;
@@ -27,6 +29,9 @@ function accepted(
   if (descriptor.type === "select") {
     const known = descriptor.options.some((option) => option.value === value);
     return known ? (value as string) : undefined;
+  }
+  if (descriptor.type === "project") {
+    return typeof value === "string" ? value : undefined;
   }
   if (descriptor.type === "number") {
     if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
@@ -88,6 +93,13 @@ export class PluginSettings {
       }
       if (value !== null && accepted(descriptor, value) === undefined) {
         throw invalidRequest(`Invalid value for setting "${key}"`);
+      }
+      if (
+        descriptor.type === "project" &&
+        value !== null &&
+        this.db.get(PROJECT_EXISTS, String(value)) === undefined
+      ) {
+        throw invalidRequest(`Setting "${key}" names no project: ${value}`);
       }
       return { key, value, secret: isSecret(descriptor) };
     });

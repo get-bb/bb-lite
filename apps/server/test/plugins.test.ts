@@ -12,7 +12,10 @@ import vm from "node:vm";
 import {
   API_VERSION,
   contract,
+  event,
   files,
+  live,
+  appearance,
   op,
   plugins as hostOps,
   server as hostServices,
@@ -27,6 +30,7 @@ import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { cronMatches, parseCron } from "../src/plugins/cron.js";
 import { insertRow } from "@bb/server-kit/db/index";
+import { runAs } from "@bb/server-kit/auth/actor";
 import { PluginHost } from "../src/plugins/host.js";
 import { PluginSettings } from "../src/plugins/settings.js";
 import { createProject, createTestServer, scratch } from "./helpers.js";
@@ -385,6 +389,80 @@ it("answers the thread engine's queries from what plugins register", async () =>
   expect(titled).toBe("Hello");
 });
 
+it("aims live values, changes and events at one user's apps", async () => {
+  const { ctx } = await createTestServer();
+  const directory = scratch();
+  const manifest = { name: "bb-plugin-aimed", bb: { name: "Aimed" } };
+  writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
+  const aimed = contract("aimed", {
+    note: live(z.string().nullable()),
+    list: op({ input: z.object({}), output: z.array(z.string()) }),
+    pinged: event(z.object({ text: z.string() })),
+  });
+  let api: PluginServerApi | undefined;
+  const server = (bb: PluginServerApi) => {
+    api = bb;
+    bb.status.needsConfiguration("Pick a channel");
+  };
+  const plugins = new PluginHost({
+    ...ctx.plugins.options,
+    builtins: [{ directory, server }],
+  });
+  await plugins.reload();
+  if (api === undefined) throw new Error("the plugin did not start");
+  const bb = api;
+  expect(plugins.list()).toMatchObject([{ status: "needs-configuration" }]);
+  bb.status.ready();
+  expect(plugins.list()[0]?.status).not.toBe("needs-configuration");
+  const frames = { usr_a: [] as unknown[], usr_b: [] as unknown[] };
+  for (const user of ["usr_a", "usr_b"] as const) {
+    const send = (data: string) => {
+      const frame = JSON.parse(data) as { type: string };
+      if (frame.type === "plugin-signal") frames[user].push(frame);
+    };
+    ctx.hub.connect({ send, close: () => {} }, user);
+  }
+  const note = bb.provide(aimed.note, null);
+  note.set("for a", { userId: "usr_a" });
+  bb.changed(aimed.list, { userId: "usr_a" });
+  bb.emit(aimed.pinged, { text: "hi" }, { userId: "usr_a" });
+  const kernel = (payload: object) => ({ pluginId: "kernel", payload });
+  expect(frames.usr_b).toEqual([]);
+  expect(frames.usr_a).toMatchObject([
+    kernel({ name: "aimed.note" }),
+    kernel({ name: "aimed.list" }),
+    kernel({ name: "aimed.pinged", payload: { text: "hi" } }),
+  ]);
+  const as = (userId: string) =>
+    ({ userId, role: "member", agentThreadId: null }) as const;
+  const read = (user: string) =>
+    runAs(as(user), () => ctx.kernel.value(aimed.note));
+  expect([read("usr_a"), read("usr_b")]).toEqual(["for a", null]);
+  const settings = bb.settings.define(
+    { quiet: { type: "boolean", label: "Quiet", default: false } },
+    { scope: "user" },
+  );
+  await runAs(as("usr_a"), () => settings.set({ quiet: true }));
+  expect((await settings.get({ userId: "usr_a" })).quiet).toBe(true);
+  expect((await settings.get({ userId: "usr_b" })).quiet).toBe(false);
+  expect((await settings.get()).quiet).toBe(false);
+});
+
+it("accepts a project setting only when it names a project", async () => {
+  const server = await createTestServer();
+  const project = await createProject(server, "picked");
+  const { ctx } = server;
+  const settings = new PluginSettings(ctx.db, "picker", join(scratch(), "s"));
+  const target = { type: "project", label: "Target" } as const;
+  settings.define({ target }, "workspace");
+  await settings.write({ target: project.id });
+  expect(await settings.read()).toEqual({ target: project.id });
+  await expect(settings.write({ target: "proj_missing" })).rejects.toThrow(
+    "names no project",
+  );
+  await expect(settings.write({ target: 4 })).rejects.toThrow("Invalid value");
+});
+
 it("accepts select and number settings and refuses values outside them", async () => {
   const { ctx } = await createTestServer();
   const settings = new PluginSettings(ctx.db, "tuner", join(scratch(), "s"));
@@ -581,8 +659,14 @@ it("offers the themes a plugin's manifest declares", async () => {
   const { request, read, server, configFile, ctx } = started;
   type Config = { themes: unknown[]; appearance: { themeId: string } };
   const config = () => read<Config>("/server/config");
-  const cssUrl = "/api/v1/plugins/echo/themes/dusk.css";
+  const cssFile = join(directory, "dusk.css");
+  const version = () => Math.trunc(statSync(cssFile).mtimeMs);
+  const cssUrl = `/api/v1/plugins/echo/themes/dusk.css?v=${version()}`;
   const id = "plugin:echo:dusk";
+  const heard: unknown[] = [];
+  ctx.kernel.scope("listener", "installed").on(appearance.changed, (chosen) => {
+    heard.push(chosen);
+  });
   const listed = { id, pluginId: "echo", name: "Dusk", cssUrl, codeTheme };
   expect((await config()).themes).toEqual([{ ...listed, description: "" }]);
   const css = await request("/echo/themes/dusk.css");
@@ -595,6 +679,7 @@ it("offers the themes a plugin's manifest declares", async () => {
   };
   expect((await choose("plugin:echo:dawn")).status).toBe(404);
   expect((await choose(id)).status).toBe(200);
+  expect(heard).toEqual([{ themeId: id, faviconColor: "default" }]);
   expect((await config()).appearance.themeId).toBe(id);
   writeFileSync(configFile, JSON.stringify({ plugins: [] }));
   await ctx.plugins.reload();

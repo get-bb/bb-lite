@@ -163,7 +163,10 @@ export function implementSettings(bb: PluginServerApi): void {
     }
     store.writeSetting(db, personal(store.appearanceSetting), selection);
     hub.system(["config-changed"]);
-    return knownTheme(selection);
+    const chosen = knownTheme(selection);
+    bb.emit(appearanceSlots.changed, chosen);
+    bb.changed(server.config);
+    return chosen;
   });
 
   bb.implement(settings.uiPreferences, () => ({

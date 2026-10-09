@@ -262,6 +262,9 @@ export function createPluginHarness(): PluginHarness {
           needsConfiguration(message) {
             loaded.needsConfiguration = message;
           },
+          ready() {
+            loaded.needsConfiguration = null;
+          },
         },
         onStart: (start) => void starters.push(start),
         onDispose: (stop) => void disposers.push(stop),
