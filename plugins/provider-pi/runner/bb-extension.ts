@@ -1,11 +1,28 @@
 export const BB_PI_EXTENSION_SOURCE = String.raw`
-import { readFileSync, writeSync } from "node:fs";
+import { readFileSync, renameSync, writeSync } from "node:fs";
 import { Socket } from "node:net";
 import { StringDecoder } from "node:string_decoder";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 const TO_BRIDGE_FD = 3;
 const FROM_BRIDGE_FD = 4;
+
+let sessionManager = null;
+
+function currentLeafId() {
+  return sessionManager?.getLeafId?.() ?? null;
+}
+
+function runRequest(message) {
+  if (message.method === "leaf") return { leafId: currentLeafId() };
+  if (message.method !== "fork") throw new Error("unknown bridge request " + String(message.method));
+  const forked = SessionManager.open(message.sourceFile, message.sessionDir, message.cwd)
+    .createBranchedSession(message.checkpointId);
+  if (!forked) throw new Error("forked pi session was not persisted");
+  if (forked !== message.targetFile) renameSync(forked, message.targetFile);
+  return { sessionFile: message.targetFile };
+}
 
 function send(message) {
   const buffer = Buffer.from(JSON.stringify(message) + "\n", "utf8");
@@ -122,6 +139,14 @@ export default function bbExtension(pi) {
     } catch {
       return;
     }
+    if (message.kind === "request") {
+      try {
+        send({ kind: "response", id: message.id, result: runRequest(message) });
+      } catch (error) {
+        send({ kind: "response", id: message.id, error: String(error?.message ?? error) });
+      }
+      return;
+    }
     const call = message.kind === "tool-result" ? pending.get(message.id) : undefined;
     if (!call) return;
     pending.delete(message.id);
@@ -171,7 +196,8 @@ export default function bbExtension(pi) {
     });
   }
 
-  pi.on("session_start", async () => {
+  pi.on("session_start", async (_event, ctx) => {
+    sessionManager = ctx?.sessionManager ?? null;
     if (tools.length > 0 && typeof pi.setActiveTools === "function") {
       const active = new Set(pi.getActiveTools?.() ?? []);
       const missing = tools.filter((tool) => !active.has(tool.name));

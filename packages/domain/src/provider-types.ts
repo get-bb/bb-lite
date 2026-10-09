@@ -37,6 +37,7 @@ const providerCapabilitiesSchema = z.object({
   supportsServiceTier: z.boolean(),
   supportsNativeUserQuestion: z.boolean(),
   supportsSessionRewind: z.boolean(),
+  fork: z.enum(["checkpoint"]).optional(),
   permissionModes: z.array(permissionModeSchema).min(1),
   modelCatalogScope: providerModelCatalogScopeSchema,
 });

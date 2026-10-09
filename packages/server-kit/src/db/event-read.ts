@@ -368,6 +368,20 @@ export function firstParentedBoundary(
   return row?.sequence ?? null;
 }
 
+export function latestCheckpoint(db: Db, threadId: string) {
+  const row = db.get<{ providerThreadId: string; checkpointId: string }>(
+    `SELECT provider_thread_id AS providerThreadId,
+       json_extract(data, '$.providerCheckpointId') AS checkpointId
+     FROM events
+     WHERE thread_id = ? AND type = 'turn/completed'
+       AND provider_thread_id IS NOT NULL
+       AND json_extract(data, '$.providerCheckpointId') IS NOT NULL
+     ORDER BY sequence DESC LIMIT 1`,
+    threadId,
+  );
+  return row ?? null;
+}
+
 export function lastOutput(db: Db, threadId: string): string | null {
   const row = db.get<{ text: string }>(
     `SELECT json_extract(data, '$.item.text') AS text FROM events

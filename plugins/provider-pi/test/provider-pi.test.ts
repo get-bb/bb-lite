@@ -12,6 +12,7 @@ import {
 import {
   EventBuilder,
   type ExecutionOptions,
+  type SessionSpec,
   type RunnerThreadEvent,
   type SessionHost,
 } from "@bb/runner";
@@ -112,6 +113,7 @@ async function openSession(
   overrides: Partial<SessionHost> = {},
   dynamicTools: DynamicTool[] = [],
   version = "0.84.1",
+  extra: Partial<SessionSpec> = {},
 ) {
   const events: RunnerThreadEvent[] = [];
   const children: FakePi[] = [];
@@ -146,6 +148,7 @@ async function openSession(
     dynamicTools,
     env: {},
     skillDirs: [],
+    ...extra,
   };
   const session = await adapter.open(spec, options, host);
   return { session, events, children, adapter, sessionDir };
@@ -555,4 +558,49 @@ it("retries a prompt while Pi has not loaded its API key yet", async () => {
   await new Promise((resolve) => setTimeout(resolve, 700));
   const prompts = children[0]?.received.filter((c) => c.type === "prompt");
   expect(prompts).toHaveLength(3);
+});
+
+it("compacts on request and closes the turn when Pi finishes", async () => {
+  const { session, events, children } = await openSession(
+    (pi, command) => {
+      if (command.type === "compact") {
+        pi.send({ type: "compaction_start", reason: "manual" });
+        pi.send({ type: "compaction_end", reason: "manual", aborted: false });
+      }
+      if (command.id) pi.reply(command.id);
+    },
+    {},
+    [],
+    "0.84.1",
+    { instructionMode: "replace" },
+  );
+  expect(children[0]?.launch.args).toContain("--system-prompt");
+  await session.compact?.();
+  await settle(12);
+  const kinds = types(events);
+  expect(kinds).toContain("thread/compacted");
+  expect(events.at(-1)).toMatchObject({
+    type: "turn/completed",
+    status: "completed",
+  });
+});
+
+it("reports the minimum version and the fix in its status", async () => {
+  const { adapter } = await openSession((pi, c) => pi.reply(c.id));
+  expect(await adapter.status()).toMatchObject({
+    minimumVersion: "0.84.0",
+    versionUnsupported: false,
+  });
+  const old = createPiAdapter({ version: async () => "0.83.0" });
+  expect(await old.status()).toMatchObject({
+    versionUnsupported: true,
+    installAction: { kind: "update" },
+  });
+  const missing = createPiAdapter({
+    version: () => Promise.reject(new Error("ENOENT")),
+  });
+  expect(await missing.status()).toMatchObject({
+    installed: false,
+    installAction: { kind: "install" },
+  });
 });

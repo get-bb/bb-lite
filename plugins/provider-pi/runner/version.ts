@@ -1,5 +1,6 @@
 export const PI_MINIMUM_VERSION = "0.84.0";
-const INSTALL_COMMAND = "npm install -g @earendil-works/pi-coding-agent";
+export const PI_INSTALL_COMMAND =
+  "npm install -g @earendil-works/pi-coding-agent";
 
 export function piVersionFrom(output: string) {
   return /\d+\.\d+\.\d+/.exec(output)?.[0] ?? null;
@@ -19,5 +20,5 @@ export function piUnsupported(version: string | null) {
   if (version === null || compare(version, PI_MINIMUM_VERSION) >= 0) {
     return null;
   }
-  return `Pi ${version} is older than the supported minimum ${PI_MINIMUM_VERSION}. Install @earendil-works/pi-coding-agent ${PI_MINIMUM_VERSION} or newer: ${INSTALL_COMMAND}`;
+  return `Pi ${version} is older than the supported minimum ${PI_MINIMUM_VERSION}. Install @earendil-works/pi-coding-agent ${PI_MINIMUM_VERSION} or newer: ${PI_INSTALL_COMMAND}`;
 }

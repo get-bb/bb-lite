@@ -3,6 +3,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import {
+  isStandaloneBuiltinCompactCommand,
   pendingInteractionResolutionSchema,
   threadScope,
   toolCallResponseSchema,
@@ -292,8 +293,12 @@ export function createSessionApi(
     const live = await openSession(args, sessions.get(args.session.threadId));
     live.pendingStart = { since: Date.now(), warned: false };
     live.lastActiveAt = Date.now();
+    const { provider } = live;
     try {
-      await live.provider.startTurn(args);
+      if (provider.compact && isStandaloneBuiltinCompactCommand(args.input)) {
+        live.events.acceptInput(args.clientRequestId);
+        await provider.compact();
+      } else await provider.startTurn(args);
     } catch (error) {
       live.pendingStart = null;
       throw error;

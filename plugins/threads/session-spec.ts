@@ -8,6 +8,7 @@ import { SERVER_URL_PLACEHOLDER, type SessionSpec } from "@bb/runner";
 import { dataPaths } from "@bb/server-kit/config";
 import type { SessionEnvironment } from "@bb/server-kit/services";
 import type { Db } from "@bb/server-kit/db/index";
+import { latestCheckpoint } from "@bb/server-kit/db/event-read";
 import type { ThreadRow } from "@bb/server-kit/db/threads";
 import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
 import { findProviderDefinition } from "@bb/server-kit/providers/catalog";
@@ -32,6 +33,15 @@ export function pluginContext(
   const provider = findProviderDefinition(db, providerId);
   const providerCapabilities = provider?.info.capabilities;
   return { threadId, projectId, hostId, providerId, providerCapabilities };
+}
+
+function forkFrom(db: Db, thread: ThreadRow) {
+  const { originKind, sourceThreadId, providerThreadId } = thread;
+  const pending = originKind === "fork" && providerThreadId === null;
+  if (!pending || sourceThreadId === null) return null;
+  const provider = findProviderDefinition(db, thread.providerId);
+  if (provider?.info.capabilities.fork !== "checkpoint") return null;
+  return latestCheckpoint(db, sourceThreadId);
 }
 
 export async function buildSessionSpec(
@@ -77,6 +87,9 @@ export async function buildSessionSpec(
     sections.push(`The following workspace instructions come from ${origin}:`);
     sections.push(workspace);
   }
+  const provider = findProviderDefinition(bb.db, providerId);
+  const instructionMode = provider?.instructionMode ?? "append";
+  const fork = forkFrom(bb.db, thread);
   const contributed = pluginEnv.map(({ name, value }) => [
     name,
     typeof value === "string"
@@ -99,5 +112,7 @@ export async function buildSessionSpec(
     },
     skillDirs,
     ...(customModels.length > 0 ? { customModels } : {}),
+    ...(instructionMode === "replace" ? { instructionMode } : {}),
+    ...(fork === null ? {} : { forkFrom: fork }),
   };
 }

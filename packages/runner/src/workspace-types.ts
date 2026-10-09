@@ -222,6 +222,7 @@ export interface WorkspaceApi {
   listCommands(args: {
     providerId: ProviderId;
     cwd: string | null;
+    nativeSkillRoots?: { user: string[]; project: string[] };
   }): Promise<CommandListResponse>;
 
   openTerminal(

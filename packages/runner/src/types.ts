@@ -59,6 +59,8 @@ export interface SessionSpec {
   env: Record<string, string>;
   skillDirs: string[];
   customModels?: CustomModelSettings[];
+  instructionMode?: "append" | "replace";
+  forkFrom?: { providerThreadId: string; checkpointId: string };
 }
 
 export type SubmitTurnMode =
@@ -107,6 +109,9 @@ export interface ProviderStatus {
   version: string | null;
   auth: "ready" | "unauthenticated" | "unknown";
   message: string | null;
+  minimumVersion?: string;
+  versionUnsupported?: boolean;
+  installAction?: { kind: "install" | "update"; command: string };
 }
 
 export interface ProviderModels {

@@ -15,6 +15,11 @@ export default function plugin(bb: PluginServerApi): void {
       supportsServiceTier: false,
       supportsNativeUserQuestion: false,
       supportsSessionRewind: false,
+      fork: "checkpoint",
+    },
+    nativeSkillRoots: {
+      user: [".pi/agent/skills", ".agents/skills"],
+      project: [".pi/skills", ".agents/skills"],
     },
     permissionModes: ["full"],
     optional: {

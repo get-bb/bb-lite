@@ -234,6 +234,14 @@ app's `callOp`, `useOp` and `useCall` and the CLI are built on it.
 - Contributions that depend on the thread are hooks on an operation (`sessions.instructions`,
   `env`, `tools`, `skillDirs`): the hook gets the thread's context and may filter what others added.
   Registrations that do not are slot entries (`sessions.provider`, `mention`, `inference`, `usage`).
+- A `sessions.provider` declaration may set `instructionMode: "replace"` (bb's instructions replace
+  the provider's system prompt; the runner gets `SessionSpec.instructionMode`), `nativeSkillRoots:
+  { user, project }` (folders under home / each project ancestor whose skills bb lists with its own)
+  and `capabilities.fork: "checkpoint"` (a fork-origin thread's session gets `SessionSpec.forkFrom:
+  { providerThreadId, checkpointId }` from the source thread's last checkpoint).
+- The runner part's `ProviderSession.compact?()` is called by `threads.compact` instead of sending
+  `/compact` as a prompt; it must open and close a turn. `ProviderStatus` may carry `minimumVersion`,
+  `versionUnsupported` and `installAction: { kind: "install" | "update", command }`.
 - Sign-in is a service: the host asks `server.authenticator` who a request is from. The identity
   plugin provides it, and a plugin that adds its own takes over.
 

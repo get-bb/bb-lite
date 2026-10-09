@@ -197,7 +197,10 @@ export function implementProjects(bb: PluginServerApi): void {
     const provider = findProviderDefinition(db, query.provider);
     if (provider === undefined) return { commands: [] };
     const providerId = provider.id;
-    return runners.get(hostId).call(workspaces.commands, { providerId, cwd });
+    const roots = provider.nativeSkillRoots;
+    const native = roots === null ? {} : { nativeSkillRoots: roots };
+    const args = { providerId, cwd, ...native };
+    return runners.get(hostId).call(workspaces.commands, args);
   });
 
   bb.implement(projects.branches, ({ projectId, ...query }) =>

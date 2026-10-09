@@ -2,7 +2,11 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { encodeClientTurnRequestIdNumber, threadEventSchema } from "@bb/domain";
+import {
+  createStandaloneBuiltinCompactCommandInput,
+  encodeClientTurnRequestIdNumber,
+  threadEventSchema,
+} from "@bb/domain";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   Outbox,
@@ -11,6 +15,7 @@ import {
   createSessionApi,
   parseShellPath,
   type ExecutionOptions,
+  type ProviderAdapter,
   type RunnerEvent,
   type RunnerThreadEvent,
   type SessionTiming,
@@ -60,7 +65,10 @@ function turn(
   return { session, clientRequestId, input, options, mode };
 }
 
-async function setup(timing: Partial<SessionTiming> = {}) {
+async function setup(
+  timing: Partial<SessionTiming> = {},
+  adapter: ProviderAdapter = createEchoAdapter(),
+) {
   const dataDir = await mkdtemp(join(tmpdir(), "bb-runner-test-"));
   const received: RunnerEvent[] = [];
   const outbox = new Outbox((event) => received.push(event), 5);
@@ -69,7 +77,7 @@ async function setup(timing: Partial<SessionTiming> = {}) {
     serverUrl: "http://127.0.0.1:48901",
     bbCliPath: "/opt/bb/bin/bb",
     outbox,
-    adapters: [createEchoAdapter()],
+    adapters: [adapter],
     loginPath: async () => "/usr/bin:/bin",
     timing,
   });
@@ -262,6 +270,39 @@ describe("session manager with the echo provider", () => {
     });
     const empty = { sessions: [], pendingRequestIds: [] };
     expect(await api.snapshot()).toMatchObject(empty);
+  });
+
+  it("routes a standalone /compact to the session's compact", async () => {
+    const echo = createEchoAdapter();
+    const compactions: string[] = [];
+    const adapter: ProviderAdapter = {
+      ...echo,
+      async open(spec, options, host) {
+        const session = await echo.open(spec, options, host);
+        return Object.assign(session, {
+          async compact() {
+            compactions.push(session.providerThreadId);
+            host.events.openTurn();
+            host.events.compacted();
+            host.events.closeTurn({ status: "completed" });
+          },
+        });
+      },
+    };
+    const { api, ofType, completed, replies } = await setup({}, adapter);
+    const compact = turn("count");
+    compact.input = createStandaloneBuiltinCompactCommandInput();
+    await api.submitTurn(compact);
+    await completed(1);
+    expect(compactions).toEqual([PROVIDER_THREAD]);
+    expect(ofType("thread/compacted")).toHaveLength(1);
+    const accepted = ofType("turn/input/accepted");
+    expect(accepted.map((e) => e.clientRequestId)).toEqual([
+      compact.clientRequestId,
+    ]);
+    await api.submitTurn(turn("count"));
+    await completed(2);
+    expect(replies()).toEqual(["Turn count: 1"]);
   });
 
   it("resumes a released session from its provider thread id", async () => {

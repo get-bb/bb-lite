@@ -59,6 +59,8 @@ export interface ProviderDeclaration {
   permissionModes?: Domain.ProviderInfo["capabilities"]["permissionModes"];
   modelCatalogScope?: Domain.ProviderInfo["capabilities"]["modelCatalogScope"];
   settings?: Record<string, ProviderToggle>;
+  instructionMode?: "append" | "replace";
+  nativeSkillRoots?: { user: string[]; project: string[] };
 }
 
 export interface UsageSource {

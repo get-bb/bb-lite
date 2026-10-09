@@ -80,7 +80,12 @@ async function scanRoots(ctx: Ctx, scope: Scope) {
       ...shared,
     ];
   }
-  return shared;
+  const native = scope.nativeSkillRoots ?? { user: [], project: [] };
+  return [
+    ...native.project.flatMap(inherited),
+    ...native.user.map((relative) => user(path.resolve(home, relative))),
+    ...shared,
+  ];
 }
 
 export function parseFrontmatter(content: string): Record<string, string> {

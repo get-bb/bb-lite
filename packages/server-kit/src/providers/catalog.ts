@@ -16,6 +16,8 @@ export interface ProviderDefinition {
   pluginName: string;
   reasoningLevels: domain.ReasoningLevel[];
   logo: ProviderLogo | null;
+  instructionMode: "append" | "replace";
+  nativeSkillRoots: { user: string[]; project: string[] } | null;
 }
 
 const PERMISSION_MODES: domain.PermissionMode[] = [
@@ -105,7 +107,15 @@ function defineProvider(seed: ProviderDeclaration): ProviderDefinition {
     ...seed.optional,
   };
   const pluginName = `${seed.displayName} provider`;
-  const definition = { id, info, pluginName, reasoningLevels, logo };
+  const definition = {
+    id,
+    info,
+    pluginName,
+    reasoningLevels,
+    logo,
+    instructionMode: seed.instructionMode ?? "append",
+    nativeSkillRoots: seed.nativeSkillRoots ?? null,
+  };
   defined.set(seed, definition);
   return definition;
 }

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -20,7 +20,12 @@ import { BB_PI_EXTENSION_SOURCE } from "./bb-extension.js";
 import { piDefaultModel, piModels, piThinkingLevel } from "./models.js";
 import { PiTranslator } from "./pi-events.js";
 import { piPrompt } from "./turn-input.js";
-import { piUnsupported, piVersionFrom } from "./version.js";
+import {
+  PI_INSTALL_COMMAND,
+  PI_MINIMUM_VERSION,
+  piUnsupported,
+  piVersionFrom,
+} from "./version.js";
 import { piUiPayload, piUiRequestSchema, piUiResponse } from "./pi-ui.js";
 import {
   PiRpc,
@@ -87,6 +92,17 @@ function toolContent({ contentItems }: ToolCallResponse) {
   });
 }
 
+function piSessionDir(env: Record<string, string | undefined>) {
+  const configured = env[SESSION_DIR_ENV]?.trim();
+  return configured
+    ? resolve(configured)
+    : join(homedir(), ".bb", "pi-bridge-sessions");
+}
+
+function sessionKey(providerThreadId: string) {
+  return providerThreadId.replace(/[^A-Za-z0-9._-]/g, "_");
+}
+
 function signature(spec: SessionSpec, options: ExecutionOptions) {
   const tools = JSON.stringify(spec.dynamicTools);
   return `${options.model}|${options.reasoningLevel}|${tools}`;
@@ -94,6 +110,7 @@ function signature(spec: SessionSpec, options: ExecutionOptions) {
 
 class PiSession implements ProviderSession {
   readonly providerThreadId: string;
+  readonly sessionFile: string;
   private readonly rpc: PiRpc;
   private readonly translator: PiTranslator;
   private readonly signature: string;
@@ -102,6 +119,11 @@ class PiSession implements ProviderSession {
   private ready: () => void = () => undefined;
   private delivery = Promise.resolve();
   private lastLeaf: string | null = null;
+  private compactionsEnded = 0;
+  private readonly bridgeReplies = new Map<
+    string,
+    (reply: Record<string, unknown>) => void
+  >();
   private readonly leaves: (string | null)[] = [];
   private leafWaiter: ((leaf: string | null) => void) | null = null;
 
@@ -112,12 +134,10 @@ class PiSession implements ProviderSession {
     adapter: Required<PiAdapterOptions>,
   ) {
     const env = { ...adapter.env, ...host.processEnv };
-    const configured = env[SESSION_DIR_ENV]?.trim();
-    const sessionDir = configured
-      ? resolve(configured)
-      : join(homedir(), ".bb", "pi-bridge-sessions");
+    const sessionDir = piSessionDir(env);
     this.providerThreadId = spec.providerThreadId ?? spec.threadId;
-    const key = this.providerThreadId.replace(/[^A-Za-z0-9._-]/g, "_");
+    const key = sessionKey(this.providerThreadId);
+    this.sessionFile = join(sessionDir, `${key}.jsonl`);
     mkdirSync(sessionDir, { recursive: true });
     this.signature = signature(spec, options);
     this.scratch = join(sessionDir, `${key}.instructions.md`);
@@ -126,11 +146,13 @@ class PiSession implements ProviderSession {
     writeFileSync(extension, BB_PI_EXTENSION_SOURCE, "utf8");
     writeFileSync(this.toolsFile, JSON.stringify(spec.dynamicTools), "utf8");
     const args = ["--mode", "rpc"];
-    args.push("--session", join(sessionDir, `${key}.jsonl`));
+    args.push("--session", this.sessionFile);
     args.push("--session-dir", sessionDir, "--extension", extension);
     if (spec.instructions.trim()) {
       writeFileSync(this.scratch, spec.instructions, "utf8");
-      args.push("--append-system-prompt", this.scratch);
+      const replace = spec.instructionMode === "replace";
+      const flag = replace ? "--system-prompt" : "--append-system-prompt";
+      args.push(flag, this.scratch);
     }
     for (const dir of spec.skillDirs) args.push("--skill", dir);
     const slash = options.model.indexOf("/");
@@ -212,6 +234,7 @@ class PiSession implements ProviderSession {
     } else {
       this.translator.handle(event);
     }
+    if (event.type === "compaction_end") this.compactionsEnded += 1;
     const settled = event.type === "agent_end" && event.willRetry !== true;
     if (settled || event.type === "compaction_end") void this.reportContext();
   }
@@ -231,6 +254,11 @@ class PiSession implements ProviderSession {
 
   private onChannel(message: Record<string, unknown>) {
     if (message.kind === "ready") return this.ready();
+    if (message.kind === "response" && typeof message.id === "string") {
+      this.bridgeReplies.get(message.id)?.(message);
+      this.bridgeReplies.delete(message.id);
+      return;
+    }
     if (message.kind === "agent-end-leaf") {
       const leaf = typeof message.leafId === "string" ? message.leafId : null;
       if (this.leafWaiter) this.leafWaiter(leaf);
@@ -311,6 +339,33 @@ class PiSession implements ProviderSession {
     return "steered";
   }
 
+  async bridgeRequest(method: string, params: Record<string, unknown>) {
+    const id = `bridge-${this.bridgeReplies.size}-${Date.now()}`;
+    const reply = new Promise<Record<string, unknown>>((resolve) =>
+      this.bridgeReplies.set(id, resolve),
+    );
+    this.rpc.sendChannel({ kind: "request", id, method, ...params });
+    const { error, result } = await reply;
+    if (typeof error === "string") throw new RunnerError("failed", error);
+    return result;
+  }
+
+  async compact() {
+    const { events } = this.host;
+    const before = this.compactionsEnded;
+    try {
+      await this.rpc.request({ type: "compact" });
+      await this.delivery;
+      if (this.compactionsEnded !== before) return;
+      events.openTurn();
+      events.closeTurn({ status: "completed" });
+    } catch (error) {
+      await this.delivery;
+      if (this.compactionsEnded !== before) return;
+      events.error({ message: describe(error) }, { settlesTurn: true });
+    }
+  }
+
   async interrupt() {
     if (this.translator.turnId === undefined) return;
     this.translator.interrupted = true;
@@ -358,14 +413,23 @@ export function createPiAdapter(
         providerId: "pi",
         executablePath: null,
         auth: "unknown" as const,
+        minimumVersion: PI_MINIMUM_VERSION,
       };
+      const action = (kind: "install" | "update") => ({
+        installAction: { kind, command: PI_INSTALL_COMMAND },
+      });
       try {
         const found = await version();
         const message = piUnsupported(found);
-        return { ...base, installed: true, version: found, message };
+        const unsupported = message !== null;
+        const versionUnsupported = { versionUnsupported: unsupported };
+        const fix = unsupported ? action("update") : {};
+        const status = { installed: true, version: found, message };
+        return { ...base, ...status, ...versionUnsupported, ...fix };
       } catch {
         const message = MISSING_CLI;
-        return { ...base, installed: false, version: null, message };
+        const status = { installed: false, version: null, message };
+        return { ...base, ...status, ...action("install") };
       }
     },
     async listModels(cwd) {
@@ -399,7 +463,28 @@ export function createPiAdapter(
     },
     async open(spec, execution, host) {
       await gate();
-      const session = new PiSession(spec, execution, host, adapter);
+      const { forkFrom, ...plain } = spec;
+      const dir = piSessionDir({ ...adapter.env, ...host.processEnv });
+      const key = sessionKey(spec.providerThreadId ?? spec.threadId);
+      const targetFile = join(dir, `${key}.jsonl`);
+      if (forkFrom !== undefined && !existsSync(targetFile)) {
+        const providerThreadId = forkFrom.providerThreadId;
+        const from = { ...plain, providerThreadId };
+        const source = new PiSession(from, execution, host, adapter);
+        try {
+          await source.start();
+          await source.bridgeRequest("fork", {
+            sourceFile: source.sessionFile,
+            targetFile,
+            sessionDir: dir,
+            cwd: spec.cwd,
+            checkpointId: forkFrom.checkpointId,
+          });
+        } finally {
+          await source.close();
+        }
+      }
+      const session = new PiSession(plain, execution, host, adapter);
       await session.start();
       return session;
     },
