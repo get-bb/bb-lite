@@ -4,7 +4,7 @@ import { fail, type Op, type PluginServerApi } from "@bb/plugin";
 import { machineFiles } from "@bb/runner";
 import { createTwoFilesPatch } from "diff";
 import { z } from "zod";
-import { docs, type Change } from "./contract.js";
+import { docs, type Change, type Conflict } from "./contract.js";
 
 const STATE = ".bb-docs-state.json";
 const State = z.object({
@@ -13,7 +13,6 @@ const State = z.object({
   files: z.record(z.string(), z.string()),
 });
 type State = z.infer<typeof State>;
-type Change = z.infer<typeof Change>;
 type Caller = { cwd?: string; hostId?: string };
 type Local = { path: string; modifiedAt: number | undefined };
 
@@ -93,20 +92,51 @@ export function registerDocsSync(bb: PluginServerApi): void {
       .then((f) => Buffer.from(f.content, f.contentEncoding).toString())
       .catch(() => "");
 
-  async function changes(m: Machine, state: State, withDeletes: boolean) {
+  async function plan(m: Machine, state: State, withDeletes: boolean) {
     const found = (await m.walk()).filter((f) => inScope(state, f.path));
     const local = new Set(found.map((f) => f.path));
-    const changed: Change[] = [];
+    const listed = await bb.call(docs.list, { vault: state.vaultId });
+    const remote = new Set(
+      listed
+        .filter((e) => e.kind === "file" && inScope(state, e.path))
+        .map((e) => e.path),
+    );
+    const remoteSha = async (path: string) =>
+      remote.has(path)
+        ? (await bb.call(docs.read, { vault: state.vaultId, path })).sha256
+        : null;
+    const changes: Change[] = [];
+    const conflicts: Conflict[] = [];
+    const conflict = (path: string, reason: string) =>
+      conflicts.push({ path, reason });
     for (const file of found) {
       const known = state.files[file.path];
       const now = await m.hashOf(file);
-      if (now && known !== now)
-        changed.push({ path: file.path, status: known ? "modified" : "added" });
+      if (!now) continue;
+      const theirs = await remoteSha(file.path);
+      if (now === theirs) continue;
+      if (!known) {
+        if (theirs)
+          conflict(file.path, "new local file collides with a vault file");
+        else changes.push({ path: file.path, status: "added" });
+      } else if (!theirs)
+        conflict(file.path, "vault file was deleted after pull");
+      else if (theirs === known)
+        changes.push({ path: file.path, status: "modified" });
+      else if (now === known)
+        conflict(file.path, "vault file changed after pull");
+      else conflict(file.path, "both local and vault copies changed");
     }
-    const gone = Object.keys(state.files)
-      .filter((p) => !local.has(p))
-      .map((path): Change => ({ path, status: "deleted" }));
-    return [...changed, ...(withDeletes ? gone : [])];
+    for (const [path, known] of Object.entries(state.files)) {
+      if (local.has(path) || !withDeletes || !remote.has(path)) continue;
+      if ((await remoteSha(path)) === known)
+        changes.push({ path, status: "deleted" });
+      else conflict(path, "locally deleted while the vault file also changed");
+    }
+    for (const path of remote)
+      if (!(path in state.files) && !local.has(path))
+        conflict(path, "new vault file is not present locally; pull first");
+    return { changes, conflicts };
   }
   const diffs = (m: Machine, state: State, list: Change[]) =>
     Promise.all(
@@ -161,37 +191,41 @@ export function registerDocsSync(bb: PluginServerApi): void {
   bb.implement(docs.status, async (input) => {
     const m = machine(input, input.workspaceDir);
     const state = await m.loadState();
-    const list = await changes(m, state, true);
-    if (!input.diff) return { changes: list };
-    return { changes: list, diffs: await diffs(m, state, list) };
+    const { changes, conflicts } = await plan(m, state, true);
+    const outcome = conflicts.length ? "conflict" : "planned";
+    const result = { outcome, changes, conflicts } as const;
+    if (!input.diff) return result;
+    return { ...result, diffs: await diffs(m, state, changes) };
   });
 
   bb.implement(docs.push, async (input) => {
     const m = machine(input, input.workspaceDir);
     const state = await m.loadState();
-    const list = await changes(m, state, input.delete ?? false);
-    const shown = input.diff ? { diffs: await diffs(m, state, list) } : {};
+    const { changes, conflicts } = await plan(m, state, input.delete ?? false);
+    const shown = input.diff ? { diffs: await diffs(m, state, changes) } : {};
     const dryRun = input.dryRun ?? false;
-    if (!dryRun)
-      for (const { path, status } of list) {
-        if (status === "deleted") {
-          await bb.call(docs.remove, { vault: state.vaultId, path });
-          delete state.files[path];
-          continue;
-        }
-        const content = await m.bytes(path);
-        if (!content) continue;
-        const { sha256 } = await bb.call(docs.write, {
-          vault: state.vaultId,
-          path,
-          content: content.toString("base64"),
-          contentEncoding: "base64",
-          expectedSha256: state.files[path] ?? null,
-        });
-        state.files[path] = sha256;
-        await m.saveState(state);
+    const planned = { changes, conflicts, dryRun, ...shown };
+    if (conflicts.length) return { outcome: "conflict" as const, ...planned };
+    if (dryRun) return { outcome: "planned" as const, ...planned };
+    for (const { path, status } of changes) {
+      if (status === "deleted") {
+        await bb.call(docs.remove, { vault: state.vaultId, path });
+        delete state.files[path];
+        continue;
       }
+      const content = await m.bytes(path);
+      if (!content) continue;
+      const { sha256 } = await bb.call(docs.write, {
+        vault: state.vaultId,
+        path,
+        content: content.toString("base64"),
+        contentEncoding: "base64",
+        expectedSha256: state.files[path] ?? null,
+      });
+      state.files[path] = sha256;
+      await m.saveState(state);
+    }
     await m.saveState(state);
-    return { changes: list, dryRun, ...shown };
+    return { outcome: "pushed" as const, ...planned };
   });
 }

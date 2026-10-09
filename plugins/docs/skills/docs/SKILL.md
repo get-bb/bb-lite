@@ -48,7 +48,9 @@ bb docs push ./docs-work
 ```
 
 `bb docs status` exits 0 when no changes exist. It exits 4 when it finds
-changes that the output describes. Exit 4 is a successful status result.
+changes that the output describes. Exit 4 is a successful status result. It
+exits 3 when the vault changed since the pull in a way that conflicts; `push`
+then also exits 3 and writes nothing.
 Review that output, then run `bb docs push` as a separate command. Do not
 connect the status and push commands with `&&`.
 

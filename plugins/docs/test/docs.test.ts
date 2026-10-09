@@ -64,8 +64,8 @@ it("pulls, reports status and pushes with version checks", async () => {
   expect(status.stdout).toContain("+two");
   writeFileSync(join(root, "a.md"), "theirs\n");
   const conflict = await cli("push out --json");
-  expect(conflict.exitCode).not.toBe(0);
-  expect(conflict.stdout + conflict.stderr).toContain("document_changed");
+  expect(conflict.exitCode).toBe(3);
+  expect(JSON.parse(conflict.stdout)).toMatchObject({ outcome: "conflict" });
   expect(readFileSync(join(root, "a.md"), "utf8")).toBe("theirs\n");
   writeFileSync(join(root, "a.md"), "one\n");
   expect((await cli("push out")).exitCode).toBe(0);
@@ -85,6 +85,39 @@ it("pulls, reports status and pushes with version checks", async () => {
     changes: [{ path: "b.md", status: "added" }],
     dryRun: true,
   });
+});
+
+it("reports a vault-side change as a conflict and pushes nothing", async () => {
+  const { cli, root, work } = await docsServer();
+  writeFileSync(join(root, "a.md"), "one\n");
+  writeFileSync(join(root, "b.md"), "bee\n");
+  writeFileSync(join(root, "c.md"), "sea\n");
+  expect((await cli("pull --all --vault team --into out")).exitCode).toBe(0);
+  writeFileSync(join(work, "out/a.md"), "mine\n");
+  writeFileSync(join(work, "out/b.md"), "bee two\n");
+  writeFileSync(join(root, "a.md"), "theirs\n");
+  writeFileSync(join(root, "c.md"), "sea two\n");
+  const status = await cli("status out --json");
+  expect(status.exitCode).toBe(3);
+  expect(JSON.parse(status.stdout)).toEqual({
+    outcome: "conflict",
+    changes: [{ path: "b.md", status: "modified" }],
+    conflicts: [
+      { path: "a.md", reason: "both local and vault copies changed" },
+      { path: "c.md", reason: "vault file changed after pull" },
+    ],
+  });
+  const push = await cli("push out");
+  expect(push.exitCode).toBe(3);
+  expect(push.stdout).toContain("conflict\ta.md");
+  expect(readFileSync(join(root, "a.md"), "utf8")).toBe("theirs\n");
+  expect(readFileSync(join(root, "b.md"), "utf8")).toBe("bee\n");
+  writeFileSync(join(root, "a.md"), "one\n");
+  writeFileSync(join(root, "c.md"), "sea\n");
+  const pushed = await cli("push out --json");
+  expect(pushed.exitCode).toBe(0);
+  expect(JSON.parse(pushed.stdout)).toMatchObject({ outcome: "pushed" });
+  expect(readFileSync(join(root, "b.md"), "utf8")).toBe("bee two\n");
 });
 
 it("proposes a change and accepts, undoes and redoes it", async () => {

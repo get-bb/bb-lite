@@ -60,8 +60,13 @@ export const Change = z.object({
   path: z.string(),
   status: z.enum(["added", "modified", "deleted"]),
 });
-const changeLines = (changes: z.infer<typeof Change>[]) =>
+export type Change = z.infer<typeof Change>;
+export const Conflict = z.object({ path: z.string(), reason: z.string() });
+export type Conflict = z.infer<typeof Conflict>;
+const changeLines = (changes: Change[]) =>
   changes.map((c) => `${c.status}\t${c.path}`);
+const conflictLines = (conflicts: Conflict[]) =>
+  conflicts.map((c) => `conflict\t${c.path}\t${c.reason}`);
 
 export const docs = contract("docs", {
   vaults: op({
@@ -257,20 +262,28 @@ export const docs = contract("docs", {
   status: op({
     input: z.object({ workspaceDir, diff: showDiff, ...caller }),
     output: z.object({
+      outcome: z.enum(["planned", "conflict"]),
       changes: z.array(Change),
+      conflicts: z.array(Conflict),
       diffs: z.array(z.string()).optional(),
     }),
     doors: {
       cli: {
         path: "docs status",
-        summary: "Show local changes since pull (exit 4 when changed)",
+        summary:
+          "Show local changes since pull (exit 4 when changed, 3 on conflict)",
         positionals: ["workspaceDir"],
         from,
-        print: ({ changes, diffs = [] }) =>
-          changes.length
-            ? lines([...changeLines(changes), ...diffs])
+        print: ({ changes, conflicts, diffs = [] }) =>
+          changes.length || conflicts.length
+            ? lines([
+                ...conflictLines(conflicts),
+                ...changeLines(changes),
+                ...diffs,
+              ])
             : "No changes\n",
-        exitCode: ({ changes }) => (changes.length ? 4 : 0),
+        exitCode: ({ changes, conflicts }) =>
+          conflicts.length ? 3 : changes.length ? 4 : 0,
       },
     },
   }),
@@ -289,7 +302,9 @@ export const docs = contract("docs", {
       ...caller,
     }),
     output: z.object({
+      outcome: z.enum(["planned", "pushed", "conflict"]),
       changes: z.array(Change),
+      conflicts: z.array(Conflict),
       dryRun: z.boolean().optional(),
       diffs: z.array(z.string()).optional(),
     }),
@@ -297,15 +312,22 @@ export const docs = contract("docs", {
     doors: {
       cli: {
         path: "docs push",
-        summary: "Write local changes back to the vault with version checks",
+        summary:
+          "Write local changes back to the vault (exit 3 on conflict, nothing written)",
         positionals: ["workspaceDir"],
         from,
-        print: ({ changes, dryRun, diffs = [] }) =>
-          lines([
-            `${dryRun ? "Would push" : "Pushed"} ${changes.length} change(s)`,
-            ...changeLines(changes),
-            ...diffs,
-          ]),
+        print: ({ outcome, changes, conflicts, diffs = [] }) =>
+          outcome === "conflict"
+            ? lines([
+                ...conflictLines(conflicts),
+                "No push changes were made; pull and merge the conflicts first.",
+              ])
+            : lines([
+                `${outcome === "planned" ? "Would push" : "Pushed"} ${changes.length} change(s)`,
+                ...changeLines(changes),
+                ...diffs,
+              ]),
+        exitCode: ({ outcome }) => (outcome === "conflict" ? 3 : 0),
       },
     },
   }),
