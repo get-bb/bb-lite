@@ -275,10 +275,13 @@ export default function promptLibraryServer(bb: PluginServerApi): void {
     unstarred: unstar(promptId),
   }));
   bb.implement(promptLibrary.update, ({ promptId }) => {
-    db.prepare(`UPDATE starred_prompts SET last_used_at = ? WHERE id = ?`).run(
-      bb.now(),
-      promptId,
-    );
+    const { changes } = db
+      .prepare(`UPDATE starred_prompts SET last_used_at = ? WHERE id = ?`)
+      .run(bb.now(), promptId);
+    if (changes === 0)
+      fail("not_found", `No starred prompt ${promptId}.`, {
+        hint: "List starred prompts with `bb prompts list`",
+      });
     bb.changed(promptLibrary.list);
     return null;
   });

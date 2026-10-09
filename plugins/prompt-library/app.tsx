@@ -134,7 +134,8 @@ function PromptPicker({ composer: handle }: { composer: ComposerHandle }) {
   function insert(row: PromptRow): void {
     if (handle.isEmpty) handle.setText(row.text);
     else handle.insert(row.text);
-    if (row.kind === "starred") void markUsed({ promptId: row.promptId });
+    if (row.kind === "starred")
+      void markUsed({ promptId: row.promptId }).catch(() => undefined);
     close();
   }
 

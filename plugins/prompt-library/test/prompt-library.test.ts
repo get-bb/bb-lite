@@ -100,6 +100,9 @@ it("stars, lists, marks used and unstars prompts", async () => {
     await call(promptLibrary.delete, { promptId: first.promptId }),
   ).toEqual({ unstarred: true });
   expect(await call(promptLibrary.list, {})).toEqual([]);
+  await expect(
+    call(promptLibrary.update, { promptId: first.promptId }),
+  ).rejects.toMatchObject({ code: "not_found" });
 });
 
 it("offers bb prompts search, list, star and unstar", async () => {
