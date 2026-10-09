@@ -264,9 +264,13 @@ input }`: `hostId` is the machine the turn will run on (also before the thread h
 - `threads.fork({ sourceThreadId, sourceSeqEnd?, visibility?, lifecycleOwnerThreadId?,
 agentContextSeed?, title? })` (`POST /threads/:sourceThreadId/fork`) creates a pending thread
   with `originKind: "fork"`, `sourceThreadId` and the calling plugin as `originPluginId`, in the
-  source's environment with its provider and execution settings. Providers here cannot clone a
-  session, so the fork starts a fresh one: its first message is prefixed with an agent-only
-  transcript of the source up to `sourceSeqEnd`, then `agentContextSeed`. It fails `unavailable`
+  source's environment with its provider and execution settings. The fork's timeline starts with
+  a copy of the source's conversation up to `sourceSeqEnd` (completed turns only, re-sequenced,
+  without usage readings, not counted as unread). When the provider declares
+  `capabilities.fork: "checkpoint"` and the source has a checkpoint at or before `sourceSeqEnd`,
+  the fork's session is forked from the latest such checkpoint (`SessionSpec.forkFrom`);
+  otherwise it starts fresh and its first message is prefixed with an agent-only transcript of the
+  source up to `sourceSeqEnd`. `agentContextSeed` is prefixed either way. It fails `unavailable`
   with reason `fork_source_session_unavailable` when the source has no live environment, no
   conversation, or `sourceSeqEnd` is past its history.
 - Writes that happen constantly (`threads.markRead`, `pin`, `updateTabs`, `open`, `terminals.write`,
@@ -281,7 +285,9 @@ agentContextSeed?, title? })` (`POST /threads/:sourceThreadId/fork`) creates a p
   the provider's system prompt; the runner gets `SessionSpec.instructionMode`), `nativeSkillRoots:
   { user, project }` (folders under home / each project ancestor whose skills bb lists with its own)
   and `capabilities.fork: "checkpoint"` (a fork-origin thread's session gets `SessionSpec.forkFrom:
-  { providerThreadId, checkpointId }` from the source thread's last checkpoint).
+  { providerThreadId, checkpointId }` from the source's latest checkpoint at or before the fork's
+  `sourceSeqEnd`). The echo provider declares it: its checkpoints are `turn-<n>` and a forked
+  session continues counting turns from the checkpoint.
 - The runner part's `ProviderSession.compact?()` is called by `threads.compact` instead of sending
   `/compact` as a prompt; it must open and close a turn. `ProviderStatus` may carry `minimumVersion`,
   `versionUnsupported` and `installAction: { kind: "install" | "update", command }`.

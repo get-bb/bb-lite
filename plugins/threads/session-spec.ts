@@ -14,6 +14,7 @@ import { resolveContributedEnvironment } from "@bb/server-kit/machine-environmen
 import { findProviderDefinition } from "@bb/server-kit/providers/catalog";
 import { readCustomModelConfig } from "@bb/server-kit/providers/models";
 import { requireProviderId } from "./execution.js";
+import { startupContextSchema } from "./provisioning.js";
 
 async function readUserInstructions(dataDir: string) {
   try {
@@ -35,13 +36,26 @@ export function pluginContext(
   return { threadId, projectId, hostId, providerId, providerCapabilities };
 }
 
+export function forkCheckpoint(
+  db: Db,
+  providerId: string,
+  sourceThreadId: string,
+  atOrBefore?: number,
+) {
+  const provider = findProviderDefinition(db, providerId);
+  if (provider?.info.capabilities.fork !== "checkpoint") return null;
+  return latestCheckpoint(db, sourceThreadId, atOrBefore);
+}
+
 function forkFrom(db: Db, thread: ThreadRow) {
   const { originKind, sourceThreadId, providerThreadId } = thread;
   const pending = originKind === "fork" && providerThreadId === null;
   if (!pending || sourceThreadId === null) return null;
-  const provider = findProviderDefinition(db, thread.providerId);
-  if (provider?.info.capabilities.fork !== "checkpoint") return null;
-  return latestCheckpoint(db, sourceThreadId);
+  const startup = startupContextSchema.safeParse(
+    JSON.parse(thread.startupContext ?? "null"),
+  );
+  const end = startup.success ? startup.data.forkSeqEnd : undefined;
+  return forkCheckpoint(db, thread.providerId, sourceThreadId, end);
 }
 
 export async function buildSessionSpec(

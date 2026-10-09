@@ -338,7 +338,8 @@ export function createEchoAdapter(): ProviderAdapter {
       const resumed = state?.providerThreadId === providerThreadId;
       host.events.identity(providerThreadId);
       if (spec.providerThreadId === null) host.events.started();
-      const turns = resumed ? state.turns : 0;
+      const forked = /^turn-(\d+)$/u.exec(spec.forkFrom?.checkpointId ?? "");
+      const turns = resumed ? state.turns : Number(forked?.[1] ?? 0);
       return new EchoSession(providerThreadId, turns, spec, host);
     },
   };

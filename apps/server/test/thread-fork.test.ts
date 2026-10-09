@@ -1,25 +1,37 @@
 import type { PromptInput } from "@bb/domain";
 import type { ThreadTimelineResponse as Timeline } from "@bb/server-contract";
+import { latestSequence } from "@bb/server-kit/db/event-read";
 import type { ThreadRow } from "@bb/server-kit/db/threads";
+import { findProviderDefinition } from "@bb/server-kit/providers/catalog";
 import { expect, it, vi } from "vitest";
 import { createEchoServer } from "./helpers.js";
 import { text } from "./thread-harness.js";
 
-it("forks a thread into the source environment with its history", async () => {
+async function forkScenario() {
   const server = await createEchoServer();
-  const { api, ctx, project, read: get } = server;
-  const environment = { type: "project-default" } as const;
+  const { api, ctx, project, read } = server;
   const json = {
     projectId: project.id,
     origin: "app",
     providerId: "echo",
     input: text("first pineapple"),
-    environment,
+    environment: { type: "project-default" },
     startedOnBehalfOf: null,
   } as const;
   const { id } = await (await api.threads.$post({ json })).json();
   const row = (threadId: string) =>
     ctx.db.get<ThreadRow>("SELECT * FROM threads WHERE id = ?", threadId);
+  const send = async (threadId: string, said: string) => {
+    const before = latestSequence(ctx.db, threadId);
+    await api.threads[":id"].send.$post({
+      param: { id: threadId },
+      json: { input: text(said), mode: "start" },
+    });
+    await vi.waitFor(() => {
+      expect(latestSequence(ctx.db, threadId)).toBeGreaterThan(before);
+      expect(row(threadId)?.status).toBe("idle");
+    });
+  };
   await vi.waitFor(() => expect(row(id)?.status).toBe("idle"));
   const fork = (body: object) =>
     server.request(`/threads/${id}/fork`, {
@@ -27,50 +39,108 @@ it("forks a thread into the source environment with its history", async () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
+  const created = async (body: object) => {
+    const response = await fork(body);
+    expect(response.status).toBe(201);
+    return ((await response.json()) as { id: string }).id;
+  };
+  const requested = (threadId: string) => {
+    const found = ctx.db.get<{ data: string }>(
+      `SELECT data FROM events WHERE thread_id = ?
+       AND type = 'client/turn/requested' ORDER BY sequence DESC LIMIT 1`,
+      threadId,
+    );
+    return JSON.parse(found?.data ?? "{}").input as PromptInput[];
+  };
+  const conversation = async (threadId: string) => {
+    const timeline = await read<Timeline>(`/threads/${threadId}/timeline`);
+    return timeline.rows.flatMap((entry) =>
+      entry.kind === "conversation" ? [`${entry.role}: ${entry.text}`] : [],
+    );
+  };
+  return {
+    ...server,
+    id,
+    row,
+    send,
+    fork,
+    created,
+    requested,
+    conversation,
+  };
+}
 
-  const late = await fork({ sourceSeqEnd: 1_000_000 });
+it("forks at a checkpoint with the source's timeline and no transcript", async () => {
+  const s = await forkScenario();
+  const end = latestSequence(s.ctx.db, s.id);
+  await s.send(s.id, "second banana");
+
+  const late = await s.fork({ sourceSeqEnd: 1_000_000 });
   expect(late.status).toBe(503);
   expect(await late.text()).toContain("fork_source_session_unavailable");
 
   const seed = [
     { type: "text", text: "Re: x", mentions: [], visibility: "agent-only" },
   ] satisfies PromptInput[];
-  const created = await fork({
+  const forked = await s.created({
+    sourceSeqEnd: end,
     visibility: "hidden",
-    lifecycleOwnerThreadId: id,
+    lifecycleOwnerThreadId: s.id,
     agentContextSeed: seed,
   });
-  expect(created.status).toBe(201);
-  const forked = (await created.json()) as { id: string };
-  expect(row(forked.id)).toMatchObject({
+  expect(s.row(forked)).toMatchObject({
     originKind: "fork",
-    sourceThreadId: id,
-    lifecycleOwnerThreadId: id,
+    sourceThreadId: s.id,
+    lifecycleOwnerThreadId: s.id,
     visibility: "hidden",
     providerId: "echo",
     status: "pending",
+    providerThreadId: null,
   });
-
-  const send = { input: text("second"), mode: "start" as const };
-  await api.threads[":id"].send.$post({
-    param: { id: forked.id },
-    json: send,
-  });
-  await vi.waitFor(() => expect(row(forked.id)?.status).toBe("idle"));
-  expect(row(forked.id)?.environmentId).toBe(row(id)?.environmentId);
-  const requested = ctx.db.get<{ data: string }>(
-    `SELECT data FROM events WHERE thread_id = ?
-     AND type = 'client/turn/requested'`,
-    forked.id,
+  const fresh = s.row(forked);
+  expect(fresh?.latestAttentionAt).toBeLessThanOrEqual(fresh?.lastReadAt ?? 0);
+  expect(await s.conversation(forked)).toEqual([
+    "user: first pineapple",
+    "assistant: Response to: first pineapple",
+  ]);
+  const usage = s.ctx.db.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM events WHERE thread_id = ?
+     AND (type LIKE '%Usage/updated' OR provider_thread_id IS NOT NULL)`,
+    forked,
   );
-  const input = JSON.parse(requested?.data ?? "{}").input as PromptInput[];
-  expect(input).toHaveLength(3);
+  expect(usage?.n).toBe(0);
+
+  await s.send(forked, "count");
+  expect(s.row(forked)?.environmentId).toBe(s.row(s.id)?.environmentId);
+  expect(s.requested(forked)).toEqual([seed[0], ...text("count")]);
+  expect(await s.conversation(forked)).toEqual([
+    "user: first pineapple",
+    "assistant: Response to: first pineapple",
+    "user: count",
+    "assistant: Turn count: 2",
+  ]);
+
+  const tip = await s.created({});
+  await s.send(tip, "count");
+  expect((await s.conversation(tip)).at(-1)).toBe("assistant: Turn count: 3");
+});
+
+it("seeds a transcript when the provider cannot fork a checkpoint", async () => {
+  const s = await forkScenario();
+  const definition = findProviderDefinition(s.ctx.db, "echo");
+  if (definition === undefined) throw new Error("echo is not declared");
+  definition.info.capabilities.fork = undefined;
+
+  const forked = await s.created({});
+  await s.send(forked, "count");
+  const input = s.requested(forked);
+  expect(input).toHaveLength(2);
   expect(input[0]).toMatchObject({ visibility: "agent-only" });
   expect(JSON.stringify(input[0])).toContain("User: first pineapple");
-  expect(input[1]).toMatchObject(seed[0]);
-  const timeline = await get<Timeline>(`/threads/${forked.id}/timeline`);
-  const said = timeline.rows.flatMap((entry) =>
-    entry.kind === "conversation" && entry.role === "user" ? [entry.text] : [],
-  );
-  expect(said).toEqual(["second"]);
+  expect(await s.conversation(forked)).toEqual([
+    "user: first pineapple",
+    "assistant: Response to: first pineapple",
+    "user: count",
+    "assistant: Turn count: 1",
+  ]);
 });

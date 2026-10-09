@@ -26,6 +26,7 @@ export const startupContextSchema = z.object({
   intent: environmentIntentSchema,
   titleProvided: z.boolean(),
   seed: z.array(domain.promptInputSchema).optional(),
+  forkSeqEnd: z.number().int().optional(),
 });
 export type StartupContext = z.infer<typeof startupContextSchema>;
 

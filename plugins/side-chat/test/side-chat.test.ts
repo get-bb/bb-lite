@@ -49,5 +49,5 @@ it("opens a hidden side-chat fork seeded with the quoted message", async () => {
 
   const plain = await create({ sourceThreadId: id, anchorText: "" });
   const seed = JSON.parse(row(plain.threadId)?.startupContext ?? "{}").seed;
-  expect(seed).toHaveLength(1);
+  expect(seed).toBeUndefined();
 });

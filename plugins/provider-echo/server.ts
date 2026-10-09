@@ -16,6 +16,7 @@ export default function plugin(bb: PluginServerApi): void {
       supportsServiceTier: false,
       supportsNativeUserQuestion: false,
       supportsSessionRewind: false,
+      fork: "checkpoint",
     },
     optional: {},
   });
