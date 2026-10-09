@@ -155,8 +155,8 @@ it("refreshes the app when a document changes on disk", async () => {
   const signal = await socket.next((message: Row) => {
     const payload = message.payload as Row | undefined;
     return message.type === "plugin-signal" && payload?.name === "docs.read";
-  });
-  expect(signal).toBeTruthy();
+  }, 10_000);
+  expect(signal).toMatchObject({ type: "plugin-signal" });
 }, 15_000);
 
 it("creates the Personal vault folder and lists every command in help", async () => {

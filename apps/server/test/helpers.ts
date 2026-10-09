@@ -134,8 +134,11 @@ export class TestSocket {
     });
   }
 
-  async next(matches: Matcher = () => true): Promise<SocketMessage> {
-    const deadline = Date.now() + NEXT_MESSAGE_TIMEOUT_MS;
+  async next(
+    matches: Matcher = () => true,
+    timeoutMs = NEXT_MESSAGE_TIMEOUT_MS,
+  ): Promise<SocketMessage> {
+    const deadline = Date.now() + timeoutMs;
     for (;;) {
       const index = this.inbox.findIndex(matches);
       const [found] = index < 0 ? [] : this.inbox.splice(index, 1);
