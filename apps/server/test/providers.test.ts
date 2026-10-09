@@ -51,7 +51,8 @@ it("caches model catalogs and merges custom models", async () => {
   await options();
   await changed("host", "provider-model-catalog-changed");
   expect((await options()).models[0]?.id).toBe("gpt-6");
-  expect(runner.calls.map(({ method }) => method)).toHaveLength(3);
+  const listed = runner.calls.filter(({ method }) => method === "listModels");
+  expect(listed).toHaveLength(3);
 });
 
 it("disables providers and turns their toggles into options", async () => {

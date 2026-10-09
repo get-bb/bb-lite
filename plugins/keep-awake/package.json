@@ -1,0 +1,37 @@
+{
+  "name": "bb-plugin-keep-awake",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Keeps selected macOS and Windows hosts awake while bb is running.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Keep Awake",
+    "description": "Keeps selected macOS and Windows hosts awake while bb is running.",
+    "icon": "Coffee",
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "runner": "./runner.ts"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

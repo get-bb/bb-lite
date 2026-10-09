@@ -11,6 +11,7 @@ import concurrencyLimit from "../../plugins/concurrency-limit/server.js";
 import connect from "../../plugins/connect/src/server.js";
 import customInstructions from "../../plugins/custom-instructions/server.js";
 import providerRetry from "../../plugins/provider-retry/server.js";
+import keepAwake from "../../plugins/keep-awake/server.js";
 import pluginDev from "../../plugins/plugin-dev/server.js";
 import claudeCode from "../../plugins/provider-claude-code/server.js";
 import codex from "../../plugins/provider-codex/server.js";
@@ -87,6 +88,7 @@ export const serverPlugins: BuiltinPlugin[] = [
     directory: pluginDirectory("concurrency-limit"),
     server: concurrencyLimit,
   },
+  { directory: pluginDirectory("keep-awake"), server: keepAwake },
 ];
 
 export function profilePlugins(name: string): BuiltinPlugin[] {

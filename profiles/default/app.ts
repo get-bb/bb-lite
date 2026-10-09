@@ -72,4 +72,5 @@ export const appPlugins: readonly BuiltinAppPlugin[] = [
     id: "concurrency-limit",
     load: () => import("../../plugins/concurrency-limit/app"),
   },
+  { id: "keep-awake", load: () => import("../../plugins/keep-awake/app") },
 ];
