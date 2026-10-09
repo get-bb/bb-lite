@@ -9,6 +9,7 @@ import { useAppTheme } from "@bb/app-kit/hooks/useAppTheme";
 import { useFaviconColorSync } from "@bb/app-kit/lib/favicon-color-preference";
 import { bootPlugins } from "./plugins/external";
 import { useSlot } from "@bb/app-kit/plugins/slots";
+import { useHookImplementationsVersion } from "@bb/app-kit/plugins/registry";
 import { useRememberPluginNavPanelChrome } from "@bb/app-kit/lib/plugin-nav-panel-chrome";
 import { useWebSocket } from "@bb/app-kit/hooks/useWebSocket";
 import { AppCommandProvider } from "@bb/app-kit/components/commands/AppCommandProvider";
@@ -55,6 +56,7 @@ export function App() {
   }, []);
   useRememberPluginNavPanelChrome();
   const Root = useSlot(app.root).at(-1);
+  const hooksVersion = useHookImplementationsVersion();
 
   return (
     <QuickCreateProjectProvider>
@@ -63,7 +65,7 @@ export function App() {
           <RouteNavigationIndicator />
           <HashNavigationScroll />
           <UiPreferencesSync />
-          {Root === undefined ? null : <Root />}
+          {Root === undefined ? null : <Root key={hooksVersion} />}
         </RouteNavigationProvider>
       </AppCommandProvider>
     </QuickCreateProjectProvider>

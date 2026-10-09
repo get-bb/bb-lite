@@ -721,7 +721,9 @@ of your own: export it from `parts.ts`, declare it in `contract.ts` with
 `part<typeof Module.Name>("<your id>", "Name")` or `callPart<…>` (both from
 `@bb/app-kit/plugins/parts`), and keep `bb.add(app.parts, { plugin: "<your id>", parts })` in
 `app.tsx`. Values that are not functions (atoms, contexts, constants) cannot be parts; they belong
-in a kit.
+in a kit. Name hook parts `use…`: when a fork or a reload replaces a hook part (or a `use…` hook of
+a service such as `composer.api` or `shell.api`), the app remounts its screen so no mounted
+component calls a different hook than the one it started with.
 
 A part is typed by its current implementation; a service is typed by an interface. Use a service
 for something others depend on, a part for a component you are sharing as it is. Diff and code views

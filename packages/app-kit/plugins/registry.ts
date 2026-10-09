@@ -65,6 +65,7 @@ interface Running {
 
 const running = new Map<string, Running>();
 const crashedSlotKeys = new Set<string>();
+const addedSlots = new Map<string, Slot<unknown>>();
 const listeners = new Set<() => void>();
 let settled = false;
 
@@ -196,6 +197,10 @@ export function registerPluginApp(
   const entry: Running = { scope, stops: [], starters: [] };
   const bb: PluginAppApi = {
     ...verbs,
+    add: (slot, item) => {
+      addedSlots.set(slot.name, slot as Slot<unknown>);
+      return verbs.add(slot, item);
+    },
     pluginId,
     log: logger(pluginId),
     onStart: (begin) => void entry.starters.push(begin),
@@ -236,6 +241,62 @@ function subscribe(listener: () => void): () => void {
 
 export function usePluginsSettled(): boolean {
   return useSyncExternalStore(subscribe, () => settled);
+}
+
+const HOOK_NAME = /^use[A-Z0-9]/;
+
+function hooksOf(item: unknown): [string, unknown][] {
+  if (typeof item !== "object" || item === null) return [];
+  return Object.entries(item).filter(
+    ([name, value]) => HOOK_NAME.test(name) && typeof value === "function",
+  );
+}
+
+function hookImplementations(): Map<string, unknown> {
+  const found = new Map<string, unknown>();
+  const bags = new Map(slotItems(app.parts).map((bag) => [bag.plugin, bag]));
+  for (const [plugin, { parts }] of bags) {
+    for (const [name, run] of hooksOf(parts)) {
+      found.set(`${app.parts.name} ${plugin}.${name}`, run);
+    }
+  }
+  for (const slot of addedSlots.values()) {
+    if (slot.name === app.parts.name) continue;
+    for (const [name, run] of hooksOf(kernel.pick(slot))) {
+      found.set(`${slot.name} ${name}`, run);
+    }
+    slotItems(slot).forEach((item, index) => {
+      for (const [name, run] of hooksOf(item)) {
+        found.set(`${slot.name} ${index} ${name}`, run);
+      }
+    });
+  }
+  return found;
+}
+
+const NO_HOOKS = { at: -1, version: 0, found: new Map<string, unknown>() };
+let hooks = NO_HOOKS;
+
+export function hookImplementationsVersion(): number {
+  if (hooks.at === kernel.version()) return hooks.version;
+  const found = hookImplementations();
+  const swapped = [...hooks.found].some(
+    ([name, run]) => found.get(name) !== run,
+  );
+  hooks = {
+    at: kernel.version(),
+    version: swapped ? hooks.version + 1 : hooks.version,
+    found,
+  };
+  return hooks.version;
+}
+
+export function useHookImplementationsVersion(): number {
+  return useSyncExternalStore(
+    watchSlots,
+    hookImplementationsVersion,
+    hookImplementationsVersion,
+  );
 }
 
 export function slotInstanceKey(...parts: (string | undefined)[]): string {
@@ -333,6 +394,8 @@ export function resetPluginRegistryForTest(): void {
   kernel = newKernel();
   sortedSlots.clear();
   crashedSlotKeys.clear();
+  addedSlots.clear();
+  hooks = NO_HOOKS;
   settled = false;
   iconsVersion = -1;
 }
