@@ -37,6 +37,14 @@ export function paneContentRoute(content: PaneContent): string {
   });
 }
 
+function decodeSubPath(subPath: string): string {
+  try {
+    return subPath.split("/").map(decodeURIComponent).join("/");
+  } catch {
+    return subPath;
+  }
+}
+
 export function paneContentForPathname(pathname: string): PaneContent | null {
   if (pathname === APP_ROOT_ROUTE_PATH) return { kind: "new-thread" };
   const thread = matchPath(
@@ -56,7 +64,7 @@ export function paneContentForPathname(pathname: string): PaneContent | null {
       kind: "plugin-panel",
       pluginId: panel.params.pluginId,
       panelPath: panel.params.panelPath,
-      subPath: panel.params["*"] ?? "",
+      subPath: decodeSubPath(panel.params["*"] ?? ""),
     };
   }
   return null;
