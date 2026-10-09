@@ -163,7 +163,7 @@ it("guards plugin http routes by their declared auth mode", async () => {
   expect(await status("local", MACHINE)).toBe(403);
   expect(await status("none", MACHINE)).toBe(200);
   const fromMachine = await answer("echo.echo", { text: "m" }, MACHINE);
-  expect(fromMachine.status).toBe(200);
+  expect(fromMachine.status).toBe(403);
   expect(await status("token")).toBe(401);
   expect((await send("/echo/token", {}, MACHINE)).status).toBe(403);
   const { token } = (await send("/echo/token", {})).body as { token: string };

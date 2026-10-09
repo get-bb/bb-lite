@@ -18,6 +18,7 @@ import type { ApiApp, AppEnv } from "@bb/server-kit/http/api";
 import {
   ApiError,
   errorMessage,
+  forbidden,
   invalidRequest,
   notFound,
 } from "@bb/server-kit/http/errors";
@@ -93,6 +94,12 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
 
   app.post("/plugins/:id/cli", async (c) => {
     const id = c.req.param("id");
+    const caller = currentCaller();
+    if (caller.role === "machine" && caller.thread === null) {
+      throw forbidden(
+        "Machine credentials can run plugin commands only for a thread they run",
+      );
+    }
     const { argv, ...given } = await jsonBody(c, pluginCliRequestSchema);
     const hostId = given.hostId ?? threadHost(given.threadId);
     const scope = hostId === undefined ? given : { ...given, hostId };
@@ -101,9 +108,9 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
       const cli = plugins.cliOf(id);
       if (cli === null) throw new Error(`Plugin "${id}" has no CLI command`);
       const context = { ...scope, signal: c.req.raw.signal };
-      const caller = currentCaller();
       const door = caller.door === "agent" ? "agent" : "cli";
-      const thread = caller.thread ?? scope.threadId ?? null;
+      const claimed = caller.role === "machine" ? null : scope.threadId;
+      const thread = caller.thread ?? claimed ?? null;
       const result = await enterCaller({ ...caller, door, thread }, () =>
         asPlugin(id, () => cli.run(argv, context)),
       );

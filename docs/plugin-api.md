@@ -363,8 +363,11 @@ input }` and answers `{ pluginId, reason }` to keep the message queued (`null` l
 - Writes that happen constantly (`threads.markRead`, `pin`, `updateTabs`, `open`, `terminals.write`,
   `settings.updateUiPreference`) are not recorded in the audit log. Records older than the
   `audit-log` plugin's "Days to keep" setting (90) are removed nightly.
-- A machine's own credential may call operations, but not those marked `allow: "user"`: changing
-  machines, settings, users, providers or the machine environment.
+- A machine's own credential (its runner token, which the CLI proxy on that machine forwards) may
+  call operations only on behalf of a thread that machine runs (the `x-bb-thread-id` header names
+  it), as the thread's user, and never those marked `allow: "user"`: changing machines, settings,
+  users, providers or the machine environment. Without such a thread every operation and plugin
+  command is refused.
 - Sign-in is a service: the host asks `server.authenticator` who a request is from. The identity
   plugin provides it, and a plugin that adds its own takes over.
 

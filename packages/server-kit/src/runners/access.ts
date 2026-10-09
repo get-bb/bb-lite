@@ -127,10 +127,11 @@ export function actorOf(
         ? undefined
         : findHost(db, "connect_machine_id", machineId);
   const ownerId = host?.ownerUserId ?? null;
+  const agent = onBehalfOf(db, threadId, host?.id ?? null);
   const user =
-    onBehalfOf(db, threadId, host?.id ?? null) ??
+    agent ??
     (ownerId === null ? undefined : enabled(getUser(db, ownerId))) ??
     ownerUser(db);
-  const agentThreadId = threadId ?? null;
+  const agentThreadId = agent === undefined ? null : (threadId ?? null);
   return { userId: user.id, role: user.role, agentThreadId };
 }

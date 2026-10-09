@@ -24,6 +24,7 @@ import { runAs } from "@bb/server-kit/auth/actor";
 import { pruneAudit } from "@bb/server-kit/db/audit";
 import { currentCaller, enterCaller } from "@bb/server-kit/kernel/caller";
 import { insertRow } from "@bb/server-kit/db/index";
+import { updateHost } from "@bb/server-kit/db/hosts";
 import { PluginHost } from "../src/plugins/host.js";
 import { scratch } from "./helpers.js";
 import { createThreadServer, text } from "./thread-harness.js";
@@ -895,4 +896,38 @@ it("keeps machine environment values out of the audit log", async () => {
   const [entry] = entries;
   expect(entry?.input).toContain("API_TOKEN");
   expect(JSON.stringify(entries)).not.toContain("hunter2-value");
+});
+
+it("lets a machine credential act only for a thread its machine runs", async () => {
+  const server = await createThreadServer();
+  const { ctx } = server;
+  const threadId = await server.spawn();
+  updateHost(ctx.db, ctx.config.hostId, { connectMachineId: "m1" });
+  const machine = {
+    "content-type": "application/json",
+    "x-bb-via-tunnel": "1",
+    "x-bb-gate-auth": "machine",
+    "x-bb-gate-machine-id": "m1",
+  };
+  const call = async (path: string, headers: Record<string, string>) =>
+    (
+      await server.request(path, {
+        method: "POST",
+        headers: { ...machine, ...headers },
+        body: JSON.stringify({ path: "/etc/hostname", argv: ["--help"] }),
+      })
+    ).status;
+  const routes = [
+    "/ops/machines.readFile",
+    "/ops/projects.list",
+    "/ops/threads.list",
+    "/plugins/memory/cli",
+  ];
+  for (const route of routes) {
+    expect([route, await call(route, {})]).toEqual([route, 403]);
+    const elsewhere = { "x-bb-thread-id": "thr_missing" };
+    expect([route, await call(route, elsewhere)]).toEqual([route, 403]);
+  }
+  const own = { "x-bb-thread-id": threadId };
+  expect(await call("/ops/projects.list", own)).toBe(200);
 });

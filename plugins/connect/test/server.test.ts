@@ -86,7 +86,7 @@ it("serves gate-authenticated visitors through the tunnel", async () => {
   const asMachine = { ...added, headers: { ...machine, ...JSON_BODY } };
   const command = `${hostPath}/enrollment-command`;
   expect((await code(command, { headers: OWNER }))[0]).toBe(200);
-  expect((await code("/api/v1/machines", { headers: machine }))[0]).toBe(200);
+  expect((await code("/api/v1/machines", { headers: machine }))[0]).toBe(403);
   expect(await code(command, { headers: machine })).toEqual([403, "forbidden"]);
   expect(await code("/api/v1/machines", asMachine)).toEqual([403, "forbidden"]);
   const removal = { method: "DELETE", headers: machine };
