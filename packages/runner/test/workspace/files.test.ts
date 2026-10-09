@@ -113,8 +113,9 @@ describe("files", () => {
     const dotfiles = { query: "workflow", includeHidden: true };
     const hidden = await list(repo, 5, dotfiles);
     expect(hidden.paths[0]?.path).toBe(".github/workflow.yml");
+    h.write(root, { "nested/deep.txt": "" });
     const plain = (await list(root, 50)).paths.map((entry) => entry.path);
-    expect(plain).toContain("state/config.json");
+    expect(plain).toContain("nested/deep.txt");
     expect(plain).not.toContain("link");
   });
 
