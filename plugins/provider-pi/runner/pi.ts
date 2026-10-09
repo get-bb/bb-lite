@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import type { PromptInput } from "@bb/domain";
+import type { PromptInput, ToolCallResponse } from "@bb/domain";
 import {
   RunnerError,
   type ExecutionOptions,
@@ -14,8 +14,11 @@ import {
   type SteerInput,
   type TurnInput,
 } from "@bb/runner";
-import { piModels, piThinkingLevel } from "./models.js";
+import { z } from "zod";
+import { BB_PI_EXTENSION_SOURCE } from "./bb-extension.js";
+import { piDefaultModel, piModels, piThinkingLevel } from "./models.js";
 import { PiTranslator } from "./pi-events.js";
+import { piUiPayload, piUiRequestSchema, piUiResponse } from "./pi-ui.js";
 import {
   PiRpc,
   PiRpcError,
@@ -28,6 +31,23 @@ const run = promisify(execFile);
 export const SESSION_DIR_ENV = "BB_PI_BRIDGE_SESSION_DIR";
 const MISSING_CLI =
   "bb could not find the Pi CLI on this machine. Install it with `npm install -g @earendil-works/pi-coding-agent` (https://pi.dev) or set BB_PI_BRIDGE_COMMAND, then retry.";
+
+const READY_TIMEOUT_MS = 30_000;
+const toolCallSchema = z.object({
+  kind: z.literal("tool-call"),
+  id: z.string(),
+  toolCallId: z.string().optional(),
+  toolName: z.string(),
+  arguments: z.unknown().optional(),
+});
+const statsSchema = z.object({
+  contextUsage: z
+    .object({
+      tokens: z.number().nullable().optional(),
+      contextWindow: z.number(),
+    })
+    .optional(),
+});
 
 export interface PiAdapterOptions {
   spawn?: SpawnPi;
@@ -50,8 +70,18 @@ function promptText(input: PromptInput[]) {
     .join("\n\n");
 }
 
-function signature(options: ExecutionOptions) {
-  return `${options.model}|${options.reasoningLevel}`;
+function toolContent({ contentItems }: ToolCallResponse) {
+  return contentItems.map((item) => {
+    if (item.type === "inputText") return { type: "text", text: item.text };
+    const image = /^data:([^;,]+);base64,(.*)$/s.exec(item.imageUrl);
+    if (!image) return { type: "text", text: item.imageUrl };
+    return { type: "image", mimeType: image[1], data: image[2] };
+  });
+}
+
+function signature(spec: SessionSpec, options: ExecutionOptions) {
+  const tools = JSON.stringify(spec.dynamicTools);
+  return `${options.model}|${options.reasoningLevel}|${tools}`;
 }
 
 class PiSession implements ProviderSession {
@@ -60,6 +90,8 @@ class PiSession implements ProviderSession {
   private readonly translator: PiTranslator;
   private readonly signature: string;
   private readonly scratch: string;
+  private readonly toolsFile: string;
+  private ready: () => void = () => undefined;
 
   constructor(
     spec: SessionSpec,
@@ -75,11 +107,15 @@ class PiSession implements ProviderSession {
     this.providerThreadId = spec.providerThreadId ?? spec.threadId;
     const key = this.providerThreadId.replace(/[^A-Za-z0-9._-]/g, "_");
     mkdirSync(sessionDir, { recursive: true });
-    this.signature = signature(options);
+    this.signature = signature(spec, options);
     this.scratch = join(sessionDir, `${key}.instructions.md`);
+    this.toolsFile = join(sessionDir, `${key}.tools.json`);
+    const extension = join(sessionDir, "bb-pi-extension.ts");
+    writeFileSync(extension, BB_PI_EXTENSION_SOURCE, "utf8");
+    writeFileSync(this.toolsFile, JSON.stringify(spec.dynamicTools), "utf8");
     const args = ["--mode", "rpc"];
     args.push("--session", join(sessionDir, `${key}.jsonl`));
-    args.push("--session-dir", sessionDir);
+    args.push("--session-dir", sessionDir, "--extension", extension);
     if (spec.instructions.trim()) {
       writeFileSync(this.scratch, spec.instructions, "utf8");
       args.push("--append-system-prompt", this.scratch);
@@ -91,26 +127,42 @@ class PiSession implements ProviderSession {
       args.push("--model", options.model.slice(slash + 1));
     }
     args.push("--thinking", piThinkingLevel(options.reasoningLevel));
-    this.translator = new PiTranslator(host.events, spec.cwd);
+    const presentations = new Map(
+      spec.dynamicTools.flatMap((tool) =>
+        tool.presentation ? [[tool.name, tool.presentation] as const] : [],
+      ),
+    );
+    this.translator = new PiTranslator(host.events, spec.cwd, presentations);
     const launch = piCommand(env);
     const child = adapter.spawn({
       command: launch.command,
       args: [...launch.args, ...args],
       cwd: spec.cwd,
-      env: { ...host.processEnv, ...spec.env },
+      env: {
+        ...host.processEnv,
+        ...spec.env,
+        PI_BB_TOOLS_FILE: this.toolsFile,
+      },
     });
     this.rpc = new PiRpc(child, {
-      onEvent: (event) => this.translator.handle(event),
+      onEvent: (event) => this.onEvent(event),
+      onChannel: (message) => this.onChannel(message),
+      onUiRequest: (request) => this.onUiRequest(request),
       onExit: (info) => {
-        rmSync(this.scratch, { force: true });
+        this.removeScratch();
         host.onExit(info);
       },
     });
   }
 
   async start() {
+    const ready = new Promise<void>((resolve, reject) => {
+      this.ready = resolve;
+      const message = "Pi did not load the bb extension in time";
+      setTimeout(() => reject(new Error(message)), READY_TIMEOUT_MS).unref();
+    });
     try {
-      await this.rpc.request({ type: "get_state" });
+      await Promise.all([this.rpc.request({ type: "get_state" }), ready]);
     } catch (error) {
       this.rpc.close();
       throw launchError(error);
@@ -118,8 +170,66 @@ class PiSession implements ProviderSession {
     this.host.events.identity(this.providerThreadId);
   }
 
-  canApply(_spec: SessionSpec, options: ExecutionOptions) {
-    return !this.rpc.exited && signature(options) === this.signature;
+  private onEvent(event: Record<string, unknown>) {
+    this.translator.handle(event);
+    const settled = event.type === "agent_end" && event.willRetry !== true;
+    if (settled || event.type === "compaction_end") void this.reportContext();
+  }
+
+  private async reportContext() {
+    const data = await this.rpc
+      .request({ type: "get_session_stats" })
+      .catch(() => undefined);
+    const usage = statsSchema.safeParse(data ?? {}).data?.contextUsage;
+    if (!usage) return;
+    this.host.events.contextWindow({
+      usedTokens: usage.tokens ?? null,
+      modelContextWindow: usage.contextWindow,
+      estimated: false,
+    });
+  }
+
+  private onChannel(message: Record<string, unknown>) {
+    if (message.kind === "ready") return this.ready();
+    if (message.kind === "agent-end-leaf") {
+      const leaf = message.leafId;
+      this.translator.leafId = typeof leaf === "string" ? leaf : null;
+      return;
+    }
+    const call = toolCallSchema.safeParse(message);
+    if (!call.success) return;
+    const { id, toolCallId, toolName, arguments: input } = call.data;
+    const { events } = this.host;
+    const providerId = toolCallId ?? id;
+    const callId = events.bbItemId(providerId) ?? providerId;
+    const turnId = this.translator.turnId ?? null;
+    const request = { callId, tool: toolName, arguments: input ?? {}, turnId };
+    const reply = (content: unknown[], isError: boolean) =>
+      this.rpc.sendChannel({ kind: "tool-result", id, content, isError });
+    this.host.callTool(request).then(
+      (response) => reply(toolContent(response), !response.success),
+      (error: unknown) =>
+        reply([{ type: "text", text: describe(error) }], true),
+    );
+  }
+
+  private async onUiRequest(raw: Record<string, unknown>) {
+    const request = piUiRequestSchema.safeParse(raw);
+    if (!request.success) return undefined;
+    const payload = piUiPayload(request.data);
+    if (!payload) return { cancelled: true };
+    const turnId = this.translator.turnId ?? null;
+    const resolution = await this.host.requestInteraction({ payload, turnId });
+    return piUiResponse(request.data, resolution);
+  }
+
+  private removeScratch() {
+    rmSync(this.scratch, { force: true });
+    rmSync(this.toolsFile, { force: true });
+  }
+
+  canApply(spec: SessionSpec, options: ExecutionOptions) {
+    return !this.rpc.exited && signature(spec, options) === this.signature;
   }
 
   async startTurn({ clientRequestId, input }: TurnInput) {
@@ -155,7 +265,7 @@ class PiSession implements ProviderSession {
 
   async close() {
     this.rpc.close();
-    rmSync(this.scratch, { force: true });
+    this.removeScratch();
   }
 }
 
@@ -205,7 +315,11 @@ export function createPiAdapter(
         onExit: () => undefined,
       });
       try {
-        return piModels(await rpc.request({ type: "get_available_models" }));
+        const [list, state] = await Promise.all([
+          rpc.request({ type: "get_available_models" }),
+          rpc.request({ type: "get_state" }).catch(() => undefined),
+        ]);
+        return piModels(list, piDefaultModel(state));
       } catch (error) {
         throw launchError(error);
       } finally {

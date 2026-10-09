@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createInterface } from "node:readline";
+import { StringDecoder } from "node:string_decoder";
 import type { Readable, Writable } from "node:stream";
 import { z } from "zod";
 
@@ -10,6 +10,7 @@ export interface PiChild {
   on(event: "exit", listener: (code: number | null) => void): unknown;
   on(event: "error", listener: (error: Error) => void): unknown;
   kill(): boolean;
+  channel?: { input: Readable; output: Writable };
 }
 export interface PiLaunch {
   command: string;
@@ -31,8 +32,17 @@ const responseSchema = z.object({
 });
 const messageSchema = z.record(z.string(), z.unknown());
 
-export const spawnPi: SpawnPi = ({ command, args, cwd, env }) =>
-  spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+export const spawnPi: SpawnPi = ({ command, args, cwd, env }) => {
+  const stdio = ["pipe", "pipe", "pipe", "pipe", "pipe"] as const;
+  const child = spawn(command, args, { cwd, env, stdio: [...stdio] });
+  const input = child.stdio[3];
+  const output = child.stdio[4];
+  const channel =
+    input && output && "on" in input && "write" in output
+      ? { input: input as Readable, output: output as Writable }
+      : undefined;
+  return Object.assign(child, { channel });
+};
 
 export function piCommand(env: Record<string, string | undefined>) {
   const command = env[COMMAND_ENV]?.trim();
@@ -70,20 +80,31 @@ export class PiRpc {
     private readonly child: PiChild,
     handlers: {
       onEvent: (event: Record<string, unknown>) => void;
+      onChannel?: (message: Record<string, unknown>) => void;
+      onUiRequest?: (
+        request: Record<string, unknown>,
+      ) => Promise<Record<string, unknown> | undefined>;
       onExit: (info: { message: string; stderrTail: string }) => void;
     },
   ) {
-    createInterface({ input: child.stdout }).on("line", (line) => {
+    onLines(child.stdout, (line) => {
       const message = parse(line);
       if (message === undefined) return;
       const response = responseSchema.safeParse(message);
       if (response.success) return this.settle(response.data);
       if (message.type === "extension_ui_request") {
-        const cancel = { type: "extension_ui_response", cancelled: true };
-        return this.write({ ...cancel, id: message.id });
+        return this.answerUi(message, handlers.onUiRequest);
       }
       if (typeof message.type === "string") handlers.onEvent(message);
     });
+    const channel = child.channel;
+    if (channel && handlers.onChannel) {
+      const onChannel = handlers.onChannel;
+      onLines(channel.input, (line) => {
+        const message = parse(line);
+        if (message !== undefined) onChannel(message);
+      });
+    }
     child.stderr.on("data", (chunk: Buffer) => {
       this.stderrTail = `${this.stderrTail}${chunk.toString()}`.slice(-4000);
     });
@@ -113,6 +134,26 @@ export class PiRpc {
     if (!this.exited) this.child.kill();
   }
 
+  sendChannel(message: Record<string, unknown>) {
+    const output = this.child.channel?.output;
+    if (!this.exited && output) output.write(`${JSON.stringify(message)}\n`);
+  }
+
+  private answerUi(
+    request: Record<string, unknown>,
+    answer?: (
+      request: Record<string, unknown>,
+    ) => Promise<Record<string, unknown> | undefined>,
+  ) {
+    const type = "extension_ui_response";
+    const cancelled = { cancelled: true };
+    const reply = (fields: Record<string, unknown> | undefined) => {
+      if (fields !== undefined) this.write({ type, id: request.id, ...fields });
+    };
+    if (!answer) return reply(cancelled);
+    answer(request).then(reply, () => reply(cancelled));
+  }
+
   private write(message: Record<string, unknown>) {
     if (!this.exited) this.child.stdin.write(`${JSON.stringify(message)}\n`);
   }
@@ -127,6 +168,17 @@ export class PiRpc {
       pending.resolve(response.data);
     }
   }
+}
+
+function onLines(stream: Readable, onLine: (line: string) => void) {
+  const decoder = new StringDecoder("utf8");
+  let pending = "";
+  stream.on("data", (chunk: Buffer | string) => {
+    const text = typeof chunk === "string" ? chunk : decoder.write(chunk);
+    const lines = `${pending}${text}`.split("\n");
+    pending = lines.pop() ?? "";
+    for (const line of lines) onLine(line.replace(/\r$/, ""));
+  });
 }
 
 function parse(line: string) {

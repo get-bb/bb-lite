@@ -57,21 +57,35 @@ function toModel(model: z.infer<typeof modelSchema>): AvailableModel {
   };
 }
 
-export function piModels(data: unknown): ProviderModels {
+const stateSchema = z.object({
+  model: z.object({ provider: z.string(), id: z.string() }).nullish(),
+});
+
+export function piDefaultModel(state: unknown) {
+  const model = stateSchema.safeParse(state).data?.model;
+  return model ? `${model.provider}/${model.id}` : undefined;
+}
+
+export function piModels(data: unknown, preferred?: string): ProviderModels {
   const raw = listSchema.safeParse(data);
   const models: AvailableModel[] = [];
   const selectedOnlyModels: AvailableModel[] = [];
   for (const entry of raw.success ? raw.data.models : []) {
     const parsed = modelSchema.safeParse(entry);
     if (!parsed.success) continue;
+    const model = toModel(parsed.data);
     const alias =
       parsed.data.id.endsWith("-latest") || !DATE_SUFFIX.test(parsed.data.id);
-    (alias ? models : selectedOnlyModels).push(toModel(parsed.data));
+    (alias || model.id === preferred ? models : selectedOnlyModels).push(model);
   }
-  const [first, ...rest] = models;
-  if (first === undefined) return { models, selectedOnlyModels };
+  const index = Math.max(
+    0,
+    models.findIndex((model) => model.id === preferred),
+  );
   return {
-    models: [{ ...first, isDefault: true }, ...rest],
+    models: models.map((model, i) =>
+      i === index ? { ...model, isDefault: true } : model,
+    ),
     selectedOnlyModels,
   };
 }

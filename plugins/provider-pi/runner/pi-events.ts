@@ -62,6 +62,12 @@ const toolEndSchema = toolStartSchema.extend({
 const toolUpdateSchema = toolStartSchema.extend({
   partialResult: z.unknown().optional(),
 });
+const compactionSchema = z.object({
+  aborted: z.boolean().optional(),
+  errorMessage: z.string().optional(),
+});
+const COMPACTION = { channel: "compaction" };
+const COMPACTION_SHAPE: ItemShape = { type: "contextCompaction" };
 const resultSchema = z.object({ content: contentSchema }).passthrough();
 const bashArgsSchema = z.object({
   command: z.string().min(1),
@@ -118,7 +124,12 @@ function toUsage(usage: z.infer<typeof usageSchema>) {
   };
 }
 
-function classify(tool: string, args: unknown, cwd: string): Started {
+function classify(
+  tool: string,
+  args: unknown,
+  cwd: string,
+  labelled?: Presentation,
+): Started {
   const startedAt = Date.now();
   const call = (): Started => {
     const parsed = record.safeParse(args);
@@ -127,7 +138,8 @@ function classify(tool: string, args: unknown, cwd: string): Started {
       tool,
       arguments: parsed.success ? parsed.data : undefined,
     };
-    return { shape, presentation: labels.tool(tool), startedAt };
+    const presentation = labelled ?? labels.tool(tool);
+    return { shape, presentation, startedAt };
   };
   if (COMMAND_TOOLS.has(tool)) {
     const parsed = bashArgsSchema.safeParse(args);
@@ -168,18 +180,27 @@ export class PiTranslator {
   turnId: string | undefined;
   interrupted = false;
   private closed = false;
+  private compactionTurn = false;
+  private readonly output = new Map<string, string>();
+  leafId: string | null = null;
 
   constructor(
     private readonly events: EventBuilder,
     private readonly cwd: string,
+    private readonly presentations = new Map<string, Presentation>(),
   ) {}
 
   handle(event: Record<string, unknown>) {
     switch (event.type) {
       case "agent_start":
         this.interrupted = false;
+        this.leafId = null;
         this.turnId = this.events.openTurn();
         return;
+      case "compaction_start":
+        return this.compactionStart();
+      case "compaction_end":
+        return this.compactionEnd(event);
       case "agent_end":
         return this.agentEnd(event);
       case "message_end":
@@ -226,7 +247,8 @@ export class PiTranslator {
     const parsed = toolStartSchema.safeParse(event);
     if (!parsed.success) return;
     const { toolCallId, toolName, args } = parsed.data;
-    const started = classify(toolName, args, this.cwd);
+    const labelled = this.presentations.get(toolName);
+    const started = classify(toolName, args, this.cwd, labelled);
     this.tools.set(toolCallId, started);
     const { shape, presentation } = started;
     this.events.openItem({ providerItemId: toolCallId }, shape, {
@@ -238,9 +260,17 @@ export class PiTranslator {
     const parsed = toolUpdateSchema.safeParse(event);
     if (!parsed.success) return;
     const { toolCallId, toolName, partialResult } = parsed.data;
-    if (COMMAND_TOOLS.has(toolName)) return;
+    const key = { providerItemId: toolCallId };
+    if (COMMAND_TOOLS.has(toolName)) {
+      const text = textOf(partialResult) ?? "";
+      const shown = this.output.get(toolCallId) ?? "";
+      const grown = text.startsWith(shown) && text.length > shown.length;
+      if (grown) this.events.delta(key, "command", text.slice(shown.length));
+      if (grown || !text.startsWith(shown)) this.output.set(toolCallId, text);
+      return;
+    }
     const message = textOf(partialResult) ?? `Running ${toolName}`;
-    this.events.progress({ providerItemId: toolCallId }, { message });
+    this.events.progress(key, { message });
   }
 
   private toolEnd(event: unknown) {
@@ -250,6 +280,7 @@ export class PiTranslator {
     const started =
       this.tools.get(toolCallId) ?? classify(toolName, undefined, this.cwd);
     this.tools.delete(toolCallId);
+    this.output.delete(toolCallId);
     const text = textOf(result);
     const durationMs = Date.now() - started.startedAt;
     const shape: ItemShape =
@@ -283,7 +314,8 @@ export class PiTranslator {
       return result.success ? [result.data] : [];
     });
     const last = assistants.at(-1);
-    const checkpointId = parsed.data.providerCheckpointId;
+    const checkpointId =
+      parsed.data.providerCheckpointId ?? this.leafId ?? undefined;
     const failure =
       last?.stopReason === "error" && last.errorMessage?.trim()
         ? last.errorMessage
@@ -318,6 +350,37 @@ export class PiTranslator {
       this.events.usage({ ...tokenUsage, modelContextWindow: null });
     }
     this.finish("completed", checkpointId);
+  }
+
+  private compactionStart() {
+    if (this.turnId === undefined) {
+      this.turnId = this.events.openTurn();
+      this.compactionTurn = true;
+    }
+    const presentation = labels.compaction;
+    this.events.openItem(COMPACTION, COMPACTION_SHAPE, { presentation });
+  }
+
+  private compactionEnd(event: unknown) {
+    const parsed = compactionSchema.safeParse(event);
+    const aborted = parsed.success && parsed.data.aborted === true;
+    const error = parsed.success ? parsed.data.errorMessage : undefined;
+    const failed = aborted || error !== undefined;
+    const status = failed ? "failed" : "completed";
+    const presentation = labels.compaction;
+    this.events.closeItem(COMPACTION, COMPACTION_SHAPE, {
+      status,
+      presentation,
+    });
+    if (!failed) this.events.compacted();
+    if (error !== undefined && !aborted) {
+      const category = "compaction-skipped";
+      const summary = "Context compaction skipped";
+      this.events.warning({ category, summary, details: error });
+    }
+    if (!this.compactionTurn) return;
+    this.compactionTurn = false;
+    this.finish("completed");
   }
 
   private finish(

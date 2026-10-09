@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { sessions } from "@bb/plugin";
-import { threadEventSchema } from "@bb/domain";
+import {
+  threadEventSchema,
+  type DynamicTool,
+  type PendingInteractionPayload,
+} from "@bb/domain";
 import {
   EventBuilder,
   type ExecutionOptions,
@@ -40,13 +44,25 @@ class FakePi extends EventEmitter {
   stdin = new PassThrough();
   stdout = new PassThrough();
   stderr = new PassThrough();
+  channel = { input: new PassThrough(), output: new PassThrough() };
   received: z.infer<typeof commandSchema>[] = [];
+  fromExtension: Event[] = [];
 
   constructor(
     readonly launch: PiLaunch,
     script: (pi: FakePi, command: z.infer<typeof commandSchema>) => void,
   ) {
     super();
+    setImmediate(() => this.extension({ kind: "ready" }));
+    this.channel.output.on("data", (chunk: Buffer) => {
+      for (const line of chunk.toString().split("\n").filter(Boolean)) {
+        const message = z
+          .record(z.string(), z.unknown())
+          .parse(JSON.parse(line));
+        this.fromExtension.push(message);
+        script(this, { id: "", type: `channel:${String(message.kind)}` });
+      }
+    });
     let buffer = "";
     this.stdin.on("data", (chunk: Buffer) => {
       buffer += chunk.toString();
@@ -62,6 +78,10 @@ class FakePi extends EventEmitter {
 
   send(message: Event) {
     this.stdout.write(`${JSON.stringify(message)}\n`);
+  }
+
+  extension(message: Event) {
+    this.channel.input.write(`${JSON.stringify(message)}\n`);
   }
 
   reply(id: string, data: unknown = {}) {
@@ -85,6 +105,8 @@ const options: ExecutionOptions = {
 
 async function openSession(
   script: (pi: FakePi, command: z.infer<typeof commandSchema>) => void,
+  overrides: Partial<SessionHost> = {},
+  dynamicTools: DynamicTool[] = [],
 ) {
   const events: RunnerThreadEvent[] = [];
   const children: FakePi[] = [];
@@ -107,6 +129,7 @@ async function openSession(
     callTool: () => Promise.reject(new Error("unused")),
     requestInteraction: () => Promise.reject(new Error("unused")),
     onExit: () => undefined,
+    ...overrides,
   };
   const spec = {
     threadId: "thr_pi",
@@ -114,7 +137,7 @@ async function openSession(
     cwd: "/Users/developer/project",
     providerThreadId: null,
     instructions: "Be brief.",
-    dynamicTools: [],
+    dynamicTools,
     env: {},
     skillDirs: [],
   };
@@ -149,6 +172,7 @@ it("runs a turn against a scripted Pi process", async () => {
   expect(pi?.received.map((c) => [c.type, c.message])).toEqual([
     ["get_state", undefined],
     ["prompt", "Fix the database config"],
+    ["get_session_stats", undefined],
   ]);
   expect(types(events)).toEqual([
     "thread/identity",
@@ -245,15 +269,16 @@ it("lists Pi's models with the aliases first", async () => {
     const models = [
       { id: "claude-sonnet-4-6", provider: "anthropic", reasoning: true },
       { id: "claude-3-5-sonnet-20241022", provider: "anthropic" },
+      { id: "gpt-5", provider: "openai", reasoning: true },
     ];
-    pi.reply(
-      command.id,
-      command.type === "get_available_models" ? { models } : {},
-    );
+    const state = { model: { provider: "openai", id: "gpt-5" } };
+    if (command.type === "get_state") pi.reply(command.id, state);
+    else pi.reply(command.id, { models });
   });
   const listed = await adapter.listModels("/tmp");
   expect(listed.models.map((m) => [m.id, m.isDefault])).toEqual([
-    ["anthropic/claude-sonnet-4-6", true],
+    ["anthropic/claude-sonnet-4-6", false],
+    ["openai/gpt-5", true],
   ]);
   expect(listed.models[0]?.defaultReasoningEffort).toBe("medium");
   expect(listed.selectedOnlyModels.map((m) => m.id)).toEqual([
@@ -266,5 +291,172 @@ it("declares the Pi provider", async () => {
   const providers = await server.ctx.kernel.call(sessions.providers, {});
   expect(providers.find((p) => p.id === "pi")).toMatchObject({
     displayName: "Pi",
+  });
+});
+
+const prompt = (text: string) => ({
+  clientRequestId: "creq_2345678abc",
+  input: [{ type: "text" as const, text, mentions: [] }],
+  options,
+});
+
+it("answers Pi's calls to bb's tools through the runner", async () => {
+  const calls: unknown[] = [];
+  const tool = {
+    name: "bb_echo",
+    description: "Echo text",
+    inputSchema: { type: "object", properties: { text: { type: "string" } } },
+  };
+  const start = {
+    type: "tool_execution_start",
+    toolCallId: "call_1",
+    toolName: "bb_echo",
+    args: { text: "hi" },
+  };
+  const { session, events, children } = await openSession(
+    (pi, command) => {
+      if (command.id) pi.reply(command.id);
+      if (command.type === "prompt") {
+        pi.send(fixture("agent-start"));
+        pi.send(start);
+        const { toolCallId, toolName, args } = start;
+        const call = { toolCallId, toolName, arguments: args };
+        pi.extension({ ...call, kind: "tool-call", id: "tc-1" });
+      }
+      if (command.type === "channel:tool-result") {
+        const result = { content: [{ type: "text", text: "echo: hi" }] };
+        pi.send({ ...start, type: "tool_execution_end", result });
+        pi.send({ type: "agent_end", messages: [] });
+      }
+    },
+    {
+      callTool: async (call) => {
+        calls.push(call);
+        const text = "echo: hi";
+        return { success: true, contentItems: [{ type: "inputText", text }] };
+      },
+    },
+    [tool],
+  );
+  const [pi] = children;
+  const args = pi?.launch.args ?? [];
+  const extension = args[args.indexOf("--extension") + 1] ?? "";
+  expect(readFileSync(extension, "utf8")).toContain("registerTool");
+  const toolsFile = pi?.launch.env.PI_BB_TOOLS_FILE ?? "";
+  expect(JSON.parse(readFileSync(toolsFile, "utf8"))).toEqual([tool]);
+  await session.startTurn(prompt("Echo hi"));
+  await settle(12);
+  expect(calls).toEqual([
+    expect.objectContaining({
+      tool: "bb_echo",
+      arguments: { text: "hi" },
+      turnId: expect.any(String),
+    }),
+  ]);
+  expect(pi?.fromExtension).toEqual([
+    {
+      kind: "tool-result",
+      id: "tc-1",
+      content: [{ type: "text", text: "echo: hi" }],
+      isError: false,
+    },
+  ]);
+  expect(events.at(-1)).toMatchObject({ status: "completed" });
+});
+
+it("turns Pi's extension dialogs into questions for the user", async () => {
+  const asked: PendingInteractionPayload[] = [];
+  const { session, children } = await openSession(
+    (pi, command) => {
+      if (command.id) pi.reply(command.id);
+      if (command.type !== "prompt") return;
+      pi.send(fixture("agent-start"));
+      pi.send({ type: "extension_ui_request", id: "n1", method: "notify" });
+      pi.send({
+        type: "extension_ui_request",
+        id: "ui-1",
+        method: "select",
+        title: "Pick a branch",
+        options: ["main", "dev"],
+      });
+    },
+    {
+      requestInteraction: async ({ payload }) => {
+        asked.push(payload);
+        return {
+          kind: "user_answer",
+          answers: { answer: { selected: ["dev"] } },
+        };
+      },
+    },
+  );
+  await session.startTurn(prompt("Deploy"));
+  await settle(12);
+  expect(asked).toEqual([
+    expect.objectContaining({
+      kind: "user_question",
+      questions: [
+        expect.objectContaining({
+          prompt: "Pick a branch",
+          options: [
+            { value: "main", label: "main" },
+            { value: "dev", label: "dev" },
+          ],
+        }),
+      ],
+    }),
+  ]);
+  const responses = children[0]?.received.filter(
+    (c) => c.type === "extension_ui_response",
+  );
+  expect(responses).toEqual([
+    { type: "extension_ui_response", id: "ui-1", value: "dev" },
+  ]);
+});
+
+it("streams shell output, compacts and reports the context window", async () => {
+  const bash = {
+    toolCallId: "call_sh",
+    toolName: "bash",
+    args: { command: "make" },
+  };
+  const partial = (text: string) => ({
+    ...bash,
+    type: "tool_execution_update",
+    partialResult: { content: [{ type: "text", text }] },
+  });
+  const done = { content: [{ type: "text", text: "a\nb\n" }] };
+  const stats = { contextUsage: { tokens: 1200, contextWindow: 200000 } };
+  const { session, events } = await openSession((pi, command) => {
+    if (command.type === "get_session_stats") pi.reply(command.id, stats);
+    else if (command.id) pi.reply(command.id);
+    if (command.type !== "prompt") return;
+    pi.send(fixture("agent-start"));
+    pi.send({ ...bash, type: "tool_execution_start" });
+    pi.send(partial("a\n"));
+    pi.send(partial("a\nb\n"));
+    pi.send({ ...bash, type: "tool_execution_end", result: done });
+    pi.send({ type: "agent_end", messages: [] });
+    pi.send({ type: "compaction_start", reason: "threshold" });
+    pi.send({ type: "compaction_end", reason: "threshold", aborted: false });
+  });
+  await session.startTurn(prompt("Build"));
+  await settle(12);
+  const deltas = events.flatMap((e) =>
+    e.type === "item/commandExecution/outputDelta" ? [e.delta] : [],
+  );
+  expect(deltas).toEqual(["a\n", "b\n"]);
+  const kinds = types(events);
+  expect(kinds).toEqual(
+    expect.arrayContaining([
+      "item/completed:contextCompaction",
+      "thread/compacted",
+      "thread/contextWindowUsage/updated",
+    ]),
+  );
+  expect(
+    events.find((e) => e.type === "thread/contextWindowUsage/updated"),
+  ).toMatchObject({
+    contextWindowUsage: { usedTokens: 1200, modelContextWindow: 200000 },
   });
 });
