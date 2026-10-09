@@ -417,6 +417,10 @@ export function createThreadEngine(bb: PluginServerApi) {
   bb.implement(threadOps.send, ({ threadId, ...request }) =>
     send(threadId, request),
   );
+  const again = writes(serialized(mutations.retry));
+  bb.implement(threadOps.retry, ({ threadId, sendAt }) =>
+    again(threadId, sendAt ?? undefined),
+  );
   const edit = writes(serialized(editMessage));
   bb.implement(threadOps.updateMessage, ({ threadId, seq, input }) =>
     edit(threadId, seq, input),

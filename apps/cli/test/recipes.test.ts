@@ -197,3 +197,33 @@ it(
   },
   SLOW,
 );
+
+it(
+  "retries the failed turn of a thread and refuses one that did not fail",
+  async () => {
+    const { bb, project, ctx } = await startBb();
+    const spawn = ["thread", "spawn", "--project", project.id];
+    const prompt = ["--provider", "echo", "--prompt", "oops fail_turn:boom"];
+    const thread = parsed<Thread>(await bb([...spawn, ...prompt, "--json"]));
+    const failed = ["--status", "error", "--timeout", "30s"];
+    await bb(["thread", "wait", thread.id, ...failed]);
+    const retried = await bb(["thread", "retry", thread.id, "--json"]);
+    const sent = { threadId: thread.id, ok: true, delivery: "sent" };
+    expect([retried.code, parsed(retried)]).toEqual([0, sent]);
+    const turns =
+      "SELECT count(*) AS n FROM events WHERE thread_id = ? AND type = 'client/turn/requested'";
+    const drained = { timeout: 30_000, interval: 250 };
+    await vi.waitFor(
+      () => expect(ctx.db.get(turns, thread.id)).toEqual({ n: 2 }),
+      drained,
+    );
+    await bb(["thread", "wait", thread.id, ...failed]);
+    await bb(["thread", "tell", thread.id, "fine now"]);
+    await bb(["thread", "wait", thread.id, "--timeout", "30"]);
+    const refused = await bb(["thread", "retry", thread.id, "--json"]);
+    expect(refused.code).not.toBe(0);
+    const error = parsed<Failure>(refused).error;
+    expect(error).toMatchObject({ code: "conflict" });
+  },
+  SLOW,
+);

@@ -408,6 +408,16 @@ export const threadStop = action("stop", "stopped");
 export const threadArchive = action("archive", "archived");
 export const threadUnarchive = action("unarchive", "unarchived");
 export const threadCompact = action("compact", "compaction requested");
+export const threadRetry: Run = async (c) => {
+  const threadId = threadTarget(c);
+  const sendAt = sendAtMs(c.flag("send-at"));
+  const response = await c.op(c.ops.threads.retry, { threadId, sendAt });
+  const outcome =
+    response.delivery === "queued"
+      ? `retry queued (${queueWait(response.queuedMessage)})`
+      : "retry sent";
+  c.out({ threadId, ...response }, `Thread ${threadId} ${outcome}`);
+};
 export const threadClear = action("clearContext", "context cleared");
 export const threadPin = action("pin", "pinned");
 export const threadUnpin = action("unpin", "unpinned");

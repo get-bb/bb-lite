@@ -119,6 +119,9 @@ thread compact [id]  Compact the context of an idle thread
 ${SELF}
 thread clear [id]  Clear the model context of an idle thread
 ${SELF}
+thread retry [id]  Send the failed turn of a thread again
+${SELF}
+  --send-at <when>  ISO time (2026-08-25T09:00) or delay (30s, 10m, 2h)
 thread pin [id]  Pin a thread
 ${SELF}
 thread unpin [id]  Unpin a thread

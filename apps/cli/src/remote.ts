@@ -45,7 +45,7 @@ export class ThreadWaitUnreachableError extends Error {
   constructor(threadId: string, status: ThreadStatus) {
     super(
       `Thread ${threadId} is in status ${status} and will not reach idle by waiting alone. ` +
-        `Inspect it with 'bb thread show ${threadId}' and recover by sending a follow-up.`,
+        `Inspect it with 'bb thread show ${threadId}' and recover with 'bb thread retry ${threadId}' or a follow-up.`,
     );
     this.name = "ThreadWaitUnreachableError";
   }

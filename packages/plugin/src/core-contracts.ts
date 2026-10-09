@@ -539,6 +539,16 @@ export const threads = contract("threads", {
       http: { method: "POST", path: "/threads/:threadId/messages/update" },
     },
   }),
+  retry: op({
+    input: z.object({
+      threadId: z.string(),
+      sendAt: z.number().int().nonnegative().nullable().optional(),
+    }),
+    output: typed(Contract.sendMessageResponseSchema),
+    kind: "write",
+    hooks: "answer",
+    doors: { http: { method: "POST", path: "/threads/:threadId/retry" } },
+  }),
   listQueuedMessages: op({
     input: ref("threadId"),
     output: typed(Contract.threadQueuedMessageListResponseSchema),

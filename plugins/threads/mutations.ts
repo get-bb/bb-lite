@@ -9,6 +9,7 @@ import {
 } from "@bb/domain";
 import type * as contract from "@bb/server-contract";
 import { actorUserId, viewerId } from "@bb/server-kit/auth/actor";
+import { lastTurnFailure } from "@bb/server-kit/db/events";
 import { newId } from "@bb/server-kit/db/index";
 import * as queue from "@bb/server-kit/db/queued-messages";
 import { listSidebarThreadRows } from "@bb/server-kit/db/thread-read";
@@ -52,6 +53,25 @@ export async function send(
     sendNow: false,
   });
   return toSendResponse(outcome);
+}
+
+export async function retry(
+  engine: Engine,
+  threadId: string,
+  sendAt: number | undefined,
+) {
+  const thread = engine.requireThread(threadId);
+  if (thread.status !== "error") {
+    throw conflict(
+      `Only a failed turn can be retried; the thread is ${thread.status}`,
+    );
+  }
+  const { turn } = lastTurnFailure(engine.bb.db, threadId);
+  if (turn === null || turn.input.length === 0) {
+    throw conflict("The thread has no failed turn to retry");
+  }
+  const mode = "queue-if-active" as const;
+  return send(engine, threadId, { input: turn.input, mode, sendAt });
 }
 
 export async function compact(engine: Engine, threadId: string) {
