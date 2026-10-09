@@ -54,7 +54,17 @@ async function exists(file: string) {
   );
 }
 
+async function installName(directory: string, source: string) {
+  const text = await fs.readFile(path.join(directory, SKILL_FILE), "utf8");
+  const declared = parseFrontmatter(text).name ?? "";
+  if (NAME.test(declared)) return declared;
+  return path.basename(source.replace(/\/+$/u, "")).replace(/\.git$/u, "");
+}
+
 async function locate(checkout: string, skill: string | undefined) {
+  if (skill !== undefined && !NAME.test(skill)) {
+    fail("invalid", `Invalid skill name: ${skill}`);
+  }
   const candidates =
     skill === undefined
       ? [checkout]
@@ -109,7 +119,10 @@ export default function skillsRunner(bb: PluginRunnerApi): void {
         );
       }
       const directory = await locate(checkout, skill);
-      const name = path.basename(directory);
+      const name =
+        directory === checkout && !local
+          ? await installName(directory, source)
+          : path.basename(directory);
       const target = where(name, true);
       if ((await exists(target)) || (await exists(where(name, false)))) {
         fail("conflict", `Skill ${name} is already installed`);

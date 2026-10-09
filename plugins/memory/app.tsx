@@ -147,6 +147,7 @@ function MemorySettings() {
   const [error, setError] = useState<string | null>(null);
   const memories = list.data?.memories ?? [];
   const forget = async (memory: MemoryRecord) => {
+    if (!window.confirm(`Delete memory “${memory.name}”?`)) return;
     setError(null);
     try {
       await remove({ memoryId: memory.id, expectedVersion: memory.version });

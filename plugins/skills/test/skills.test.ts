@@ -102,6 +102,24 @@ it("installs a named skill from a git repository", async () => {
   expect(installed).toMatchObject({ id: "installed:linter" });
 });
 
+it("names a skill at a repository's root after its SKILL.md", async () => {
+  const { op } = await setup();
+  const parent = mkdtempSync(join(tmpdir(), "bb-skill-root-"));
+  const repo = skillDir(parent, "formatter", "Format things");
+  const git = (...args: string[]) =>
+    promisify(execFile)("git", args, { cwd: repo });
+  await git("init", "-q");
+  await git("add", ".");
+  await git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "i");
+
+  const installed = await op<Skill>("skills.install", {
+    source: `file://${repo}`,
+  });
+  expect(installed).toMatchObject({ id: "installed:formatter" });
+  const outside = { source: `file://${repo}`, skill: "../../formatter" };
+  await op("skills.install", outside, 400);
+});
+
 it("hides a disabled project skill from the composer commands", async () => {
   const { op, project, directory, request } = await setup();
   skillDir(join(directory, ".bb", "skills"), "deploy", "Ship it");

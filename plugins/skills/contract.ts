@@ -37,8 +37,8 @@ export interface SkillSource {
 }
 
 const located = {
-  projectId: z.string().optional(),
-  hostId: z.string().optional(),
+  projectId: z.string().optional().describe("Project whose skills to use"),
+  hostId: z.string().optional().describe("Machine holding the skills"),
 };
 const target = z.object({
   id: z.string().min(1).describe("Skill id or name"),
@@ -101,7 +101,7 @@ export const skills = contract("skills", {
         .string()
         .optional()
         .describe("The skill's directory name inside the source"),
-      hostId: z.string().optional(),
+      hostId: z.string().optional().describe("Machine to install the skill on"),
     }),
     output: skillSchema,
     kind: "write",
@@ -163,7 +163,9 @@ export const skills = contract("skills", {
     },
   }),
   search: op({
-    input: z.object({ query: z.string().optional() }),
+    input: z.object({
+      query: z.string().optional().describe("Words to search for"),
+    }),
     output: z.array(registrySkillSchema.extend({ sourceId: z.string() })),
     doors: {
       http: { method: "GET", path: "/skills/registry" },
