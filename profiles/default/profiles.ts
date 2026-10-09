@@ -37,6 +37,7 @@ const PRODUCT = [
   "concurrency-limit",
   "keep-awake",
   "provider-pi",
+  "push-notifications",
 ];
 
 export const profiles: Record<string, Profile> = {

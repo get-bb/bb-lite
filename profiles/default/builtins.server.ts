@@ -27,6 +27,7 @@ import providerEcho from "../../plugins/provider-echo/server.js";
 import providerPi from "../../plugins/provider-pi/server.js";
 import providerRetry from "../../plugins/provider-retry/server.js";
 import providerUsage from "../../plugins/provider-usage/server.js";
+import pushNotifications from "../../plugins/push-notifications/server.js";
 import secrets from "../../plugins/secrets/src/server.js";
 import sessions from "../../plugins/sessions/server.js";
 import settings from "../../plugins/settings/server.js";
@@ -68,6 +69,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "provider-pi": providerPi,
   "provider-retry": providerRetry,
   "provider-usage": providerUsage,
+  "push-notifications": pushNotifications,
   "scheduled-send": null,
   secrets: secrets,
   sessions: sessions,
