@@ -217,11 +217,16 @@ function digest(text: string): string {
 export function packApi(version: string, described: ApiDescription): ApiLock {
   const shapes: ApiLock["shapes"] = {};
   const share = (shape: Json): Json => {
-    const text = JSON.stringify(shape);
-    if (text.length < SHARED_FROM) return shape;
+    if (Array.isArray(shape)) return shape.map(share);
+    if (shape === null || typeof shape !== "object") return shape;
+    const inner = Object.fromEntries(
+      Object.entries(shape).map(([key, value]) => [key, share(value)]),
+    );
+    const text = JSON.stringify(inner);
+    if (text.length < SHARED_FROM) return inner;
     let id = digest(text);
     while (id in shapes && JSON.stringify(shapes[id]) !== text) id += "x";
-    shapes[id] = shape;
+    shapes[id] = inner;
     return { $shape: id };
   };
   const contracts: ApiDescription = {};
@@ -240,16 +245,29 @@ export function packApi(version: string, described: ApiDescription): ApiLock {
 }
 
 export function unpackApi({ shapes, contracts }: ApiLock): ApiDescription {
+  const whole = new Map<string, Json>();
+  const expand = (shape: Json): Json => {
+    if (Array.isArray(shape)) return shape.map(expand);
+    if (shape === null || typeof shape !== "object") return shape;
+    const id = shape.$shape;
+    if (typeof id === "string") {
+      const known = whole.get(id);
+      if (known !== undefined) return known;
+      const expanded = expand(shapes[id] ?? {});
+      whole.set(id, expanded);
+      return expanded;
+    }
+    return Object.fromEntries(
+      Object.entries(shape).map(([key, value]) => [key, expand(value)]),
+    );
+  };
   const described: ApiDescription = {};
   for (const [contract, members] of Object.entries(contracts)) {
     described[contract] = {};
     for (const [key, member] of Object.entries(members)) {
       const fields = Object.entries(member as { [key: string]: Json });
-      const whole = fields.map(([name, value]) => {
-        const id = field(value, "$shape");
-        return [name, typeof id === "string" ? (shapes[id] ?? {}) : value];
-      });
-      described[contract][key] = Object.fromEntries(whole) as Json;
+      const expanded = fields.map(([name, value]) => [name, expand(value)]);
+      described[contract][key] = Object.fromEntries(expanded) as Json;
     }
   }
   return described;

@@ -4,7 +4,7 @@ import type { TypeShapes } from "../src/describe.js";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
-const MAX_DEPTH = 6;
+const MAX_DEPTH = 40;
 const KINDS = ["op", "event", "slot", "live"];
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const ENTRIES = [
