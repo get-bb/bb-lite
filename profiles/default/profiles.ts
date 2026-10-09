@@ -39,6 +39,7 @@ const PRODUCT = [
   "provider-pi",
   "push-notifications",
   "github",
+  "storage-retention",
 ];
 
 export const profiles: Record<string, Profile> = {

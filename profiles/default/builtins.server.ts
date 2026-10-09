@@ -32,6 +32,7 @@ import pushNotifications from "../../plugins/push-notifications/server.js";
 import secrets from "../../plugins/secrets/src/server.js";
 import sessions from "../../plugins/sessions/server.js";
 import settings from "../../plugins/settings/server.js";
+import storageRetention from "../../plugins/storage-retention/server.js";
 import tasks from "../../plugins/tasks/server.js";
 import terminals from "../../plugins/terminals/server.js";
 import threadList from "../../plugins/thread-list/server.js";
@@ -78,6 +79,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   settings: settings,
   shell: null,
   "side-panel": null,
+  "storage-retention": storageRetention,
   tasks: tasks,
   terminals: terminals,
   "thread-list": threadList,
