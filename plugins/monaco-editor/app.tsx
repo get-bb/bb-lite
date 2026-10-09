@@ -110,6 +110,13 @@ function MonacoFileViewer({
     { enabled: readable },
   );
   const [reloads, setReloads] = useState(0);
+  const seen = useRef(content);
+  const { refetch } = file;
+  useEffect(() => {
+    if (seen.current === content) return;
+    seen.current = content;
+    if (readable) void refetch();
+  }, [content, readable, refetch]);
   if (!readable) {
     return content === null ? (
       <Centered>This file has no text to show.</Centered>
@@ -182,6 +189,9 @@ function Editor({
   const saveRef = useRef<(force: boolean) => Promise<void>>(async () => {});
   const [failed, setFailed] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const [shown, setShown] = useState(loaded);
   const [state, setState] = useState<SaveState>({ kind: "idle" });
   const dark = usePreferredTheme() === "dark";
   const darkRef = useRef(dark);
@@ -221,16 +231,26 @@ function Editor({
   };
 
   useEffect(() => {
+    const same =
+      loaded.sha256 === null
+        ? loaded.content === shown.content
+        : loaded.sha256 === sha.current;
+    if (same) return;
+    if (dirtyRef.current) setState({ kind: "conflict" });
+    else setShown(loaded);
+  }, [loaded, shown.content]);
+
+  useEffect(() => {
     let disposed = false;
     let editor: CodeEditor | null = null;
     loadMonaco().then(
       ({ monaco, overflowWidgetsNode, ensureCodeTheme }) => {
         if (disposed || host.current === null) return;
         ensureCodeTheme(darkRef.current);
-        sha.current = loaded.sha256;
+        sha.current = shown.sha256;
         setDirty(false);
         const opened = monaco.editor.create(host.current, {
-          value: loaded.content,
+          value: shown.content,
           language: languageForPath(path),
           theme: "bb-code",
           readOnly,
@@ -271,7 +291,7 @@ function Editor({
       editor?.dispose();
       editorRef.current = null;
     };
-  }, [path, loaded.content, loaded.sha256, readOnly]);
+  }, [path, shown.content, shown.sha256, readOnly]);
 
   useEffect(() => {
     let current = true;
