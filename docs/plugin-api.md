@@ -739,7 +739,11 @@ a file changes (`bb plugin add <dir>` loads it without watching). `bb dev valida
 manifest and lists what the source implements, hooks, calls and adds, and where it reaches outside bb.
 `bb dev types <dir>` links bb's packages into the plugin's `node_modules` and writes
 `.bb/tsconfig.json`, so an editor resolves bb's types.
-`bb dev install <git:url[#ref] | npm:spec | dir>` fetches and loads a plugin (owner only).
+`bb dev install <git:url[#ref][:subdir] | npm:spec | dir>` fetches and loads a plugin (owner only).
+`--version <range>` picks the newest git tag `<tagPrefix>v<version>` (or npm version) in the range;
+`--tag-prefix tasks/` reads monorepo tags like `tasks/v1.2.3`; `--replace` installs over an earlier
+copy. A plugin whose `engines.bb` does not admit this bb's `API_VERSION` is refused before it loads
+(`engine_mismatch`). The result carries the resolved `version` and `ref`.
 `bb dev fork <id> [--path <dir>] [--as <new-id>]` copies a built-in plugin and runs the copy in its
 place, or beside it under a new id (owner only).
 `bb dev port <dir>` reads a plugin written for the original bb, without running it, and lists every

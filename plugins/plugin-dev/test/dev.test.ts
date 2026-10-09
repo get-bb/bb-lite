@@ -15,6 +15,7 @@ import {
 type Body = Record<string, unknown>;
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
+const run = promisify(execFile);
 
 async function world() {
   const server = await createTestServer();
@@ -117,7 +118,7 @@ it("installs a plugin from a git repository", async () => {
     source: `git:file://${repo}`,
   });
   const target = join(ctx.config.dataDir, "plugins-src", "from-git");
-  expect(installed.result).toEqual({ id: "from-git", path: target });
+  expect(installed.result).toMatchObject({ id: "from-git", path: target });
   expect((await op("from-git.greet", { name: "Bo" })).result).toBe(
     "Hello, Bo!",
   );
@@ -127,6 +128,86 @@ it("installs a plugin from a git repository", async () => {
   expect(twice.status).toBe(500);
   const empty = await op("plugin-dev.install", { source: scratch() });
   expect(empty.body).toMatchObject({ code: "handler_error" });
+});
+
+function release(repo: string, file: string, version: string, bb = "^1") {
+  const manifest = JSON.parse(readFileSync(file, "utf8")) as Body;
+  const next = { ...manifest, version, engines: { bb } };
+  writeFileSync(file, JSON.stringify(next));
+  if (!existsSync(join(repo, ".git"))) commitAll(repo);
+  const git = (...args: string[]) => run("git", ["-C", repo, ...args]);
+  return git("add", "-A")
+    .then(() => git("commit", "--quiet", "--allow-empty", "-m", version))
+    .then(() => git("tag", `greeter/v${version}`));
+}
+
+it("installs a version range from tagged subdirectories of a repository", async () => {
+  const { op, cli, ctx } = await world();
+  const repo = join(scratch(), "mono");
+  mkdirSync(join(repo, "plugins"), { recursive: true });
+  await cli(
+    "plugin-dev",
+    ["new", "greeter", "--path", "plugins/greeter"],
+    repo,
+  );
+  const file = join(repo, "plugins", "greeter", "package.json");
+  await release(repo, file, "1.0.0");
+  await release(repo, file, "1.2.0");
+  await release(repo, file, "2.0.0", ">=9");
+  const source = `git:file://${repo}#:plugins/greeter`;
+  const wanted = { source, version: "^1", tagPrefix: "greeter/" };
+  const installed = await op("plugin-dev.install", wanted);
+  const target = join(ctx.config.dataDir, "plugins-src", "greeter");
+  expect(installed.result).toEqual({
+    id: "greeter",
+    path: target,
+    version: "1.2.0",
+    ref: "greeter/v1.2.0",
+  });
+  expect(existsSync(join(target, ".git"))).toBe(false);
+  expect((await op("greeter.greet", { name: "Bo" })).result).toBe("Hello, Bo!");
+  const newer = { ...wanted, version: "^2", replace: true };
+  const refused = await op("plugin-dev.install", newer);
+  expect(refused.status).toBe(400);
+  expect(refused.body).toMatchObject({ code: "engine_mismatch" });
+  const none = await op("plugin-dev.install", { ...newer, version: "^3" });
+  expect(none.status).toBe(404);
+  const pinned = `git:file://${repo}#greeter/v1.0.0:plugins/greeter`;
+  const again = await op("plugin-dev.install", {
+    source: pinned,
+    replace: true,
+  });
+  expect(again.result).toMatchObject({
+    version: "1.0.0",
+    ref: "greeter/v1.0.0",
+  });
+});
+
+it("installs an npm package for a version range", async () => {
+  const { op, cli, ctx } = await world();
+  const bin = scratch();
+  const made = scratch();
+  await cli("plugin-dev", ["new", "from-npm"], made);
+  const script = [
+    "#!/bin/sh",
+    'echo "$@" > "$(dirname "$0")/args"',
+    'prefix="$3"',
+    'mkdir -p "$prefix/node_modules"',
+    `cp -r ${join(made, "from-npm")} "$prefix/node_modules/from-npm"`,
+  ].join("\n");
+  writeFileSync(join(bin, "npm"), script, { mode: 0o755 });
+  vi.stubEnv("PATH", `${bin}:${process.env.PATH ?? ""}`);
+  const installed = await op("plugin-dev.install", {
+    source: "npm:from-npm",
+    version: "^0.1",
+  });
+  const target = join(ctx.config.dataDir, "plugins-src", "npm", "from-npm");
+  expect(installed.result).toMatchObject({
+    id: "from-npm",
+    path: join(target, "node_modules", "from-npm"),
+    version: "0.1.0",
+  });
+  expect(readFileSync(join(bin, "args"), "utf8")).toContain("from-npm@^0.1");
 });
 
 it("forks every built-in plugin into a copy that runs in its place", async () => {

@@ -3,9 +3,11 @@ import {
   cp,
   lstat,
   mkdir,
+  mkdtemp,
   readdir,
   readFile,
   realpath,
+  rename,
   rm,
   stat,
   symlink,
@@ -15,7 +17,11 @@ import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
+  API_VERSION,
+  fail,
+  isNewer,
   plugins,
+  satisfies,
   type KernelInspection,
   type PluginServerApi,
 } from "@bb/plugin";
@@ -219,42 +225,158 @@ async function exists(path: string): Promise<boolean> {
   return (await stat(path).catch(() => null)) !== null;
 }
 
+type Fetched = { path: string; version: string | null; ref: string | null };
+type Wanted = { version?: string; tagPrefix?: string; replace?: boolean };
+
+async function packageOf(path: string): Promise<{
+  version?: string;
+  engines?: { bb?: string };
+  dependencies?: Record<string, string>;
+}> {
+  return JSON.parse(await readFile(join(path, "package.json"), "utf8"));
+}
+
+async function tagFor(
+  url: string,
+  range: string,
+  prefix: string,
+): Promise<{ tag: string; version: string }> {
+  const { stdout } = await run("git", ["ls-remote", "--tags", url], {
+    timeout: FETCH_TIMEOUT_MS,
+  });
+  let best: { tag: string; version: string } | null = null;
+  for (const line of stdout.split("\n")) {
+    const tag = line.split("refs/tags/")[1]?.replace(/\^\{\}$/u, "");
+    if (tag === undefined || !tag.startsWith(prefix)) continue;
+    const version = tag.slice(prefix.length).replace(/^v/u, "");
+    if (!/^\d+\.\d+\.\d+$/u.test(version)) continue;
+    if (!satisfies(version, range)) continue;
+    if (best === null || isNewer(version, best.version)) {
+      best = { tag, version };
+    }
+  }
+  if (best === null) {
+    fail("not_found", `No tag of ${url} matches ${prefix}${range}`);
+  }
+  return best;
+}
+
+async function place(
+  from: string,
+  target: string,
+  replace: boolean,
+): Promise<void> {
+  if (await exists(target)) {
+    if (!replace) {
+      throw new Error(`${target} already exists; remove it to install again`);
+    }
+    await rm(target, { recursive: true, force: true });
+  }
+  await rename(from, target);
+}
+
+async function fetchGit(
+  spec: string,
+  root: string,
+  wanted: Wanted,
+): Promise<Fetched> {
+  const [url = "", after] = spec.split("#");
+  const [given, subdir = ""] = (after ?? "").split(":");
+  const options = { timeout: FETCH_TIMEOUT_MS };
+  const found =
+    wanted.version === undefined
+      ? null
+      : await tagFor(url, wanted.version, wanted.tagPrefix ?? "");
+  const ref = found?.tag ?? (given === "" ? null : (given ?? null));
+  const name =
+    basename(subdir) || basename(url).replace(/\.git$/u, "") || "plugin";
+  const target = join(root, name);
+  if ((await exists(target)) && wanted.replace !== true) {
+    throw new Error(`${target} already exists; remove it to install again`);
+  }
+  const scratch = await mkdtemp(join(root, ".fetch-"));
+  try {
+    const branch = ref === null ? [] : ["--branch", ref];
+    const clone = ["clone", "--depth", "1", ...branch, url, scratch];
+    await run("git", clone, options);
+    const inside = resolve(scratch, subdir);
+    if (relative(scratch, inside).startsWith("..")) {
+      fail("invalid", `${subdir} is outside the repository`);
+    }
+    if (!(await exists(join(inside, "package.json")))) {
+      fail("invalid", `${subdir || url} has no package.json`);
+    }
+    const manifest = await packageOf(inside);
+    checkEngine(manifest.engines?.bb);
+    if (Object.keys(manifest.dependencies ?? {}).length > 0) {
+      const install = ["install", "--omit=dev", "--ignore-scripts"];
+      await run("npm", install, { ...options, cwd: inside });
+    }
+    await place(inside, target, wanted.replace === true);
+    return {
+      path: target,
+      version: found?.version ?? manifest.version ?? null,
+      ref,
+    };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+async function fetchNpm(
+  spec: string,
+  root: string,
+  wanted: Wanted,
+): Promise<Fetched> {
+  const name = spec.replace(/(?<=.)@[^/@]*$/u, "");
+  const range = wanted.version ?? spec.slice(name.length + 1);
+  const scratch = await mkdtemp(join(root, ".fetch-"));
+  try {
+    const exact = range === "" ? name : `${name}@${range}`;
+    const install = ["install", "--prefix", scratch, "--ignore-scripts", exact];
+    await run("npm", install, { timeout: FETCH_TIMEOUT_MS });
+    const inside = join(scratch, "node_modules", name);
+    const manifest = await packageOf(inside);
+    checkEngine(manifest.engines?.bb);
+    const target = join(root, "npm", name);
+    await mkdir(dirname(target), { recursive: true });
+    await place(scratch, target, wanted.replace === true);
+    const path = join(target, "node_modules", name);
+    return { path, version: manifest.version ?? null, ref: null };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+function checkEngine(range: string | undefined): void {
+  if (range === undefined || satisfies(API_VERSION, range)) return;
+  fail(
+    "invalid",
+    `This plugin needs bb API ${range}; this bb has ${API_VERSION}`,
+    {
+      reason: "engine_mismatch",
+      hint: "Install a version of the plugin made for this bb, or update bb",
+    },
+  );
+}
+
 async function fetchSource(
   source: string,
   root: string,
   cwd: string,
-): Promise<string> {
-  const options = { timeout: FETCH_TIMEOUT_MS };
+  wanted: Wanted,
+): Promise<Fetched> {
   if (source.startsWith("git:")) {
-    const [url = "", ref] = source.slice("git:".length).split("#");
-    const name = basename(url).replace(/\.git$/u, "") || "plugin";
-    const target = join(root, name);
-    if (await exists(target)) {
-      throw new Error(`${target} already exists; remove it to install again`);
-    }
-    const branch = ref === undefined ? [] : ["--branch", ref];
-    const clone = ["clone", "--depth", "1", ...branch, url, target];
-    await run("git", clone, options);
-    const text = await readFile(join(target, "package.json"), "utf8");
-    const { dependencies = {} } = JSON.parse(text) as {
-      dependencies?: Record<string, string>;
-    };
-    if (Object.keys(dependencies).length > 0) {
-      const install = ["install", "--omit=dev", "--ignore-scripts"];
-      await run("npm", install, { ...options, cwd: target });
-    }
-    return target;
+    return fetchGit(source.slice("git:".length), root, wanted);
   }
   if (source.startsWith("npm:")) {
-    const spec = source.slice("npm:".length);
-    const prefix = join(root, "npm");
-    await mkdir(prefix, { recursive: true });
-    const install = ["install", "--prefix", prefix, "--ignore-scripts", spec];
-    await run("npm", install, options);
-    const name = spec.replace(/(?<=.)@[^/@]*$/u, "");
-    return join(prefix, "node_modules", name);
+    return fetchNpm(source.slice("npm:".length), root, wanted);
   }
-  return resolve(cwd, source);
+  const path = resolve(cwd, source);
+  if (await exists(join(path, "package.json"))) {
+    checkEngine((await packageOf(path)).engines?.bb);
+  }
+  return { path, version: null, ref: null };
 }
 
 export default function plugin(bb: PluginServerApi): void {
@@ -322,14 +444,23 @@ export default function plugin(bb: PluginServerApi): void {
     bb.call(plugins.install, { path: located(input), watch: true }),
   );
 
-  bb.implement(pluginDev.install, async ({ source, cwd }) => {
+  bb.implement(pluginDev.install, async ({ source, cwd, ...wanted }) => {
     const root = join(bb.server.dataDir, "plugins-src");
     await mkdir(root, { recursive: true });
-    const path = await fetchSource(source, root, cwd ?? process.cwd());
-    const report = await validatePlugin(path);
+    const fetched = await fetchSource(
+      source,
+      root,
+      cwd ?? process.cwd(),
+      wanted,
+    );
+    const report = await validatePlugin(fetched.path);
     if (report.problems.length > 0) {
       throw new Error(`Not a loadable plugin: ${report.problems.join(" ")}`);
     }
-    return bb.call(plugins.install, { path, watch: false });
+    const installed = await bb.call(plugins.install, {
+      path: fetched.path,
+      watch: false,
+    });
+    return { ...installed, version: fetched.version, ref: fetched.ref };
   });
 }

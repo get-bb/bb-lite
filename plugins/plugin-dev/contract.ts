@@ -231,10 +231,29 @@ export const pluginDev = contract("plugin-dev", {
     input: z.object({
       source: z
         .string()
-        .describe("git:<url>[#ref], npm:<package>[@version] or a directory"),
+        .describe(
+          "git:<url>[#ref][:subdir], npm:<package>[@version] or a directory",
+        ),
+      version: z
+        .string()
+        .optional()
+        .describe("A version range resolved against git tags or npm"),
+      tagPrefix: z
+        .string()
+        .optional()
+        .describe("Prefix of the git tags that carry versions, e.g. tasks/v"),
+      replace: z
+        .boolean()
+        .optional()
+        .describe("Replace a plugin already installed from the same place"),
       cwd: located.cwd,
     }),
-    output: z.object({ id: z.string().nullable(), path: z.string() }),
+    output: z.object({
+      id: z.string().nullable(),
+      path: z.string(),
+      version: z.string().nullable().optional(),
+      ref: z.string().nullable().optional(),
+    }),
     kind: "write",
     allow: "owner",
     doors: {
@@ -242,6 +261,7 @@ export const pluginDev = contract("plugin-dev", {
         path: "dev install",
         summary: "Fetch a plugin from git or npm and load it",
         positionals: ["source"],
+        flags: { tagPrefix: { aliases: ["tag-prefix"] } },
         print: ({ id, path }) => `Installed ${id ?? "plugin"} at ${path}`,
       },
     },
