@@ -352,6 +352,7 @@ export default function githubServer(bb: PluginServerApi): void {
   bb.implement(github.sync, sync);
   bb.implement(github.viewer, async () => {
     if (viewer === null || bb.now() - viewer.at > 60 * 60_000) {
+      await checkAuth();
       const user = z
         .object({ login: z.string() })
         .parse(await json(["api", "user"]));

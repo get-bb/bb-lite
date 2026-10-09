@@ -8,7 +8,8 @@ import { github, pullRequests, type ThreadLink } from "../contract.js";
 import { errorText, relativeTime } from "./logic.js";
 
 export function useViewer(): string | null {
-  return useOp(github.viewer, {}).data?.login ?? null;
+  const ready = useOp(github.status, {}).data?.ready === true;
+  return useOp(github.viewer, {}, { enabled: ready }).data?.login ?? null;
 }
 
 export function useLinks(): ThreadLink[] {

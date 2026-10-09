@@ -126,8 +126,12 @@ it("syncs tracked repositories and lists the cache from the CLI", async () => {
 });
 
 it("reports that gh needs signing in", async () => {
-  const { op } = await githubServer({ signedIn: false });
+  const { op, http } = await githubServer({ signedIn: false });
   await expect(op("github.sync")).rejects.toThrow(/gh auth login/);
+  expect(await http("POST", "/ops/github.viewer", {})).toMatchObject({
+    status: 503,
+    body: { code: "github_unavailable" },
+  });
   await vi.waitFor(async () =>
     expect(await op("github.status")).toMatchObject({
       ready: false,
