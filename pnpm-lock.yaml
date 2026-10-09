@@ -1500,6 +1500,9 @@ importers:
       '@bb/app-kit':
         specifier: workspace:*
         version: link:../../packages/app-kit
+      '@bb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@bb/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin

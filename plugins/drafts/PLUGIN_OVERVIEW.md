@@ -12,5 +12,6 @@ Save a message without sending it.
 3. Use **Send now** on the queued-message card when you are ready.
 
 The draft is queued through the `drafts.create` operation and held by a
-`threads.hold` hook until you send it yourself. Drafts carry the message
-text; attachments are not saved, and the new-thread screen has no draft entry.
+`threads.hold` hook until you send it yourself. Drafts carry the whole
+prompt: text, mentions and attachments (`input`, or plain `text`). The
+new-thread screen has no draft entry.

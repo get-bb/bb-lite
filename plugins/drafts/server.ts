@@ -8,8 +8,11 @@ export default function draftsPlugin(bb: PluginServerApi): void {
     (await kv.get<string[]>(key(threadId))) ?? [];
   const creating = new Map<string, Promise<unknown>>();
 
-  bb.implement(drafts.create, async ({ threadId, text }) => {
-    const input = [{ type: "text" as const, text, mentions: [] }];
+  bb.implement(drafts.create, async (asked) => {
+    const { threadId } = asked;
+    const input = asked.input ?? [
+      { type: "text" as const, text: asked.text ?? "", mentions: [] },
+    ];
     const made = bb
       .call(threads.createQueuedMessage, { threadId, input })
       .then(async ({ id }) => {

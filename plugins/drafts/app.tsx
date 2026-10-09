@@ -17,7 +17,7 @@ export default function draftsApp(bb: PluginAppApi): void {
         return;
       }
       try {
-        await callOp(drafts.create, { threadId, text: handle.text });
+        await callOp(drafts.create, { threadId, input: handle.input() });
         handle.clear();
         appToast.success("Draft saved");
       } catch (error: unknown) {
