@@ -18,6 +18,7 @@ export interface PluginRecord {
   app: AppBundle | null;
   error: string | null;
   token: string | null;
+  manifestError: string | null;
 }
 
 export class PluginRegistry {

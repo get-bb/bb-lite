@@ -245,6 +245,33 @@ it("reloads a changed external plugin and refuses rewritten migrations", async (
   expect((await reload()).map((plugin) => plugin.id)).not.toContain("echo");
 });
 
+it("keeps a plugin whose manifest breaks and loads it once fixed", async () => {
+  const directory = join(scratch(), "echo");
+  cpSync(FIXTURE, directory, { recursive: true });
+  const file = join(directory, "package.json");
+  const original = readFileSync(file, "utf8");
+  const { send, call, configFile } = await serverWithEcho(directory);
+  const watched = { plugins: [{ path: directory, watch: true }] };
+  writeFileSync(configFile, JSON.stringify(watched));
+  const echo = async (id?: string) => {
+    const { plugins } = (await send("/reload", { id })).body as Listing;
+    const found = plugins.find((plugin) => plugin.id === "echo");
+    return [found?.status, found?.statusMessage ?? ""].join(" ").trim();
+  };
+  expect(await echo()).toBe("running");
+  writeFileSync(file, "{ not json");
+  expect(await echo("echo")).toMatch(/^error package\.json: /);
+  expect(await call("echo.echo", { text: "a" })).toEqual([
+    501,
+    "unimplemented",
+  ]);
+  writeFileSync(file, original);
+  await expect
+    .poll(() => call("echo.echo", { text: "b" }), { timeout: 5000 })
+    .toEqual([200, { text: "hello b", calls: 1 }]);
+  expect(await echo("echo")).toBe("running");
+});
+
 it("loads a plugin only on the API and plugin versions it names", async () => {
   const directory = join(scratch(), "echo");
   cpSync(FIXTURE, directory, { recursive: true });

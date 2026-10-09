@@ -309,11 +309,22 @@ export class PluginHost extends PluginRegistry {
         const { id } = manifest;
         if (this.isCore(id) && !origin.configEnabled) return null;
         const known = this.records.get(id) ?? { ...UNLOADED };
-        found.set(id, Object.assign(known, origin, { manifest }));
+        const fields = { manifest, manifestError: null };
+        found.set(id, Object.assign(known, origin, fields));
         return id;
       } catch (error) {
         log.error("Plugin manifest is unreadable", { directory, err: error });
-        return null;
+        const where = resolve(directory);
+        const known = [...this.records.values()].find(
+          ({ external, manifest }) => external && manifest.directory === where,
+        );
+        if (known === undefined || !origin.external) return null;
+        const manifestError = errorMessage(error);
+        found.set(
+          known.manifest.id,
+          Object.assign(known, origin, { manifestError }),
+        );
+        return known.manifest.id;
       }
     };
     for (const { directory, server, core = false } of builtins) {
@@ -372,6 +383,7 @@ export class PluginHost extends PluginRegistry {
     );
     const fallbacks = this.fallbacks(record.manifest);
     try {
+      if (record.manifestError !== null) throw new Error(record.manifestError);
       const { apiRange, requiredVersions } = record.manifest;
       if (apiRange !== null && !satisfies(API_VERSION, apiRange)) {
         const has = `this bb has ${API_VERSION}`;

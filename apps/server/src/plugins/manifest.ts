@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { derivePluginId } from "@bb/domain";
+import { errorMessage } from "@bb/server-kit/http/errors";
 import { z } from "zod";
 
 const OLD_SDK = "@get-bb/plugin-sdk";
@@ -122,7 +123,14 @@ export function resolveInside(directory: string, path: string): string | null {
 export async function readManifest(path: string): Promise<PluginManifest> {
   const directory = resolve(path);
   const text = await readFile(join(directory, "package.json"), "utf8");
-  const result = packageSchema.safeParse(JSON.parse(text));
+  const json = (() => {
+    try {
+      return JSON.parse(text) as unknown;
+    } catch (error) {
+      throw new Error(`package.json: ${errorMessage(error)}`);
+    }
+  })();
+  const result = packageSchema.safeParse(json);
   if (!result.success) {
     const [issue] = result.error.issues;
     const where = issue?.path.join(".") || "package.json";
