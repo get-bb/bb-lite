@@ -40,6 +40,7 @@ import settings from "../../plugins/settings/server.js";
 import storageRetention from "../../plugins/storage-retention/server.js";
 import tasks from "../../plugins/tasks/server.js";
 import terminals from "../../plugins/terminals/server.js";
+import themePreview from "../../plugins/theme-preview/server.js";
 import threadList from "../../plugins/thread-list/server.js";
 import threads from "../../plugins/threads/server.js";
 import workflows from "../../plugins/workflows/server.js";
@@ -93,6 +94,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "storage-retention": storageRetention,
   tasks: tasks,
   terminals: terminals,
+  "theme-preview": themePreview,
   "thread-list": threadList,
   "thread-view": null,
   threads: threads,
