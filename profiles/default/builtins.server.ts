@@ -7,6 +7,7 @@ import automations from "../../plugins/automations/server.js";
 import bbAccount from "../../plugins/bb-account/server.js";
 import bbAi from "../../plugins/bb-ai/server.js";
 import bbGuide from "../../plugins/bb-guide/server.js";
+import browserAutomation from "../../plugins/browser-automation/server.js";
 import concurrencyLimit from "../../plugins/concurrency-limit/server.js";
 import connect from "../../plugins/connect/src/server.js";
 import customInstructions from "../../plugins/custom-instructions/server.js";
@@ -53,6 +54,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "bb-account": bbAccount,
   "bb-ai": bbAi,
   "bb-guide": bbGuide,
+  "browser-automation": browserAutomation,
   composer: null,
   "concurrency-limit": concurrencyLimit,
   connect: connect,

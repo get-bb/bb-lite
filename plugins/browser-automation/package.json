@@ -1,0 +1,37 @@
+{
+  "name": "bb-plugin-browser-automation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Let BB control headless browsers on connected machines, with live previews for headless sessions.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Browser Automation",
+    "description": "Let BB control headless browsers on connected machines, with live previews for headless sessions.",
+    "icon": "Globe",
+    "server": "./server.ts",
+    "runner": "./runner.ts",
+    "skills": [
+      "skills"
+    ],
+    "enabledByDefault": false
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

@@ -1,4 +1,5 @@
 import type { PluginRunnerEntry } from "@bb/runner";
+import browserAutomation from "../../plugins/browser-automation/runner.js";
 import concurrencyLimit from "../../plugins/concurrency-limit/runner.js";
 import github from "../../plugins/github/runner.js";
 import keepAwake from "../../plugins/keep-awake/runner.js";
@@ -9,6 +10,7 @@ import providerPi from "../../plugins/provider-pi/runner.js";
 import storageRetention from "../../plugins/storage-retention/runner.js";
 
 export const runnerEntries: Record<string, PluginRunnerEntry> = {
+  "browser-automation": browserAutomation,
   "concurrency-limit": concurrencyLimit,
   github: github,
   "keep-awake": keepAwake,

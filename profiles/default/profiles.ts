@@ -20,6 +20,7 @@ const SCREEN = [
 ];
 const AGENT_FEATURES = [
   "automations",
+  "browser-automation",
   "secrets",
   "ask-user-question",
   "custom-instructions",
