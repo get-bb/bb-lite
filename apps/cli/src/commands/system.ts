@@ -233,7 +233,7 @@ export const fileMove: Run = async (c) => {
 
 export const fileRemove: Run = async (c) => {
   await confirm(c, `Remove ${c.arg("path")}?`);
-  const result = await c.op(c.ops.machines.removePath, {
+  const result = await c.op(c.ops.machines.deletePath, {
     ...(await hostPath(c)),
     rootPath: c.flag("root"),
     recursive: c.on("recursive") || undefined,

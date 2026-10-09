@@ -1230,7 +1230,7 @@ export const machines = contract("machines", {
     kind: "write",
     doors: { http: { method: "POST", path: "/machines/files/move" } },
   }),
-  removePath: op({
+  deletePath: op({
     input: Contract.hostRemovePathRequestSchema,
     output: typed(z.object({ ok: z.literal(true) })),
     kind: "write",

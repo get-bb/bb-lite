@@ -116,7 +116,7 @@ export function implementMachineFiles(bb: PluginServerApi): void {
     runnerOf(hostId).call(machineFiles.mutate, { op: "move", ...move }),
   );
 
-  bb.implement(machines.removePath, ({ hostId, ...location }) =>
+  bb.implement(machines.deletePath, ({ hostId, ...location }) =>
     runnerOf(hostId).call(machineFiles.mutate, { op: "remove", ...location }),
   );
 }

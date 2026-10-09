@@ -412,7 +412,8 @@ it("keeps relay sessions away from servers and shares", async () => {
   const machine = browser();
   const asMachine = { headers: join.headers };
   const listed = await machine.visit(`${bee}/api/v1/machines`, asMachine);
-  expect(listed.status, listed.text).toBe(200);
+  expect(listed).toMatchObject({ status: 403, body: { code: "forbidden" } });
+  expect(listed.text).toContain("Machine credentials");
   const mutation = { method: "DELETE", ...asMachine };
   const removal = await machine.visit(enrollment, mutation);
   expect(removal).toMatchObject({ status: 403 });

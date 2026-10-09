@@ -199,11 +199,11 @@ it("lists, creates, moves and removes machine paths inside a root", async () => 
     expect.objectContaining({ kind: "file", path: "d.txt" }),
   );
   const outside = { path: join(repo, "x"), rootPath };
-  expect((await op("mkdir", outside)).status).toBe(409);
+  expect((await op("mkdir", outside)).status).toBe(400);
   const escape = { sourcePath: "d.txt", destinationPath: "../d.txt" };
-  expect((await op("move", { ...escape, rootPath })).status).toBe(409);
-  expect((await op("remove", { path: "a", rootPath })).status).toBe(409);
+  expect((await op("move", { ...escape, rootPath })).status).toBe(400);
+  expect((await op("remove", { path: "a", rootPath })).status).toBe(400);
   const all = { path: "a", rootPath, recursive: true };
   expect((await op("remove", all)).body).toEqual({ ok: true });
-  expect((await op("remove", { path: ".", rootPath })).status).toBe(409);
+  expect((await op("remove", { path: ".", rootPath })).status).toBe(400);
 });
