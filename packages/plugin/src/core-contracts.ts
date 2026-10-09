@@ -526,6 +526,19 @@ export const threads = contract("threads", {
     hooks: "answer",
     doors: { http: { method: "POST", path: "/threads/:threadId/send" } },
   }),
+  updateMessage: op({
+    input: z.object({
+      threadId: z.string(),
+      seq: z.number().int().positive(),
+      input: z.array(Domain.promptInputSchema).min(1),
+    }),
+    output: typed(Contract.sendMessageResponseSchema),
+    kind: "write",
+    hooks: "answer",
+    doors: {
+      http: { method: "POST", path: "/threads/:threadId/messages/update" },
+    },
+  }),
   listQueuedMessages: op({
     input: ref("threadId"),
     output: typed(Contract.threadQueuedMessageListResponseSchema),

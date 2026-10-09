@@ -335,7 +335,9 @@ export function createEchoAdapter(): ProviderAdapter {
       const path = join(host.threadStorageDir, "echo-state.json");
       const stored = await readFile(path, "utf8").catch(() => "{}");
       const state = stateSchema.safeParse(JSON.parse(stored)).data;
-      const resumed = state?.providerThreadId === providerThreadId;
+      const resumed =
+        spec.providerThreadId !== null &&
+        state?.providerThreadId === providerThreadId;
       host.events.identity(providerThreadId);
       if (spec.providerThreadId === null) host.events.started();
       const forked = /^turn-(\d+)$/u.exec(spec.forkFrom?.checkpointId ?? "");

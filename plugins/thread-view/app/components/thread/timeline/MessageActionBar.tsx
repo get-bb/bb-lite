@@ -32,6 +32,7 @@ import {
   TimelineContext,
   type ThreadTimelineAddToChatHandler,
 } from "./timeline-context";
+import { useEditMessageAction } from "../../../lib/edit-message";
 
 export type MobileActionDisplay = "inline" | "overflow";
 
@@ -128,7 +129,10 @@ export function MessageActionBar({
   };
   const panels = useOwned(sidePanel.panel);
   const hostOpener = usePluginThreadPanelOpenHandler();
-  const extraActions = useContext(ExtraMessageActionsContext);
+  const extraActions = [
+    ...useContext(ExtraMessageActionsContext),
+    ...useEditMessageAction(threadId, seq),
+  ];
   const pluginActions = [
     ...useOwned(threadView.messageAction),
     ...extraActions.map((action) => ({ ...action, pluginId: null })),

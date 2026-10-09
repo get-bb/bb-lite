@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -463,10 +464,15 @@ export function createPiAdapter(
     },
     async open(spec, execution, host) {
       await gate();
-      const { forkFrom, ...plain } = spec;
+      const { forkFrom, ...base } = spec;
       const dir = piSessionDir({ ...adapter.env, ...host.processEnv });
-      const key = sessionKey(spec.providerThreadId ?? spec.threadId);
-      const targetFile = join(dir, `${key}.jsonl`);
+      const fileOf = ({ providerThreadId, threadId }: SessionSpec) =>
+        join(dir, `${sessionKey(providerThreadId ?? threadId)}.jsonl`);
+      const rewound = forkFrom !== undefined && existsSync(fileOf(base));
+      const plain = rewound
+        ? { ...base, providerThreadId: `${spec.threadId}.${randomUUID()}` }
+        : base;
+      const targetFile = fileOf(plain);
       if (forkFrom !== undefined && !existsSync(targetFile)) {
         const providerThreadId = forkFrom.providerThreadId;
         const from = { ...plain, providerThreadId };

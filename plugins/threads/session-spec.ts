@@ -8,7 +8,11 @@ import { SERVER_URL_PLACEHOLDER, type SessionSpec } from "@bb/runner";
 import { dataPaths } from "@bb/server-kit/config";
 import type { SessionEnvironment } from "@bb/server-kit/services";
 import type { Db } from "@bb/server-kit/db/index";
-import { latestCheckpoint } from "@bb/server-kit/db/event-read";
+import {
+  contextClearSequence,
+  latestCheckpoint,
+  latestSequence,
+} from "@bb/server-kit/db/event-read";
 import type { ThreadRow } from "@bb/server-kit/db/threads";
 import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
 import { findProviderDefinition } from "@bb/server-kit/providers/catalog";
@@ -47,7 +51,40 @@ export function forkCheckpoint(
   return latestCheckpoint(db, sourceThreadId, atOrBefore);
 }
 
+export function rewindPoint(db: Db, threadId: string, before: number) {
+  const turn = db.get<{
+    sequence: number;
+    providerThreadId: string | null;
+    checkpointId: string | null;
+  }>(
+    `SELECT sequence, provider_thread_id AS providerThreadId,
+       json_extract(data, '$.providerCheckpointId') AS checkpointId
+     FROM events
+     WHERE thread_id = ? AND type = 'turn/completed' AND sequence < ?
+       AND parent_tool_call_id IS NULL
+     ORDER BY sequence DESC LIMIT 1`,
+    threadId,
+    before,
+  );
+  const cleared = contextClearSequence(db, threadId, before - 1) ?? 0;
+  if (turn === undefined || turn.sequence < cleared) return "fresh";
+  const { providerThreadId, checkpointId } = turn;
+  if (providerThreadId === null || checkpointId === null) return null;
+  return { providerThreadId, checkpointId };
+}
+
+function rewoundFrom(db: Db, thread: ThreadRow) {
+  if (thread.providerThreadId !== null) return null;
+  const provider = findProviderDefinition(db, thread.providerId);
+  if (provider?.info.capabilities.fork !== "checkpoint") return null;
+  const end = latestSequence(db, thread.id) + 1;
+  const point = rewindPoint(db, thread.id, end);
+  return typeof point === "object" ? point : null;
+}
+
 function forkFrom(db: Db, thread: ThreadRow) {
+  const rewound = rewoundFrom(db, thread);
+  if (rewound !== null) return rewound;
   const { originKind, sourceThreadId, providerThreadId } = thread;
   const pending = originKind === "fork" && providerThreadId === null;
   if (!pending || sourceThreadId === null) return null;

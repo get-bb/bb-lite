@@ -73,6 +73,8 @@ import {
   composerSubmitted,
   markComposerActive,
   onComposerSubmitted,
+  composerSubmitHandler,
+  setComposerSubmitHandler,
   showComposer,
 } from "../../lib/composers";
 import {
@@ -821,8 +823,11 @@ export function PromptBoxInternal({
     const blurAfterSubmit = blurAfterPointerSubmitRef.current;
     blurAfterPointerSubmitRef.current = false;
     if (!canPrimarySubmit) return;
-    onPrimarySubmit?.(options);
-    composerSubmitted(composerKeyOf(composerScope));
+    const key = composerKeyOf(composerScope);
+    const handler = composerSubmitHandler(key);
+    if (handler === undefined) onPrimarySubmit?.(options);
+    else handler();
+    composerSubmitted(key);
     if (blurAfterSubmit) blurPromptEditor(editor);
   };
   const submitModifierPrompt = () => {
@@ -1594,6 +1599,8 @@ export function PromptBoxInternal({
       },
       setInputLock: (locked) => void now().editor?.setEditable(!locked),
       submit: (options) => now().submitPrompt(options),
+      setSubmitHandler: (handler) =>
+        setComposerSubmitHandler(composerKey, handler),
       onSubmitted: (listener) => onComposerSubmitted(composerKey, listener),
       openPopupId,
       openPopup: (id) => openComposerPopup(composerKey, id),

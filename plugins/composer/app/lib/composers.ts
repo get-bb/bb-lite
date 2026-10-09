@@ -69,3 +69,17 @@ export function onComposerSubmitted(
 export function composerSubmitted(key: string): void {
   for (const listener of submitted.get(key) ?? []) listener();
 }
+
+const submitHandlers = new Map<string, () => void>();
+
+export function setComposerSubmitHandler(
+  key: string,
+  handler: (() => void) | null,
+): void {
+  if (handler === null) submitHandlers.delete(key);
+  else submitHandlers.set(key, handler);
+}
+
+export function composerSubmitHandler(key: string) {
+  return submitHandlers.get(key);
+}

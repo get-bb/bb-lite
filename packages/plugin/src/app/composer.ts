@@ -64,6 +64,7 @@ export interface ComposerHandle {
   focus(): void;
   setInputLock(locked: boolean): void;
   submit(options?: ComposerSubmitOptions): void;
+  setSubmitHandler(handler: (() => void) | null): void;
   onSubmitted(listener: () => void): () => void;
   readonly openPopupId: string | null;
   openPopup(id: string): void;
