@@ -615,7 +615,8 @@ Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills
   `{ path, threadId, source, projectId, hostId, name, url, mimeType, content, refresh }`
   (`FileViewerProps`), where `threadId` (or null) and `source` (`"workspace"`, `"thread-storage"` or
   `"host"`) are what a viewer needs to save the file it shows; `projectId` and `hostId` (or null)
-  locate a project checkout file shown with no thread.
+  locate a project checkout file shown with no thread. `files.write` is server only, so a viewer
+  saves through an operation of its own whose server part calls `files.write` with them.
 
 ### Hooks and components from `@bb/plugin/app`
 
@@ -902,7 +903,9 @@ plugin API (this bb's by default) and lists each member the plugin uses that cha
 it uses that changed.
 `bb dev new <id>` writes a working plugin. `bb dev watch <dir>` loads a directory and reloads it when
 a file changes (`bb plugin add <dir>` loads it without watching; `bb plugin remove <dir> --yes`
-stops loading a directory, including an installed copy under `<dataDir>/plugins-src/<id>`). `bb dev validate <dir>` checks the
+stops loading a directory, including an installed copy under `<dataDir>/plugins-src/<id>`). Removing a
+plugin keeps its data: settings and secrets, `bb.storage.kv`, its private database and its shared
+tables stay, so adding it back finds them again. `bb dev validate <dir>` checks the
 manifest and lists what the source implements, hooks, calls and adds, and where it reaches outside bb.
 `bb dev types <dir>` links bb's packages into the plugin's `node_modules` and writes
 `.bb/tsconfig.json`, so an editor resolves bb's types.
