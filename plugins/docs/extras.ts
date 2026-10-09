@@ -17,7 +17,10 @@ export const slugTitle = (content: string) => {
     .trim();
 };
 
-type Reader = (vault: string, path: string) => Promise<{ sha256: string }>;
+type Reader = (
+  vault: string,
+  path: string,
+) => Promise<{ vaultId: string; path: string; sha256: string }>;
 
 export function registerDocsExtras(
   bb: PluginServerApi,
@@ -39,7 +42,11 @@ export function registerDocsExtras(
   const recentOf = async (threadId: string) =>
     (await bb.storage.kv.get<Ref[]>(recentKey(threadId))) ?? [];
   bb.implement(docs.recent, ({ threadId }) => recentOf(threadId));
-  bb.implement(docs.visit, async ({ threadId, vault, path }) => {
+  bb.implement(docs.visit, async (input) => {
+    const { threadId } = input;
+    const file = await read(input.vault, input.path);
+    const vault = file.vaultId;
+    const path = file.path;
     const rest = (await recentOf(threadId)).filter(
       (r) => r.vault !== vault || r.path !== path,
     );

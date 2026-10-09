@@ -17,7 +17,8 @@ async function docsServer() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    return { ok: response.ok, body: (await response.json()) as Row };
+    const result = (await response.json()) as Row;
+    return { ok: response.ok, status: response.status, body: result };
   };
   const op = async <T = Row>(name: string, input: Row = {}): Promise<T> => {
     const { ok, body } = await send(`/ops/docs.${name}`, input);
@@ -33,7 +34,7 @@ async function docsServer() {
     return body as { exitCode: number; stdout: string; stderr: string };
   };
   await op("createVault", { name: "Team", absoluteRoot: root });
-  return { op, cli, root, work, server };
+  return { op, cli, send, root, work, server };
 }
 
 it("lists vaults, writes, reads and lists documents through the CLI", async () => {
@@ -152,7 +153,7 @@ it("proposes a change and accepts, undoes and redoes it", async () => {
 });
 
 it("renames to the title, uploads attachments, keeps order and recent documents", async () => {
-  const { op, root } = await docsServer();
+  const { op, send, root } = await docsServer();
   writeFileSync(join(root, "untitled.md"), "# Launch Plan\n\nBody\n");
   const team = { vault: "team" };
   const renamed = await op("renameToTitle", { ...team, path: "untitled.md" });
@@ -171,8 +172,18 @@ it("renames to the title, uploads attachments, keeps order and recent documents"
   expect(readFileSync(join(root, "attachments/chart.png"), "utf8")).toBe("png");
   await op("reorder", { ...team, folder: "", names: ["b.md", "a.md"] });
   expect(await op("order", { ...team, folder: "" })).toEqual(["b.md", "a.md"]);
-  for (const path of ["a.md", "b.md", "a.md"])
+  writeFileSync(join(root, "a.md"), "a\n");
+  writeFileSync(join(root, "b.md"), "b\n");
+  for (const path of ["a.md", "b.md", "./a.md"])
     await op("visit", { threadId: "thr_1", vault: "team", path });
+  const visit = async (vault: string, path: string) => {
+    const input = { threadId: "thr_1", vault, path };
+    const { status, body } = await send("/ops/docs.visit", input);
+    return [status, body.code];
+  };
+  expect(await visit("nope", "a.md")).toEqual([404, "unknown_vault"]);
+  expect((await visit("team", "missing.md"))[0]).toBe(404);
+  expect((await visit("team", "../a.md"))[0]).toBe(400);
   expect(await op("recent", { threadId: "thr_1" })).toEqual([
     { vault: "team", path: "a.md" },
     { vault: "team", path: "b.md" },
