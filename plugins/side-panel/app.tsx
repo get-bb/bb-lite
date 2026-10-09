@@ -13,6 +13,7 @@ import {
   fileTabTitle,
   pluginPanelTabTitle,
 } from "./app/components/secondary-panel/SidePanelTabChrome";
+import { loadWithDownloadRetries } from "@bb/app-kit/lib/chunk-load";
 import * as parts from "./parts";
 
 type Views =
@@ -20,8 +21,9 @@ type Views =
 
 function view(name: keyof Views): ComponentType<SidePanelTabProps> {
   return lazy(async () => {
-    const views =
-      await import("./app/components/secondary-panel/SidePanelTabViews");
+    const views = await loadWithDownloadRetries(
+      () => import("./app/components/secondary-panel/SidePanelTabViews"),
+    );
     return { default: views[name] };
   });
 }
