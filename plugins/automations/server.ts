@@ -305,7 +305,10 @@ export default function automationsServer(bb: PluginServerApi): void {
     }
   });
 
-  bb.implement(automations.list, ({ projectId }) => store.list(projectId));
+  bb.implement(automations.list, async ({ projectId }) => {
+    await bb.call(projects.get, { projectId });
+    return store.list(projectId);
+  });
   bb.implement(automations.get, ({ projectId, automationId }) =>
     find(projectId, automationId),
   );

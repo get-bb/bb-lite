@@ -381,3 +381,15 @@ it("pages runs with nextCursor", async () => {
     nextCursor: null,
   });
 });
+
+it("refuses to list automations of an unknown project", async () => {
+  const server = await automationsServer();
+  const response = await fetch(`${server.url}/api/v1/ops/automations.list`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId: "proj_missing" }),
+  });
+  expect(response.status).toBe(404);
+  const listed = await server.cli("automation list --project proj_1 --json");
+  expect(listed.json()).toEqual([]);
+});
