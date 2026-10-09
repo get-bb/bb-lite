@@ -115,8 +115,6 @@ function hasImage(result: unknown) {
   return parsed.success && parsed.data.content.some((c) => c.type === "image");
 }
 
-export type PiUsage = ReturnType<typeof toUsage>;
-
 function textOf(content: unknown) {
   const parsed = resultSchema.safeParse(content);
   if (!parsed.success) return undefined;
