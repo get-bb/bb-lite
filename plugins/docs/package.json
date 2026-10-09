@@ -1,0 +1,36 @@
+{
+  "name": "bb-plugin-docs",
+  "version": "0.2.3",
+  "private": true,
+  "type": "module",
+  "description": "Collaborate with agents on editing Markdown docs inline. Edit directly inside threads, approve/reject proposals from an agent, and undo/redo changes.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Docs",
+    "description": "Collaborate with agents on editing Markdown docs inline. Edit directly inside threads, approve/reject proposals from an agent, and undo/redo changes.",
+    "icon": "FileText",
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "diff": "^8.0.4",
+    "zod": "^4.3.6",
+    "@bb/runner": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

@@ -11,6 +11,7 @@ import browserAutomation from "../../plugins/browser-automation/server.js";
 import concurrencyLimit from "../../plugins/concurrency-limit/server.js";
 import connect from "../../plugins/connect/src/server.js";
 import customInstructions from "../../plugins/custom-instructions/server.js";
+import docs from "../../plugins/docs/server.js";
 import drafts from "../../plugins/drafts/server.js";
 import environmentGitWorktree from "../../plugins/environment-git-worktree/server.js";
 import environmentModalSandbox from "../../plugins/environment-modal-sandbox/server.js";
@@ -61,6 +62,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "concurrency-limit": concurrencyLimit,
   connect: connect,
   "custom-instructions": customInstructions,
+  docs: docs,
   drafts: drafts,
   "environment-git-worktree": environmentGitWorktree,
   "environment-modal-sandbox": environmentModalSandbox,

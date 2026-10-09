@@ -20,6 +20,7 @@ const SCREEN = [
   "provider-usage",
 ];
 const AGENT_FEATURES = [
+  "docs",
   "automations",
   "browser-automation",
   "secrets",
