@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, it, vi } from "vitest";
 import { pathFor } from "../port.js";
+import { splitGitSpec } from "../server.js";
 import {
   commitAll,
   createProject,
@@ -477,4 +478,18 @@ it("points calls whose feature arrived since at the new operation", () => {
   expect(pathFor("server.hosts.declareSharedPorts").now).toContain(
     "connect.expose",
   );
+});
+
+it("reads a git source's subdirectory with or without a ref", () => {
+  expect(splitGitSpec("file:///r#v1:plugins/a")).toEqual([
+    "file:///r",
+    "v1:plugins/a",
+  ]);
+  expect(splitGitSpec("file:///r:plugins/a")).toEqual([
+    "file:///r",
+    ":plugins/a",
+  ]);
+  expect(splitGitSpec("https://h/r")).toEqual(["https://h/r", undefined]);
+  expect(splitGitSpec("git@h:o/r")).toEqual(["git@h:o/r", undefined]);
+  expect(splitGitSpec("git@h:o/r:sub")).toEqual(["git@h:o/r", ":sub"]);
 });

@@ -291,7 +291,7 @@ async function versionsOf(source: string, prefix = ""): Promise<string[]> {
       .parse(JSON.parse(stdout));
     return typeof parsed === "string" ? [parsed] : parsed;
   }
-  const url = source.replace(/^git:/u, "").split("#")[0] ?? "";
+  const url = splitGitSpec(source.replace(/^git:/u, ""))[0];
   return (await gitTags(url, prefix)).map(({ version }) => version);
 }
 
@@ -325,12 +325,23 @@ async function place(
   await rename(from, target);
 }
 
+export function splitGitSpec(spec: string): [string, string | undefined] {
+  const hash = spec.indexOf("#");
+  if (hash !== -1) return [spec.slice(0, hash), spec.slice(hash + 1)];
+  const colon = spec.lastIndexOf(":");
+  const base = spec.slice(0, colon);
+  const isUrl = base.includes("://") || /^[^@/]+@[^:]+:/u.test(base);
+  if (colon === -1 || !isUrl || spec[colon + 1] === "/")
+    return [spec, undefined];
+  return [base, `:${spec.slice(colon + 1)}`];
+}
+
 async function fetchGit(
   spec: string,
   root: string,
   wanted: Wanted,
 ): Promise<Fetched> {
-  const [url = "", after] = spec.split("#");
+  const [url = "", after] = splitGitSpec(spec);
   const [given, subdir = ""] = (after ?? "").split(":");
   checkArgument(url);
   const options = { timeout: FETCH_TIMEOUT_MS };
