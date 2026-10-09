@@ -4,6 +4,7 @@ import { latestSequence } from "@bb/server-kit/db/event-read";
 import type { ThreadRow } from "@bb/server-kit/db/threads";
 import { findProviderDefinition } from "@bb/server-kit/providers/catalog";
 import { expect, it, vi } from "vitest";
+import { forkTitle } from "../../../plugins/threads/fork.js";
 import { createEchoServer } from "./helpers.js";
 import { text } from "./thread-harness.js";
 
@@ -213,4 +214,10 @@ it("seeds a transcript when the provider cannot fork a checkpoint", async () => 
     "user: count",
     "assistant: Turn count: 1",
   ]);
+});
+
+it("numbers a fork's title so it differs from its source", () => {
+  expect(forkTitle("Fix the build")).toBe("(1) Fix the build");
+  expect(forkTitle("(1) Fix the build")).toBe("(2) Fix the build");
+  expect([forkTitle(null), forkTitle("  ")]).toEqual([null, null]);
 });

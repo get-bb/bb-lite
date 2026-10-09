@@ -185,7 +185,7 @@ export function forkThread(
       permissionMode: source.permissionMode,
       serviceTier: source.serviceTier,
       title: request.title ?? null,
-      titleFallback: source.title ?? source.titleFallback,
+      titleFallback: forkTitle(source.title ?? source.titleFallback),
       sectionId: null,
       createdByUserId: actorUserId(),
       viewerId: viewerId(),
@@ -206,4 +206,14 @@ export function forkThread(
     return row;
   });
   return engine.respond(thread.id);
+}
+
+const FORK_TITLE = /^\((\d+)\) (.+)$/su;
+
+export function forkTitle(title: string | null): string | null {
+  const source = title?.trim();
+  if (!source) return null;
+  const numbered = FORK_TITLE.exec(source);
+  if (numbered === null) return `(1) ${source}`;
+  return `(${BigInt(numbered[1] ?? "0") + 1n}) ${numbered[2] ?? ""}`;
 }
