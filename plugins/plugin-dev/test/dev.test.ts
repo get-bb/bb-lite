@@ -126,9 +126,9 @@ it("installs a plugin from a git repository", async () => {
   const twice = await op("plugin-dev.install", {
     source: `git:file://${repo}`,
   });
-  expect(twice.status).toBe(500);
+  expect(twice.status).toBe(409);
   const empty = await op("plugin-dev.install", { source: scratch() });
-  expect(empty.body).toMatchObject({ code: "handler_error" });
+  expect(empty.body).toMatchObject({ code: "invalid_request" });
 });
 
 function release(repo: string, file: string, version: string, bb = "^1") {

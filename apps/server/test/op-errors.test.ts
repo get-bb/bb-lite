@@ -30,6 +30,9 @@ it("answers bad input and unknown ids with 4xx instead of 500", async () => {
     }),
   ).resolves.toMatchObject({ status: 404 });
   await expect(
+    call(server, "plugin-dev.port", { path: "/nonexistent/plugin" }),
+  ).resolves.toMatchObject({ status: 404 });
+  await expect(
     call(server, "threads.reorderQueuedMessages", {
       threadId: "thr_nonexist00",
       queuedMessageIds: [],
@@ -38,4 +41,17 @@ it("answers bad input and unknown ids with 4xx instead of 500", async () => {
   await expect(
     call(server, "skills.list", { hostId: "host_nonexist00" }),
   ).resolves.toMatchObject({ status: 404, code: "host_not_found" });
+  const created = await server.send("/ops/tasks.createProject", {
+    name: "bb",
+    prefix: "BB",
+    color: "red",
+  });
+  const { result } = (await created.json()) as {
+    result: { project: { id: string } };
+  };
+  const label = { projectId: result.project.id, name: "bug", color: "red" };
+  await call(server, "tasks.createLabel", label);
+  await expect(call(server, "tasks.createLabel", label)).resolves.toMatchObject(
+    { status: 409 },
+  );
 });

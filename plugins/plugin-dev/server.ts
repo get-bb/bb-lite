@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import { execFile } from "node:child_process";
 import {
   cp,
@@ -318,7 +319,7 @@ async function place(
 ): Promise<void> {
   if (await exists(target)) {
     if (!replace) {
-      throw new Error(`${target} already exists; remove it to install again`);
+      fail("conflict", `${target} already exists; remove it to install again`);
     }
     await rm(target, { recursive: true, force: true });
   }
@@ -354,7 +355,7 @@ async function fetchGit(
     basename(subdir) || basename(url).replace(/\.git$/u, "") || "plugin";
   const target = join(root, name);
   if ((await exists(target)) && wanted.replace !== true) {
-    throw new Error(`${target} already exists; remove it to install again`);
+    fail("conflict", `${target} already exists; remove it to install again`);
   }
   const scratch = await mkdtemp(join(root, ".fetch-"));
   try {
@@ -445,8 +446,13 @@ async function fetchSource(
 }
 
 export default function plugin(bb: PluginServerApi): void {
-  const located = (input: { path: string; cwd?: string }) =>
-    resolve(input.cwd ?? process.cwd(), input.path);
+  const located = (input: { path: string; cwd?: string }) => {
+    const directory = resolve(input.cwd ?? process.cwd(), input.path);
+    if (!statSync(directory, { throwIfNoEntry: false })?.isDirectory()) {
+      fail("not_found", `${directory} is not a directory`);
+    }
+    return directory;
+  };
 
   bb.implement(pluginDev.inspect, async ({ name = "", machine }) => {
     if (machine === undefined) {
@@ -475,11 +481,11 @@ export default function plugin(bb: PluginServerApi): void {
 
   bb.implement(pluginDev.scaffold, async ({ name, path, cwd }) => {
     if (!PLUGIN_ID.test(name)) {
-      throw new Error("A plugin id is lower-case letters, digits and dashes");
+      fail("invalid", "A plugin id is lower-case letters, digits and dashes");
     }
     const directory = resolve(cwd ?? process.cwd(), path ?? name);
     if (await exists(join(directory, "package.json"))) {
-      throw new Error(`${directory} already holds a package.json`);
+      fail("conflict", `${directory} already holds a package.json`);
     }
     await mkdir(directory, { recursive: true });
     const files = Object.entries(templates(name));
@@ -495,17 +501,17 @@ export default function plugin(bb: PluginServerApi): void {
     const source = found?.original ?? null;
     if (source === null) {
       const known = found === null ? "is not a plugin" : "is not built in";
-      throw new Error(`"${id}" ${known}, so there is nothing to fork`);
+      fail("not_found", `"${id}" ${known}, so there is nothing to fork`);
     }
     if (as !== null && !PLUGIN_ID.test(as)) {
-      throw new Error("A plugin id is lower-case letters, digits and dashes");
+      fail("invalid", "A plugin id is lower-case letters, digits and dashes");
     }
     if (as !== null && (await bb.call(plugins.describe, { id: as })) !== null) {
-      throw new Error(`A plugin called "${as}" is already installed`);
+      fail("conflict", `A plugin called "${as}" is already installed`);
     }
     const target = resolve(cwd ?? process.cwd(), path ?? as ?? id);
     if (await exists(target)) {
-      throw new Error(`${target} already exists`);
+      fail("conflict", `${target} already exists`);
     }
     try {
       await copyPlugin(id, source, target, as);
@@ -541,7 +547,7 @@ export default function plugin(bb: PluginServerApi): void {
     );
     const report = await validatePlugin(fetched.path);
     if (report.problems.length > 0) {
-      throw new Error(`Not a loadable plugin: ${report.problems.join(" ")}`);
+      fail("invalid", `Not a loadable plugin: ${report.problems.join(" ")}`);
     }
     const installed = await bb.call(plugins.install, {
       path: fetched.path,

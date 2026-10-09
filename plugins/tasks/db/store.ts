@@ -291,6 +291,9 @@ export function createTasksStore(db: PluginDatabase) {
 
   function createLabel({ projectId, name, color }: Omit<Label, "id">): Label {
     found(getProject(projectId), `Project ${projectId}`);
+    if (listLabels(projectId).some((label) => label.name === name)) {
+      fail("conflict", `A label called "${name}" already exists`);
+    }
     const label = { id: createUlid(), projectId, name, color };
     insert("labels", label);
     return label;
