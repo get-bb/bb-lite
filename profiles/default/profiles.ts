@@ -13,7 +13,7 @@ const AGENT_FEATURES = [
   "audit",
   "plugin-dev",
 ];
-const SCREEN = ["thread-list", "navigation"];
+const SCREEN = ["thread-list", "navigation", "pdf-preview"];
 const PRODUCT = ["connect", "account-pool", "tasks"];
 
 export const profiles: Record<string, Profile> = {

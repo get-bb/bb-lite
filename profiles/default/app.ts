@@ -58,4 +58,8 @@ export const appPlugins: readonly BuiltinAppPlugin[] = [
     id: "account-pool",
     load: () => import("../../plugins/account-pool/app"),
   },
+  {
+    id: "pdf-preview",
+    load: () => import("../../plugins/pdf-preview/app"),
+  },
 ];

@@ -60,6 +60,7 @@ export const serverPlugins: BuiltinPlugin[] = [
   { directory: pluginDirectory("provider-echo"), server: echo },
   { directory: pluginDirectory("thread-list"), server: threadList },
   { directory: pluginDirectory("navigation"), server: null },
+  { directory: pluginDirectory("pdf-preview"), server: null },
   { directory: pluginDirectory("secrets"), server: secrets },
   { directory: pluginDirectory("ask-user-question"), server: askUserQuestion },
   {
