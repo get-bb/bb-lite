@@ -24,6 +24,7 @@ function accountsFromEnv(secure: boolean): Accounts {
     secureCookies: secure,
     ownerCredentialHeader: process.env.OWNER_CREDENTIAL_HEADER || undefined,
     ownerCredentialCookie: process.env.OWNER_CREDENTIAL_COOKIE || undefined,
+    entryKey: process.env.ENTRY_KEY || undefined,
   });
 }
 

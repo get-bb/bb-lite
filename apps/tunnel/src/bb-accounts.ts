@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import * as accounts from "./accounts.js";
 
 export interface BbAccountsOptions {
@@ -8,6 +9,7 @@ export interface BbAccountsOptions {
   resolveServerHost?(label: string): string;
   ownerCredentialHeader?: string;
   ownerCredentialCookie?: string;
+  entryKey?: string;
 }
 
 interface ServerList {
@@ -29,6 +31,34 @@ const INSTALL_PATHS = [
 ];
 const MACHINE_PATH = /^\/(internal(\/|$)|api\/v1(\/|$))/u;
 const DEFAULT_CACHE_MS = 20_000;
+const ENTRY_PATH = "/__gate/enter";
+const ENTRY_COOKIE = "bb-gate-entry";
+const ENTRY_SESSION_MS = 12 * 60 * 60_000;
+
+export function signEntry(
+  key: string,
+  purpose: "enter" | "session",
+  label: string,
+  expiresAt: number,
+): string {
+  const signed = `${purpose}\n${label}\n${expiresAt}`;
+  const mac = createHmac("sha256", key).update(signed).digest("hex");
+  return `${expiresAt}.${mac}`;
+}
+
+function isValidEntry(
+  key: string | undefined,
+  purpose: "enter" | "session",
+  label: string,
+  offered: string | null,
+): boolean {
+  if (key === undefined || offered === null) return false;
+  const expiresAt = Number(offered.split(".")[0]);
+  if (!Number.isInteger(expiresAt) || expiresAt < Date.now()) return false;
+  const expected = Buffer.from(signEntry(key, purpose, label, expiresAt));
+  const given = Buffer.from(offered);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
 
 function installHeaders(path: string): Record<string, string> {
   const hardened = {
@@ -125,7 +155,8 @@ export function bbAccounts(options: BbAccountsOptions): accounts.Accounts {
   return {
     shares: true,
     isPlatformCookie: (name) => {
-      return name === ownerCookie || PLATFORM_COOKIE.test(name);
+      const own = name === ownerCookie || name === ENTRY_COOKIE;
+      return own || PLATFORM_COOKIE.test(name);
     },
     isPrivateHeader: (name) => {
       const reserved = name === MACHINE_HEADER || name === TARGET_HEADER;
@@ -137,6 +168,29 @@ export function bbAccounts(options: BbAccountsOptions): accounts.Accounts {
       const address = addressOf(label, target);
       const targeted: Record<string, string> =
         target === null ? {} : { [TARGET_HEADER]: target };
+      const cookies = accounts.header(request, "cookie") ?? "";
+      if (pathname === ENTRY_PATH && target === null) {
+        const token = new URL(path, own).searchParams.get("token");
+        if (!isValidEntry(options.entryKey, "enter", label, token)) {
+          return accounts.plain(
+            403,
+            "bb connect: this entry link has expired\n",
+          );
+        }
+        const until = Date.now() + ENTRY_SESSION_MS;
+        const value = signEntry(
+          options.entryKey ?? "",
+          "session",
+          label,
+          until,
+        );
+        const lasting = `Max-Age=${ENTRY_SESSION_MS / 1_000}`;
+        const scope = `Path=/; HttpOnly; SameSite=Lax; ${lasting}`;
+        const secure = own.startsWith("https:") ? "; Secure" : "";
+        const issued = `${ENTRY_COOKIE}=${value}; ${scope}${secure}`;
+        const headers = { location: "/", "set-cookie": issued };
+        return { status: 302, headers, body: "" };
+      }
       if (pathname.startsWith("/__")) {
         return accounts.plain(404, "bb connect: not found\n");
       }
@@ -160,7 +214,10 @@ export function bbAccounts(options: BbAccountsOptions): accounts.Accounts {
         if (owns) return { identity, address };
         return accounts.plain(403, "bb connect: not your server\n");
       }
-      const cookies = accounts.header(request, "cookie") ?? "";
+      const entered = accounts.readCookie(cookies, ENTRY_COOKIE);
+      if (isValidEntry(options.entryKey, "session", label, entered)) {
+        return { identity, address };
+      }
       const session = accounts.readCookie(cookies, sessionCookie);
       const signIn = (): accounts.Refusal => {
         const accept = accounts.header(request, "accept") ?? "";

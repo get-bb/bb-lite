@@ -43,6 +43,12 @@ name>`, for a browser) also admits a request that carries the server's own link 
 owner, and `HOST_LABELS=<host>=<label>` serves one server on a host outside the wildcard, such as the
 Fly app's own `fly.dev` name, so a browser can load it before any DNS exists. All are off unless set.
 
+`ENTRY_KEY=<key>` lets a person in on such a host. `/__gate/enter?token=…` accepts a one-minute
+token signed with the key and answers with a 12-hour session cookie for that one server.
+`scripts/tunnel-entry.mjs` issues the tokens: run it on the server's machine with the same key and
+share its port through the original bb's connect, and only the owner, signed in at the usual
+address, can reach it and be sent on.
+
 What a browser run against the original bb showed (2026-10-08, one server, everything near San
 Jose): API calls were 1.5 to 2 times faster through frp, but a page load with an empty browser cache
 was slower, because the original gateway answers the app's script and style files from Cloudflare's

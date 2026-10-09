@@ -7,7 +7,7 @@ import {
 } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { bbAccounts } from "../src/bb-accounts.js";
+import { bbAccounts, signEntry } from "../src/bb-accounts.js";
 import { createGate } from "../src/gate.js";
 
 const SESSION = "better-auth.session_token";
@@ -100,6 +100,7 @@ beforeAll(async () => {
       resolveServerHost: () => `127.0.0.1:${accountPort}`,
       ownerCredentialHeader: "x-test-owner",
       ownerCredentialCookie: "test-owner",
+      entryKey: "entry-key",
     }),
     upstream: { host: "127.0.0.1", port: upstreamPort },
     hostLabels: { "bee-direct.test": "bee" },
@@ -201,6 +202,40 @@ it("admits a caller that holds the server's credential, when switched on", async
     host: "bee.fly.bb.test",
     origin: `http://bee.bb.test:${accountPort}`,
   });
+});
+
+it("turns a signed entry link into a session for that server only", async () => {
+  const soon = Date.now() + 60_000;
+  const enter = (token: string, name = "bee") =>
+    visit(name, `/__gate/enter?token=${token}`);
+  const forged = signEntry("another-key", "enter", "bee", soon);
+  const stale = signEntry("entry-key", "enter", "bee", Date.now() - 1);
+  const elsewhere = signEntry("entry-key", "enter", "other", soon);
+  for (const token of [forged, stale, elsewhere, "nonsense"]) {
+    expect((await enter(token)).status).toBe(403);
+  }
+  const entered = await enter(signEntry("entry-key", "enter", "bee", soon));
+  expect(entered.status).toBe(302);
+  expect(entered.headers.location).toBe("/");
+  const [issued = ""] = entered.headers["set-cookie"] ?? [];
+  expect(issued).toMatch(
+    /^bb-gate-entry=\d+\.[0-9a-f]{64}; Path=\/; HttpOnly/u,
+  );
+  const [pair = ""] = issued.split(";");
+  const before = seen.length;
+  const inside = await visit("bee", "/api/v1/threads", {
+    headers: { cookie: `${pair}; theme=dark` },
+  });
+  expect(inside.status).toBe(200);
+  expect(seen.length).toBe(before + 1);
+  expect(seen.at(-1)?.headers).toMatchObject({
+    cookie: "theme=dark",
+    "x-bb-gate-auth": "session",
+  });
+  const reused = { cookie: pair.replace("bb-gate-entry=", "bb-gate-entry=9") };
+  expect(
+    (await visit("bee", "/api/v1/threads", { headers: reused })).status,
+  ).toBe(401);
 });
 
 it("marks a share's port and keeps machines and internals out", async () => {
