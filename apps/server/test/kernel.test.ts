@@ -869,3 +869,18 @@ it("keeps the thread a CLI call names, but an agent's own thread wins", () => {
   });
   expect(own).toMatchObject({ door: "agent", thread: "thr_agent" });
 });
+
+it("keeps machine environment values out of the audit log", async () => {
+  const server = await createThreadServer();
+  const variables = [{ name: "API_TOKEN", value: "hunter2-value" }];
+  const put = await server.http("PUT", "/settings/machine-environment", {
+    variables,
+  });
+  expect(put.status).toBe(200);
+  const entries = await auditOf(server, {
+    op: "settings.updateMachineEnvironment",
+  });
+  const [entry] = entries;
+  expect(entry?.input).toContain("API_TOKEN");
+  expect(JSON.stringify(entries)).not.toContain("hunter2-value");
+});

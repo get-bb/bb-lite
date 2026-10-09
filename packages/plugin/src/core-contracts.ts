@@ -970,6 +970,7 @@ export const projects = contract("projects", {
     output: typed(Contract.projectMachineEnvironmentListSchema),
     kind: "write",
     allow: "user",
+    secret: ["value"],
     doors: {
       http: { method: "PUT", path: "/projects/:projectId/machine-environment" },
     },
@@ -1729,6 +1730,7 @@ export const settings = contract("settings", {
     output: typed(Contract.machineEnvironmentListSchema),
     kind: "write",
     allow: "user",
+    secret: ["value"],
     doors: { http: { method: "PUT", path: "/settings/machine-environment" } },
   }),
   updateGeneral: op({
