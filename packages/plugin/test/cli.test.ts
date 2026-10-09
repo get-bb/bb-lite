@@ -86,3 +86,29 @@ it("enforces how options relate and explains a stray word", async () => {
   const help = await cli.run(["--help"], { signal });
   expect(help.stdout).toContain("Timers that fire once or on a schedule.");
 });
+
+it("counts a given positional toward an exactly-one constraint", async () => {
+  const pull = defineCli({
+    name: "docs",
+    summary: "Docs",
+    commands: {
+      pull: cliCommand({
+        summary: "Pull",
+        positionals: [{ name: "path" }],
+        options: { all: { type: "boolean", description: "All" } },
+        constraints: [{ kind: "exactly-one", options: ["path", "all"] }],
+        run: ({ positionals, options }) => ({
+          exitCode: 0,
+          stdout: JSON.stringify({ positionals, options }),
+        }),
+      }),
+    },
+  });
+  const ok = await pull.run(["pull", "notes"], { signal });
+  expect(ok.exitCode).toBe(0);
+  expect((await pull.run(["pull", "--all"], { signal })).exitCode).toBe(0);
+  const both = await pull.run(["pull", "notes", "--all"], { signal });
+  expect(both.stderr).toContain("cannot be combined");
+  const none = await pull.run(["pull"], { signal });
+  expect(none.stderr).toContain("missing required options");
+});

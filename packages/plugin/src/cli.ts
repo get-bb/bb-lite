@@ -264,8 +264,12 @@ function optionValue(name: string, option: CliOption, raw: string) {
 function checkConstraints(
   command: CliCommand,
   given: ReadonlyMap<string, string[]>,
+  words: readonly string[],
 ): void {
-  const has = (name: string) => given.has(name);
+  const named = (command.positionals ?? [])
+    .filter((_, index) => index < words.length)
+    .map(({ name }) => name);
+  const has = (name: string) => given.has(name) || named.includes(name);
   const flags = (names: readonly string[]) =>
     names.map((name) => `--${name}`).join(", ");
   for (const constraint of command.constraints ?? []) {
@@ -322,7 +326,7 @@ function parseArguments(command: CliCommand, argv: readonly string[]) {
         : value.split(split).flatMap((part) => part.trim() || []);
     given.set(name, [...(given.get(name) ?? []), ...values]);
   }
-  checkConstraints(command, given);
+  checkConstraints(command, given, words);
 
   const options: Record<string, ParsedOption> = {};
   const missing: string[] = [];
