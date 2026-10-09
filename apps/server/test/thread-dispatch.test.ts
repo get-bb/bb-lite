@@ -204,3 +204,33 @@ it("sends queued messages up to a group boundary as one turn", async () => {
   const left = (await http<Queued>("GET", path)).body.map((row) => row.id);
   expect(left).toEqual([ids[2]]);
 });
+
+it("starts a thread with no provider on an enabled one only", async () => {
+  const server = await createThreadServer();
+  const { ctx, http, runner } = server;
+  const installed = { installed: true, auth: "ready", message: null };
+  const status = { ...installed, executablePath: null, version: "1.0.0" };
+  runner.script.listProviders = async () => [
+    { ...status, providerId: "codex" },
+    { ...status, providerId: "echo" },
+  ];
+  const remembered = { providerId: "codex", model: "gpt-test" };
+  ctx.db.run(
+    "UPDATE projects SET execution_defaults = ? WHERE id = 'proj_1'",
+    JSON.stringify(remembered),
+  );
+  const disabled = { pluginId: "provider-codex" };
+  expect((await http("POST", "/ops/plugins.disable", disabled)).status).toBe(
+    200,
+  );
+  const created = await http("POST", "/threads", {
+    projectId: "proj_1",
+    origin: "plugin",
+    originPluginId: "github",
+    input: text("go"),
+    model: "echo",
+    environment: { type: "project-default" },
+    startedOnBehalfOf: null,
+  });
+  expect(created.body).toMatchObject({ providerId: "echo" });
+});

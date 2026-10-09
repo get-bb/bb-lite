@@ -123,10 +123,12 @@ async function firstInstalledProvider(
   hostId: string,
 ): Promise<string> {
   const { providerOrder } = getAppSettings(bb.db);
+  const enabled = new Set(listProviderDefinitions(bb.db).map(({ id }) => id));
   const rank = (providerId: string) =>
     (providerOrder.indexOf(providerId) + 1 || providerOrder.length + 1) - 1;
   const [first] = (await bb.runners.get(hostId).listProviders())
     .filter((provider) => provider.installed)
+    .filter((provider) => enabled.has(provider.providerId))
     .map((provider) => provider.providerId)
     .sort((left, right) => rank(left) - rank(right));
   if (first !== undefined) return first;
@@ -162,11 +164,15 @@ export async function resolveCreateExecution(
 ): Promise<{ providerId: ProviderId; execution: ExecutionTuple }> {
   const { request, projectId, hostId, parent } = args;
   const { db } = bb;
+  const enabled = new Set(listProviderDefinitions(db).map(({ id }) => id));
+  const remembered = [
+    getProjectExecutionDefaults(db, projectId)?.providerId,
+    getAppSettings(db).defaultProviderId,
+  ].find((candidate) => candidate != null && enabled.has(candidate));
   const providerId = requireProviderId(
     db,
     request.providerId ??
-      getProjectExecutionDefaults(db, projectId)?.providerId ??
-      getAppSettings(db).defaultProviderId ??
+      remembered ??
       (await firstInstalledProvider(bb, hostId)),
   );
   const asked = namedFields(request);
