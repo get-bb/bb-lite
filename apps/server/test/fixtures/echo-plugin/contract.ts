@@ -8,5 +8,6 @@ export const echo = contract("echo", {
     kind: "write",
   }),
   fail: op({ input: z.object({}), output: z.null() }),
+  refuse: op({ input: z.object({ deny: z.boolean() }), output: z.null() }),
   later: op({ input: z.object({}), output: z.null() }),
 });

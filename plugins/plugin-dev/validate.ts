@@ -10,7 +10,25 @@ const manifestSchema = z.object({
     server: z.string().optional(),
     app: z.string().optional(),
     runner: z.string().optional(),
-    requires: z.array(z.string()).default([]),
+    requires: z
+      .union([
+        z.array(z.string().min(1)),
+        z.record(z.string().min(1), z.string().min(1)),
+      ])
+      .default([]),
+    skills: z.array(z.string().min(1)).default([]),
+    themes: z
+      .array(
+        z.object({
+          id: z
+            .string()
+            .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u)
+            .max(64),
+          name: z.string().min(1),
+          css: z.string().min(1),
+        }),
+      )
+      .default([]),
   }),
 });
 
@@ -108,7 +126,20 @@ export async function validatePlugin(path: string): Promise<Report> {
   const { name, bb } = manifest.data;
   report.id = pluginId(name);
   report.name = bb.name;
-  report.requires = bb.requires;
+  report.requires = Array.isArray(bb.requires)
+    ? bb.requires
+    : Object.keys(bb.requires);
+  const files = [
+    ...bb.skills.map((dir) => ({ what: "skills directory", path: dir })),
+    ...bb.themes.map((theme) => ({ what: "theme css", path: theme.css })),
+  ];
+  for (const { what, path } of files) {
+    const file = resolve(directory, path);
+    const inside = file.startsWith(`${directory}/`);
+    if (!inside || (await stat(file).catch(() => null)) === null) {
+      report.problems.push(`The ${what} ${path} does not exist.`);
+    }
+  }
   for (const part of ["server", "app", "runner"] as const) {
     const entry = bb[part];
     if (entry === undefined) continue;

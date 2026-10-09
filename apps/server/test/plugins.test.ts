@@ -140,6 +140,10 @@ it("validates operation calls, stores data and signals changes", async () => {
   expect(await call("echo.absent", {})).toEqual([404, "not_found"]);
   expect(await call("echo.later", {})).toEqual([501, "unimplemented"]);
   expect(await call("echo.fail", {})).toEqual([500, "handler_error"]);
+  const gone = [404, "echo_gone"];
+  expect(await call("echo.refuse", { deny: false })).toEqual(gone);
+  const denied = [403, "denied_by_plugin"];
+  expect(await call("echo.refuse", { deny: true })).toEqual(denied);
   expect(await call("absent.echo", {})).toEqual([404, "not_found"]);
   const invalid = await answer("echo.echo", {});
   expect(invalid.message).toContain("text");
@@ -288,7 +292,7 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
     if (slot === navPanel) panels.push(panel);
   };
   sandbox.module.exports.default?.({ add });
-  const props = { className: "echo-panel flex", children: 3 };
+  const props = { className: "echo-panel flex", children: 4 };
   const rendered = panels[0]?.view();
   expect(rendered).toMatchObject({ type: "div", props });
   rendered?.props.onClick();
@@ -883,4 +887,14 @@ it("bundles a worker an app part starts from a relative URL", async () => {
   expect(js).toContain("URL.createObjectURL(new Blob(");
   expect(js).not.toContain("import.meta.url");
   expect(js).not.toContain("new URL(");
+});
+
+it("names the manifest field that is wrong", async () => {
+  const directory = scratch();
+  const bb = { name: "Bad", skills: "./skills" };
+  const manifest = JSON.stringify({ name: "bb-plugin-bad", bb });
+  writeFileSync(join(directory, "package.json"), manifest);
+  await expect(readManifest(directory)).rejects.toThrow(
+    "package.json: bb.skills: Invalid input: expected array, received string",
+  );
 });

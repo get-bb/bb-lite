@@ -122,7 +122,13 @@ export function resolveInside(directory: string, path: string): string | null {
 export async function readManifest(path: string): Promise<PluginManifest> {
   const directory = resolve(path);
   const text = await readFile(join(directory, "package.json"), "utf8");
-  const parsed = packageSchema.parse(JSON.parse(text));
+  const result = packageSchema.safeParse(JSON.parse(text));
+  if (!result.success) {
+    const [issue] = result.error.issues;
+    const where = issue?.path.join(".") || "package.json";
+    throw new Error(`package.json: ${where}: ${issue?.message}`);
+  }
+  const parsed = result.data;
   const { name, bb } = parsed;
   const ranged = Array.isArray(bb.requires) ? {} : bb.requires;
   const required = Array.isArray(bb.requires)

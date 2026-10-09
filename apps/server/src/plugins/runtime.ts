@@ -1,3 +1,4 @@
+import * as plugin from "@bb/plugin";
 import * as runner from "@bb/runner";
 import * as authActor from "@bb/server-kit/auth/actor";
 import * as authPasswords from "@bb/server-kit/auth/passwords";
@@ -52,6 +53,7 @@ import * as wsHub from "@bb/server-kit/ws/hub";
 export const SERVER_RUNTIME_GLOBAL = "__bbServerRuntime";
 
 export const SERVER_RUNTIME_MODULES: Record<string, object> = {
+  "@bb/plugin": plugin,
   "@bb/runner": runner,
   "@bb/server-kit/auth/actor": authActor,
   "@bb/server-kit/auth/passwords": authPasswords,

@@ -1,5 +1,7 @@
 import {
   cliCommand,
+  deny,
+  fail,
   defineCli,
   PluginCliError,
   type PluginServerApi,
@@ -45,6 +47,9 @@ export default async function echoPlugin(bb: PluginServerApi) {
   bb.implement(echo.fail, () => {
     throw new Error("boom");
   });
+  bb.implement(echo.refuse, ({ deny: refuse }) =>
+    refuse ? deny("No") : fail("not_found", "Gone", { reason: "echo_gone" }),
+  );
   bb.on(echo.later, (_input, next) => next());
   for (const auth of ["local", "token", "none"] as const) {
     bb.http.route("GET", `/${auth}`, () => Response.json({ auth }), { auth });
