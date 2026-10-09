@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, expect, it, vi } from "vitest";
 import { createModalApi } from "../modal-client.js";
 
@@ -5,14 +6,18 @@ const calls: string[] = [];
 const state = {
   namedImage: false,
   namedSandbox: null as string | null,
+  terminated: new Set<string>(),
 };
 
 vi.mock("modal", () => {
   class NotFoundError extends Error {}
   const sandbox = (sandboxId: string) => ({
     sandboxId,
-    poll: async () => null,
-    terminate: async () => void calls.push(`terminate ${sandboxId}`),
+    poll: async () => (state.terminated.has(sandboxId) ? 0 : null),
+    terminate: async () => {
+      calls.push(`terminate ${sandboxId}`);
+      state.terminated.add(sandboxId);
+    },
     snapshotFilesystem: async () => ({ imageId: `im-snap-${sandboxId}` }),
     exec: async (command: string[]) => ({
       stdin: { close: async () => {} },
@@ -39,7 +44,9 @@ vi.mock("modal", () => {
       },
       fromId: async (imageId: string) => ({ imageId }),
       delete: async (imageId: string) => {
-        throw new NotFoundError(imageId);
+        if (imageId === "im-gone") throw new NotFoundError(imageId);
+        if (imageId === "im-locked") throw new Error("permission denied");
+        calls.push(`delete ${imageId}`);
       },
       fromRegistry: (reference: string) => ({
         dockerfileCommands: (commands: string[]) => ({
@@ -59,7 +66,10 @@ vi.mock("modal", () => {
         if (state.namedSandbox === null) throw new NotFoundError(name);
         return sandbox(state.namedSandbox);
       },
-      fromId: async (sandboxId: string) => sandbox(sandboxId),
+      fromId: async (sandboxId: string) => {
+        if (sandboxId === "sb-missing") throw new NotFoundError(sandboxId);
+        return sandbox(sandboxId);
+      },
       create: async (_app: unknown, image: { imageId: string }) => {
         calls.push(`create from ${image.imageId}`);
         return sandbox("sb-new");
@@ -73,6 +83,7 @@ beforeEach(() => {
   calls.length = 0;
   state.namedImage = false;
   state.namedSandbox = null;
+  state.terminated.clear();
 });
 
 const credentials = { tokenId: "ak-1", tokenSecret: "as-1" };
@@ -104,7 +115,9 @@ it("builds and publishes an image once, then reuses it by name", async () => {
     "publish bb-standard:",
     "close",
   ]);
-  expect(await client.accountIdentity()).toMatch(/^[0-9a-f]{64}$/u);
+  expect(await client.accountIdentity()).toBe(
+    createHash("sha256").update("ws-1").digest("hex"),
+  );
 });
 
 it("reuses a running sandbox of the same name and wraps exec, snapshot and delete", async () => {
@@ -123,12 +136,21 @@ it("reuses a running sandbox of the same name and wraps exec, snapshot and delet
   ).toMatchObject({ stdout: "echo\n[output truncated]" });
   expect(await client.snapshot("sb-old")).toBe("im-snap-sb-old");
   await client.deleteSnapshot("im-gone");
-  await client.terminate("sb-old");
+  await client.deleteSnapshot("im-snap-sb-old");
+  await expect(client.deleteSnapshot("im-locked")).rejects.toThrow(
+    "permission denied",
+  );
   expect(await client.running("sb-old")).toBe(true);
+  expect(await client.running("sb-missing")).toBe(false);
+  await client.terminate("sb-old");
+  expect(await client.running("sb-old")).toBe(false);
+  expect(await client.create(spec)).toBe("sb-new");
   expect(calls).toEqual([
     "connect ak-1",
     "create from im-built",
+    "delete im-snap-sb-old",
     "terminate sb-old",
+    "create from im-built",
   ]);
 });
 
