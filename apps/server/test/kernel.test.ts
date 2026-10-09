@@ -730,7 +730,10 @@ it("answers an operation at its REST path with one flat input", async () => {
   const note = z.object({ noteId: z.string() });
   const notes = contract("notes", {
     create: op({
-      input: z.object({ title: z.string().min(1) }),
+      input: z.object({
+        title: z.string().min(1),
+        pinned: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
+      }),
       output: z.object({ noteId: z.string(), title: z.string() }),
       kind: "write",
       audit: false,
@@ -785,7 +788,11 @@ it("answers an operation at its REST path with one flat input", async () => {
   const required = await server.http("POST", "/notes", {});
   expect(required).toMatchObject({
     status: 400,
-    body: { message: "Required" },
+    body: { message: "title is required (expected string)" },
+  });
+  const wrong = await server.http("POST", "/notes", { title: "A", pinned: 1 });
+  expect(wrong.body).toMatchObject({
+    message: 'pinned: Invalid input: expected boolean or "true" or "false"',
   });
   const broken = await server.request("/notes", { method: "POST", body: "{" });
   expect(await broken.json()).toMatchObject({

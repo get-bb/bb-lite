@@ -253,7 +253,8 @@ export function registerAttachmentRoutes(
   app.get("/projects/:projectId/attachments/content", async (c) => {
     const { id } = store.requireProject(db, c.req.param("projectId"));
     const wanted = c.req.query("path");
-    if (wanted === undefined || wanted === "") throw invalidRequest("Required");
+    if (wanted === undefined || wanted === "")
+      throw invalidRequest("path is required (expected string)");
     const path = resolveAttachmentPath(dataDir, id, wanted);
     const response = await fileResponse(path, {
       range: c.req.header("range"),

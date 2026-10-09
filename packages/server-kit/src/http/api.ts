@@ -5,16 +5,39 @@ import { invalidRequest } from "./errors.js";
 export type AppEnv = ApiEnv;
 export type { ApiApp };
 
-const MISSING = /^Invalid input: expected .*, received undefined$/u;
+type Issue = z.core.$ZodIssue;
+
+const ABSENT = /, received undefined$/u;
+
+function absent(issue: Issue): boolean {
+  if (issue.code !== "invalid_union") return ABSENT.test(issue.message);
+  return issue.errors.every(([first]) => first !== undefined && absent(first));
+}
+
+function expectedOf(issue: Issue): string[] {
+  if (issue.code === "invalid_type") return [issue.expected];
+  if (issue.code === "invalid_value")
+    return issue.values.map((value) => JSON.stringify(value));
+  if (issue.code !== "invalid_union") return [];
+  const options = issue.errors.flatMap(([first]) =>
+    first === undefined ? [] : expectedOf(first),
+  );
+  return [...new Set(options)];
+}
 
 export function problemOf(error: z.ZodError): string {
   const [issue] = error.issues;
   if (issue === undefined) return "Invalid request";
-  const missing =
-    issue.code === "invalid_type" &&
-    issue.input === undefined &&
-    MISSING.test(issue.message);
-  return missing ? "Required" : issue.message;
+  const field = issue.path.map(String).join(".");
+  const expected = expectedOf(issue);
+  const missing = absent(issue) && expected.length > 0;
+  if (field === "") return issue.message;
+  const wanted = expected.join(" or ");
+  if (missing) return `${field} is required (expected ${wanted})`;
+  if (issue.code !== "invalid_union" || wanted === "") {
+    return `${field}: ${issue.message}`;
+  }
+  return `${field}: Invalid input: expected ${wanted}`;
 }
 
 export function requireValid<Schema extends z.ZodType>(
