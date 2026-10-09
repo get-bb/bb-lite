@@ -10,6 +10,7 @@ const AGENT_FEATURES = [
   "custom-instructions",
   "bb-guide",
   "drafts",
+  "provider-retry",
   "audit",
   "plugin-dev",
 ];

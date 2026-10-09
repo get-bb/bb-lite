@@ -9,6 +9,7 @@ import askUserQuestion from "../../plugins/ask-user-question/src/server.js";
 import audit from "../../plugins/audit/server.js";
 import connect from "../../plugins/connect/src/server.js";
 import customInstructions from "../../plugins/custom-instructions/server.js";
+import providerRetry from "../../plugins/provider-retry/server.js";
 import pluginDev from "../../plugins/plugin-dev/server.js";
 import claudeCode from "../../plugins/provider-claude-code/server.js";
 import codex from "../../plugins/provider-codex/server.js";
@@ -69,6 +70,7 @@ export const serverPlugins: BuiltinPlugin[] = [
     directory: pluginDirectory("custom-instructions"),
     server: customInstructions,
   },
+  { directory: pluginDirectory("provider-retry"), server: providerRetry },
   { directory: pluginDirectory("connect"), server: connect },
   { directory: pluginDirectory("audit"), server: audit },
   { directory: pluginDirectory("plugin-dev"), server: pluginDev },
