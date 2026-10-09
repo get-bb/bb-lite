@@ -159,7 +159,10 @@ function ThemePreviewPanel() {
       <header className="flex flex-wrap items-center gap-2 border-b border-border p-3">
         <Select value={data?.activeThemeId} onValueChange={choose}>
           <SelectTrigger className="w-56" aria-label="Theme">
-            <SelectValue placeholder="Theme" />
+            <SelectValue placeholder="Theme">
+              {data?.themes.find(({ id }) => id === data.activeThemeId)?.name ??
+                data?.activeThemeId}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {data?.themes.map((theme) => (

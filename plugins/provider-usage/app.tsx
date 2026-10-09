@@ -182,7 +182,12 @@ function UsagePanel() {
       <div className="flex items-center gap-2">
         <Select value={machine} onValueChange={choose}>
           <SelectTrigger className="h-8 min-w-0 flex-1 text-xs">
-            <SelectValue />
+            <SelectValue>
+              {machine === SHARED
+                ? "Shared accounts"
+                : (hosts.data?.find(({ id }) => id === machine)?.name ??
+                  machine)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={SHARED}>Shared accounts</SelectItem>
