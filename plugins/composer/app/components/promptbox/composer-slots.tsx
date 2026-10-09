@@ -179,6 +179,10 @@ export function ComposerPopupHost({
   const entry = useSlotEntries(composer.popup).find(
     ({ item }) => item.id === handle.openPopupId,
   );
+  const stale = entry === undefined && handle.openPopupId !== null;
+  useEffect(() => {
+    if (stale) handle.closePopup();
+  }, [stale, handle]);
   useEffect(() => {
     if (entry === undefined) return;
     const dismiss = (event: KeyboardEvent) => {
