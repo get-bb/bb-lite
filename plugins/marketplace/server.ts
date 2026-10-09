@@ -357,6 +357,11 @@ export default function plugin(bb: PluginServerApi): void {
   bb.implement(marketplace.list, () => records());
 
   bb.implement(marketplace.install, async ({ id, version }) => {
+    if (/[/\\]|^[.~]/u.test(id)) {
+      fail("invalid", `"${id}" is a path, not a marketplace id`, {
+        hint: `bb plugin add ${id}`,
+      });
+    }
     if ((await record(id)) !== undefined) {
       fail("conflict", `${id} is already installed`, {
         hint: `bb marketplace update ${id}`,

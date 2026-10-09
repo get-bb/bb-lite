@@ -236,3 +236,17 @@ it("refuses a moved tag, skips versions that need a newer bb and counts updates"
   });
   expect(count()).toBe(1);
 });
+
+it("points bb plugin install of a directory to bb plugin add", async () => {
+  const { op, cli } = await world();
+  const missing = join(scratch(), "missing.json");
+  await op("plugins.updateSettings", {
+    pluginId: "marketplace",
+    values: { catalogs: missing },
+  });
+  const directory = join(scratch(), "acme");
+  mkdirSync(directory);
+  const ran = await cli(["plugin", "install", directory]);
+  expect(ran.exitCode).not.toBe(0);
+  expect(JSON.stringify(ran)).toContain(`bb plugin add ${directory}`);
+});
