@@ -5,24 +5,25 @@ description: "Look up the bb plugin API that is loaded right now: contracts, ope
 
 # Look up the plugin API
 
-`bb plugin-api` prints the plugin API this bb has loaded, generated from the
-running kernel, so it includes contracts other plugins declare.
+`bb plugin-api` prints the plugin API this bb has loaded, read from the running
+kernel, so it includes contracts other plugins declare, with their shapes.
 
 - `bb plugin-api` lists every contract with its member count and the API
-  version.
+  version. Contracts marked "app only" (such as `shell`, `composer`,
+  `sidePanel`, `threadView`) live in the app.
 - `bb plugin-api threads` prints one contract: each operation, event, slot and
   live value in it.
 - `bb plugin-api threads.get` prints one member: kind, who may call it, its
-  CLI usage, agent tool name, HTTP method and path, who implements and hooks
-  it, and its input and output as JSON Schema.
+  CLI usage (positionals and flags), agent tool name, HTTP method and path,
+  who implements and hooks it, and its input and output as JSON Schema.
 - `bb plugin-api mention` lists every member whose name contains the word.
+- `bb plugin-api --plugin tasks` prints what one plugin declares, implements,
+  hooks, listens to, fills and provides on the server.
 
 Add `--json` to get the text as a JSON string.
 
-Contracts declared by core (`@bb/plugin`, `@bb/plugin/app`, `@bb/runner`)
-show their shapes and door details. Contracts declared by other plugins show
-their doors, owner, hooks, listeners and contributors; read that plugin's
-`contract.ts` for the shapes.
+The CLI runs on the server, so for app-only contracts it shows shapes but not
+which plugins fill them; the Plugin Guide page in the app shows both sides.
 
 To write or change a plugin, use the `bb-plugin-authoring` skill from the
 plugin-dev plugin (`plugins/plugin-dev/skills/bb-plugin-authoring`) and the
