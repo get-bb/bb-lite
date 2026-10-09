@@ -1,3 +1,4 @@
+import { request } from "node:http";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import { uploadedPromptAttachmentSchema } from "@bb/server-contract";
 import { expect, it } from "vitest";
@@ -151,6 +152,17 @@ it("stores attachments and serves them with ranges", async () => {
     status: 413,
     uploaded: { message },
   });
+  const declared = await new Promise<number | undefined>((resolve) => {
+    const url = new URL(`${base}/${id}/attachments`);
+    const headers = { "content-length": String(64 * 1024 * 1024) };
+    const pending = request(url, { method: "POST", headers }, (reply) => {
+      resolve(reply.statusCode);
+      pending.destroy();
+    });
+    pending.on("error", () => resolve(undefined));
+    pending.flushHeaders();
+  });
+  expect(declared).toBe(413);
   const json = { sourceProjectId: project.id, paths: [attachment.path] };
   const copy = server.api.projects[":id"].attachments.copy;
   expect((await copy.$post({ param: personal, json })).status).toBe(200);

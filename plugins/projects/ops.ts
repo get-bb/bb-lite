@@ -1,6 +1,10 @@
 import { git, workspaces } from "@bb/runner";
 import { projects, type PluginServerApi } from "@bb/plugin";
-import { PERSONAL_PROJECT_ID, type GitSourceInspection } from "@bb/domain";
+import {
+  PERSONAL_PROJECT_ID,
+  PROMPT_ATTACHMENT_MAX_BYTES,
+  type GitSourceInspection,
+} from "@bb/domain";
 import type {
   ProjectBranchesQuery,
   ProjectBranchesResponse,
@@ -37,6 +41,7 @@ import {
 import { fileResponse } from "@bb/server-kit/http/range";
 import { requireOwner } from "@bb/server-kit/http/trust";
 
+const UPLOAD_MAX_BYTES = PROMPT_ATTACHMENT_MAX_BYTES + 1024 * 1024;
 const ATTACHMENT_CACHE_CONTROL = "private, immutable, max-age=31536000";
 const ATTACHMENT_FIELD = "file";
 
@@ -235,6 +240,16 @@ export function registerAttachmentRoutes(
 
   app.post("/projects/:projectId/attachments", async (c) => {
     const { id } = store.requireProject(db, c.req.param("projectId"));
+    const length = Number(c.req.header("content-length") ?? Number.NaN);
+    if (!Number.isSafeInteger(length)) {
+      const message = "Attachment upload needs a Content-Length";
+      throw new ApiError(411, "length_required", message);
+    }
+    if (length > UPLOAD_MAX_BYTES) {
+      const limit = PROMPT_ATTACHMENT_MAX_BYTES / 1024 / 1024;
+      const message = `Attachments are limited to ${limit}MB`;
+      throw new ApiError(413, "file_too_large", message);
+    }
     const form = await c.req.formData();
     const fields = [...form.keys()];
     const file = form.get(ATTACHMENT_FIELD);
