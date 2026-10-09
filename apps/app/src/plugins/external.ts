@@ -81,6 +81,7 @@ const APP_KIT_SUFFIXES = [".ts", ".tsx", "/index.ts", "/index.tsx"];
 const appKitFiles: Record<string, Loader> = import.meta.glob([
   "../../../../packages/app-kit/**/*.{ts,tsx}",
   "!**/node_modules/**",
+  "!../../../../packages/app-kit/test/**",
 ]);
 
 function appKitLoader(specifier: string): Loader | undefined {
