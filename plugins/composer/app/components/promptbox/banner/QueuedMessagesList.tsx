@@ -38,6 +38,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@bb/shared-ui/tooltip";
+import { formatScheduledTime } from "@bb/app-kit/lib/relative-time";
 import { cn } from "@bb/shared-ui/lib/utils";
 import {
   countQueuedMessageAttachments,
@@ -156,6 +157,18 @@ function waitLineOf(
       icon: "CloudOff",
       label: `Waiting for ${waitingOn.hostName} to be ready`,
     };
+  }
+  if (waitingOn?.kind === "time") {
+    const { sendAt } = queuedMessage;
+    const when =
+      sendAt === null
+        ? ""
+        : ` for ${formatScheduledTime({ timestamp: sendAt, now: Date.now() })}`;
+    return { icon: "TimeSchedule", label: `Scheduled${when}` };
+  }
+  if (waitingOn?.kind === "plugin") {
+    const label = `Held by ${waitingOn.pluginId} · ${waitingOn.reason}`;
+    return { icon: "TimeSchedule", label };
   }
   return (waitingOn && WAIT_LINES[waitingOn.kind]) ?? null;
 }
@@ -385,6 +398,7 @@ function QueuedMessageRow({
     failed ||
     waitKind === undefined ||
     waitKind === "time" ||
+    waitKind === "plugin" ||
     waitKind === "thread-busy";
 
   return (
