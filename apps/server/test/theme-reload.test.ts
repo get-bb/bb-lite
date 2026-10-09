@@ -38,3 +38,36 @@ it("keeps a plugin's themes across a reload and versions them by file", async ()
   expect(await urls()).toEqual([]);
   expect(announced).toHaveBeenCalledWith(serverContract.config);
 });
+
+it("refuses a plugin whose theme names a css or code-theme file that is missing", async () => {
+  const server = await createTestServer();
+  const { ctx } = server;
+  const install = async (name: string, theme: object) => {
+    const directory = join(scratch(), name);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, "present.css"), ":root {}");
+    const themes = [{ id: "dusk", name: "Dusk", ...theme }];
+    const manifest = { name, bb: { name, themes } };
+    writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
+    const configFile = join(ctx.config.dataDir, "config.json");
+    writeFileSync(
+      configFile,
+      JSON.stringify({ plugins: [{ path: directory }] }),
+    );
+    await ctx.plugins.reload();
+    return ctx.plugins.list().find((plugin) => plugin.id === name);
+  };
+  expect(await install("nocss", { css: "./gone.css" })).toMatchObject({
+    status: "error",
+    statusMessage: 'theme "dusk": gone.css does not exist',
+  });
+  const codeTheme = { dark: "./themes/dark.json" };
+  const missing = { css: "./present.css", codeTheme };
+  expect(await install("nocode", missing)).toMatchObject({
+    status: "error",
+    statusMessage: `theme "dusk": ${join("themes", "dark.json")} does not exist`,
+  });
+  type Config = { themes: { pluginId: string }[] };
+  const { themes } = await server.read<Config>("/server/config");
+  expect(themes.map((theme) => theme.pluginId)).not.toContain("nocode");
+});

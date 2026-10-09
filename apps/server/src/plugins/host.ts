@@ -1,7 +1,7 @@
 import { API_VERSION, satisfies } from "@bb/plugin";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { statSync, watch as watchDirectory, type FSWatcher } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { derivePluginId, pluginThemeId } from "@bb/domain";
 import {
   appearance,
@@ -404,7 +404,10 @@ export class PluginHost extends PluginRegistry {
         const versioned = (file: string, suffix: string) => {
           const stat = statSync(file, { throwIfNoEntry: false });
           if (record.external && !record.watch) this.watchTheme(id, file);
-          if (stat === undefined) return undefined;
+          if (stat === undefined) {
+            const named = relative(record.manifest.directory, file);
+            throw new Error(`theme "${themeId}": ${named} does not exist`);
+          }
           return `${base}${suffix}?v=${Math.trunc(stat.mtimeMs)}`;
         };
         const files = Object.entries(codeThemeFiles);
@@ -422,7 +425,7 @@ export class PluginHost extends PluginRegistry {
           cssFile,
           id: pluginThemeId(id, themeId),
           pluginId: id,
-          cssUrl: versioned(cssFile, ".css") ?? `${base}.css?v=0`,
+          cssUrl: versioned(cssFile, ".css"),
         });
       }
       await entry?.(api);
