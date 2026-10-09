@@ -35,6 +35,7 @@ import * as machineEnvironment from "@bb/server-kit/machine-environment";
 import * as projectsAttachments from "@bb/server-kit/projects/attachments";
 import * as projectsWorkspace from "@bb/server-kit/projects/workspace";
 import * as providersCatalog from "@bb/server-kit/providers/catalog";
+import * as providersInference from "@bb/server-kit/providers/inference";
 import * as providersModels from "@bb/server-kit/providers/models";
 import * as providersSettings from "@bb/server-kit/providers/settings";
 import * as runnersAccess from "@bb/server-kit/runners/access";
@@ -87,6 +88,7 @@ export const SERVER_RUNTIME_MODULES: Record<string, object> = {
   "@bb/server-kit/projects/attachments": projectsAttachments,
   "@bb/server-kit/projects/workspace": projectsWorkspace,
   "@bb/server-kit/providers/catalog": providersCatalog,
+  "@bb/server-kit/providers/inference": providersInference,
   "@bb/server-kit/providers/models": providersModels,
   "@bb/server-kit/providers/settings": providersSettings,
   "@bb/server-kit/runners/access": runnersAccess,

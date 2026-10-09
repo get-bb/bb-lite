@@ -17,6 +17,7 @@ import {
   searchWorkspacePaths,
   workspaceFailure,
 } from "@bb/server-kit/environments/workspace";
+import { inferCommitMessage } from "./commit-message.js";
 import { listEnvironmentProviders } from "./environment-providers.js";
 import { ApiError, conflict, invalidRequest } from "@bb/server-kit/http/errors";
 
@@ -127,13 +128,25 @@ export function implementEnvironments(
     return searchWorkspacePaths(bb, environment, query);
   });
 
+  bb.implement(environments.commitMessage, async ({ environmentId }, ctx) => {
+    requireReadyEnvironment(bb, environmentId);
+    const message = await inferCommitMessage(bb, environmentId, ctx.signal);
+    return { message };
+  });
+
   bb.implement(environments.runAction, async ({ environmentId }) => {
     const { id, hostId, path } = requireReadyEnvironment(bb, environmentId);
+    const inferred = await inferCommitMessage(bb, environmentId).catch(
+      (err: unknown) => {
+        bb.log.warn("Could not infer a commit message", { err });
+        return null;
+      },
+    );
     try {
       const runner = runners.get(hostId);
       const commit = await runner.call(git.commit, {
         path,
-        message: COMMIT_MESSAGE,
+        message: inferred ?? COMMIT_MESSAGE,
       });
       hub.environment(id, ["work-status-changed", "git-refs-changed"]);
       const message = `Created commit ${commit.commitSha}`;

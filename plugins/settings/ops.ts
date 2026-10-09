@@ -22,6 +22,7 @@ import { requireProject } from "@bb/server-kit/db/projects";
 import { defaultHostId } from "@bb/server-kit/runners/access";
 import { publicServerUrl } from "@bb/server-kit/runners/hosts";
 import { DEFAULT_APP_KEYBINDINGS } from "./keybindings.js";
+import { transcriberAvailable } from "@bb/server-kit/providers/inference";
 import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
 import { requestOrigin, requireOwner } from "@bb/server-kit/http/trust";
 
@@ -108,7 +109,7 @@ export function implementSettings(bb: PluginServerApi): void {
   const appearance = () =>
     store.readSetting(db, personal(store.appearanceSetting));
 
-  bb.implement(server.config, (): SystemConfigResponse => {
+  bb.implement(server.config, async (): Promise<SystemConfigResponse> => {
     const generalSettings = store.getAppSettings(db);
     const keybindingOverrides = store.readSetting(
       db,
@@ -136,6 +137,7 @@ export function implementSettings(bb: PluginServerApi): void {
       primaryHostId: defaultHostId(bb),
       primaryHostPlatform: serverPlatform(),
       dataDir: bb.server.dataDir,
+      voiceTranscriptionEnabled: await transcriberAvailable(bb),
     };
   });
 

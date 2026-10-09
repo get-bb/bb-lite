@@ -19,11 +19,16 @@ async function usageServer(readings: Record<string, () => UsageReading>) {
       },
     });
   }
-  const usage = (input: { hostId?: string; refresh?: boolean } = {}) =>
-    server.ctx.kernel.call(providerUsage.usage, {
+  const usage = async (input: { hostId?: string; refresh?: boolean } = {}) => {
+    const snapshot = await server.ctx.kernel.call(providerUsage.usage, {
       refresh: false,
       ...input,
     });
+    const providers = snapshot.providers.filter(
+      ({ providerId }) => providerId in readings,
+    );
+    return { ...snapshot, providers };
+  };
   return { server, reads, usage };
 }
 
@@ -102,4 +107,23 @@ it("caches readings, refreshes on request and keeps the last on failure", async 
     error: "Usage could not be refreshed.",
     accounts: [{ label: "One" }, { label: "Two" }],
   });
+});
+
+it("reads a shared source once for every machine", async () => {
+  const server = await createTestServer();
+  const reads: (string | null)[] = [];
+  server.ctx.kernel.scope("acct", "installed").add(sessions.usage, {
+    providerId: "acct",
+    scope: "shared",
+    read: async ({ hostId }) => {
+      reads.push(hostId);
+      return { status: "unauthenticated" };
+    },
+  });
+  const usage = (hostId?: string) =>
+    server.ctx.kernel.call(providerUsage.usage, { refresh: false, hostId });
+  await usage("host-a");
+  await usage("host-b");
+  await usage();
+  expect(reads).toEqual([null]);
 });

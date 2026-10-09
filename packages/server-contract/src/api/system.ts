@@ -124,6 +124,7 @@ export const systemConfigResponseSchema = z.object({
   primaryHostId: z.string().nullable(),
   primaryHostPlatform: domain.hostPlatformSchema.nullable(),
   dataDir: z.string(),
+  voiceTranscriptionEnabled: z.boolean().optional(),
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
 

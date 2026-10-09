@@ -1,51 +1,23 @@
-import { contract, op } from "@bb/plugin";
+import {
+  contract,
+  op,
+  usageAccountSchema,
+  usageReadingSchema,
+  usageSchema,
+  usageWindowSchema,
+  type UsageReading,
+} from "@bb/plugin";
 import { z } from "zod";
 
 const text = z.string().min(1);
 
-export const usageWindowSchema = z.object({
-  kind: z.enum(["five-hour", "daily", "weekly", "custom"]).default("custom"),
-  label: text,
-  usedPercent: z.number().nonnegative(),
-  resetsAt: z.string().nullable().default(null),
-  model: z.string().nullable().default(null),
-  cost: z
-    .object({
-      usedUsdCents: z.number().nonnegative(),
-      limitUsdCents: z.number().positive(),
-    })
-    .nullable()
-    .default(null),
-});
-
-export const usageSchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("ok"),
-    accountEmail: z.string().nullable().default(null),
-    planLabel: z.string().nullable().default(null),
-    plan: z
-      .object({ id: text, multiplier: z.number().int().positive().nullable() })
-      .nullable()
-      .default(null),
-    windows: z.array(usageWindowSchema),
-  }),
-  z.object({ status: z.literal("not_installed") }),
-  z.object({ status: z.literal("unauthenticated") }),
-  z.object({ status: z.literal("expired") }),
-  z.object({ status: z.literal("error"), message: text }),
-]);
-
-export const usageAccountSchema = z.object({
-  accountKey: text.nullable().default(null),
-  label: text.nullable().default(null),
-  usage: usageSchema,
-});
-
-export const usageReadingSchema = z.union([
-  z.null(),
-  z.object({ accounts: z.array(usageAccountSchema) }),
+export {
+  usageAccountSchema,
+  usageReadingSchema,
   usageSchema,
-]);
+  usageWindowSchema,
+};
+export type { UsageReading };
 
 export const providerUsageSchema = z.object({
   providerId: text,
@@ -60,7 +32,6 @@ export const usageSnapshotSchema = z.object({
   providers: z.array(providerUsageSchema),
 });
 
-export type UsageReading = z.input<typeof usageReadingSchema>;
 export type Usage = z.infer<typeof usageSchema>;
 export type UsageWindow = z.infer<typeof usageWindowSchema>;
 export type UsageAccount = z.infer<typeof usageAccountSchema>;

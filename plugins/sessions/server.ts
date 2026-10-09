@@ -9,6 +9,7 @@ import {
 } from "@bb/server-kit/providers/catalog";
 import { resolveExecutionOptions } from "@bb/server-kit/providers/models";
 import { ApiError } from "@bb/server-kit/http/errors";
+import { pickTranscriber } from "@bb/server-kit/providers/inference";
 import { resolveMention, searchMentions } from "./mentions.js";
 import { registerProviderRoutes } from "./routes.js";
 import { generateTitle } from "./title.js";
@@ -39,6 +40,20 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
   bb.implement(sessions.title, ({ prompt }, { signal }) =>
     generateTitle(bb, prompt, signal),
   );
+  bb.implement(sessions.transcribe, async (audio, { signal }) => {
+    const transcriber = await pickTranscriber(bb);
+    if (transcriber === null) {
+      const message = "No voice transcription service is available.";
+      throw new ApiError(501, "not_configured", message);
+    }
+    const data = Buffer.from(audio.data, "base64");
+    const { mimeType } = audio;
+    const { text } = await transcriber.transcribe(
+      { data, mimeType },
+      { signal },
+    );
+    return { text };
+  });
   bb.implement(sessions.providers, ({ capability }) => {
     const providers = listEnabledProviders(db).map(({ info }) => info);
     const usageOnly = capability === "usage";

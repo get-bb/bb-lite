@@ -4,7 +4,8 @@ import {
   type PluginServerApi,
   type ProviderToggle,
 } from "@bb/plugin";
-import { codexTitle } from "./title-service.js";
+import { codex } from "./contract.js";
+import { codexComplete, codexTitle } from "./title-service.js";
 
 const settings: Record<string, ProviderToggle> = {
   memoryEnabled: {
@@ -37,6 +38,25 @@ export default function plugin(bb: PluginServerApi): void {
     ),
   );
   bb.add(sessions.titleFallback, (task, signal) => codexTitle(task, signal));
+  bb.add(sessions.completion, {
+    async complete({ prompt, system }, { signal }) {
+      const text = await codexComplete(
+        prompt,
+        signal,
+        undefined,
+        undefined,
+        system,
+      );
+      if (text === null) throw new Error("Codex could not complete the prompt");
+      return { text };
+    },
+  });
+  bb.add(sessions.usage, {
+    providerId: "codex",
+    scope: "host",
+    read: ({ hostId }) =>
+      bb.runners.call(hostId ?? bb.runners.localHostId, codex.usage, {}),
+  });
   bb.add(sessions.provider, {
     id: "codex",
     displayName: "Codex",

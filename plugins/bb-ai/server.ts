@@ -21,7 +21,26 @@ import {
 
 const COMPLETE_PATH = "/api/ai/v1/complete";
 const USAGE_PATH = "/api/ai/v1/usage";
+const TRANSCRIBE_PATH = "/api/ai/v1/transcribe";
 const COMPLETE_TIMEOUT_MS = 7_000;
+const TRANSCRIBE_TIMEOUT_MS = 65_000;
+const TRANSCRIBE_MAX_BYTES = 10 * 1024 * 1024;
+const AUDIO_FORMATS: Record<string, string> = {
+  "audio/webm": "webm",
+  "video/webm": "webm",
+  "audio/ogg": "ogg",
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/m4a": "m4a",
+  "audio/aac": "aac",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/wave": "wav",
+  "audio/flac": "flac",
+  "audio/x-flac": "flac",
+};
 const ENABLED_KEY = "enabled";
 const OFF = "bb cloud is off. Turn it on with `bb ai on`.";
 const SIGN_IN = "Sign in to your bb account";
@@ -108,6 +127,46 @@ export default async function bbAiServer(bb: PluginServerApi): Promise<void> {
     if (!parsed.success) throw new Error("bb cloud returned an invalid reply");
     return parsed.data.text;
   }
+
+  async function transcribe(
+    audio: { data: Uint8Array; mimeType: string },
+    { signal }: { signal: AbortSignal },
+  ) {
+    const current = account ?? (await refresh());
+    const reason = notReady(current);
+    if (reason !== null) throw new Error(reason);
+    const format = AUDIO_FORMATS[audio.mimeType.split(";")[0]?.trim() ?? ""];
+    if (format === undefined) {
+      throw new Error(
+        `bb cloud can't transcribe ${audio.mimeType} audio; use WebM, Ogg, MP4, MP3, WAV, FLAC, or AAC`,
+      );
+    }
+    if (audio.data.byteLength > TRANSCRIBE_MAX_BYTES) {
+      throw new Error("Recording is too long for bb cloud to transcribe");
+    }
+    const body = {
+      audio: Buffer.from(audio.data).toString("base64"),
+      format,
+      hint: null,
+    };
+    const request = {
+      method: "POST",
+      path: TRANSCRIBE_PATH,
+      body,
+      timeoutMs: TRANSCRIBE_TIMEOUT_MS,
+    } as const;
+    const response = await bb.call(bbAccount.fetch, request, { signal });
+    if (response.status !== 200) throw new Error(failure(response, current));
+    const parsed = completeSchema.safeParse(response.body);
+    if (!parsed.success) throw new Error("bb cloud returned an invalid reply");
+    return { text: parsed.data.text };
+  }
+  bb.add(sessions.transcription, {
+    id: "bb",
+    label: "bb cloud",
+    available: () => account !== null && notReady(account) === null,
+    transcribe,
+  });
 
   async function usage(current: AccountStatus): Promise<BbAiUsage> {
     const request = { method: "GET", path: USAGE_PATH } as const;

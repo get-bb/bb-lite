@@ -134,13 +134,14 @@ export default function providerUsageServer(bb: PluginServerApi): void {
     hostId: string | null,
     refresh: boolean,
   ): Promise<Reading> => {
-    const key = JSON.stringify([source.providerId, hostId]);
+    const scoped = source.scope === "shared" ? null : hostId;
+    const key = JSON.stringify([source.providerId, scoped]);
     const running = pending.get(key);
     if (running) return running;
     const cached = readings.get(key);
     if (cached && !refresh && bb.now() - cached.loadedAt < MAX_AGE_MS)
       return Promise.resolve(cached);
-    const promise = read(source, hostId, cached)
+    const promise = read(source, scoped, cached)
       .then((value) => {
         readings.set(key, value);
         return value;

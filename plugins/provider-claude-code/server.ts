@@ -4,6 +4,7 @@ import {
   type PluginServerApi,
   type ProviderToggle,
 } from "@bb/plugin";
+import { claudeCode } from "./contract.js";
 
 const FAST_TIER =
   "Faster responses on supported Opus models at a higher cost per token.";
@@ -60,6 +61,12 @@ export default function plugin(bb: PluginServerApi): void {
       }),
     ),
   );
+  bb.add(sessions.usage, {
+    providerId: "claude-code",
+    scope: "host",
+    read: ({ hostId }) =>
+      bb.runners.call(hostId ?? bb.runners.localHostId, claudeCode.usage, {}),
+  });
   bb.add(sessions.provider, {
     id: "claude-code",
     displayName: "Claude Code",

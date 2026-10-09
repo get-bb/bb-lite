@@ -63,9 +63,83 @@ export interface ProviderDeclaration {
   nativeSkillRoots?: { user: string[]; project: string[] };
 }
 
+const usageText = z.string().min(1);
+
+export const usageWindowSchema = z.object({
+  kind: z.enum(["five-hour", "daily", "weekly", "custom"]).default("custom"),
+  label: usageText,
+  usedPercent: z.number().nonnegative(),
+  resetsAt: z.string().nullable().default(null),
+  model: z.string().nullable().default(null),
+  cost: z
+    .object({
+      usedUsdCents: z.number().nonnegative(),
+      limitUsdCents: z.number().positive(),
+    })
+    .nullable()
+    .default(null),
+});
+
+export const usageSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("ok"),
+    accountEmail: z.string().nullable().default(null),
+    planLabel: z.string().nullable().default(null),
+    plan: z
+      .object({
+        id: usageText,
+        multiplier: z.number().int().positive().nullable(),
+      })
+      .nullable()
+      .default(null),
+    windows: z.array(usageWindowSchema),
+  }),
+  z.object({ status: z.literal("not_installed") }),
+  z.object({ status: z.literal("unauthenticated") }),
+  z.object({ status: z.literal("expired") }),
+  z.object({ status: z.literal("error"), message: usageText }),
+]);
+
+export const usageAccountSchema = z.object({
+  accountKey: usageText.nullable().default(null),
+  label: usageText.nullable().default(null),
+  usage: usageSchema,
+});
+
+export const usageReadingSchema = z.union([
+  z.null(),
+  z.object({ accounts: z.array(usageAccountSchema) }),
+  usageSchema,
+]);
+export type UsageReading = z.input<typeof usageReadingSchema>;
+
 export interface UsageSource {
   providerId: string;
-  read(options: { hostId: string | null }): Promise<Domain.JsonValue>;
+  scope?: "shared" | "host";
+  read(options: { hostId: string | null }): Promise<UsageReading>;
+}
+
+export interface CompletionRequest {
+  prompt: string;
+  system?: string;
+  maxTokens?: number;
+}
+
+export interface CompletionService {
+  complete(
+    request: CompletionRequest,
+    options: { signal: AbortSignal },
+  ): Promise<{ text: string }>;
+}
+
+export interface Transcriber {
+  id: string;
+  label: string;
+  available(): boolean | Promise<boolean>;
+  transcribe(
+    audio: { data: Uint8Array; mimeType: string },
+    options: { signal: AbortSignal },
+  ): Promise<{ text: string }>;
 }
 
 export type TitleFallback = (
@@ -171,6 +245,17 @@ export const sessions = contract("sessions", {
   provider: slot<ProviderDeclaration>({ key: "id" }),
   usage: slot<UsageSource>({ key: "providerId" }),
   titleFallback: service<TitleFallback>(),
+  completion: service<CompletionService>(),
+  transcription: slot<Transcriber>({ key: "id" }),
+  transcribe: op({
+    input: z.object({
+      data: z.base64().min(1),
+      mimeType: z.string().min(1),
+    }),
+    output: z.object({ text: z.string() }),
+    kind: "write",
+    doors: { http: { method: "POST", path: "/sessions/transcriptions" } },
+  }),
   searchMentions: op({
     input: z.object({
       query: z.string().default(""),
@@ -1446,6 +1531,16 @@ export const environments = contract("environments", {
     output: typed(Contract.workspacePathListResponseSchema),
     doors: {
       http: { method: "GET", path: "/environments/:environmentId/paths" },
+    },
+  }),
+  commitMessage: op({
+    input: environmentRef,
+    output: z.object({ message: z.string().nullable() }),
+    doors: {
+      http: {
+        method: "GET",
+        path: "/environments/:environmentId/commit-message",
+      },
     },
   }),
   runAction: op({

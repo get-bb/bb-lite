@@ -99,11 +99,12 @@ export function cleanTitle(reply: string): string | null {
   return null;
 }
 
-export async function codexTitle(
-  task: string,
+export async function codexComplete(
+  prompt: string,
   caller: AbortSignal,
   urls = ENDPOINTS,
   env: Record<string, string | undefined> = process.env,
+  instructions = REQUEST.instructions,
 ): Promise<string | null> {
   if (urls === ENDPOINTS && process.env.VITEST !== undefined) return null;
   const signal = AbortSignal.any([caller, AbortSignal.timeout(BUDGET_MS)]);
@@ -117,13 +118,23 @@ export async function codexTitle(
     Accept: "text/event-stream",
     "Content-Type": "application/json",
   };
-  const content = [{ type: "input_text", text: TITLE_PROMPT + task }];
+  const content = [{ type: "input_text", text: prompt }];
   const input = [{ role: "user", content }];
   for (const model of MODELS) {
-    const body = JSON.stringify({ ...REQUEST, model, input });
+    const body = JSON.stringify({ ...REQUEST, instructions, model, input });
     const init = { method: "POST", headers, body, signal };
     const reply = await outputText(await fetch(target.url, init));
-    if (reply !== null) return cleanTitle(reply);
+    if (reply !== null) return reply;
   }
   return null;
+}
+
+export async function codexTitle(
+  task: string,
+  caller: AbortSignal,
+  urls = ENDPOINTS,
+  env: Record<string, string | undefined> = process.env,
+): Promise<string | null> {
+  const reply = await codexComplete(TITLE_PROMPT + task, caller, urls, env);
+  return reply === null ? null : cleanTitle(reply);
 }
