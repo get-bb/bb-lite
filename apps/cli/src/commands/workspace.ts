@@ -340,6 +340,7 @@ export const providerEnable = setProviderEnabled(true);
 export const providerDisable = setProviderEnabled(false);
 
 const DIFF_SIDES = ["old", "new"] as const;
+const DIFF_PATCH_BATCH = 50;
 
 type DiffTarget =
   | { target: "uncommitted" }
@@ -452,6 +453,58 @@ export const envPaths: Run = async (c) => {
   ]);
 };
 
+function patchTarget(chosen: ReturnType<typeof diffQuery>) {
+  return chosen.target === "all"
+    ? { type: chosen.target, mergeBaseBranch: chosen.mergeBaseBranch }
+    : chosen.target === "branch_committed"
+      ? { type: chosen.target, mergeBaseBranch: chosen.mergeBaseBranch }
+      : chosen.target === "commit"
+        ? { type: chosen.target, sha: chosen.sha }
+        : { type: chosen.target };
+}
+
+export const envDiff: Run = async (c) => {
+  const query = diffQuery(c);
+  const listed = await c.op(c.ops.environments.diffFiles, query);
+  if (listed.outcome !== "available") {
+    return c.out(listed, unavailable("Diff", listed));
+  }
+  const { environmentId } = query;
+  const target = patchTarget(query);
+  const paths = listed.files.map((file) => file.path);
+  const patches = [];
+  for (let at = 0; at < paths.length; at += DIFF_PATCH_BATCH) {
+    const batch = paths.slice(at, at + DIFF_PATCH_BATCH);
+    const result = await c.op(c.ops.environments.diffPatch, {
+      environmentId,
+      target,
+      paths: batch,
+    });
+    if (result.outcome !== "available") {
+      return c.out(result, unavailable("Diff", result));
+    }
+    patches.push(...result.patches);
+  }
+  const files = listed.files.map((file) =>
+    file.previousPath
+      ? `${file.changeKind}\t${file.previousPath} -> ${file.path}`
+      : `${file.changeKind}\t${file.path}`,
+  );
+  const diff = {
+    files: files.join("\n"),
+    shortstat: listed.shortstat,
+    diff: patches.map((patch) => patch.patch).join(""),
+    truncated: listed.truncated || patches.some((patch) => patch.truncated),
+  };
+  const shortstat = diff.shortstat.trim();
+  c.out({ outcome: listed.outcome, diff }, [
+    ...files,
+    ...(shortstat.length > 0 ? [shortstat] : []),
+    ...(diff.diff.length > 0 ? [diff.diff.trimEnd()] : []),
+    ...(diff.truncated ? ["(diff truncated)"] : []),
+  ]);
+};
+
 export const envDiffFiles: Run = async (c) => {
   const result = await c.op(c.ops.environments.diffFiles, diffQuery(c));
   if (result.outcome !== "available") {
@@ -502,18 +555,10 @@ export const envDiffFile: Run = async (c) => {
 export const envDiffPatch: Run = async (c) => {
   const paths = c.list("path");
   if (paths.length === 0) throw usageError("Provide at least one --path.");
-  const { environmentId, ...chosen } = diffQuery(c);
-  const target =
-    chosen.target === "all"
-      ? { type: chosen.target, mergeBaseBranch: chosen.mergeBaseBranch }
-      : chosen.target === "branch_committed"
-        ? { type: chosen.target, mergeBaseBranch: chosen.mergeBaseBranch }
-        : chosen.target === "commit"
-          ? { type: chosen.target, sha: chosen.sha }
-          : { type: chosen.target };
+  const query = diffQuery(c);
   const result = await c.op(c.ops.environments.diffPatch, {
-    environmentId,
-    target,
+    environmentId: query.environmentId,
+    target: patchTarget(query),
     paths,
   });
   if (result.outcome !== "available") {

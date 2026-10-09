@@ -10,6 +10,7 @@ use crate::call::{
 use crate::commands::system::put_some;
 use crate::http::encode;
 
+const DIFF_PATCH_BATCH: usize = 50;
 const DIFF_SIDES: &[&str] = &["old", "new"];
 const DIFF_TARGETS: &str = "uncommitted, branch_committed, all, or commit";
 const ENVIRONMENT_STATUSES: &[&str] = &["ready", "destroyed"];
@@ -39,6 +40,7 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("envDiffFiles", env_diff_files),
         ("envDiffFile", env_diff_file),
         ("envDiffPatch", env_diff_patch),
+        ("envDiff", env_diff),
         ("envProviders", env_providers),
         ("envArchiveThreads", env_archive_threads),
         ("machineList", machine_list),
@@ -747,6 +749,65 @@ fn env_diff_patch(call: &mut Call) -> CliResult<Output> {
         }
     }
     Ok(Output::lines(result, &lines))
+}
+
+fn env_diff(call: &mut Call) -> CliResult<Output> {
+    let environment_id = id(call, "id")?;
+    let (target, base, sha) = diff_target(call, "merge-base-branch")?;
+    let mut query = vec![("target", target.as_str())];
+    base.iter().for_each(|base| query.push(("mergeBaseBranch", base)));
+    sha.iter().for_each(|sha| query.push(("sha", sha)));
+    let listed = call.http.get(&environment_path(&environment_id, "/diff/files"), &query)?;
+    if let Some(message) = unavailable("Diff", &listed) {
+        return Ok(Output::text(listed, message));
+    }
+    let mut chosen = Map::new();
+    chosen.insert("type".to_owned(), Value::String(target.clone()));
+    put_some(&mut chosen, "mergeBaseBranch", base.clone().map(Value::String));
+    put_some(&mut chosen, "sha", sha.clone().map(Value::String));
+    let changed: Vec<Value> =
+        listed.get("files").and_then(Value::as_array).cloned().unwrap_or_default();
+    let paths: Vec<String> = changed.iter().map(|file| text(file, "path")).collect();
+    let patch_path = environment_path(&environment_id, "/diff/patch");
+    let mut diff = String::new();
+    let mut truncated = truthy(&listed, "truncated");
+    for batch in paths.chunks(DIFF_PATCH_BATCH) {
+        let body = json!({ "target": chosen, "paths": batch });
+        let result = call.http.post(&patch_path, &body)?;
+        if let Some(message) = unavailable("Diff", &result) {
+            return Ok(Output::text(result, message));
+        }
+        for patch in result.get("patches").and_then(Value::as_array).into_iter().flatten() {
+            diff.push_str(&text(patch, "patch"));
+            truncated |= truthy(patch, "truncated");
+        }
+    }
+    let files: Vec<String> = changed
+        .iter()
+        .map(|file| {
+            let previous = text(file, "previousPath");
+            let kind = text(file, "changeKind");
+            if previous.is_empty() {
+                format!("{kind}\t{}", text(file, "path"))
+            } else {
+                format!("{kind}\t{previous} -> {}", text(file, "path"))
+            }
+        })
+        .collect();
+    let shortstat = text(&listed, "shortstat");
+    let mut lines = files.clone();
+    if !shortstat.trim().is_empty() {
+        lines.push(shortstat.trim().to_owned());
+    }
+    if !diff.is_empty() {
+        lines.push(diff.trim_end().to_owned());
+    }
+    if truncated {
+        lines.push("(diff truncated)".to_owned());
+    }
+    let outcome = listed.get("outcome").cloned().unwrap_or(Value::Null);
+    let summary = json!({ "files": files.join("\n"), "shortstat": shortstat, "diff": diff, "truncated": truncated });
+    Ok(Output::lines(json!({ "outcome": outcome, "diff": summary }), &lines))
 }
 
 fn env_providers(call: &mut Call) -> CliResult<Output> {

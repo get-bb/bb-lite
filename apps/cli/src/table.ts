@@ -217,6 +217,11 @@ env paths <id>  Search an environment's files and directories
   --files  Include files
   --directories  Include directories
   > {paths: [{kind, path}], truncated}
+env diff <id>  Print the changed files, stats and full diff of an environment
+  --target <target>  uncommitted, branch_committed, all or commit (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>  Commit, with --target commit
+  > {outcome, diff: {files, shortstat, diff, truncated}}
 env diff-files <id>  List the changed files of an environment
   --target <target>  uncommitted, branch_committed, all or commit (required)
   --merge-base-branch <branch>  Base branch, with branch_committed or all

@@ -324,6 +324,14 @@ Options:
   --directories    Include directories
 JSON (--json): {paths: [{kind, path}], truncated}
 
+Usage: bb env diff <id> [options]
+Print the changed files, stats and full diff of an environment
+Options:
+  --target <target>             uncommitted, branch_committed, all or commit (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>                   Commit, with --target commit
+JSON (--json): {outcome, diff: {files, shortstat, diff, truncated}}
+
 Usage: bb env diff-files <id> [options]
 List the changed files of an environment
 Options:

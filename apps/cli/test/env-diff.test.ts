@@ -31,6 +31,11 @@ it("reads branches, paths and diffs of an environment like the original", async 
   const patch = ["env", "diff-patch", id, "--target", "uncommitted"];
   const patched = await bb([...patch, "--path", "a.txt", "--json"]);
   expect(parsed<{ outcome: string }>(patched).outcome).toBe("available");
+  const diff = await bb(["env", "diff", id, "--target", "uncommitted"]);
+  expect([diff.code, diff.stdout]).toEqual([
+    0,
+    expect.stringMatching(/^added\ta\.txt\n.*\ndiff --git a\/a\.txt/s),
+  ]);
   const paths = await bb(["env", "paths", id, "--files"]);
   expect(paths.stdout).toContain("file\ta.txt\n");
   const missing = await bb([...patch, "--json"]);

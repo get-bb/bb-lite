@@ -243,3 +243,32 @@ fn env_diff_commands_print_what_the_original_printed() {
         ]
     );
 }
+
+#[test]
+fn env_diff_composes_the_file_list_stats_and_every_patch() {
+    let paths: Vec<String> = (0..51).map(|n| format!("f{n}")).collect();
+    let files: Vec<serde_json::Value> =
+        paths.iter().map(|path| json!({ "path": path, "changeKind": "added" })).collect();
+    let listed = json!({ "outcome": "available", "files": files, "truncated": false,
+                         "shortstat": " 51 files changed\n" });
+    let patch = json!({ "path": "f", "patch": "+x\n", "truncated": false });
+    let server = FakeServer::start(vec![
+        route("GET", "/environments/env_1/diff/files", listed),
+        route(
+            "POST",
+            "/environments/env_1/diff/patch",
+            json!({ "outcome": "available", "patches": [patch] }),
+        ),
+    ]);
+    let words = ["env", "diff", "env_1", "--target", "uncommitted"];
+    let (result, printed) = run(&server, &words, CliEnv::default());
+    result.unwrap();
+    let lines: Vec<&str> = printed.lines().collect();
+    assert_eq!(lines[50..], ["added\tf50", "51 files changed", "+x", "+x"]);
+    let requests = server.requests();
+    let batches: Vec<usize> = requests[1..]
+        .iter()
+        .map(|sent| sent.body.as_ref().unwrap()["paths"].as_array().unwrap().len())
+        .collect();
+    assert_eq!(batches, [50, 1]);
+}
