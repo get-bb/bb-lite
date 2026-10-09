@@ -2,14 +2,12 @@ Collaborate with agents on editing Markdown docs inline. Edit directly inside th
 
 ## What you get
 
-- A Docs panel with a folder tree, search, and a rich Markdown editor. Tables, images, and YAML frontmatter are supported.
-- Vaults. Each vault is a folder on a host. A new install starts with a Personal vault at `~/Notes`. Add vaults on other machines that are enrolled as bb hosts.
-- Full HTML pages and embedded HTML blocks render in a sandboxed frame. Keep interactive reports next to your notes.
-- A Markdown opener for `.md` files from file links. Make it the default under Settings.
-- `@` mentions. Type `@` in the composer to attach a document. The agent gets its current content at send time.
-- Editable document cards in agent replies. Edit Markdown directly in the timeline or open the same document in a tab, with shared autosave.
-- Review agent proposals with live diffs. Edit the proposed text, accept or reject it, undo or redo, or ask the agent for changes through a document mention.
-- Copy the current draft from the header. Progress appears during saves and proposal actions, and recent documents stay visible when returning to a thread.
+- A Docs panel with a vault picker, a searchable document list, and a Markdown editor with preview. Type a path and press New to create a document.
+- Vaults. Each vault is a folder on a host. A new install starts with a Personal vault at `~/Notes`. Add vaults on other machines that are enrolled as bb hosts with `bb docs vault-add`.
+- `@` mentions. Type `@` in the composer to attach a document. The agent gets its current content, hash and proposal version at send time.
+- Editable document cards in agent replies (`::docs{vault path title}`). Edit Markdown in the timeline or open the same document in a tab.
+- Review agent proposals with a live diff. Accept or reject them, then undo or redo.
+- Copy the current draft from the header.
 
 ## For agents
 

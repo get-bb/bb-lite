@@ -10,6 +10,7 @@ export const appLoaders: Record<string, Load> = {
   composer: () => import("../../plugins/composer/app"),
   "concurrency-limit": () => import("../../plugins/concurrency-limit/app"),
   connect: () => import("../../plugins/connect/app"),
+  docs: () => import("../../plugins/docs/app"),
   drafts: () => import("../../plugins/drafts/app"),
   "environment-modal-sandbox": () =>
     import("../../plugins/environment-modal-sandbox/app"),

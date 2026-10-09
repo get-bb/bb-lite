@@ -5,6 +5,7 @@
 @source "../../../../plugins/composer";
 @source "../../../../plugins/concurrency-limit";
 @source "../../../../plugins/connect";
+@source "../../../../plugins/docs";
 @source "../../../../plugins/drafts";
 @source "../../../../plugins/environment-modal-sandbox";
 @source "../../../../plugins/github";
