@@ -103,8 +103,15 @@ export function explainMember(member: ContractMember): Json {
     };
   }
   if (http !== undefined) {
-    const { method, path, aliases = [] } = http;
-    doors.http = { method, path, aliases: [...aliases] };
+    const { method, path, aliases = [], status, empty, body } = http;
+    doors.http = {
+      method,
+      path,
+      aliases: [...aliases],
+      ...(status === undefined ? {} : { status }),
+      ...(empty === undefined ? {} : { empty }),
+      ...(body === undefined ? {} : { body }),
+    };
   }
   return { ...described, doors };
 }

@@ -288,6 +288,16 @@ it("serves operations and the live chain over HTTP", async () => {
   expect(described.body).toMatchObject({
     result: { contracts: [{ id: "tasks", plugin: "tasks" }] },
   });
+  const core = await server.http("POST", "/ops/plugins.contracts", {
+    contractId: "threads",
+  });
+  expect(core.body).toMatchObject({
+    result: {
+      contracts: [
+        { members: { create: { doors: { http: { status: 201 } } } } },
+      ],
+    },
+  });
   const located = await server.http("POST", "/ops/plugins.describe", {
     id: "tasks",
   });
