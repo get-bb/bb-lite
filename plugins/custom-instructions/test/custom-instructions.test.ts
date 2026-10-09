@@ -8,15 +8,14 @@ interface CliOutput {
   stderr: string;
 }
 
-const context = {
-  threadId: "thr_1",
-  projectId: "proj_1",
-  hostId: "host_1",
-  providerId: "codex",
-};
-
 it("sets, prints and clears instructions with --json and a length cap", async () => {
   const server = await createThreadServer();
+  const context = {
+    threadId: await server.spawn(),
+    projectId: "proj_1",
+    hostId: "host_1",
+    providerId: "codex",
+  };
   const cli = async (argv: string[]) => {
     const url = `${server.url}/api/v1/plugins/custom-instructions/cli`;
     const response = await fetch(url, {
