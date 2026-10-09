@@ -227,6 +227,14 @@ export const pluginDev = contract("plugin-dev", {
       },
     },
   }),
+  versions: op({
+    input: z.object({
+      source: z.string().describe("git:<url> or npm:<package>"),
+      tagPrefix: z.string().optional(),
+    }),
+    output: z.array(z.string()),
+    allow: "owner",
+  }),
   install: op({
     input: z.object({
       source: z

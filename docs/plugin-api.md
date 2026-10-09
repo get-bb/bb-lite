@@ -681,6 +681,12 @@ host reloads the plugin and announces `bb.changed(server.config)`, so apps load 
 
 ## Forking a built-in plugin
 
+The `marketplace` plugin reads plugin catalogs (the official one by default, or the URLs and files in
+its `catalogs` setting; the original bb's v2 format, entries may add `engines.bb` and `parts`) and
+installs through `plugin-dev.install`: `marketplace.catalog({ query? })`, `install({ id, version? })`,
+`list`, `updates`, `update({ id })`, `uninstall({ id })`, as `bb marketplace search|install|list|
+updates|update|remove` and Settings > Marketplace. It records each install's source, ref, range and
+version. `plugin-dev.versions({ source, tagPrefix? })` lists the versions a git or npm source offers.
 `bb dev fork <id> [--path <dir>]` copies a plugin from `plugins/` to a directory of yours and loads
 the copy in place of the original, reloading it when a file changes. `bb plugin remove <path>` brings
 the original back. Every plugin in `plugins/` forks this way: the providers, the add-ons, the ten

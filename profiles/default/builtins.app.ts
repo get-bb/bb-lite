@@ -18,6 +18,7 @@ export const appLoaders: Record<string, Load> = {
   github: () => import("../../plugins/github/app"),
   "inline-vis": () => import("../../plugins/inline-vis/app"),
   "keep-awake": () => import("../../plugins/keep-awake/app"),
+  marketplace: () => import("../../plugins/marketplace/app"),
   memory: () => import("../../plugins/memory/app"),
   "monaco-editor": () => import("../../plugins/monaco-editor/app"),
   navigation: () => import("../../plugins/navigation/app"),

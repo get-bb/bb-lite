@@ -25,6 +25,7 @@ import {
   type KernelInspection,
   type PluginServerApi,
 } from "@bb/plugin";
+import { z } from "zod";
 import { pluginDev } from "./contract.js";
 import { portReport } from "./port.js";
 import { templates } from "./templates.js";
@@ -236,24 +237,51 @@ async function packageOf(path: string): Promise<{
   return JSON.parse(await readFile(join(path, "package.json"), "utf8"));
 }
 
+function checkArgument(value: string): void {
+  if (value.startsWith("-")) fail("invalid", `Not a source: ${value}`);
+}
+
+async function gitTags(
+  url: string,
+  prefix: string,
+): Promise<{ tag: string; version: string }[]> {
+  checkArgument(url);
+  const { stdout } = await run("git", ["ls-remote", "--tags", url], {
+    timeout: FETCH_TIMEOUT_MS,
+  });
+  return stdout.split("\n").flatMap((line) => {
+    const tag = line.split("refs/tags/")[1];
+    if (tag === undefined || tag.endsWith("^{}")) return [];
+    if (!tag.startsWith(prefix)) return [];
+    const version = tag.slice(prefix.length).replace(/^v/u, "");
+    return /^\d+\.\d+\.\d+$/u.test(version) ? [{ tag, version }] : [];
+  });
+}
+
+async function versionsOf(source: string, prefix = ""): Promise<string[]> {
+  if (source.startsWith("npm:")) {
+    const name = source.slice("npm:".length).replace(/(?<=.)@[^/@]*$/u, "");
+    checkArgument(name);
+    const view = ["view", name, "versions", "--json"];
+    const { stdout } = await run("npm", view, { timeout: FETCH_TIMEOUT_MS });
+    const parsed = z
+      .union([z.string(), z.array(z.string())])
+      .parse(JSON.parse(stdout));
+    return typeof parsed === "string" ? [parsed] : parsed;
+  }
+  const url = source.replace(/^git:/u, "").split("#")[0] ?? "";
+  return (await gitTags(url, prefix)).map(({ version }) => version);
+}
+
 async function tagFor(
   url: string,
   range: string,
   prefix: string,
 ): Promise<{ tag: string; version: string }> {
-  const { stdout } = await run("git", ["ls-remote", "--tags", url], {
-    timeout: FETCH_TIMEOUT_MS,
-  });
   let best: { tag: string; version: string } | null = null;
-  for (const line of stdout.split("\n")) {
-    const tag = line.split("refs/tags/")[1]?.replace(/\^\{\}$/u, "");
-    if (tag === undefined || !tag.startsWith(prefix)) continue;
-    const version = tag.slice(prefix.length).replace(/^v/u, "");
-    if (!/^\d+\.\d+\.\d+$/u.test(version)) continue;
-    if (!satisfies(version, range)) continue;
-    if (best === null || isNewer(version, best.version)) {
-      best = { tag, version };
-    }
+  for (const found of await gitTags(url, prefix)) {
+    if (!satisfies(found.version, range)) continue;
+    if (best === null || isNewer(found.version, best.version)) best = found;
   }
   if (best === null) {
     fail("not_found", `No tag of ${url} matches ${prefix}${range}`);
@@ -282,6 +310,7 @@ async function fetchGit(
 ): Promise<Fetched> {
   const [url = "", after] = spec.split("#");
   const [given, subdir = ""] = (after ?? "").split(":");
+  checkArgument(url);
   const options = { timeout: FETCH_TIMEOUT_MS };
   const found =
     wanted.version === undefined
@@ -328,6 +357,7 @@ async function fetchNpm(
   root: string,
   wanted: Wanted,
 ): Promise<Fetched> {
+  checkArgument(spec);
   const name = spec.replace(/(?<=.)@[^/@]*$/u, "");
   const range = wanted.version ?? spec.slice(name.length + 1);
   const scratch = await mkdtemp(join(root, ".fetch-"));
@@ -442,6 +472,10 @@ export default function plugin(bb: PluginServerApi): void {
 
   bb.implement(pluginDev.watch, (input) =>
     bb.call(plugins.install, { path: located(input), watch: true }),
+  );
+
+  bb.implement(pluginDev.versions, ({ source, tagPrefix }) =>
+    versionsOf(source, tagPrefix),
   );
 
   bb.implement(pluginDev.install, async ({ source, cwd, ...wanted }) => {

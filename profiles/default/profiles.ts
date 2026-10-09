@@ -52,6 +52,7 @@ const PRODUCT = [
   "storage-retention",
   "environment-modal-sandbox",
   "side-chat",
+  "marketplace",
 ];
 
 export const profiles: Record<string, Profile> = {
