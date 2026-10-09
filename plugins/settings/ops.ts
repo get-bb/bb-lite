@@ -172,8 +172,9 @@ export function implementSettings(bb: PluginServerApi): void {
     store.writeSetting(db, personal(store.appearanceSetting), selection);
     hub.system(["config-changed"]);
     const chosen = knownTheme(selection);
-    bb.emit(appearanceSlots.changed, chosen);
-    bb.changed(server.config);
+    const audience = { userId: viewerId() };
+    bb.emit(appearanceSlots.changed, chosen, audience);
+    bb.changed(server.config, audience);
     return chosen;
   });
 
