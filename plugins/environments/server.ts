@@ -3,29 +3,18 @@ import {
   threads,
   type PluginServerApi,
 } from "@bb/plugin";
-import {
-  getEnvironment,
-  listEnvironments,
-} from "@bb/server-kit/db/environments";
 import { environmentRuntime } from "./contract.js";
 import { createEnvironments } from "./manager.js";
-import { registerEnvironmentRoutes } from "./routes.js";
+import { implementEnvironments } from "./ops.js";
 
 export default function environments(bb: PluginServerApi): void {
   const manager = createEnvironments(bb);
-  bb.http.api((app) => registerEnvironmentRoutes(app, bb));
-  bb.implement(contract.get, ({ environmentId }) => {
-    return getEnvironment(bb.db, environmentId) ?? null;
-  });
-  bb.implement(contract.list, (filter) => listEnvironments(bb.db, filter));
+  implementEnvironments(bb, (id) => manager.remove(id));
   bb.implement(environmentRuntime.ensure, (job) =>
     manager.ensureForThread(job),
   );
   bb.implement(contract.instructions, ({ environmentId }) =>
     manager.workspaceInstructions(environmentId),
-  );
-  bb.implement(contract.delete, ({ environmentId }) =>
-    manager.remove(environmentId),
   );
   bb.implement(contract.sweep, () => manager.sweep());
   const detached = ({ thread }: { thread: { id: string } }) =>

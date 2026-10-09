@@ -71,7 +71,7 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
   const ctx = shared as HostContext;
   const { plugins } = ctx;
   const requireManager = (c: RouteContext) =>
-    requireOwner(c, "Only the owner can manage plugins");
+    requireOwner("Only the owner can manage plugins");
 
   app.get("/plugins", (c) => c.json({ plugins: plugins.list() }));
 
@@ -141,7 +141,7 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
       throw notFound(`Plugin "${id}" has no ${method} route for "${path}"`);
     }
     if (route.auth === "local") {
-      requireOwner(c, "This plugin route is owner-only");
+      requireOwner("This plugin route is owner-only");
     }
     const token = c.req.header("x-bb-plugin-token") ?? c.req.query("token");
     if (route.auth === "token" && !plugins.acceptsToken(id, token)) {

@@ -112,11 +112,21 @@ export type CreateThreadEnvironmentArgs = z.infer<
   typeof createThreadEnvironmentArgsSchema
 >;
 
-export const pathListIncludeQueryValueSchema = z.enum(["true", "false"]);
+export const flagField = z.union([
+  z.boolean(),
+  z.enum(["true", "false"]).transform((value) => value === "true"),
+]);
+
+export const countField = z.union([
+  z.number().int().nonnegative(),
+  z.string().regex(/^\d+$/).transform(Number),
+]);
+
+export const pathListIncludeQueryValueSchema = flagField;
 
 export const branchListQuerySchema = z.object({
   query: z.string().min(1).max(domain.BRANCH_LIST_QUERY_MAX_LENGTH).optional(),
-  limit: z.string().regex(/^\d+$/).optional(),
+  limit: countField.optional(),
 });
 
 export const pluginSignalSchema = z

@@ -161,11 +161,13 @@ function localRunner(kind: RunnerKind, config: ServerConfig, fake: FakeRunner) {
 
 function facades({ kernel }: HostContext) {
   const threads = {
-    get: (threadId: string) => kernel.call(threadOps.get, { threadId }),
+    get: (threadId: string) =>
+      kernel.call(threadOps.get, { threadId }).catch(() => null),
     send: (threadId: string, request: SendMessageRequest) =>
-      kernel.call(threadOps.send, { threadId, request }),
+      kernel.call(threadOps.send, { threadId, ...request }),
     stop: (threadId: string) => kernel.call(threadOps.stop, { threadId }),
-    archive: (threadId: string) => kernel.call(threadOps.archive, { threadId }),
+    archive: async (threadId: string) =>
+      (await kernel.call(threadOps.archive, { threadId })).archivedThreadIds,
     unarchive: (threadId: string) =>
       kernel.call(threadOps.unarchive, { threadId }),
     delete: (threadId: string, confirmed: { childThreadsConfirmed: boolean }) =>

@@ -60,8 +60,8 @@ export function findThreadListRow(
 
 function threadFilter(
   equal: Record<string, SqlValue | undefined>,
-  nullness: Record<string, "true" | "false" | undefined>,
-  hidden: "true" | "false" | undefined,
+  nullness: Record<string, boolean | undefined>,
+  hidden: boolean | undefined,
 ) {
   const where = ["threads.deleted_at IS NULL"];
   const params: SqlValue[] = [];
@@ -72,9 +72,9 @@ function threadFilter(
   }
   for (const [column, wanted] of Object.entries(nullness)) {
     if (wanted === undefined) continue;
-    where.push(`${column} IS ${wanted === "true" ? "NOT NULL" : "NULL"}`);
+    where.push(`${column} IS ${wanted ? "NOT NULL" : "NULL"}`);
   }
-  if (hidden !== "true") where.push("threads.visibility = 'visible'");
+  if (hidden !== true) where.push("threads.visibility = 'visible'");
   return { where: where.join(" AND "), params };
 }
 
@@ -95,12 +95,12 @@ export function listThreadRows(
     {
       "threads.archived_at": query.archived,
       "threads.parent_thread_id": query.hasParent,
-      "s.section_id": query.unsectioned === "true" ? "false" : undefined,
+      "s.section_id": query.unsectioned === true ? false : undefined,
     },
     query.includeHidden,
   );
   const order =
-    query.archived === "true"
+    query.archived === true
       ? "threads.archived_at DESC, threads.id DESC"
       : ACTIVE_THREAD_ORDER;
   return db.all<ThreadListRow>(
@@ -108,8 +108,8 @@ export function listThreadRows(
      ORDER BY ${order} LIMIT ? OFFSET ?`,
     viewerId(),
     ...params,
-    Number(query.limit ?? -1),
-    Number(query.offset ?? 0),
+    query.limit ?? -1,
+    query.offset ?? 0,
   );
 }
 

@@ -112,7 +112,6 @@ export async function attachThread(
 ): Promise<void> {
   const task = requireTask(ctx.store, taskId);
   const thread = await ctx.bb.call(threads.get, { threadId });
-  if (thread === null) throw new Error(`Thread not found: ${threadId}`);
   const fallback = `${task.key} · ${task.title}`;
   ctx.store.upsertTaskThread({
     taskId,
@@ -175,7 +174,8 @@ export async function registerLifecycle(ctx: TasksContext): Promise<void> {
   bb.on(threads.deleted, ({ thread }) => follow(thread, "completed"));
   for (const link of store.listOpenThreadLinks()) {
     try {
-      const thread = await bb.call(threads.get, { threadId: link.threadId });
+      const { threadId } = link;
+      const thread = await bb.call(threads.get, { threadId }).catch(() => null);
       if (thread === null) transition(ctx, link, "completed", false);
       else transition(ctx, link, liveStatusOf(thread));
     } catch (error) {

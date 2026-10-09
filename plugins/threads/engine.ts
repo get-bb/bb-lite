@@ -5,15 +5,7 @@ import {
   threads as threadOps,
 } from "@bb/plugin";
 import type { RunnerThreadEvent } from "@bb/runner";
-import type {
-  CreateQueuedMessageRequest,
-  CreateThreadRequest,
-  SendMessageRequest,
-  SendQueuedMessageMode,
-  ThreadResponse,
-  UpdateQueuedMessageRequest,
-  UpdateThreadRequest,
-} from "@bb/server-contract";
+import type { ThreadResponse } from "@bb/server-contract";
 import type { PluginServerApi } from "@bb/plugin";
 import type { ServerRunner } from "@bb/server-kit/context";
 import { getEnvironment } from "@bb/server-kit/db/environments";
@@ -43,7 +35,6 @@ import { cancelToolCall, startToolCall } from "./tool-calls.js";
 
 type ThreadRow = store.ThreadRow;
 type Outbox = core.Outbox;
-type DeleteConfirmation = { childThreadsConfirmed: boolean };
 
 interface ThreadFailure {
   code: string;
@@ -415,9 +406,14 @@ export function createThreadEngine(bb: PluginServerApi) {
   const unarchive = writes(serialized(lifecycle.unarchiveThread));
   const remove = writes(direct(lifecycle.deleteThreadTree));
   bb.implement(threadOps.create, (request) => create(request));
-  bb.implement(threadOps.send, (input) => send(input.threadId, input.request));
+  bb.implement(threadOps.send, ({ threadId, ...request }) =>
+    send(threadId, request),
+  );
   bb.implement(threadOps.stop, ({ threadId }) => stop(threadId));
-  bb.implement(threadOps.archive, ({ threadId }) => archive(threadId));
+  bb.implement(threadOps.archive, async ({ threadId }) => {
+    const archivedThreadIds = await archive(threadId);
+    return { ok: true as const, archivedThreadIds };
+  });
   bb.implement(threadOps.unarchive, ({ threadId }) => unarchive(threadId));
   bb.implement(threadOps.delete, ({ threadId, ...confirmation }) =>
     remove(threadId, confirmation),
@@ -453,19 +449,31 @@ export function createThreadEngine(bb: PluginServerApi) {
   const resolve = writes(serialized(interactions.resolveProviderInteraction));
   const respond = writes(serialized(interactions.respondToInteraction));
   const cancel = writes(serialized(interactions.cancelByUser));
-  bb.implement(threadOps.update, (input) =>
-    update(input.threadId, input.patch),
+  const pin = serialized(mutations.pin);
+  const unpin = serialized(mutations.unpin);
+  const markRead = serialized(mutations.markRead);
+  const markUnread = serialized(mutations.markUnread);
+  bb.implement(threadOps.update, ({ threadId, ...patch }) =>
+    update(threadId, patch),
   );
   bb.implement(threadOps.compact, ({ threadId }) => compact(threadId));
   bb.implement(threadOps.clearContext, ({ threadId }) =>
     clearContext(threadId),
   );
-  bb.implement(threadOps.createQueuedMessage, (input) =>
-    queue(input.threadId, input.request),
+  bb.implement(threadOps.pin, ({ threadId }) => pin(threadId));
+  bb.implement(threadOps.unpin, ({ threadId }) => unpin(threadId));
+  bb.implement(threadOps.reorderPinned, ({ threadId, ...request }) =>
+    mutations.reorderPinned(engine, threadId, request),
   );
-  bb.implement(threadOps.updateQueuedMessage, (input) =>
-    requeue(input.threadId, input.queuedMessageId, input.request),
+  bb.implement(threadOps.markRead, ({ threadId }) => markRead(threadId));
+  bb.implement(threadOps.markUnread, ({ threadId }) => markUnread(threadId));
+  bb.implement(threadOps.createQueuedMessage, ({ threadId, ...request }) =>
+    queue(threadId, request),
   );
+  bb.implement(threadOps.updateQueuedMessage, (input) => {
+    const { threadId, queuedMessageId, ...request } = input;
+    return requeue(threadId, queuedMessageId, request);
+  });
   bb.implement(threadOps.deleteQueuedMessage, (input) =>
     unqueue(input.threadId, input.queuedMessageId),
   );
@@ -475,9 +483,15 @@ export function createThreadEngine(bb: PluginServerApi) {
   bb.implement(interactionOps.resolve, (input) =>
     resolve(input.threadId, input.interactionId, input.resolution),
   );
-  bb.implement(interactionOps.respond, (input) =>
-    respond(input.threadId, input.interactionId, input.value),
-  );
+  bb.implement(interactionOps.respond, (input) => {
+    const { threadId, interactionId, value } = input;
+    const size = Buffer.byteLength(JSON.stringify(value), "utf8");
+    if (size > domain.PLUGIN_INTERACTION_MAX_PAYLOAD_BYTES) {
+      const message = "Interaction response exceeds 64 KiB";
+      throw new ApiError(413, "invalid_request", message);
+    }
+    return respond(threadId, interactionId, value);
+  });
   bb.implement(interactionOps.cancel, (input) =>
     cancel(input.threadId, input.interactionId),
   );
@@ -503,68 +517,9 @@ export function createThreadEngine(bb: PluginServerApi) {
     close: () => engine.close(),
     settled: () => engine.settled(),
     sweep: direct(lifecycle.sweep),
-    create: (request: CreateThreadRequest) =>
-      bb.call(threadOps.create, request),
-    get: (threadId: string) => {
-      const thread = store.getThread(bb.db, threadId);
-      const gone = thread === undefined || thread.deletedAt !== null;
-      return gone ? null : engine.respond(threadId);
-    },
     workspaceOf: (threadId: string) =>
       dispatching.sessionEnvironmentOf(engine, engine.requireThread(threadId)),
-    send: (threadId: string, request: SendMessageRequest) =>
-      bb.call(threadOps.send, { threadId, request }),
-    stop: (threadId: string) => bb.call(threadOps.stop, { threadId }),
-    compact: (threadId: string) => bb.call(threadOps.compact, { threadId }),
-    clearContext: (threadId: string) =>
-      bb.call(threadOps.clearContext, { threadId }),
-    archive: (threadId: string) => bb.call(threadOps.archive, { threadId }),
-    unarchive: (threadId: string) => bb.call(threadOps.unarchive, { threadId }),
-    delete: (threadId: string, confirmation: DeleteConfirmation) =>
-      bb.call(threadOps.delete, { threadId, ...confirmation }),
     releaseDeletedProject: direct(lifecycle.releaseDeletedProject),
-    update: (threadId: string, patch: UpdateThreadRequest) =>
-      bb.call(threadOps.update, { threadId, patch }),
-    pin: serialized(mutations.pin),
-    unpin: serialized(mutations.unpin),
-    reorderPinned: direct(mutations.reorderPinned),
-    markRead: serialized(mutations.markRead),
-    markUnread: serialized(mutations.markUnread),
-    createQueuedMessage: (
-      threadId: string,
-      request: CreateQueuedMessageRequest,
-    ) => bb.call(threadOps.createQueuedMessage, { threadId, request }),
-    updateQueuedMessage: (
-      threadId: string,
-      queuedMessageId: string,
-      request: UpdateQueuedMessageRequest,
-    ) =>
-      bb.call(threadOps.updateQueuedMessage, {
-        threadId,
-        queuedMessageId,
-        request,
-      }),
-    deleteQueuedMessage: (threadId: string, queuedMessageId: string) =>
-      bb.call(threadOps.deleteQueuedMessage, { threadId, queuedMessageId }),
-    sendQueuedMessageNow: (
-      threadId: string,
-      queuedMessageId: string,
-      mode: SendQueuedMessageMode,
-    ) =>
-      bb.call(threadOps.sendQueuedMessage, { threadId, queuedMessageId, mode }),
-    resolveInteraction: (
-      threadId: string,
-      interactionId: string,
-      resolution: domain.PendingInteractionResolution,
-    ) =>
-      bb.call(interactionOps.resolve, { threadId, interactionId, resolution }),
-    respondToInteraction: (
-      threadId: string,
-      interactionId: string,
-      value: domain.JsonValue,
-    ) => bb.call(interactionOps.respond, { threadId, interactionId, value }),
-    cancelInteraction: (threadId: string, interactionId: string) =>
-      bb.call(interactionOps.cancel, { threadId, interactionId }),
   };
 }
 

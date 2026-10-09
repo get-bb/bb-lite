@@ -200,7 +200,7 @@ it("serves operations and the live chain over HTTP", async () => {
   });
   const unknown = await server.http("POST", "/ops/nope.nothing", {});
   expect(unknown.status).toBe(404);
-  for (const name of ["threads.create", "threads.send", "files.write"]) {
+  for (const name of ["threads.hold", "threads.addRow", "files.write"]) {
     const closed = await server.http("POST", `/ops/${name}`, {});
     expect([name, closed.status]).toEqual([name, 403]);
   }

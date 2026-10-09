@@ -205,8 +205,8 @@ async function notifyLatestAgent(
     `reply via bb tasks comment ${key} when relevant.`;
   try {
     const input = [{ type: "text" as const, text, mentions: [] }];
-    const request = { input, mode: "steer-if-active" as const };
-    await bb.call(threads.send, { threadId, request });
+    const mode = "steer-if-active" as const;
+    await bb.call(threads.send, { threadId, input, mode });
     return 1;
   } catch (error) {
     const reason = errorMessage(error);

@@ -167,7 +167,8 @@ export function createEnvironments(bb: PluginServerApi) {
     job: Job,
   ) {
     const { hostId, projectId } = found;
-    const thread = await bb.call(threads.get, { threadId: job.thread.id });
+    const threadId = job.thread.id;
+    const thread = await bb.call(threads.get, { threadId }).catch(() => null);
     const host = findHost(db, "id", hostId);
     if (thread === null || host === undefined) {
       throw notReady("The thread or its machine no longer exists.");

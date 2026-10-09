@@ -17,9 +17,14 @@ import {
 } from "@bb/server-kit/kernel/caller";
 import type { ApiApp, AppEnv } from "@bb/server-kit/http/api";
 import { compressJson } from "./compression.js";
+import { registerOpDoors } from "./doors.js";
 import { ApiError, errorResponse, notFound } from "@bb/server-kit/http/errors";
 import { registerStaticApp } from "./static.js";
-import { principals, type Principal } from "@bb/server-kit/http/trust";
+import {
+  principals,
+  withRequest,
+  type Principal,
+} from "@bb/server-kit/http/trust";
 
 export function authenticatorOf(ctx: HostContext): Authenticator {
   const authenticator = ctx.kernel.pick(server.authenticator);
@@ -75,9 +80,14 @@ function assemble(ctx: HostContext, table: RouteTable): ApiApp {
   app.onError((error, c) => errorResponse(error, ctx.log, c.req));
   app.use("*", async (c, next) => {
     const inner = innerCalls.get(c.req.raw);
+    const { origin } = new URL(c.req.url);
+    const sender = c.req.header("origin") ?? null;
     if (inner !== undefined) {
       principals.set(c.req.raw, inner.principal);
-      await runAs(inner.actor, () => enterCaller(inner.caller, next));
+      const scope = { principal: inner.principal, origin, sender };
+      await runAs(inner.actor, () =>
+        enterCaller(inner.caller, () => withRequest(scope, next)),
+      );
       return;
     }
     const { headers, socket } = c.env.incoming;
@@ -90,11 +100,15 @@ function assemble(ctx: HostContext, table: RouteTable): ApiApp {
     const door = declaredDoor(c.req.header(DOOR_HEADER));
     const actor = authenticator.actor(principal, threadId);
     const machine = principal.kind === "runner";
-    await runAs(actor, () => throughDoor(door, machine, next));
+    const scope = { principal, origin, sender };
+    await runAs(actor, () =>
+      throughDoor(door, machine, () => withRequest(scope, next)),
+    );
   });
   app.use("/api/v1/*", compressJson);
   app.get("/health", (c) => c.json({ ok: true, version: ctx.config.version }));
-  mount(app, "/api/v1", table.of(false));
+  const doors: ApiRoutes = (scoped) => registerOpDoors(scoped, ctx.kernel);
+  mount(app, "/api/v1", [...table.of(false), doors]);
   mount(app, "/internal", table.of(true));
   registerStaticApp(app, ctx.config.appDir);
   return app;
@@ -105,10 +119,11 @@ export interface HttpApp extends Pick<ApiApp, "fetch"> {
 }
 
 export function createHttpApp(ctx: HostContext, table: RouteTable): HttpApp {
-  let built: { version: number; app: ApiApp } | undefined;
+  let built: { version: string; app: ApiApp } | undefined;
   const current = (): ApiApp => {
-    if (built?.version !== table.version) {
-      built = { version: table.version, app: assemble(ctx, table) };
+    const version = `${table.version}/${ctx.kernel.implementations()}`;
+    if (built?.version !== version) {
+      built = { version, app: assemble(ctx, table) };
     }
     return built.app;
   };

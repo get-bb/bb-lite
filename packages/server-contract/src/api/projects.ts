@@ -1,10 +1,12 @@
 import * as domain from "@bb/domain";
 import { z } from "zod";
 import {
-  rejectMultipleWorkspaceSelectors,
   branchListQuerySchema,
+  countField,
+  flagField,
   isCommaSeparatedIncludeQueryValue,
   pathListIncludeQueryValueSchema,
+  rejectMultipleWorkspaceSelectors,
 } from "./shared.js";
 
 const localProjectPathRequestSchema = z
@@ -119,7 +121,7 @@ export const projectListQuerySchema = z.object({
       { message: "Invalid include" },
     )
     .optional(),
-  includePersonal: z.enum(["true", "false"]).optional(),
+  includePersonal: flagField.optional(),
 });
 export type ProjectListQuery = z.infer<typeof projectListQuerySchema>;
 
@@ -135,7 +137,7 @@ export const projectPathsQuerySchema = z
   .object({
     ...projectWorkspaceRoutingFields,
     query: z.string().min(1).max(domain.FILE_LIST_QUERY_MAX_LENGTH).optional(),
-    limit: z.string().regex(/^\d+$/).optional(),
+    limit: countField.optional(),
     includeFiles: pathListIncludeQueryValueSchema,
     includeDirectories: pathListIncludeQueryValueSchema,
   })
@@ -178,7 +180,7 @@ export type ProjectDefaultExecutionOptionsQuery = z.infer<
 
 export const promptHistoryQuerySchema = z
   .object({
-    limit: z.string().regex(/^\d+$/),
+    limit: countField,
   })
   .partial();
 export type PromptHistoryQuery = z.infer<typeof promptHistoryQuerySchema>;

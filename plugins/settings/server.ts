@@ -1,6 +1,6 @@
 import type { PluginServerApi } from "@bb/plugin";
-import { registerSettingsRoutes } from "./routes.js";
+import { implementSettings } from "./ops.js";
 
 export default function settings(bb: PluginServerApi): void {
-  bb.http.api((app) => registerSettingsRoutes(app, bb));
+  implementSettings(bb);
 }

@@ -183,6 +183,7 @@ export interface Kernel extends OpCalls {
   live(name: string): Live | null;
   watch(listener: () => void): () => void;
   version(): number;
+  implementations(): number;
   inspect(): KernelInspection;
 }
 
@@ -342,6 +343,7 @@ export function createKernel(options: KernelOptions): Kernel {
   const NEVER_ABORTED = new AbortController().signal;
   let order = 0;
   let version = 0;
+  let implemented = 0;
 
   const stateOf = (op: Op): OpState => {
     const known = ops.get(op.name);
@@ -490,6 +492,7 @@ export function createKernel(options: KernelOptions): Kernel {
       const decided = traces.some(
         ({ action }) => action === "answered" || action === "denied",
       );
+      if (!op.audit) return;
       if (op.kind === "read" && outcome === "ok" && !decided) return;
       options.record({
         at: startedAt,
@@ -634,8 +637,11 @@ export function createKernel(options: KernelOptions): Kernel {
           run: implementation as Implementation<unknown, unknown>,
         };
         state.owner = owner;
+        implemented += 1;
         undo.push(() => {
-          if (state.owner === owner) state.owner = null;
+          if (state.owner !== owner) return;
+          state.owner = null;
+          implemented += 1;
         });
       },
       on(target: Op | EventDef, second: unknown, third?: unknown) {
@@ -763,6 +769,7 @@ export function createKernel(options: KernelOptions): Kernel {
       return () => void watchers.delete(listener);
     },
     version: () => version,
+    implementations: () => implemented,
     inspect() {
       return {
         ops: [...ops.values()].map(({ op, owner, chain }) => ({

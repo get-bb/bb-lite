@@ -1,5 +1,4 @@
-import type { PluginServerApi } from "@bb/plugin";
-import { publicApiRoutes } from "@bb/server-contract";
+import { machines, type PluginServerApi } from "@bb/plugin";
 import {
   PATH_LIST_EXCLUDED_NAMES,
   PATH_LIST_LIMIT_DEFAULT,
@@ -7,7 +6,7 @@ import {
   requireThreadEnvironment,
 } from "@bb/server-kit/environments/workspace";
 import { requireHost } from "@bb/server-kit/runners/hosts";
-import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
+import type { ApiApp } from "@bb/server-kit/http/api";
 import {
   relativeFileSegments,
   revisionRef,
@@ -26,12 +25,6 @@ const LIST_DEFAULTS = {
 };
 
 export function registerFileRoutes(app: ApiApp, bb: PluginServerApi): void {
-  const { get, post } = typedApi(app);
-  const { environments, files, hosts, threads } = publicApiRoutes;
-
-  const runnerOf = (hostId: string | undefined) =>
-    bb.runners.get(requireHost(bb, hostId ?? bb.server.hostId).id);
-
   const serve = (
     c: FileRequest,
     root: { hostId: string; path: string },
@@ -43,41 +36,54 @@ export function registerFileRoutes(app: ApiApp, bb: PluginServerApi): void {
     return serveFileBytes(bb, c.req.raw, target);
   };
 
-  get(environments.file, (c) =>
-    serve(c, requireReadyEnvironment(bb, c.req.param("id"))),
+  app.get("/environments/:environmentId/files/:filePath{.+}", (c) =>
+    serve(c, requireReadyEnvironment(bb, c.req.param("environmentId"))),
   );
 
-  get(environments.revisionFile, (c) => {
-    const gitRef = revisionRef(c.req.param("ref"));
-    return serve(c, requireReadyEnvironment(bb, c.req.param("id")), gitRef);
-  });
+  app.get(
+    "/environments/:environmentId/revisions/:ref/files/:filePath{.+}",
+    (c) => {
+      const gitRef = revisionRef(c.req.param("ref"));
+      const environmentId = c.req.param("environmentId");
+      return serve(c, requireReadyEnvironment(bb, environmentId), gitRef);
+    },
+  );
 
-  get(threads.hostFile, (c) => {
-    const { hostId } = requireThreadEnvironment(bb, c.req.param("id"));
+  app.get("/threads/:threadId/host-files/:filePath{.+}", (c) => {
+    const threadId = c.req.param("threadId");
+    const { hostId } = requireThreadEnvironment(bb, threadId);
     return serve(c, { hostId, path: HOST_ROOT });
   });
+}
 
-  get(hosts.directory, async (c, { path }) =>
-    c.json(await runnerOf(c.req.param("id")).browseDirectory({ path })),
+export function implementMachineFiles(bb: PluginServerApi): void {
+  const runnerOf = (hostId: string | undefined) =>
+    bb.runners.get(requireHost(bb, hostId ?? bb.server.hostId).id);
+
+  bb.implement(machines.directory, ({ hostId, path }) =>
+    runnerOf(hostId).browseDirectory({ path }),
   );
 
-  post(hosts.pathsExist, async (c, { paths }) =>
-    c.json(await runnerOf(c.req.param("id")).pathsExist({ paths })),
+  bb.implement(machines.pathsExist, ({ hostId, paths }) =>
+    runnerOf(hostId).pathsExist({ paths }),
   );
 
-  post(files.read, async (c, { hostId, ...location }) =>
-    c.json(await runnerOf(hostId).readFile(location)),
+  bb.implement(machines.readFile, ({ hostId, ...location }) =>
+    runnerOf(hostId).readFile(location),
   );
 
-  post(files.write, async (c, { hostId, ...write }) =>
-    c.json(await runnerOf(hostId).writeFile(write)),
+  bb.implement(machines.writeFile, ({ hostId, ...write }) =>
+    runnerOf(hostId).writeFile(write),
   );
 
-  post(files.list, async (c, { hostId, path: rootPath, ...query }) => {
-    const kinds = { includeFiles: true, includeDirectories: false };
-    const search = { ...LIST_DEFAULTS, ...query, ...kinds, rootPath };
-    const { paths, truncated } = await runnerOf(hostId).listPaths(search);
-    const listed = paths.map(({ path, name }) => ({ path, name }));
-    return c.json({ files: listed, truncated });
-  });
+  bb.implement(
+    machines.listFiles,
+    async ({ hostId, path: rootPath, ...query }) => {
+      const kinds = { includeFiles: true, includeDirectories: false };
+      const search = { ...LIST_DEFAULTS, ...query, ...kinds, rootPath };
+      const { paths, truncated } = await runnerOf(hostId).listPaths(search);
+      const listed = paths.map(({ path, name }) => ({ path, name }));
+      return { files: listed, truncated };
+    },
+  );
 }

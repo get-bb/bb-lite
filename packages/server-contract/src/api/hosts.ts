@@ -1,5 +1,6 @@
 import * as domain from "@bb/domain";
 import { z } from "zod";
+import { flagField } from "./shared.js";
 
 export const hostDirectoryQuerySchema = z.object({
   path: z.string().min(1).optional(),
@@ -104,7 +105,7 @@ export const hostOpenRequestSchema = z
 export type HostOpenRequest = z.infer<typeof hostOpenRequestSchema>;
 
 export const hostListQuerySchema = z.object({
-  includeCreating: z.enum(["true", "false"]).optional(),
+  includeCreating: flagField.optional(),
   type: domain.hostTypeSchema.optional(),
 });
 export type HostListQuery = z.input<typeof hostListQuerySchema>;

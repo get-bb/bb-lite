@@ -1,7 +1,7 @@
 import { isAbsolute, resolve } from "node:path";
 import { files, threads, type PluginServerApi } from "@bb/plugin";
 import { RunnerError } from "@bb/runner";
-import { registerFileRoutes } from "./routes.js";
+import { implementMachineFiles, registerFileRoutes } from "./routes.js";
 import { startWorkspaceWatch } from "./watch.js";
 
 export default function workspace(bb: PluginServerApi): void {
@@ -14,6 +14,7 @@ export default function workspace(bb: PluginServerApi): void {
     return { runner: runners.get(hostId), rootPath };
   };
   bb.http.api((app) => registerFileRoutes(app, bb));
+  implementMachineFiles(bb);
   bb.implement(files.read, async (args) => {
     const { threadId, path, encoding = "utf8" } = args;
     const { runner, rootPath } = await located(threadId, path);

@@ -27,9 +27,20 @@ export interface CliDoor<Input = unknown, Output = unknown> {
   print?(output: Output, input: Input): string;
 }
 
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export interface HttpDoor {
+  method: HttpMethod;
+  path: string;
+  status?: 200 | 201;
+  empty?: 204;
+  body?: string;
+}
+
 export interface Doors<Input = unknown, Output = unknown> {
   agent?: AgentDoor;
   cli?: CliDoor<Input, Output>;
+  http?: HttpDoor;
 }
 
 export interface Op<
@@ -45,6 +56,7 @@ export interface Op<
   readonly allow: Allow;
   readonly secret: readonly string[];
   readonly internal: boolean;
+  readonly audit: boolean;
   readonly doors: Doors;
 }
 
@@ -92,6 +104,7 @@ export interface OpOptions<Input extends z.ZodType, Output extends z.ZodType> {
   allow?: Allow;
   secret?: readonly string[];
   internal?: boolean;
+  audit?: boolean;
   doors?: Doors<z.output<Input>, z.output<Output>>;
 }
 
@@ -100,10 +113,10 @@ export function op<Input extends z.ZodType, Output extends z.ZodType>(
 ): Op<Input, Output> {
   const { input, output } = options;
   const { kind = "read", hooks = "rewrite", allow = "member" } = options;
-  const { secret = [], internal = false } = options;
+  const { secret = [], internal = false, audit = true } = options;
   const doors = (options.doors ?? {}) as Doors;
-  const shape = { input, output, kind, hooks, allow, secret, internal, doors };
-  return { type: "op", name: "", ...shape };
+  const access = { kind, hooks, allow, secret, internal, audit };
+  return { type: "op", name: "", input, output, ...access, doors };
 }
 
 export function event<Payload extends z.ZodType>(

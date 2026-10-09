@@ -76,7 +76,7 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   const plugin = ctx.kernel.scope("probe", "product");
   const query = { projectId: project.id };
   expect(await plugin.call(threads.list, query)).toEqual([await listed()]);
-  const after = { threadId: id, after: timeline.maxSeq };
+  const after = { threadId: id, afterSeq: timeline.maxSeq };
   const recorded = await plugin.call(threads.events, after);
   const types = recorded.map(({ type }) => type);
   expect(types).toContain("turn/completed");

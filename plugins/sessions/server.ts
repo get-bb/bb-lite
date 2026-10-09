@@ -2,11 +2,14 @@ import { join } from "node:path";
 import { plugins, sessions, type PluginServerApi } from "@bb/plugin";
 import {
   bindProviderCatalog,
+  findProviderDefinition,
   listEnabledProviders,
+  listProviderCatalog,
+  setProviderEnabled,
 } from "@bb/server-kit/providers/catalog";
 import { resolveExecutionOptions } from "@bb/server-kit/providers/models";
 import { pluginMentionSearchQuerySchema } from "@bb/server-contract";
-import { invalidRequest } from "@bb/server-kit/http/errors";
+import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
 import { resolveMention, searchMentions } from "./mentions.js";
 import { registerProviderRoutes } from "./routes.js";
 import { generateTitle } from "./title.js";
@@ -42,9 +45,23 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
   bb.implement(sessions.title, ({ prompt }, { signal }) =>
     generateTitle(bb, prompt, signal),
   );
-  bb.implement(sessions.providers, () =>
-    listEnabledProviders(db).map(({ info }) => info),
-  );
+  bb.implement(sessions.providers, ({ capability }) => {
+    const providers = listEnabledProviders(db).map(({ info }) => info);
+    const usageOnly = capability === "usage";
+    return providers.filter(
+      ({ maintenance }) => !usageOnly || maintenance.usage,
+    );
+  });
+  bb.implement(sessions.providerCatalog, () => listProviderCatalog(db));
+  bb.implement(sessions.updateProvider, ({ providerId, enabled }) => {
+    if (findProviderDefinition(db, providerId) === undefined) {
+      const message = `Unknown provider "${providerId}".`;
+      throw new ApiError(404, "provider_not_found", message);
+    }
+    setProviderEnabled(db, providerId, enabled);
+    bb.realtime.system(["config-changed"]);
+    return listProviderCatalog(db);
+  });
   bb.implement(sessions.executionOptions, (query) =>
     resolveExecutionOptions(bb, query),
   );

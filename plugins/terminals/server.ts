@@ -8,7 +8,7 @@ import { terminalWebSocketQuerySchema } from "@bb/server-contract";
 import { getTerminal } from "@bb/server-kit/db/terminals";
 import { ApiError } from "@bb/server-kit/http/errors";
 import { assertHostUsable } from "@bb/server-kit/runners/access";
-import { registerTerminalRoutes } from "./routes.js";
+import { implementTerminals } from "./ops.js";
 import {
   attachTerminalSocket,
   closeTerminalsFor,
@@ -26,7 +26,7 @@ export default function terminals(bb: PluginServerApi): void {
   bb.on(environments.destroyed, ({ environmentId, reason }) =>
     closeTerminalsFor(bb, "environment_id", environmentId, reason),
   );
-  bb.http.api((app) => registerTerminalRoutes(app, bb));
+  implementTerminals(bb);
   bb.implement(terminalOps.resize, async ({ terminalId, ...size }) => {
     await resizeTerminal(bb, requireTerminal(bb, terminalId), size);
   });

@@ -75,15 +75,6 @@ export function provideMachines(bb: PluginServerApi): void {
     });
   });
 
-  bb.implement(machines.update, ({ hostId, name, resource }) => {
-    requireHost(bb, hostId);
-    const renamed = name === undefined ? {} : { name };
-    const kept =
-      resource === undefined ? {} : { resource: JSON.stringify(resource) };
-    store.updateHost(db, hostId, { ...renamed, ...kept });
-    hub.host(hostId, ["host-connected"]);
-  });
-
   const lifecycle = async (hostId: string, step: "suspend" | "resume") => {
     const host = requireHost(bb, hostId);
     const { provider, machine } = providerOf(bb, host);
@@ -104,14 +95,6 @@ export function provideMachines(bb: PluginServerApi): void {
   };
   bb.implement(machines.suspend, ({ hostId }) => lifecycle(hostId, "suspend"));
   bb.implement(machines.resume, ({ hostId }) => lifecycle(hostId, "resume"));
-
-  bb.implement(machines.delete, async ({ hostId }) => {
-    if (hostId === bb.server.hostId) {
-      const message = "The server's own machine cannot be removed";
-      throw new ApiError(400, "primary_host_removal_refused", message);
-    }
-    await destroyMachine(bb, requireHost(bb, hostId));
-  });
 
   bb.onDispose(
     runners.onConnected((hostId) => bb.emit(machines.connected, { hostId })),

@@ -1,7 +1,11 @@
-import type { PluginServerApi } from "@bb/plugin";
+import {
+  interactions,
+  projects,
+  threads,
+  type PluginServerApi,
+} from "@bb/plugin";
 import * as domain from "@bb/domain";
 import {
-  publicApiRoutes,
   THREAD_EVENT_LIST_PAGE_SIZE,
   type ThreadWithIncludesResponse,
 } from "@bb/server-contract";
@@ -38,7 +42,6 @@ import {
 } from "@bb/server-kit/threads/thread-display";
 import type { TimelinePage } from "./timeline-pages.js";
 import { createTimelineReader, type TimelineDisplay } from "./timeline.js";
-import { typedApi, type ApiApp } from "@bb/server-kit/http/api";
 import {
   invalidRequest,
   notFound,
@@ -49,12 +52,8 @@ const DEFAULT_SEGMENT_LIMIT = 20;
 const MAX_SEGMENT_LIMIT = 100;
 const MAX_EVENT_WAIT_MS = 30_000;
 
-function integer(value: string | undefined) {
-  return value === undefined ? undefined : Number(value);
-}
-
-function positive(value: string | undefined, name: string, fallback: number) {
-  const parsed = integer(value) ?? fallback;
+function positive(value: number | undefined, name: string, fallback: number) {
+  const parsed = value ?? fallback;
   if (parsed <= 0) throw invalidRequest(`${name} must be positive`);
   return parsed;
 }
@@ -64,13 +63,8 @@ function bounded(value: number, name: string, max: number) {
   throw invalidRequest(`${name} must be less than or equal to ${max}`);
 }
 
-export function registerThreadReadRoutes(
-  app: ApiApp,
-  bb: PluginServerApi,
-): void {
-  const { get, post } = typedApi(app);
+export function implementThreadReads(bb: PluginServerApi): void {
   const { db } = bb;
-  const { threads, projects } = publicApiRoutes;
   const timelines = createTimelineReader(db);
   const eventWaiters = new Map<string, Set<() => void>>();
 
@@ -97,8 +91,8 @@ export function registerThreadReadRoutes(
     });
   }
 
-  function requireThread(c: { req: { param(name: "id"): string } }) {
-    const thread = store.findThreadListRow(db, c.req.param("id"));
+  function requireThread(threadId: string) {
+    const thread = store.findThreadListRow(db, threadId);
     if (thread?.deletedAt === null) return thread;
     throw threadNotFound();
   }
@@ -130,7 +124,7 @@ export function registerThreadReadRoutes(
 
   function promptHistory(
     scope: { projectId: string } | { threadId: string },
-    limit: string | undefined,
+    limit: number | undefined,
     queued: domain.PromptHistoryEntry[],
   ): domain.PromptHistoryEntry[] {
     const max = domain.PROMPT_HISTORY_ENTRY_LIMIT;
@@ -143,37 +137,37 @@ export function registerThreadReadRoutes(
     return domain.takeVisiblePromptHistoryEntries({ entries, limit: wanted });
   }
 
-  get(projects.sidebarBootstrap, (c) => {
+  bb.implement(projects.sidebar, () => {
     const personal = requireProject(db, domain.PERSONAL_PROJECT_ID);
     const listed = [personal, ...listStandardProjects(db)];
     const [personalProject, ...rest] = listProjectsWithThreads(bb, listed);
     const sections = listThreadSections(db);
-    return c.json({ sections, projects: rest, personalProject });
+    return { sections, projects: rest, personalProject };
   });
 
-  get(projects.defaultExecutionOptions, (c) => {
-    const { id } = requireProject(db, c.req.param("id"));
-    return c.json(getProjectExecutionDefaults(db, id));
+  bb.implement(projects.defaultExecutionOptions, ({ projectId }) => {
+    const { id } = requireProject(db, projectId);
+    return getProjectExecutionDefaults(db, id);
   });
 
-  get(projects.promptHistory, (c, query) => {
-    const { id: projectId } = requireProject(db, c.req.param("id"));
-    return c.json(promptHistory({ projectId }, query?.limit, []));
+  bb.implement(projects.promptHistory, (input) => {
+    const { id: projectId } = requireProject(db, input.projectId);
+    return promptHistory({ projectId }, input.limit, []);
   });
 
-  get(threads.list, (c, query = {}) => {
+  bb.implement(threads.list, (query) => {
     const { sectionId } = query;
-    if (sectionId !== undefined && query.unsectioned === "true") {
+    if (sectionId !== undefined && query.unsectioned === true) {
       throw invalidRequest("sectionId and unsectioned cannot be used together");
     }
     if (query.projectId !== undefined) requireProject(db, query.projectId);
     if (sectionId !== undefined) requireThreadSection(db, sectionId);
     if (query.limit !== undefined) positive(query.limit, "limit", 1);
     const rows = store.listThreadRows(db, query);
-    return c.json(toThreadListEntries(bb, rows));
+    return toThreadListEntries(bb, rows);
   });
 
-  get(threads.search, (c, query) => {
+  bb.implement(threads.search, (query) => {
     const text = query.query.trim();
     if (text.replaceAll(/\s/gu, "").length < 2) {
       throw invalidRequest(
@@ -191,10 +185,10 @@ export function registerThreadReadRoutes(
     );
     const found = searchThreads(db, text, limit);
     const active = searchGroup(found.active);
-    return c.json({ active, archived: searchGroup(found.archived) });
+    return { active, archived: searchGroup(found.archived) };
   });
 
-  post(threads.resolveMentions, (c, payload) => {
+  bb.implement(threads.resolveMentions, (payload) => {
     const threadIds = [...new Set(payload.threadIds)];
     const rows = store.listThreadMentionRows(db, threadIds);
     const resolved = threadIds.flatMap((threadId) => {
@@ -207,12 +201,12 @@ export function registerThreadReadRoutes(
       const label = named ?? `Thread ${threadId.slice(0, 8)}`;
       return [{ threadId, projectId, label }];
     });
-    return c.json(resolved);
+    return resolved;
   });
 
-  get(threads.get, (c, query) => {
-    const thread = requireThread(c);
-    const includes = new Set(query?.include?.split(","));
+  bb.implement(threads.get, ({ threadId, include }) => {
+    const thread = requireThread(threadId);
+    const includes = new Set(include?.split(","));
     const response: ThreadWithIncludesResponse = toThreadResponse(bb, thread);
     const { environmentId } = thread;
     const environment =
@@ -226,17 +220,17 @@ export function registerThreadReadRoutes(
       response.host = host === undefined ? null : hostResponse(bb, host);
       response.environmentHostName = findHostName(db, hostId);
     }
-    return c.json(response);
+    return response;
   });
 
-  get(threads.childSummary, (c) =>
-    c.json(store.threadChildSummary(db, requireThread(c).id)),
+  bb.implement(threads.childSummary, ({ threadId }) =>
+    store.threadChildSummary(db, requireThread(threadId).id),
   );
 
-  get(threads.timeline, (c, query = {}) => {
-    const thread = requireThread(c);
+  bb.implement(threads.timeline, ({ threadId, ...query }) => {
+    const thread = requireThread(threadId);
     const segmentLimit = bounded(
-      integer(query.segmentLimit) ?? DEFAULT_SEGMENT_LIMIT,
+      query.segmentLimit ?? DEFAULT_SEGMENT_LIMIT,
       "segmentLimit",
       MAX_SEGMENT_LIMIT,
     );
@@ -250,98 +244,94 @@ export function registerThreadReadRoutes(
         : {
             kind: "older",
             segmentLimit,
-            beforeCursor: { anchorSeq: Number(beforeAnchorSeq), anchorId },
+            beforeCursor: { anchorSeq: beforeAnchorSeq, anchorId },
           };
-    const response = timelines.timeline(thread, {
+    return timelines.timeline(thread, {
       ...timelineDisplay(thread),
       page,
-      includeNestedRows: query.includeNestedRows === "true",
-      summaryOnly: query.summaryOnly === "true",
+      includeNestedRows: query.includeNestedRows === true,
+      summaryOnly: query.summaryOnly === true,
       eventBudget: domain.defaultFeatureFlags.timelineWindowEventBudget,
-      afterSequence: integer(query.afterSequence),
+      afterSequence: query.afterSequence,
     });
-    return c.json(response);
   });
 
-  get(threads.timelineTurnSummaryDetails, (c, query) => {
-    const thread = requireThread(c);
-    const details = timelines.turnDetails(thread, {
+  bb.implement(threads.timelineTurnSummaryDetails, (query) => {
+    const thread = requireThread(query.threadId);
+    const { turnId, sourceSeqStart, sourceSeqEnd, beforeCursor } = query;
+    const range = { turnId, sourceSeqStart, sourceSeqEnd, beforeCursor };
+    return timelines.turnDetails(thread, {
       ...timelineDisplay(thread),
-      turnId: query.turnId,
-      sourceSeqStart: Number(query.sourceSeqStart),
-      sourceSeqEnd: Number(query.sourceSeqEnd),
-      beforeCursor: query.beforeCursor,
+      ...range,
     });
-    return c.json(details);
   });
 
-  get(threads.output, (c) =>
-    c.json({ output: events.lastOutput(db, requireThread(c).id) }),
-  );
+  bb.implement(threads.output, ({ threadId }) => ({
+    output: events.lastOutput(db, requireThread(threadId).id),
+  }));
 
-  get(threads.events, (c, query = {}) => {
+  bb.implement(threads.events, ({ threadId, ...query }) => {
     const pageSize = THREAD_EVENT_LIST_PAGE_SIZE;
     const rows = events.listEvents(db, {
-      threadId: requireThread(c).id,
-      after: integer(query.afterSeq),
-      before: integer(query.beforeSeq),
+      threadId: requireThread(threadId).id,
+      after: query.afterSeq,
+      before: query.beforeSeq,
       limit: Math.min(positive(query.limit, "limit", pageSize), pageSize),
       order: query.order,
       types: query.types?.split(","),
     });
-    return c.json(rows.map(events.toThreadEventRow));
+    return rows.map(events.toThreadEventRow);
   });
 
-  get(threads.eventWait, async (c, query) => {
-    const threadId = requireThread(c).id;
+  bb.implement(threads.nextEvent, async (query) => {
+    const threadId = requireThread(query.threadId).id;
     const type = domain.threadEventTypeSchema.safeParse(query.type);
     if (!type.success) throw invalidRequest("Invalid event type");
     const types = [type.data];
-    const after = integer(query.afterSeq);
-    const waitMs = integer(query.waitMs) ?? MAX_EVENT_WAIT_MS;
+    const after = query.afterSeq;
+    const waitMs = query.waitMs ?? MAX_EVENT_WAIT_MS;
     const deadline = Date.now() + Math.min(waitMs, MAX_EVENT_WAIT_MS);
     for (;;) {
       const next = { threadId, after, types, limit: 1 };
       const [match] = events.listEvents(db, next);
-      if (match !== undefined) return c.json(events.toThreadEventRow(match));
+      if (match !== undefined) return events.toThreadEventRow(match);
       const remaining = deadline - Date.now();
-      if (remaining <= 0) return c.body(null, 204);
+      if (remaining <= 0) return null;
       await nextThreadChange(threadId, remaining);
     }
   });
 
-  get(threads.defaultExecutionOptions, (c) => {
-    const execution = findTurnExecution(db, requireThread(c), {});
-    return c.json(execution && recordedExecution(execution));
+  bb.implement(threads.defaultExecutionOptions, ({ threadId }) => {
+    const execution = findTurnExecution(db, requireThread(threadId), {});
+    return execution && recordedExecution(execution);
   });
 
-  get(threads.queuedMessages, (c) => {
-    const rows = queue.listQueuedMessages(db, requireThread(c).id);
-    return c.json(rows.map(queue.toThreadQueuedMessage));
+  bb.implement(threads.listQueuedMessages, ({ threadId }) => {
+    const rows = queue.listQueuedMessages(db, requireThread(threadId).id);
+    return rows.map(queue.toThreadQueuedMessage);
   });
 
-  get(threads.interactions, (c) => {
-    const rows = pending.listActiveInteractions(db, requireThread(c).id);
-    return c.json(rows.map(pending.toPendingInteraction));
+  bb.implement(interactions.list, ({ threadId }) => {
+    const rows = pending.listActiveInteractions(db, requireThread(threadId).id);
+    return rows.map(pending.toPendingInteraction);
   });
 
-  get(threads.interaction, (c) => {
-    const threadId = requireThread(c).id;
-    const id = c.req.param("interactionId");
-    const found = pending.getPendingInteraction(db, id);
+  bb.implement(interactions.get, (input) => {
+    const threadId = requireThread(input.threadId).id;
+    const found = pending.getPendingInteraction(db, input.interactionId);
     if (found === undefined || found.threadId !== threadId) {
       throw notFound("Interaction not found");
     }
-    return c.json(pending.toPendingInteraction(found));
+    return pending.toPendingInteraction(found);
   });
 
-  get(threads.promptHistory, (c, query) => {
-    const threadId = requireThread(c).id;
+  bb.implement(threads.promptHistory, (input) => {
+    const threadId = requireThread(input.threadId).id;
     const queued = queue.listQueuedMessages(db, threadId).map((row) => ({
       id: `queued-message:${row.id}`,
       createdAt: row.createdAt,
       input: queue.parseQueuedContent(row),
     }));
-    return c.json(promptHistory({ threadId }, query?.limit, queued));
+    return promptHistory({ threadId }, input.limit, queued);
   });
 }

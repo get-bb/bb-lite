@@ -160,11 +160,11 @@ export async function refreshWorkspaceMetadata(
 }
 
 function boundedLimit(
-  value: string | undefined,
+  value: number | undefined,
   fallback: number,
   max: number,
 ) {
-  const limit = Math.min(Number(value ?? fallback), max);
+  const limit = Math.min(value ?? fallback, max);
   if (limit <= 0) throw invalidRequest("limit must be a positive integer");
   return limit;
 }
@@ -172,7 +172,7 @@ function boundedLimit(
 export function branchSearch(search: {
   query?: string;
   selectedBranch?: string;
-  limit?: string;
+  limit?: number;
 }) {
   const { selectedBranch } = search;
   const query = search.query?.trim() || undefined;
@@ -186,8 +186,7 @@ export function searchWorkspacePaths(
   workspace: { hostId: string; path: string },
   query: contract.EnvironmentPathsQuery,
 ): Promise<contract.WorkspacePathListResponse> {
-  const includeFiles = query.includeFiles === "true";
-  const includeDirectories = query.includeDirectories === "true";
+  const { includeFiles, includeDirectories } = query;
   if (!includeFiles && !includeDirectories) {
     throw invalidRequest("At least one path kind must be included");
   }

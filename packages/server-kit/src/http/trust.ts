@@ -1,6 +1,8 @@
 import type { GateIdentity, Principal } from "@bb/plugin";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { IncomingHttpHeaders } from "node:http";
-import type { UserRole } from "@bb/domain";
+import { OWNER_USER_ID, type UserRole } from "@bb/domain";
+import { currentActor } from "../auth/actor.js";
 import { ApiError, forbidden, notFound } from "./errors.js";
 
 export interface TrustedUser {
@@ -264,10 +266,44 @@ export function principalOf(context: { req: { raw: Request } }): Principal {
   return principal;
 }
 
-export function requireUser(context: {
-  req: { raw: Request };
-}): Extract<Principal, { kind: "user" }> {
-  const principal = principalOf(context);
+interface RequestScope {
+  principal: Principal;
+  origin: string;
+  sender: string | null;
+}
+
+const requests = new AsyncLocalStorage<RequestScope>();
+
+export function withRequest<T>(scope: RequestScope, work: () => T): T {
+  return requests.run(scope, work);
+}
+
+export function requestOrigin(): string | null {
+  return requests.getStore()?.origin ?? null;
+}
+
+export function senderOrigin(): string | null {
+  return requests.getStore()?.sender ?? null;
+}
+
+export function currentPrincipal(): Principal {
+  const scope = requests.getStore();
+  if (scope !== undefined) return scope.principal;
+  const actor = currentActor();
+  if (actor === null) {
+    return {
+      kind: "user",
+      userId: OWNER_USER_ID,
+      role: "owner",
+      implicit: true,
+    };
+  }
+  const { userId, role } = actor;
+  return { kind: "user", userId, role, implicit: false };
+}
+
+export function requireUser(): Extract<Principal, { kind: "user" }> {
+  const principal = currentPrincipal();
   if (principal.kind === "user") return principal;
   if (principal.kind === "runner") {
     throw forbidden("Machine credentials cannot do this");
@@ -275,11 +311,8 @@ export function requireUser(context: {
   throw new ApiError(401, "unauthenticated", "Sign in to use this bb");
 }
 
-export function requireOwner(
-  context: { req: { raw: Request } },
-  refusal: string,
-): void {
-  const principal = principalOf(context);
+export function requireOwner(refusal: string): void {
+  const principal = currentPrincipal();
   if (principal.kind === "user" && principal.role === "owner") return;
   throw forbidden(refusal);
 }
