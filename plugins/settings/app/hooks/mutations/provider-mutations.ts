@@ -11,6 +11,9 @@ export function useSetProviderEnabled() {
       callOp(sessions.updateProvider, args),
     onSuccess: (catalog) => {
       queryClient.setQueryData(qk.providerCatalog(), catalog);
+      void queryClient.invalidateQueries({
+        queryKey: ["sessions", "provider-status"],
+      });
       return invalidateSystemConfig({ queryClient });
     },
   });
