@@ -1,12 +1,28 @@
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { scratch } from "../../../apps/server/test/helpers.js";
 import { createThreadServer } from "../../../apps/server/test/thread-harness.js";
 import { storageRetention } from "../contract.js";
 import { nodeFs, storageOps } from "../runner.js";
 
 const DAY = 86_400_000;
+
+vi.mock("node:timers/promises", async (original) => ({
+  ...(await original<typeof import("node:timers/promises")>()),
+  setTimeout: (
+    ms: number,
+    value: unknown,
+    options?: { signal?: AbortSignal },
+  ) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve(value), ms);
+      options?.signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(options.signal?.reason);
+      });
+    }),
+}));
 
 type Sent = { name: string; input: never };
 
@@ -108,6 +124,64 @@ it("previews, saves and runs the retention policy", async () => {
   expect(remaining).toEqual([]);
   const state = await server.cli("retention");
   expect(state.json().lastRun).toMatchObject({ deletedCount: 2 });
+});
+
+it("archives and deletes only threads past the policy age", async () => {
+  const server = await storageServer();
+  const old = await server.idle(await server.spawn());
+  const pinned = await server.idle(await server.spawn());
+  await server.http("POST", `/threads/${pinned}/pin`, {});
+  const parent = await server.idle(await server.spawn());
+  const child = await server.idle(
+    await server.spawn({ parentThreadId: parent }),
+  );
+  server.clock.now += 10 * DAY;
+  const fresh = await server.idle(await server.spawn());
+  await server.cli(
+    "retention",
+    "--archive-after",
+    "7",
+    "--delete-after",
+    "3",
+    "--save",
+    "--yes",
+  );
+  const archivedAt = (id: string) => server.thread(id).archivedAt;
+
+  expect(await server.op("run")).toMatchObject({ failedCount: 0 });
+  for (const id of [old, parent, child])
+    expect(archivedAt(id)).toBe(server.clock.now);
+  for (const id of [pinned, fresh]) expect(archivedAt(id)).toBeNull();
+
+  server.clock.now += 2 * DAY;
+  await server.http("POST", `/threads/${fresh}/archive-all`, {});
+  expect(await server.op("run")).toMatchObject({ deletedCount: 0 });
+
+  server.clock.now += 2 * DAY;
+  await server.op("run");
+  const deleted = (id: string) => server.thread(id)?.deletedAt !== null;
+  for (const id of [old, parent, child]) expect(deleted(id)).toBe(true);
+  for (const id of [pinned, fresh]) expect(deleted(id)).toBe(false);
+});
+
+it("runs the retention policy on its hourly schedule", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+  vi.setSystemTime(new Date(2026, 0, 1, 10, 0, 30));
+  try {
+    const server = await storageServer();
+    const old = await server.idle(await server.spawn());
+    server.clock.now += 31 * DAY;
+    await server.cli("retention", "--archive-after", "30", "--save", "--yes");
+    await vi.advanceTimersByTimeAsync(58 * 60_000);
+    expect(server.thread(old).archivedAt).toBeNull();
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    await server.settle();
+    expect(server.thread(old).archivedAt).toBe(server.clock.now);
+    const state = await server.cli("retention");
+    expect(state.json().lastRun).toMatchObject({ archivedCount: 1 });
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("scans thread storage and clears orphans and archived files", async () => {
