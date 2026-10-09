@@ -9,6 +9,7 @@
     "description": "Write, check, inspect and install bb plugins.",
     "icon": "Plug02",
     "server": "./server.ts",
+    "runner": "./runner.ts",
     "skills": [
       "skills"
     ]

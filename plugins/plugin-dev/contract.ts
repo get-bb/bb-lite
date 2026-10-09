@@ -102,6 +102,44 @@ export function printPortReport(findings: readonly PortFinding[]): string {
   return lines.join("\n");
 }
 
+export const machinePartsSchema = z.array(
+  z.object({
+    id: z.string(),
+    tier: z.enum(["policy", "installed", "product"]),
+    implements: z.array(z.string()),
+  }),
+);
+export type MachineParts = z.infer<typeof machinePartsSchema>;
+
+export const upgradeChangeSchema = z.object({
+  member: z.string(),
+  kind: z.enum(["breaking", "additive"]),
+  change: z.string(),
+});
+export type UpgradeChange = z.infer<typeof upgradeChangeSchema>;
+
+export const upgradeReportSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  range: z.object({ before: z.string(), after: z.string() }),
+  uses: z.array(z.string()),
+  changes: z.array(upgradeChangeSchema),
+});
+export type UpgradeReport = z.infer<typeof upgradeReportSchema>;
+
+export function printUpgrade(report: UpgradeReport): string {
+  const { from, to, range, uses, changes } = report;
+  const head = `engines.bb ${range.before} -> ${range.after} (plugin API ${from} -> ${to})`;
+  if (changes.length === 0) {
+    return `${head}\nNone of the ${uses.length} members this plugin uses changed.`;
+  }
+  const rows = changes.map(
+    ({ member, kind, change }) => `  ${kind}  ${member}: ${change}`,
+  );
+  const title = `Changed members this plugin uses (${changes.length}):`;
+  return [head, title, ...rows].join("\n");
+}
+
 export const pluginDev = contract("plugin-dev", {
   inspect: op({
     input: z.object({
@@ -109,6 +147,10 @@ export const pluginDev = contract("plugin-dev", {
         .string()
         .optional()
         .describe("An operation, event or slot name, or a prefix of one"),
+      machine: z
+        .string()
+        .optional()
+        .describe("A machine's host id, to list its runner parts instead"),
     }),
     output: z.string(),
     doors: {
@@ -116,6 +158,32 @@ export const pluginDev = contract("plugin-dev", {
         path: "dev inspect",
         summary: "List the live operations, slots and hooks",
         positionals: ["name"],
+      },
+    },
+  }),
+  machineParts: op({
+    input: z.object({}),
+    output: machinePartsSchema,
+    internal: true,
+  }),
+  upgrade: op({
+    input: z.object({
+      ...located,
+      to: z
+        .string()
+        .optional()
+        .describe("The plugin API version to move to; this bb's by default"),
+    }),
+    output: upgradeReportSchema,
+    kind: "write",
+    allow: "owner",
+    doors: {
+      cli: {
+        path: "dev upgrade",
+        summary:
+          "Move a plugin's engines.bb to a newer plugin API and list what it uses that changed",
+        positionals: ["path"],
+        print: printUpgrade,
       },
     },
   }),

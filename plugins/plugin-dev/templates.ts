@@ -43,6 +43,7 @@ export const ${constant} = contract("${id}", {
       cli: {
         path: "${id} greet",
         summary: "Greet someone",
+        description: "Prints a greeting and counts it.",
         positionals: ["name"],
       },
       agent: {
@@ -54,13 +55,16 @@ export const ${constant} = contract("${id}", {
   greetings: live(z.number()),
 });
 `,
-    "server.ts": `import type { PluginServerApi } from "@bb/plugin";
+    "server.ts": `import { fail, type PluginServerApi } from "@bb/plugin";
 import { ${constant} } from "./contract.js";
 
 export default function plugin(bb: PluginServerApi): void {
   const greetings = bb.provide(${constant}.greetings, 0);
 
   bb.implement(${constant}.greet, ({ name }, { caller }) => {
+    if (name.trim() === "") {
+      fail("invalid", "Say who to greet", { hint: "bb ${id} greet <name>" });
+    }
     greetings.update((count) => count + 1);
     const through = caller.door === "agent" ? " (asked by an agent)" : "";
     return \`Hello, \${name}!\${through}\`;

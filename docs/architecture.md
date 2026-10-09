@@ -443,16 +443,19 @@ hold one kernel.
 
 - **Contracts** (`contract.ts`). `contract(id, { name: op | event | slot | service | live })` names
   each member `<id>.<name>`. An operation has zod `input` and `output`, a `kind` (`read` | `write`),
-  what a hook may do (`observe` | `rewrite` | `answer`), who may call it (`member` | `owner`; work with
-  no actor passes), `secret` field names and `doors`. `service<T>()` is a pick-one slot holding an
-  object. `live(schema)` is a value the server holds.
+  what a hook may do (`observe` | `rewrite` | `answer`), who may call it (`allow`: `member` | `user` |
+  `owner`; work with no actor passes), `secret` field names, an optional `deprecated` note and `doors`
+  (`agent`, `cli`, `http`). `service<T>()` is a pick-one slot holding an object. `live(schema)` is a
+  value the server holds.
 - **Verbs.** A plugin's `bb` has `implement`, `call`, `on`, `emit`, `add`, `wrap`, `read`, `entries`,
   `find`, `pick`, `use`, `provide`, `value`, `changed`. One plugin implements an operation; a second
   `implement` throws. Hooks run by tier (`policy`, `installed`, `product`: external plugins are
   `installed`, in-repo and core ones `product`), then in registration order, and the implementation is
   the last link. `on(op, matcher, hook)` runs the hook only when every matcher field equals the
   input's. A hook is `(input, next)`; `next.origin` is the caller. The implementation receives
-  `{ caller, signal }`.
+  `{ caller, signal }`. `implement(op, fn, { offered(context) })` hides the operation's agent tool
+  from a session whose `DoorContext` (thread, project, machine, provider) it returns false for, in
+  addition to the door's own `enabledFor`.
 - **What a hook may do** is the operation's `hooks`: `observe` ignores what the hook passes to `next`
   and returns; `rewrite` lets it change both but it must call `next`; `answer` also lets it return
   without `next` or `deny(reason)`, which rejects with `OpError` `denied` (HTTP 403 `denied_by_plugin`,
@@ -460,6 +463,14 @@ hold one kernel.
   10 s, is logged and skipped (the result beneath it stands), unless it was registered `.failClosed()`
   (only on `answer` operations), which refuses the call. The implementation's own error passes through
   unchanged.
+- **Failures.** `fail(code, message, { reason, hint })` (`kernel.ts`) is how an implementation
+  refuses on purpose: `not_found`, `conflict`, `unavailable` or `invalid` (`invalid_input`). It
+  becomes an `OpError` carrying the plugin; a hook may throw it only on an `answer` operation. Over
+  HTTP (`server-kit/src/http/errors.ts`) `denied` is 403 `denied_by_plugin`, `forbidden` 403,
+  `invalid_input` 400 `invalid_request`, `not_found` 404, `conflict` 409, `unimplemented` 501,
+  `unavailable` 503 and `invalid_output` 500 `internal_error`; `reason`, when given, replaces the
+  error code in the body and `hint` goes into `details` next to `plugin`. A CLI door prints the same
+  code and hint.
 - **Slots.** `add` appends an entry and returns its remover. `read` returns items in order; a keyed slot
   returns one per key and `find(slot, key)` the winner; `pick` / `use` return the winner of a pick-one
   slot (or null / throw). The winner is the `installed` entry over the `product` one, then the later
@@ -467,7 +478,11 @@ hold one kernel.
   `entries` adds the owning plugin. Results are cached until the slot changes; `watch` notifies.
 - **Live values.** `provide(live, initial)` returns `{ get, set, update }`; setting it, or
   `changed(op | live)`, pushes a `plugin-signal` `{pluginId: "kernel", channel: "changed", {name}}` to
-  every socket. Apps refetch `useOp` / `useLive` for that name.
+  every socket. Apps refetch `useOp` / `useLive` for that name. Each of these takes an audience
+  `{ userId }`: a live value then holds a value for that person (`get({ userId })` falls back to the
+  shared one), and the signal goes only to that person's sockets. `emit(event, payload, { userId })`
+  also sends the event itself to that person's apps (channel `emitted`, `{name, payload}`); an event
+  with no `userId` stays on the server.
 - **Unload.** Everything a plugin registered through its `bb` is reversed when it is disposed, and a
   displaced slot winner or freed operation is available again. The verbs of a disposed plugin throw.
 - **Caller.** `currentCaller()` (`kernel/caller.ts`) is the actor plus an origin: `door` (`agent` when
@@ -477,7 +492,9 @@ hold one kernel.
   owner-only operations, nor those marked `allow: "user"` (changing machines, settings, users,
   providers or the machine environment), through REST or by name. A
   plugin's `bb.call` and its CLI handlers add the plugin to `via`. The app, the client and the
-  native CLI send `x-bb-door`. An agent's tool call runs as the user who last wrote in that thread.
+  native CLI send `x-bb-door`; on the app door the caller also has `app`, the plugin named by the
+  `x-bb-app-plugin` header (a claim, not a check). An agent's tool call runs as the user who last
+  wrote in that thread.
 - **Audit.** The kernel writes one `audit_log` row (third schema step) per `write` operation, and per
   read that a hook answered or refused or that failed: time, operation, user, role, door, thread,
   `via`, the hooks that acted (`rewrote-input`, `rewrote-output`, `answered`, `denied`, `failed`),
@@ -491,23 +508,35 @@ hold one kernel.
   whose inputs are not fully described by a schema are) with the JSON body as input (an empty body is
   `{}`) and answers `{ok, result}`; a live value's name answers its value. An implementation's plain
   `Error` is 500 `handler_error` with its message. `GET /api/v1/kernel` is the inspection: operations
-  with owner, doors and hook chain, events with listeners, slots, live values, plugins.
+  with owner, doors and hook chain, events with listeners, slots, live values, plugins, contracts.
+  `plugins.contracts({ contractId? })` describes each registered contract's members (the same
+  description the API lock holds), `plugins.describe({ id })` adds `uses` (what the plugin declares,
+  implements, hooks, listens to, fills and provides), and in the app `describeApp(contractId?)` does
+  the same for the browser's kernel.
 - **Agent.** An operation with `doors.agent` (`name`, `description`, `instructions`, `presentation`,
   `enabledFor(context)`) is offered to sessions as a dynamic tool (`plugins/doors.ts`). The tool's
   input schema is the operation's. A string result is returned as is, anything else as JSON;
   `toolError(text)` returns `text` as a failed result.
-- **CLI.** Operations with `doors.cli` (`path`, `summary`, `positionals`, `print`) owned by a plugin
-  become that plugin's `bb <first word> …` command: flags come from the input schema (camelCase to
-  kebab, booleans are switches, arrays repeat, objects take JSON, `cwd` is filled from the caller),
-  `--json` prints the output. A plugin that also calls `bb.cli.register` gets both: its own commands
-  and the door commands.
-- **Machines.** `bb.runners.call(hostId, op, input)` calls an operation a runner part implements
-  (`Runner.callOp`), validating input and output on the server.
+- **CLI.** Operations with `doors.cli` owned by a plugin become that plugin's `bb <first word> …`
+  command (`server-kit/src/doors.ts`): flags come from the input schema (camelCase to kebab, booleans
+  are switches, arrays repeat, objects take JSON, `cwd` is filled from the caller), `--json` prints
+  the output. The door may add `description`, command `aliases` (same first word), `positionals`,
+  per-field `flags` (`aliases`, `split`, `placeholder`, `duration` with `min`/`max`/`units`), `from`
+  (fill a field from the CLI's `cwd`, `projectId`, `threadId` or `hostId`, the last resolved from the
+  thread when not given), `constraints` (`exactly-one`, `at-most-one`, `at-least-one`, `requires`),
+  `print(output, input)` and `exitCode(output, input)`. An `OpError` prints its `reason` (or code)
+  and `hint`. A plugin that also calls `bb.cli.register` gets both: its own commands and the door
+  commands.
+- **Machines.** `bb.runners.call(hostId, op, input, { timeoutMs, signal })` calls an operation a
+  runner part implements (`Runner.callOp`), validating input and output on the server and passing
+  the current caller along. `timeoutMs` overrides the call's budget. Aborting `signal` rejects the
+  call with the signal's reason and sends `Runner.cancelOp({ callId })`, which aborts the signal the
+  runner-side implementation received.
 
 ### Core plugins (server)
 
-The server's own features are plugins in `plugins/`, listed as `corePlugins` in
-`profiles/default/server.ts` and loaded by the same loader as every other plugin: `identity`,
+The server's own features are plugins in `plugins/`, named in `CORE` (`profiles/default/profiles.ts`,
+with the five core app ids), exported as `corePlugins` from `profiles/default/server.ts` and loaded by the same loader as every other plugin: `identity`,
 `settings`, `projects`, `machines`, `sessions`, `threads`, `environments`, `terminals`, `workspace`,
 `audit-log`. Each is a directory with a manifest and a `server.ts` that receives the
 ordinary `PluginServerApi`. `apps/server` keeps only what loads them (kernel scope `plugins`: the
@@ -549,18 +578,26 @@ ordinary `PluginServerApi`. `apps/server` keeps only what loads them (kernel sco
   so actors, error classes and the database handle are shared.
 
 What core offers to plugins is `packages/plugin/src/core-contracts.ts`: `threads` (the writes,
-`get`, `list`, `output`, `events` and the lifecycle events), `sessions` (`instructions`, `env`, and
-the slots `provider`, `mention`, `inference`, `titleFallback`), `interactions`, `files`, `projects`,
-`machines` (`list`, the `access` service), `users`, `sections`, `environments.kind`,
-`server.publicUrl`, `server.authenticator`, `plugins` (`inspect`, `install`, `uninstall`, `reload`,
-the agent-tool operations), `audit.list`. Every thread write goes through its operation, so routes
+`get`, `list`, `output`, `events`, `fork` and the lifecycle events), `sessions` (`instructions`,
+`env`, `transcribe`, and the slots `provider`, `mention`, `inference`, `titleFallback`,
+`transcription`), `interactions`, `files`, `projects`, `machines` (`list`, the `access` service),
+`users`, `sections`, `terminals`, `settings`, `environments.kind`, `appearance` (the `theme` slot,
+`themeCss`), `server` (`publicUrl`, `authenticator`, `config`, `experiments`), `plugins` (`inspect`,
+`contracts`, `describe`, `install`, `uninstall`, `reload`, the agent-tool operations),
+`audit.list`. Every thread write goes through its operation, so routes
 and plugins share one hook chain.
 
 ### Plugin host (server)
 
-- **Loading.** `profiles/default/server.ts` lists `{directory, server}` rows for in-repo plugins;
-  `BB_PROFILE` (`default`, `headless`, `minimal` in `profiles/default/profiles.ts`) picks which of
-  them load. External directories come from `<dataDir>/config.json`
+- **Loading.** In-repo plugins are registered from their manifests: `pnpm gen:builtins`
+  (`scripts/gen-builtins.mjs`) reads every `plugins/*/package.json` `bb` block and writes
+  `profiles/default/builtins.server.ts`, `builtins.runner.ts`, `builtins.app.ts` and the Tailwind
+  `@source` list; `--check` (run by `apps/server/test/profiles.test.ts`) fails when they are stale.
+  `profiles/default/profiles.ts` names the `CORE` ids, the ids `LOADED_FIRST` (providers,
+  environment kinds, `thread-list`, `navigation`; the rest follow sorted by id) and the profiles;
+  `BB_PROFILE` (`default`, `headless`, `minimal`) picks which add-ons load. A manifest's
+  `bb.enabledByDefault: false` leaves a plugin off until someone enables it (the `plugins` table row,
+  when present, wins). External directories come from `<dataDir>/config.json`
   `plugins: [{path, enabled, watch}]`. An external server entry is bundled by esbuild to
   `<dataDir>/plugins/<id>/.cache/server.<hash>.mjs` and imported; the app entry is bundled in memory
   and served at `/api/v1/plugins/<id>/app.js|app.css?h=`. An external plugin with a builtin's id
@@ -582,7 +619,8 @@ and plugins share one hook chain.
 - **Lifecycle.** A server entry may register `bb.onStart(start)`. At boot every plugin's entry runs
   before any `start`; on a single reload `start` follows the entry. A function returned by `start`
   runs on dispose. Unloading at shutdown goes in reverse dependency order.
-- **State.** `enabled` is the `plugins` table row (default on) AND the config entry's `enabled`.
+- **State.** `enabled` is the `plugins` table row (default the manifest's `enabledByDefault`, which
+  defaults to on) AND the config entry's `enabled`; a core plugin is always enabled.
   Status is `disabled`, `error`, `needs-configuration` or `running`. Enable, disable and reload
   dispose the old instance (services aborted, `onDispose` hooks in reverse order, the kernel scope
   and the plugin database closed) and run the factory again, one change at a time. A failing plugin
@@ -594,8 +632,11 @@ and plugins share one hook chain.
   the physical name, so publishing and reading go through the kernel like any service.
 - **Storage.** KV rows in `plugin_kv`, non-secret settings in `plugin_settings`, secret settings as
   0600 files in `<dataDir>/plugins/<id>/secrets/`, the plugin's SQLite file at
-  `<dataDir>/plugins/<id>/data.db`. A setting defined with `{ scope: "user" }` is stored per
-  person as `<key>@<userId>` (a member may write their own); KV is one scope for the whole server.
+  `<dataDir>/plugins/<id>/data.db`. `bb.settings.define(descriptors, { scope })` takes a scope for
+  the group, and a descriptor may set its own: `workspace` (the default, one value for the server),
+  `user` (stored per person as `<key>@<userId>`; a member may write their own) or `project` (stored
+  as `<key>#<projectId>`). A per-user or per-project read falls back to the shared value; secrets are
+  always shared. KV is one scope for the whole server.
 - **Trust.** Every plugin route sits behind the server's trust guard. Any signed-in user or machine
   credential may call operations (each operation's `allow` decides further), a plugin's CLI and
   mention search; only an owner may enable, disable, reload, write settings or mint the plugin token.
@@ -614,26 +655,33 @@ and plugins share one hook chain.
 - `packages/runner/src/plugins.ts` gives every runner a kernel and the `runner` contract
   (`runner.provider`, a slot of `ProviderAdapter` keyed by id). The session manager reads providers
   from that slot on every call, so a provider can arrive or leave while the runner runs.
-- A plugin's `runner` entry is `(bb: PluginRunnerApi) => void`. In-repo ones are listed in
-  `profiles/default/runner.ts` and passed to `createLocalRunner` / `runRunner` as `parts`.
+- A plugin's `runner` entry is `(bb: PluginRunnerApi) => void`. In-repo ones come from the generated
+  `profiles/default/builtins.runner.ts`; `profiles/default/runner.ts` orders them (`LOADED_FIRST`,
+  then by id) and they are passed to `createLocalRunner` / `runRunner` as `parts`.
+- An operation a runner part implements is called from the server with `bb.runners.call` (see
+  Doors). The runner keeps an `AbortController` per call id, runs the implementation as the
+  server's caller, and `cancelOp(callId)` aborts it; an operation no part implements is a
+  `RunnerError` `unavailable`.
 - For an external plugin the server bundles the runner entry (`@bb/runner` and `@bb/plugin` resolve
   to the runner's own modules through `globalThis.__bbRunnerRuntime`) and calls
   `Runner.loadPlugins({plugins: [{id, hash, code}]})` on every connected runner when plugins change
   and when a runner connects. The runner writes each bundle under
   `<runner dataDir>/plugins/<id>/.cache/`, imports it, and unloads shipped parts that are no longer
   in the list. A failed part is reported and logged; the others load.
-- Providers are plugins: `plugins/provider-codex`, `provider-claude-code` and `provider-echo` each
+- Providers are plugins: `plugins/provider-codex`, `provider-claude-code`, `provider-pi` and
+  `provider-echo` each
   have a runner part that adds its adapter and a server part that adds a `ProviderDeclaration` to
   `sessions.provider` (name, logo, capabilities, reasoning levels, settings toggles). The echo plugin
   registers only under vitest or `BB_DEV_PROVIDERS=echo`. A provider's toggles are ordinary plugin
   settings of `provider-<id>`; the fourth schema step moves the old `providerSettings:*` rows there.
-- An environment kind added to `environments.kind` (`{id, displayName, icon, create(context),
-remove({hostId, path})}`) is a managed environment owned by its thread: `create` returns the path,
-  setup and teardown scripts run as for a worktree, `remove` replaces the runner's removal. The
-  `environments` core plugin adds its three built-in kinds to the same slot (with a `resolve` that
-  finds or creates the row and, for managed ones, a `materialize`), so a plugin that adds a kind with
-  a built-in's id replaces it: `project-default` on a git project then uses the plugin's
-  `git-worktree`.
+- An environment kind is an entry in `environments.kind` (`EnvironmentDefinition` in
+  `server-api.ts`: `id`, `displayName`, `description`, `icon`, `workspace`, `default`, `requires`,
+  `inputs` with `validate` and `place`, `create(context)`, `delete(context)`). The built-in kinds are
+  plugins too (`environment-project-checkout`, `environment-git-worktree`,
+  `environment-personal-workspace`; `environment-modal-sandbox` is an add-on), so a plugin that adds
+  a kind with a built-in's id replaces it. When no kind is chosen, the kinds with a `default` whose
+  `requires` the project meets are tried highest `default` first
+  (`server-kit/src/environments/kinds.ts`).
 
 ### App
 
@@ -681,13 +729,34 @@ remove({hostId, path})}`) is a managed environment owned by its thread: `create`
 
 `plugins/plugin-dev` adds `bb dev …` through CLI doors: `inspect [name]`, `new <id>`,
 `watch <dir>`, `validate <dir>` (manifest check plus what the source implements, hooks, calls, adds,
-and where it reaches Node built-ins, `fetch` or `process.env`), `types <dir>` (links the packages bb shares into the plugin's `node_modules` and writes a tsconfig), `install <git:url[#ref] | npm:spec | dir>` (fetched under
-`<dataDir>/plugins-src`). `fork <id> [path]` copies a builtin's directory
+and where it reaches Node built-ins, `fetch` or `process.env`), `types <dir>` (links the packages bb
+shares into the plugin's `node_modules` and writes a tsconfig), `port <dir>` (what a plugin written
+for the original bb calls and what each call is now), and
+`install <git:url[#ref][:subdir] | npm:pkg[@version] | dir>` (`plugin-dev.install`, fetched under
+`<dataDir>/plugins-src`; `--version <range>` resolves against git tags, with `--tag-prefix`, or
+npm; `--replace` swaps a plugin installed from the same place; a manifest whose `engines.bb` does
+not admit this bb is refused before it loads). `plugins/marketplace` reads plugin catalogs (the
+`catalogs` setting), installs through `plugin-dev.install`, records where each install came from
+and offers `bb marketplace search | list | install | updates | update | remove`.
+`fork <id> [path]` copies a builtin's directory
 (without `node_modules`, tests or caches), marks it `forkOf`, writes its types and loads it
 watched; a test forks every builtin and checks each copy runs. With `--as <new-id>` the copy is
 renamed (package, contract id, parts, CLI name, agent tool names) and runs beside the original. It ships the `bb-plugin-authoring` skill. Lint rule `bb/plugin-imports`
 keeps files under `plugins/` (tests excepted) from importing `@/…`, `@bb/server`, the profile, or
 another plugin's files other than its contract.
+
+The API is one version, `API_VERSION` in `packages/plugin/src/version.ts`, and one committed
+description, `packages/plugin/api.lock.json`: every contract exported by `@bb/plugin`,
+`@bb/plugin/app` and `@bb/runner`, member by member, with repeated shapes stored once under `shapes`.
+Members zod does not describe (slot entries, services, `z.custom` values) get their shape from the
+TypeScript checker (`packages/plugin/scripts/type-shapes.ts`), so the same source always writes the
+same lock. `pnpm api:lock` (`packages/plugin/scripts/api-lock.ts`) compares the code with the lock,
+lists each change as breaking or added (`compareApi` in `describe.ts`), and refuses to write unless
+the major version rose for a break or the minor version for an addition; `--rebase` rewrites the lock
+without comparing. A slot entry is judged by who writes each part: for a service (pick-one) the
+consumer calls it, so offering more is an addition; for a many-slot the plugin fills it, so an entry
+that takes more is one. `packages/plugin/test/api-lock.test.ts` fails when the lock and the code
+differ.
 
 ## CLI
 

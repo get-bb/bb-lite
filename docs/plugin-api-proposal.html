@@ -621,6 +621,11 @@
               <td>
                 One implementation shared by the server, each runner and the
                 browser. Hooks have a 10 s budget; guards can fail closed.
+                <code>fail(code, message, { reason, hint })</code> and
+                <code>deny()</code> refuse with a code that maps to an HTTP
+                status and a CLI message. Live values, <code>changed</code> and
+                events can be addressed to one user. <code>bb.implement</code>
+                takes <code>offered</code> to hide an agent tool per session.
               </td>
             </tr>
             <tr>
@@ -637,9 +642,15 @@
               <td>Doors: app, CLI, agent tool, machine</td>
               <td>Built</td>
               <td>
-                HTTP is the app door (<code>POST /api/v1/ops/&lt;name&gt;</code
-                >); there is no separate custom-path door,
-                <code>bb.http.route</code> remains for bytes and webhooks.
+                The app calls any operation at
+                <code>POST /api/v1/ops/&lt;name&gt;</code>; an operation may
+                also have a REST path (<code>doors.http</code>, below), and
+                <code>bb.http.route</code> remains for bytes and webhooks. A CLI
+                door can declare aliases, per-flag options, fields filled from
+                the CLI's context (directory, project, thread, machine),
+                constraints between flags, its own output and exit code. A
+                machine call (<code>bb.runners.call</code>) takes a timeout and
+                an abort signal that cancels the work on the runner.
               </td>
             </tr>
             <tr>
@@ -651,7 +662,7 @@
               <td>Runner parts; providers as plugins</td>
               <td>Built</td>
               <td>
-                Codex, Claude Code and echo are plugins with a machine part. A
+                Codex, Claude Code, Pi and echo are plugins with a machine part. A
                 third-party machine part is bundled by the server and sent to
                 each runner when it connects.
               </td>
@@ -661,9 +672,11 @@
               <td>Built</td>
               <td>
                 A plugin can add a kind or replace a built-in one (a different
-                <code>git-worktree</code>, for example). Core registers its own
-                three kinds through the same slot; their code still lives in the
-                environment manager.
+                <code>git-worktree</code>, for example). The three built-in
+                kinds (project checkout, worktree, personal workspace) are
+                plugins of their own, and the Modal sandbox is an add-on kind.
+                A kind declares its workspace type, requirements and a default
+                rank, so core picks a default without naming a kind.
               </td>
             </tr>
             <tr>
@@ -714,9 +727,13 @@
               <td>Profiles</td>
               <td>Built, simple</td>
               <td>
-                <code>BB_PROFILE</code> picks which in-repo plugins load
+                In-repo plugins are registered from their manifests
+                (<code>pnpm gen:builtins</code> writes the server, runner and
+                app tables, and a test fails when they are stale).
+                <code>BB_PROFILE</code> picks which of them load
                 (<code>default</code>, <code>headless</code>,
-                <code>minimal</code>). Pick-one choices are still app
+                <code>minimal</code>); <code>bb.enabledByDefault: false</code>
+                ships a plugin switched off. Pick-one choices are still app
                 preferences, not profile entries.
               </td>
             </tr>
@@ -740,7 +757,14 @@
                   >bb dev new | watch | validate | inspect | types | install |
                   fork | port</code
                 >, reload on save, an authoring skill, and a small test harness
-                (<code>@bb/plugin/testing</code>).
+                (<code>@bb/plugin/testing</code>). <code>bb dev install</code>
+                takes git or npm version ranges and a repository subdirectory
+                and refuses an <code>engines.bb</code> mismatch before loading.
+                A marketplace plugin installs, updates and removes plugins from
+                catalogs and records where each came from.
+                <code>plugins.contracts</code>, <code>plugins.describe</code>
+                (with what a plugin uses) and <code>describeApp</code> in the
+                app describe the live API.
               </td>
             </tr>
             <tr>
@@ -751,8 +775,8 @@
                 <code>plugins/</code> and runs the copy in its place, reloading
                 on save: providers, add-ons, the core server plugins (the thread
                 engine included) and the core app plugins (the thread view,
-                composer, side panel, shell, settings). A test forks all 29 and
-                runs a turn through the forked core.
+                composer, side panel, shell, settings). A test forks every
+                built-in plugin and runs a turn through the forked core.
                 <code>--as &lt;new-id&gt;</code> makes a renamed copy that runs
                 beside the original. The two kits cannot be forked.
               </td>
@@ -776,8 +800,13 @@
             </tr>
             <tr>
               <td>Settings scopes</td>
-              <td>Built for per-user</td>
-              <td>A setting can be per person; per-project is not built.</td>
+              <td>Built</td>
+              <td>
+                A setting is <code>workspace</code> (one value),
+                <code>user</code> (per person) or <code>project</code> (per
+                project); per-user and per-project values fall back to the
+                shared one. Secrets are always shared.
+              </td>
             </tr>
             <tr>
               <td>Shared database with published tables</td>
@@ -798,16 +827,18 @@
             </tr>
             <tr>
               <td>Migration of the original bb's plugins</td>
-              <td>A path for all but one</td>
+              <td>Bundled: most ported</td>
               <td>
-                All 42 bundled and 341 marketplace plugins were read against
-                this API, and <code>bb dev port &lt;dir&gt;</code> names the
-                replacement for every call a plugin makes. Of the marketplace
-                plugins, 305 need only renames or rewrites of calls that exist
-                here, 35 lean on a feature this bb does not have (pull requests,
-                a skills browser, the marketplace itself, voice, fork), and one
-                uses a call with no counterpart. None has been ported yet, and
-                none loads unmodified.
+                40 of the original's bundled plugins now live in
+                <code>plugins/</code> on this API (among them automations,
+                workflows, GitHub, memory, docs, Monaco, browser automation,
+                Pi, side chat, push notifications, the Modal sandbox);
+                <code>agent-annotations</code>, <code>provider-acp</code> and
+                <code>t3sidebar</code> are not ported. Porting them added
+                <code>threads.fork</code>, voice transcription, composer popups
+                and theme CSS to core. The 341 marketplace plugins were read
+                against this API and <code>bb dev port &lt;dir&gt;</code> names
+                the replacement for every call; none loads unmodified.
                 <code>docs/plugin-migration-gaps.md</code> has the tables.
               </td>
             </tr>
@@ -841,9 +872,14 @@
               <td>Versioning</td>
               <td>Done</td>
               <td>
-                One version for the whole API, a committed description of every
-                contract with a test that classifies each change as an addition
-                or a break, <code>engines.bb</code> and versioned
+                One version for the whole API (1.3.0), a committed description
+                of every contract (<code>packages/plugin/api.lock.json</code>,
+                with slot entries and other untyped members read from their
+                TypeScript types) and <code>pnpm api:lock</code>, which
+                classifies each change as an addition or a break, judging a
+                service from the consumer's side, and refuses to write without
+                the matching version bump (<code>--rebase</code> skips the
+                comparison); <code>engines.bb</code> and versioned
                 <code>requires</code> enforced at load, deprecation with a
                 warning, REST path aliases, and a version header checked between
                 clients and the server.

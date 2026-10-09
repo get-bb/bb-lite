@@ -26,9 +26,10 @@ import {
   type PluginServerApi,
 } from "@bb/plugin";
 import { z } from "zod";
-import { pluginDev } from "./contract.js";
+import { pluginDev, type MachineParts } from "./contract.js";
 import { portReport } from "./port.js";
 import { templates } from "./templates.js";
+import { lockHistory, upgradePlugin } from "./upgrade.js";
 import { validatePlugin } from "./validate.js";
 
 const run = promisify(execFile);
@@ -66,6 +67,22 @@ function describe(inspection: KernelInspection, name: string): string {
     lines.push(`live ${live.name}  provided by ${live.owner}`);
   }
   return lines.length === 0 ? `Nothing is named ${name}*` : lines.join("\n");
+}
+
+function describeMachine(
+  hostId: string,
+  parts: MachineParts,
+  name: string,
+): string {
+  const lines = [`machine ${hostId}`];
+  for (const part of parts) {
+    const ops = part.implements.filter((op) => op.startsWith(name));
+    if (name !== "" && ops.length === 0) continue;
+    lines.push(`part ${part.id}  ${part.tier}`);
+    lines.push(...ops.map((op) => `  implements ${op}`));
+  }
+  if (lines.length === 1) lines.push(`  Nothing is named ${name}*`);
+  return lines.join("\n");
 }
 
 const NOT_COPIED = new Set(["node_modules", "test", "dist", ".cache", ".bb"]);
@@ -420,8 +437,25 @@ export default function plugin(bb: PluginServerApi): void {
   const located = (input: { path: string; cwd?: string }) =>
     resolve(input.cwd ?? process.cwd(), input.path);
 
-  bb.implement(pluginDev.inspect, async ({ name = "" }) =>
-    describe(await bb.call(plugins.inspect, {}), name),
+  bb.implement(pluginDev.inspect, async ({ name = "", machine }) => {
+    if (machine === undefined) {
+      return describe(await bb.call(plugins.inspect, {}), name);
+    }
+    if (!bb.runners.isConnected(machine)) {
+      fail("not_found", `Machine ${machine} is not connected`);
+    }
+    const options = { timeoutMs: 15_000 };
+    const parts = await bb.runners.call(
+      machine,
+      pluginDev.machineParts,
+      {},
+      options,
+    );
+    return describeMachine(machine, parts, name);
+  });
+
+  bb.implement(pluginDev.upgrade, async ({ to = API_VERSION, ...input }) =>
+    upgradePlugin(located(input), to, await lockHistory(REPO)),
   );
 
   bb.implement(pluginDev.validate, (input) => validatePlugin(located(input)));

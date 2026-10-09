@@ -13,20 +13,17 @@ export interface PortPath {
 type Rule = [match: RegExp, status: PortStatus, now: string];
 type Path = [PortStatus, string];
 
+const GITHUB = 'from "bb-plugin-github/contract"';
 const PULL_REQUESTS: Path = [
   "feature",
-  "pull requests are not built in; a plugin can provide them with gh in a runner part",
+  `pullRequests ${GITHUB} has get, list, create, details and forThread; nothing marks ready, draft or merges`,
 ];
 const MARKETPLACE: Path = [
   "feature",
-  "no marketplace or updates; bb.call(plugins.install, { path }) installs a directory",
+  'marketplace from "bb-plugin-marketplace/contract" reads its catalogs from its own settings; none are added at run time',
 ];
 const SKILLS: Path = ["feature", "no skills browser"];
 const DESKTOP: Path = ["feature", "no desktop app"];
-const REWIND: Path = [
-  "feature",
-  "no fork or message editing; providers here cannot rewind a session",
-];
 const METADATA: Path = [
   "changed",
   "bb.storage.kv or a shared table keyed by thread id",
@@ -34,11 +31,6 @@ const METADATA: Path = [
 const MACHINE_ENV: Path = [
   "changed",
   "bb.call(projects.updateMachineEnvironment)",
-];
-
-const QUEUE_ORDER: Path = [
-  "feature",
-  "queued messages keep the order they were added in",
 ];
 
 const SDK_PATHS: Record<string, Path> = {
@@ -83,8 +75,18 @@ const SDK_PATHS: Record<string, Path> = {
     "changed",
     "contextWindowUsage on bb.call(threads.timeline)",
   ],
-  "threads.fork": REWIND,
-  "threads.editMessage": REWIND,
+  "threads.fork": [
+    "renamed",
+    "bb.call(threads.fork, { sourceThreadId, sourceSeqEnd })",
+  ],
+  "threads.editMessage": [
+    "feature",
+    "providers cannot rewind a session; threads.fork up to the message, then send the edit",
+  ],
+  "threads.paneAction": [
+    "changed",
+    "bb.emit(threads.paneAction, { threadId, action })",
+  ],
   "promptHistory.list": [
     "renamed",
     "bb.call(threads.promptHistory) and bb.call(projects.promptHistory)",
@@ -93,7 +95,7 @@ const SDK_PATHS: Record<string, Path> = {
   "hosts.resume": ["renamed", "bb.call(machines.resume)"],
   "hosts.reconcile": [
     "changed",
-    "bb.call(machines.update) and the machines.provider entry",
+    "bb.call(machines.reconcile, { hostId }); the provider entry's reconcile runs",
   ],
   "hosts.createJoinCode": ["renamed", "bb.call(machines.enroll)"],
   "hosts.pickFolder": [
@@ -107,33 +109,54 @@ const SDK_PATHS: Record<string, Path> = {
   ],
   "system.aiServices": ["changed", "bb.entries(sessions.inference)"],
   "system.version": ["changed", "GET /health"],
-  "system.transcribeVoice": ["feature", "no voice input"],
-  "system.updateExperiments": ["feature", "no experiments"],
+  "system.transcribeVoice": [
+    "renamed",
+    "bb.call(sessions.transcribe, { data, mimeType }) with base64 audio",
+  ],
+  "system.updateExperiments": [
+    "changed",
+    "bb.call(server.experiments) reads flags; they are set in the environment",
+  ],
   "files.mkdir": ["renamed", "bb.call(files.mkdir, { threadId, path })"],
   "files.listPaths": ["renamed", "bb.call(files.list, { threadId, path })"],
   "files.remove": ["renamed", "bb.call(files.delete, { threadId, path })"],
   "files.move": ["renamed", "bb.call(files.move, { threadId, from, to })"],
   "files.createPreview": [
     "changed",
-    "a URL that already serves files: /api/v1/threads/<id>/host-files/<path>",
+    "bb.call(files.url, { threadId, path }) returns a URL that serves the file",
   ],
   "projects.fileContent": ["changed", "bb.call(files.read)"],
   "projects.files": ["renamed", "bb.call(files.list)"],
   "projects.setMachineEnvironmentVariable": MACHINE_ENV,
   "projects.deleteMachineEnvironmentVariable": MACHINE_ENV,
   "terminals.resize": ["renamed", "bb.call(terminals.resize)"],
-  "theme.get": ["changed", "appearance on bb.call(server.config)"],
+  "theme.get": [
+    "changed",
+    "appearance on bb.call(server.config); bb.call(appearance.themeCss) for its CSS; bb.on(appearance.changed)",
+  ],
   "theme.catalog": ["changed", "themes on bb.call(server.config)"],
-  "environments.pullRequest": PULL_REQUESTS,
+  "environments.pullRequest": [
+    "renamed",
+    `bb.call(pullRequests.get, { environmentId }) ${GITHUB}`,
+  ],
   "environments.markPullRequestReady": PULL_REQUESTS,
   "environments.markPullRequestDraft": PULL_REQUESTS,
   "environments.mergePullRequest": PULL_REQUESTS,
   "plugins.install": ["changed", "bb.call(plugins.install, { path })"],
-  "plugins.applyUpdate": MARKETPLACE,
-  "plugins.checkUpdates": MARKETPLACE,
-  "plugins.catalog.install": MARKETPLACE,
-  "plugins.catalog.installPlan": MARKETPLACE,
-  "plugins.catalog.search": MARKETPLACE,
+  "plugins.applyUpdate": ["renamed", "bb.call(marketplace.update, { id })"],
+  "plugins.checkUpdates": ["renamed", "bb.call(marketplace.updates)"],
+  "plugins.catalog.install": [
+    "renamed",
+    "bb.call(marketplace.install, { id })",
+  ],
+  "plugins.catalog.installPlan": [
+    "changed",
+    "bb.call(marketplace.catalog) shows each entry's versions; marketplace.install checks the engine range",
+  ],
+  "plugins.catalog.search": [
+    "renamed",
+    "bb.call(marketplace.catalog, { query })",
+  ],
   "plugins.marketplaces.add": MARKETPLACE,
   "plugins.marketplaces.list": MARKETPLACE,
   "skills.list": SKILLS,
@@ -147,15 +170,21 @@ const SDK_PATHS: Record<string, Path> = {
     "changed",
     "bb.call(terminals.close), then bb.call(terminals.create)",
   ],
-  "threads.queuedMessages.reorder": QUEUE_ORDER,
+  "threads.queuedMessages.reorder": [
+    "renamed",
+    "bb.call(threads.reorderQueuedMessages, { threadId, queuedMessageIds })",
+  ],
   "threads.queuedMessages.setGroupBoundary": [
     "renamed",
-    "bb.call(threads.setQueuedMessageBoundary)",
+    "bb.call(threads.setQueuedMessageBoundary, { threadId, queuedMessageId })",
   ],
-  "projects.reorder": ["feature", "projects have no stored order"],
+  "projects.reorder": [
+    "renamed",
+    "bb.call(projects.updateOrder, { projectIds })",
+  ],
   "hosts.providerCliStatus": [
-    "feature",
-    "no install status for provider command-line tools",
+    "renamed",
+    "bb.call(sessions.providerStatus, { hostId })",
   ],
   "desktopBrowsers.openConnection": DESKTOP,
   "desktopBrowsers.releaseControl": DESKTOP,
@@ -229,7 +258,7 @@ const RULES: Rule[] = [
   [
     /^server\.export\.(defineCli|cliCommand|PluginCliError)$|^server\.cli\.register$/u,
     "same",
-    "the same names; simple commands can be doors.cli instead",
+    "the same names; most commands are doors.cli on an operation (flags, from, print, exitCode), and fail(code, message, { hint }) reports errors",
   ],
   [
     /^server\.export\.PLUGIN_CLI_OUTPUT_MAX_BYTES$/u,
@@ -269,12 +298,17 @@ const RULES: Rule[] = [
   [
     /^server\.aiServices\.register$/u,
     "changed",
-    "bb.add(sessions.inference, service); transcription has no slot",
+    "bb.add(sessions.inference, service); bb.add(sessions.transcription, { id, label, available, transcribe })",
   ],
   [
     /^server\.environments\.register$|^environmentProvider\.import$/u,
     "changed",
     "bb.add(environments.kind, { create, delete, validate, inputs })",
+  ],
+  [
+    /^server\.machines\.getResource$/u,
+    "renamed",
+    "bb.call(machines.resource, { hostId })",
   ],
   [
     /^server\.machines\.|^machineProvider\.import$/u,
@@ -293,8 +327,8 @@ const RULES: Rule[] = [
   ],
   [
     /^server\.providers\.contributeEnvHealth$/u,
-    "feature",
-    "provider environments report no health",
+    "changed",
+    "bb.on(sessions.environmentHealth, { providerId }, (input, next) => …)",
   ],
   [/^server\.events\.thread\.events$/u, "renamed", "bb.on(threads.appended)"],
   [/^server\.events\.thread\./u, "renamed", "bb.on(threads.<name>)"],
@@ -339,7 +373,11 @@ const RULES: Rule[] = [
     "changed",
     "bb.on(machines.disconnected)",
   ],
-  [/^server\.hosts\.client/u, "changed", "bb.runners.call(hostId, op, input)"],
+  [
+    /^server\.hosts\.client/u,
+    "changed",
+    "bb.runners.call(hostId, op, input, { timeoutMs, signal })",
+  ],
   [
     /^server\.hosts\.(declareSharedPorts|ensureSharedPortTunnel)$/u,
     "feature",
@@ -357,6 +395,11 @@ const RULES: Rule[] = [
     /^server\.ui\.registerMentionProvider$/u,
     "changed",
     "bb.add(sessions.mention, provider)",
+  ],
+  [
+    /^server\.http\.experimental_websocket$/u,
+    "renamed",
+    "bb.http.socket((request) => (socket) => …)",
   ],
   [
     /^server\.ui\.requestInput$/u,
@@ -465,9 +508,9 @@ const RULES: Rule[] = [
     "isAvailable(context) on the item, reading context.surface",
   ],
   [
-    /^app\.composer\.customize\.popups$|^app\.useComposer\.(openPopup|closePopup)$/u,
-    "changed",
-    "render the popup yourself from a composer.banner or footerControl",
+    /^app\.composer\.customize\.popups$/u,
+    "renamed",
+    "bb.add(composer.popup, { id, label, view }); handle.openPopup(id) shows it",
   ],
   [
     /^app\.composer\.customize\.richText\.onDraftChange$/u,
@@ -490,7 +533,7 @@ const RULES: Rule[] = [
     "useComposer() and useComposers()",
   ],
   [
-    /^app\.useComposer\.(text|isEmpty|focus|insert|setText|updateText|submit|key|isRunning|insertMention|addQuote|onSubmitted|setInputLock|selection|setSelection|setTextEffect|layout|attachmentCount|isSubmittingBlocked|submittingBlockedReason)$/u,
+    /^app\.useComposer\.(text|isEmpty|focus|insert|setText|updateText|submit|key|isRunning|insertMention|addQuote|onSubmitted|setInputLock|selection|setSelection|setTextEffect|openPopup|closePopup|openPopupId|layout|attachmentCount|isSubmittingBlocked|submittingBlockedReason)$/u,
     "same",
     "the same member on the composer handle",
   ],
@@ -542,8 +585,8 @@ const RULES: Rule[] = [
   ],
   [
     /^app\.hook\.useSidebarThreadPullRequest$/u,
-    "feature",
-    "pull requests are not built in",
+    "changed",
+    `useOp(pullRequests.forThread, { threadId }) ${GITHUB}`,
   ],
   [/^app\.context\./u, "same", "useBbContext()"],
   [
@@ -563,7 +606,7 @@ const RULES: Rule[] = [
     "the same method on useSidebarThreadActions()",
   ],
   [
-    /^app\.component\.(Icon|Markdown|ThreadChat|ThreadTitle|UrlLink|ProviderIcon|SidebarNavigationIcon)$/u,
+    /^app\.component\.(Icon|Markdown|ThreadChat|ThreadTitle|UrlLink|ProviderIcon|SidebarNavigationIcon|Diff|FileLink)$/u,
     "same",
     'the same component from "@bb/plugin/app"',
   ],
@@ -582,22 +625,17 @@ const RULES: Rule[] = [
     "changed",
     'useNewThreadComposer from "bb-plugin-composer/contract"',
   ],
-  [
-    /^app\.component\.Diff$/u,
-    "renamed",
-    'BbDiff from "@bb/app-kit/components/code/BbDiff"',
-  ],
+
   [
     /^app\.component\.SourceCode$/u,
     "renamed",
     'BbSourceCode from "@bb/app-kit/components/code/BbSourceCode"',
   ],
   [
-    /^app\.component\.FileLink$/u,
+    /^app\.component\.VoiceInputTextarea$/u,
     "changed",
-    "a button that calls useBbNavigate().openFile",
+    "the voice-input plugin adds a composer.footerControl; bb.call(sessions.transcribe) for your own",
   ],
-  [/^app\.component\.VoiceInputTextarea$/u, "feature", "no voice input"],
   [/^app\.component\./u, "none", "no such component"],
   [
     /^host\.(emitSignal|signal)$/u,
@@ -654,7 +692,12 @@ export function pathFor(id: string): PortPath {
     const [, tier = "", method = ""] = sdk;
     const call = tier === "server" ? "bb.call" : "callOp";
     const known = SDK_PATHS[method];
-    if (known !== undefined) return { status: known[0], now: known[1] };
+    if (known !== undefined) {
+      return {
+        status: known[0],
+        now: known[1].replaceAll("bb.call(", `${call}(`),
+      };
+    }
     const op = SDK_OPS[method];
     if (op !== undefined) return { status: "renamed", now: `${call}(${op})` };
     return { status: "none", now: "the feature behind it does not exist here" };

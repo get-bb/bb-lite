@@ -391,6 +391,7 @@ it("reports what a plugin written for the original bb uses and what each call is
     '  bb.rpc.register("ping", async () => "pong");',
     '  await bb.sdk.files.mkdir({ rootPath: "/tmp", path: "a" });',
     '  await bb.sdk.environments.pullRequest({ environmentId: "env" });',
+    '  await bb.sdk.environments.mergePullRequest({ environmentId: "env" });',
     '  await bb.sdk.threads.paneAction({ threadId: "t", action: "x" });',
     "}",
   ];
@@ -414,10 +415,11 @@ it("reports what a plugin written for the original bb uses and what each call is
     const next = rest.search(/\n\S/u);
     return from < 0 ? "" : rest.slice(0, next < 0 ? undefined : next);
   };
-  const missing = section("No counterpart");
-  expect(missing).toContain("server.sdk.threads.paneAction");
+  expect(stdout).not.toContain("No counterpart");
   const feature = section("Needs a feature this bb does not have");
-  expect(feature).toContain("server.sdk.environments.pullRequest");
+  expect(feature).toContain("server.sdk.environments.mergePullRequest");
+  expect(section("Renamed")).toContain("bb.call(pullRequests.get");
+  expect(section("Works differently")).toContain("emit(threads.paneAction");
   expect(section("Renamed")).toContain("bb.call(files.mkdir");
   expect(section("Renamed")).toContain("threadView.messageAction");
   expect(section("Works differently")).toContain("server.rpc.register");
@@ -432,6 +434,38 @@ it("has a path for all but a known few of the original calls plugins use", async
   const none = used
     .filter(({ id }) => pathFor(id).status === "none")
     .map(({ id }) => id);
-  expect(used.length).toBe(579);
-  expect(none).toEqual(["server.sdk.threads.paneAction"]);
+  expect(used.length).toBe(580);
+  expect(none).toEqual([]);
+});
+
+it("points calls whose feature arrived since at the new operation", () => {
+  expect(pathFor("server.sdk.threads.fork")).toEqual({
+    status: "renamed",
+    now: "bb.call(threads.fork, { sourceThreadId, sourceSeqEnd })",
+  });
+  expect(pathFor("app.sdk.projects.reorder").now).toBe(
+    "callOp(projects.updateOrder, { projectIds })",
+  );
+  expect(pathFor("server.sdk.plugins.catalog.search").now).toContain(
+    "marketplace.catalog",
+  );
+  expect(pathFor("server.sdk.hosts.providerCliStatus").now).toContain(
+    "sessions.providerStatus",
+  );
+  expect(pathFor("server.providers.contributeEnvHealth")).toMatchObject({
+    status: "changed",
+    now: expect.stringContaining("sessions.environmentHealth"),
+  });
+  expect(pathFor("server.machines.getResource").now).toContain(
+    "machines.resource",
+  );
+  expect(pathFor("server.http.experimental_websocket").now).toContain(
+    "bb.http.socket",
+  );
+  expect(pathFor("app.composer.customize.popups").now).toContain(
+    "composer.popup",
+  );
+  expect(pathFor("app.useComposer.openPopup").status).toBe("same");
+  expect(pathFor("app.component.FileLink").status).toBe("same");
+  expect(pathFor("server.sdk.threads.editMessage").status).toBe("feature");
 });

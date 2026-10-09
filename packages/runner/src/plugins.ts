@@ -9,6 +9,7 @@ import {
   slot,
   type Caller,
   type Kernel,
+  type KernelInspection,
   type PluginBase,
   type PluginScope,
   type Tier,
@@ -31,6 +32,7 @@ export const runner = contract("runner", {
 export interface PluginRunnerApi extends PluginBase {
   readonly dataDir: string;
   signal(name: string, payload?: unknown): void;
+  inspect(): KernelInspection;
 }
 
 export type PluginRunnerEntry = (bb: PluginRunnerApi) => void | Promise<void>;
@@ -115,6 +117,7 @@ export function createRunnerPlugins(options: {
         const signal = { kind: "plugin.signal", pluginId: part.id } as const;
         options.sink?.({ lane: "live", ...signal, name, payload });
       },
+      inspect: () => kernel.inspect(),
       onStart: (start) => void starters.push(start),
       onDispose: (stop) => void stops.push(stop),
     };

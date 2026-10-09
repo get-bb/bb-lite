@@ -65,6 +65,11 @@
     "manifest": false
   },
   {
+    "id": "server.http.experimental_websocket",
+    "pattern": "\\bhttp\\s*[?!]?\\.\\s*experimental_websocket\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
     "id": "server.rpc.register",
     "pattern": "\\brpc\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
     "manifest": false
