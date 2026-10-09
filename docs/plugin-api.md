@@ -141,21 +141,21 @@ export default function server(bb: PluginServerApi): void {
 
 ### What the server's host provides
 
-| Member                                   | What it is                                                                                                                         |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `bb.server`                              | The server's configuration (`dataDir`, `hostId`, `version`, `port`, …) plus `url` and `tunnelToken`                                |
-| `bb.now()`                               | The server's clock                                                                                                                 |
-| `bb.db`                                  | The shared SQLite database: `get`, `all`, `run`, `transaction`, `now`. Core tables are read through `@bb/server-kit/db/*`          |
-| `bb.realtime`                            | Tells connected apps what changed: `thread`, `project`, `environment`, `host`, `system`, `threadOpen`, `presence`, `onChanged`     |
-| `bb.runners`                             | Every connected machine: `get(hostId)` is its `Runner`; `call(hostId, op, input)` calls a runner part; `isConnected`, `onEvent`, … |
-| `bb.http.api(routes, { internal? })`     | Mounts Hono routes under `/api/v1` (or `/internal`), beside core's own                                                             |
-| `bb.http.route(method, path, handler)`   | A raw `Request` to `Response` handler under `/api/v1/plugins/<id>/http/`, with `auth: "local" \| "token" \| "none"`                |
-| `bb.http.socket(resolver)`               | Answers a WebSocket upgrade for a path                                                                                             |
-| `bb.dataDir`, `bb.storage`               | The plugin's own directory and storage (below)                                                                                     |
-| `bb.settings.define(fields, { scope })`  | Settings: `string` (`secret`, `multiline`), `boolean`, `select`, `number`. `scope: "user"` keeps a value per person                |
-| `bb.background.service(name, { start })` | A supervised long-running task. `bb.background.schedule(name, "*/15 * * * *", run)` runs on a five-field cron                      |
-| `bb.cli.register(defineCli(...))`        | A hand-written CLI, for commands that are not one operation. It is merged with the plugin's `doors.cli` commands                   |
-| `bb.status.needsConfiguration(message)`  | Shows the plugin as waiting for setup                                                                                              |
+| Member                                   | What it is                                                                                                                                                                                                                                |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bb.server`                              | The server's configuration (`dataDir`, `hostId`, `version`, `port`, …) plus `url` and `tunnelToken`                                                                                                                                       |
+| `bb.now()`                               | The server's clock                                                                                                                                                                                                                        |
+| `bb.db`                                  | The shared SQLite database: `get`, `all`, `run`, `transaction`, `now`. Core tables are read through `@bb/server-kit/db/*`                                                                                                                 |
+| `bb.realtime`                            | Tells connected apps what changed: `thread`, `project`, `environment`, `host`, `system`, `threadOpen`, `presence`, `onChanged`                                                                                                            |
+| `bb.runners`                             | Every connected machine: `call(hostId, op, input)` runs an operation a runner part implements there (git, files, terminals and your own); `get(hostId)` is the machine's session handle with the same `call`; `isConnected`, `onEvent`, … |
+| `bb.http.api(routes, { internal? })`     | Mounts Hono routes under `/api/v1` (or `/internal`), beside core's own                                                                                                                                                                    |
+| `bb.http.route(method, path, handler)`   | A raw `Request` to `Response` handler under `/api/v1/plugins/<id>/http/`, with `auth: "local" \| "token" \| "none"`                                                                                                                       |
+| `bb.http.socket(resolver)`               | Answers a WebSocket upgrade for a path                                                                                                                                                                                                    |
+| `bb.dataDir`, `bb.storage`               | The plugin's own directory and storage (below)                                                                                                                                                                                            |
+| `bb.settings.define(fields, { scope })`  | Settings: `string` (`secret`, `multiline`), `boolean`, `select`, `number`. `scope: "user"` keeps a value per person                                                                                                                       |
+| `bb.background.service(name, { start })` | A supervised long-running task. `bb.background.schedule(name, "*/15 * * * *", run)` runs on a five-field cron                                                                                                                             |
+| `bb.cli.register(defineCli(...))`        | A hand-written CLI, for commands that are not one operation. It is merged with the plugin's `doors.cli` commands                                                                                                                          |
+| `bb.status.needsConfiguration(message)`  | Shows the plugin as waiting for setup                                                                                                                                                                                                     |
 
 Storage is in two places, by who owns the data:
 
@@ -353,6 +353,10 @@ function Notes() {
 
 `bb` in an app part is the shared handle and nothing more. `bb.call(op, input)` and
 `callOp(op, input, { signal? })` run an operation the app implements locally, else on the server.
+Either way the call passes through the app's kernel, so an app part can hook a server operation
+(`bb.on(sections.create, (input, next) => next({ name: input.name.trim() }))`) before it is sent.
+A call made with `bb.call`, `useOp` or `useCall` names its plugin to the server, and the audit log
+shows it as `app:<plugin id>`; that name is the app's word, not proof.
 The core contracts (`threads`, `projects`, `machines`, …) are exported from `@bb/plugin/app` too. An
 app part may implement a server operation to act first: the shell implements `threads.update` to
 update the sidebar at once and batch the requests.
@@ -474,6 +478,21 @@ export default function part(bb: PluginRunnerApi): void {
 `ProviderAdapter` (`packages/runner/src/providers/provider.ts`). The server sends an external
 plugin's runner part to every machine when it connects and when the plugin changes.
 
+What bb itself does on a machine is operations too, declared in `@bb/runner` and implemented by the
+built-in `workspace` runner part:
+
+| Contract           | Operations                                                                                                                                    |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git`              | `inspect`, `source`, `branches`, `status`, `diffFiles`, `diffPatch`, `diffFile`, `commit`, `createWorktree`, `deleteWorktree`, `switchBranch` |
+| `machineFiles`     | `read`, `readChunk`, `write`, `writeChunk`, `list`, `browse`, `exist`, `mutate`                                                               |
+| `machineTerminals` | `open`, `attach`, `write`, `resize`, `close`                                                                                                  |
+| `workspaces`       | `ensurePersonal`, `runScript`, `cancelScript`, `watch`, `commands`, `openTargets`, `openIn`                                                   |
+
+A server part calls them with `bb.runners.call(hostId, git.status, { path })`. Another runner part
+can hook them (`bb.on(machineFiles.write, (input, next) => …)`), refuse with `deny`, or answer in
+place of the built-in one. Starting and steering agent sessions is not an operation: that is the
+runner's own host, and a provider plugs into it through `runner.provider`.
+
 How the three sides reach each other:
 
 | From   | To     | How                                                                |
@@ -514,6 +533,26 @@ core server plugins and the five core app plugins.
   server.
 - What does not fork: the two kits (`packages/server-kit`, `packages/app-kit`). They are libraries:
   the data layer and helpers. The app kit holds only what two or more screen plugins use.
+
+## Versions
+
+- `API_VERSION` in `@bb/plugin` (now `1.0.0`) is the version of everything in this file: the handle,
+  the verbs and every contract. A plugin states what it needs in `package.json`:
+  `"engines": { "bb": "^1.2" }`. The loader refuses a plugin whose range does not include the
+  running version and shows why in the plugin list.
+- `"requires"` may be a list of plugin ids or `{ "tasks": "^2.1" }`, checked against the required
+  plugin's own `version`.
+- `packages/plugin/api.lock.json` describes every contract: names, input and output shapes, doors,
+  who may call. A test fails when the code and the lock differ. `pnpm api:lock` accepts a change:
+  an addition (a new operation, a new optional field) needs a higher minor version, anything that
+  breaks a caller (a removal, a new required field, a changed shape, a moved door) needs a higher
+  major version. Shapes declared with `z.custom` are not visible to it; use `typed(schema)` to
+  record a shape without checking it at run time.
+- To rename without breaking: keep the old operation with `deprecated: "threads.nextEvent"` and
+  have its implementation call the new one; the kernel warns once per plugin that uses it. For a
+  REST path, list the old one in the door's `aliases`.
+- Clients send the version they speak in `x-bb-api`; the server answers 426 when the major version
+  differs. `GET /health` and `bb dev inspect` report the server's.
 
 ## Tools
 

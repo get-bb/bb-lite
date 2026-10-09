@@ -1,3 +1,4 @@
+import { workspaces } from "@bb/runner";
 import { machines, type Caller, type PluginServerApi } from "@bb/plugin";
 import { randomUUID } from "node:crypto";
 import { actorUserId, currentActor } from "@bb/server-kit/auth/actor";
@@ -182,13 +183,17 @@ export function implementMachines(bb: PluginServerApi): void {
   });
 
   bb.implement(machines.openTargets, ({ hostId }) =>
-    userRunner(hostId).listOpenTargets(),
+    userRunner(hostId).call(workspaces.openTargets, {}),
   );
 
   bb.implement(
     machines.open,
     async ({ hostId, line = null, column = null, ...target }) => {
-      await userRunner(hostId).openInTarget({ ...target, line, column });
+      await userRunner(hostId).call(workspaces.openIn, {
+        ...target,
+        line,
+        column,
+      });
     },
   );
 }

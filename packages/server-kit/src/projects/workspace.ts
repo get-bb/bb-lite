@@ -1,3 +1,4 @@
+import { git } from "@bb/runner";
 import type { ServerServices } from "../context.js";
 import { requireProject, withSources } from "../db/projects.js";
 import { requireEnvironment } from "../environments/workspace.js";
@@ -20,7 +21,7 @@ export async function inspectProjectPath(
   path: string,
 ) {
   if (!ctx.runners.isConnected(hostId)) return null;
-  const inspecting = ctx.runners.get(hostId).inspectPath({ path });
+  const inspecting = ctx.runners.get(hostId).call(git.inspect, { path });
   return inspecting.catch(() => null);
 }
 

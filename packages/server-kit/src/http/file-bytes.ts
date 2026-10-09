@@ -1,3 +1,4 @@
+import { machineFiles } from "@bb/runner";
 import { posix } from "node:path";
 import {
   FILE_PAYLOAD_MAX_BYTES,
@@ -78,7 +79,14 @@ export async function serveFileBytes(
   const path = posix.join(rootPath, ...target.segments);
   const read = (offset: number, length: number, revision: string | null) =>
     runner
-      .readFileChunk({ path, rootPath, gitRef, offset, length, revision })
+      .call(machineFiles.readChunk, {
+        path,
+        rootPath,
+        gitRef,
+        offset,
+        length,
+        revision,
+      })
       .catch(rethrowFileError);
   const file = await read(0, 0, null);
   const size = file.sizeBytes;

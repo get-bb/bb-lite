@@ -1,3 +1,4 @@
+import { machineFiles } from "@bb/runner";
 import type { PluginServerApi } from "@bb/plugin";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
@@ -28,7 +29,7 @@ async function copyToHost(runner: ServerRunner, source: string, path: string) {
     const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
     const dataBase64 = chunk.toString("base64");
     const write = { path, offset, dataBase64, createParents: true };
-    await runner.writeFileChunk(write);
+    await runner.call(machineFiles.writeChunk, write);
     offset += CHUNK_BYTES;
   } while (offset < bytes.byteLength);
 }

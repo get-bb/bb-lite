@@ -1,3 +1,4 @@
+import { machineFiles } from "@bb/runner";
 import { machines, type PluginServerApi } from "@bb/plugin";
 import {
   PATH_LIST_EXCLUDED_NAMES,
@@ -61,19 +62,19 @@ export function implementMachineFiles(bb: PluginServerApi): void {
     bb.runners.get(requireHost(bb, hostId ?? bb.server.hostId).id);
 
   bb.implement(machines.directory, ({ hostId, path }) =>
-    runnerOf(hostId).browseDirectory({ path }),
+    runnerOf(hostId).call(machineFiles.browse, { path }),
   );
 
   bb.implement(machines.pathsExist, ({ hostId, paths }) =>
-    runnerOf(hostId).pathsExist({ paths }),
+    runnerOf(hostId).call(machineFiles.exist, { paths }),
   );
 
   bb.implement(machines.readFile, ({ hostId, ...location }) =>
-    runnerOf(hostId).readFile(location),
+    runnerOf(hostId).call(machineFiles.read, location),
   );
 
   bb.implement(machines.writeFile, ({ hostId, ...write }) =>
-    runnerOf(hostId).writeFile(write),
+    runnerOf(hostId).call(machineFiles.write, write),
   );
 
   bb.implement(
@@ -81,7 +82,10 @@ export function implementMachineFiles(bb: PluginServerApi): void {
     async ({ hostId, path: rootPath, ...query }) => {
       const kinds = { includeFiles: true, includeDirectories: false };
       const search = { ...LIST_DEFAULTS, ...query, ...kinds, rootPath };
-      const { paths, truncated } = await runnerOf(hostId).listPaths(search);
+      const { paths, truncated } = await runnerOf(hostId).call(
+        machineFiles.list,
+        search,
+      );
       const listed = paths.map(({ path, name }) => ({ path, name }));
       return { files: listed, truncated };
     },

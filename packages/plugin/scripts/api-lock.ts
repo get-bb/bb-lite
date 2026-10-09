@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import * as machine from "@bb/runner";
 import * as app from "../src/app.js";
 import * as server from "../src/index.js";
 
@@ -7,7 +8,7 @@ const FILE = fileURLToPath(new URL("../api.lock.json", import.meta.url));
 const { API_VERSION, compareApi, describeApi, isNewer, majorOf } = server;
 const { packApi, unpackApi } = server;
 
-const contracts = describeApi({ ...server, ...app });
+const contracts = describeApi({ ...server, ...app, ...machine });
 const rows = (entries: object) =>
   Object.entries(entries).map(
     ([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)}`,

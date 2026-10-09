@@ -1,3 +1,4 @@
+import { workspaces as machineWorkspaces } from "@bb/runner";
 import type { PluginServerApi } from "@bb/plugin";
 import {
   realtimeSubscriptionTargetKey as targetKey,
@@ -62,7 +63,11 @@ export function startWorkspaceWatch(bb: PluginServerApi): Disposer {
       generation = Math.max(Date.now(), generation + 1);
       runners
         .get(hostId)
-        .setWatchedPaths({ generation, workspaces, directories: [] })
+        .call(machineWorkspaces.watch, {
+          generation,
+          workspaces,
+          directories: [],
+        })
         .catch((error: unknown) => {
           sent.delete(hostId);
           log.warn("Could not update watched paths", { err: error, hostId });

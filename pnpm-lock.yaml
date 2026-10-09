@@ -1384,6 +1384,9 @@ importers:
       '@bb/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
+      '@bb/runner':
+        specifier: workspace:*
+        version: link:../../packages/runner
       '@bb/server-contract':
         specifier: workspace:*
         version: link:../../packages/server-contract

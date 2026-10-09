@@ -5,7 +5,7 @@ import type {
   RunnerEventOf,
   RunnerFactory,
 } from "@bb/plugin";
-import type { RunnerEvent, SessionApi } from "@bb/runner";
+import type { Runner, RunnerEvent } from "@bb/runner";
 import type { z } from "zod";
 import type { Logger } from "../context.js";
 import { hostUnavailable } from "../http/errors.js";
@@ -31,7 +31,7 @@ export interface RunnerRegistryOptions<R> {
   authorize?: (hostId: string) => void;
 }
 
-export class RunnerRegistry<R extends SessionApi> {
+export class RunnerRegistry<R extends Runner> {
   readonly localHostId: string;
   private readonly log: Logger;
   private readonly authorize: (hostId: string) => void;
@@ -103,15 +103,13 @@ export class RunnerRegistry<R extends SessionApi> {
     return () => this.disconnectListeners.delete(listener);
   }
 
-  async call<O extends Op>(
+  call<O extends Op>(
     hostId: string,
     op: O,
     input: z.input<O["input"]>,
+    options?: { timeoutMs?: number },
   ): Promise<z.output<O["output"]>> {
-    const parsed: unknown = await op.input.parseAsync(input);
-    const call = { name: op.name, input: parsed };
-    const result = await this.get(hostId).callOp(call);
-    return (await op.output.parseAsync(result)) as z.output<O["output"]>;
+    return this.get(hostId).call(op, input, options);
   }
 
   async emit(hostId: string, event: RunnerEvent): Promise<void> {

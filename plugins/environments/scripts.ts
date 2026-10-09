@@ -1,3 +1,4 @@
+import { SCRIPT_GRACE_MS, machineFiles, workspaces } from "@bb/runner";
 import type { PluginServerApi } from "@bb/plugin";
 import { randomUUID } from "node:crypto";
 import {
@@ -41,14 +42,17 @@ export function createLifecycleScripts(bb: PluginServerApi) {
     const runner = runners.get(hostId);
     const operationId = randomUUID();
     const cancel = (): void =>
-      void runner.cancelOperation({ operationId }).catch(() => undefined);
+      void runner
+        .call(workspaces.cancelScript, { operationId })
+        .catch(() => undefined);
     listeners.set(operationId, onLine);
     signal?.addEventListener("abort", cancel, { once: true });
     try {
       const env = await resolveContributedEnvironment(bb, projectId);
       const timeoutMs = SCRIPT_TIMEOUT_MS;
       const script = { operationId, path, kind, timeoutMs, env };
-      return await runner.runLifecycleScript(script);
+      const answerWithin = { timeoutMs: SCRIPT_GRACE_MS + timeoutMs };
+      return await runner.call(workspaces.runScript, script, answerWithin);
     } finally {
       signal?.removeEventListener("abort", cancel);
       listeners.delete(operationId);
@@ -59,7 +63,9 @@ export function createLifecycleScripts(bb: PluginServerApi) {
     const { onProgress, signal } = job;
     const script = `${workspace.path}/${SETUP_SCRIPT}`;
     const runner = runners.get(workspace.hostId);
-    const { existence } = await runner.pathsExist({ paths: [script] });
+    const { existence } = await runner.call(machineFiles.exist, {
+      paths: [script],
+    });
     if (existence[script] !== true) return;
     const startedAt = now();
     const running = `Running ${SETUP_SCRIPT}`;

@@ -1,3 +1,4 @@
+import { git, machineFiles } from "@bb/runner";
 import {
   BRANCH_LIST_LIMIT_MAX,
   FILE_LIST_LIMIT_MAX,
@@ -150,7 +151,7 @@ export async function refreshWorkspaceMetadata(
   environment: ReadyEnvironment,
 ): Promise<void> {
   const runner = ctx.runners.get(environment.hostId);
-  const { exists, ...found } = await runner.inspectPath({
+  const { exists, ...found } = await runner.call(git.inspect, {
     path: environment.path,
   });
   if (!exists) return;
@@ -190,7 +191,7 @@ export function searchWorkspacePaths(
   if (!includeFiles && !includeDirectories) {
     throw invalidRequest("At least one path kind must be included");
   }
-  return ctx.runners.get(workspace.hostId).listPaths({
+  return ctx.runners.get(workspace.hostId).call(machineFiles.list, {
     rootPath: workspace.path,
     query: query.query,
     limit: boundedLimit(
@@ -212,7 +213,7 @@ export async function removeProjectWorkspaces(
   for (const { hostId, path, providerOwnsPath } of environments) {
     const removable = providerOwnsPath === 1 && runners.isConnected(hostId);
     if (path === null || !removable) continue;
-    const removed = runners.get(hostId).removeWorktree({ path });
+    const removed = runners.get(hostId).call(git.deleteWorktree, { path });
     await removed.catch((err: unknown) => {
       log.warn("Could not remove a deleted project's workspace", { err, path });
     });

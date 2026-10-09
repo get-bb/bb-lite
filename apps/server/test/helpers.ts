@@ -20,8 +20,11 @@ import {
 } from "@bb/domain";
 import {
   createWorkspaceApi,
+  MACHINE_OPS,
+  opCaller,
   RunnerError,
   type RunnerEventSink,
+  type WorkspaceApi,
 } from "@bb/runner";
 import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { expect, onTestFinished } from "vitest";
@@ -85,18 +88,29 @@ function paths(
   });
 }
 
+type Scripted = Omit<ServerRunner, "call"> & WorkspaceApi;
+
 export class FakeRunner {
   readonly calls: { method: string; args: unknown[] }[] = [];
-  readonly script: Partial<ServerRunner> = { ackEvents: async () => {} };
+  readonly script: Partial<Scripted> = { ackEvents: async () => {} };
   emit: RunnerEventSink = () => {};
   readonly api = new Proxy({} as ServerRunner, {
-    get: (_target, method) => this.call.bind(this, String(method)),
+    get: (_target, method) =>
+      method === "call"
+        ? opCaller((sent) => {
+            const machine = MACHINE_OPS.find(({ name }) => name === sent.name);
+            if (machine === undefined) return this.call("callOp", sent);
+            return this.call(machine.method, sent.input);
+          })
+        : this.call.bind(this, String(method)),
   });
 
-  private call(method: string, ...args: unknown[]): unknown {
+  private call(method: string, ...args: unknown[]): Promise<unknown> {
     this.calls.push({ method, args });
     const scripted: unknown = Reflect.get(this.script, method);
-    if (typeof scripted === "function") return scripted(...args);
+    if (typeof scripted === "function") {
+      return Promise.resolve(scripted(...args) as unknown);
+    }
     const message = `FakeRunner.${method} is not scripted`;
     return Promise.reject(new RunnerError("failed", message));
   }

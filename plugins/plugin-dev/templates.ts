@@ -1,3 +1,5 @@
+import { API_VERSION, majorOf } from "@bb/plugin";
+
 export function templates(id: string): Record<string, string> {
   const title = id
     .split("-")
@@ -12,6 +14,7 @@ export function templates(id: string): Record<string, string> {
     private: true,
     type: "module",
     description: `${title}: a bb plugin.`,
+    engines: { bb: `^${majorOf(API_VERSION) ?? 1}` },
     bb: {
       name: title,
       description: `${title}: a bb plugin.`,

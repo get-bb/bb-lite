@@ -1,3 +1,4 @@
+import { git, machineFiles, workspaces } from "@bb/runner";
 import { randomUUID } from "node:crypto";
 import type { Environment, JsonValue } from "@bb/domain";
 import {
@@ -129,7 +130,7 @@ export function createEnvironments(bb: PluginServerApi) {
     if (found.branchName !== null) {
       const selectedBranch = branchName;
       const query = { path: sourcePath, selectedBranch, limit: 1 };
-      const kept = (await runner.listBranches(query)).selectedBranch;
+      const kept = (await runner.call(git.branches, query)).selectedBranch;
       if (kept?.kind !== "local") {
         const gone = `Branch ${branchName} no longer exists`;
         throw notReady(`${gone}, so its worktree cannot be restored.`);
@@ -141,7 +142,7 @@ export function createEnvironments(bb: PluginServerApi) {
     const key = found.environmentProviderInstanceKey ?? found.id;
     const baseBranch = found.mergeBaseBranch ?? base;
     const worktree = { sourcePath, key, branchName, baseBranch };
-    const made = await runner.createWorktree(worktree);
+    const made = await runner.call(git.createWorktree, worktree);
     const created = "Created worktree";
     const done = "completed";
     const entries = [step("git-worktree-completed", created, done, startedAt)];
@@ -228,7 +229,7 @@ export function createEnvironments(bb: PluginServerApi) {
   async function attach(found: Environment, runner: ServerRunner) {
     const { id, path } = found;
     if (path === null) throw notReady("Environment has no workspace.");
-    const { exists, ...inspected } = await runner.inspectPath({ path });
+    const { exists, ...inspected } = await runner.call(git.inspect, { path });
     if (!exists) throw notReady(`Directory does not exist: ${path}`);
     const { branchName, defaultBranch, isGitRepo, isWorktree } = inspected;
     const observed = { branchName, defaultBranch, isGitRepo, isWorktree };
@@ -279,7 +280,10 @@ export function createEnvironments(bb: PluginServerApi) {
         ? { branchName: branch.name, createFrom: null }
         : { branchName: branchNameFor(thread), createFrom: branch.baseBranch };
     const runner = runners.get(hostId);
-    const { branchName } = await runner.switchBranch({ path, ...wanted });
+    const { branchName } = await runner.call(git.switchBranch, {
+      path,
+      ...wanted,
+    });
     patch(environmentId, { branchName });
   }
 
@@ -322,7 +326,7 @@ export function createEnvironments(bb: PluginServerApi) {
 
   async function defaultKind(projectId: string, hostId: string) {
     const path = sourcePathOf(projectId, hostId);
-    const source = await runners.get(hostId).inspectGitSource({ path });
+    const source = await runners.get(hostId).call(git.source, { path });
     const base = source.defaultBranch ?? source.originDefaultBranch;
     return base === null ? "project-checkout" : "git-worktree";
   }
@@ -364,7 +368,9 @@ export function createEnvironments(bb: PluginServerApi) {
     throw notReady("This kind of environment attaches to an existing path.");
   };
   const removeManaged = async (target: { hostId: string; path: string }) => {
-    await runners.get(target.hostId).removeWorktree({ path: target.path });
+    await runners
+      .get(target.hostId)
+      .call(git.deleteWorktree, { path: target.path });
   };
   const builtins: BuiltinKind[] = [
     {
@@ -396,7 +402,7 @@ export function createEnvironments(bb: PluginServerApi) {
       delete: removeManaged,
       async materialize(found, runner) {
         const key = found.environmentProviderInstanceKey ?? found.id;
-        return (await runner.ensurePersonalWorkspace({ key })).path;
+        return (await runner.call(workspaces.ensurePersonal, { key })).path;
       },
       resolve: (job, hostId) =>
         owned(job, hostId, personalKind.id, job.thread.id, null),
@@ -496,7 +502,9 @@ export function createEnvironments(bb: PluginServerApi) {
     if (found === undefined || found.path === null) return null;
     const file = { path: INSTRUCTIONS_FILE, rootPath: found.path };
     try {
-      const read = await runners.get(found.hostId).readFile(file);
+      const read = await runners
+        .get(found.hostId)
+        .call(machineFiles.read, file);
       if (read.contentEncoding !== "utf8") return null;
       return read.content.trim().slice(0, INSTRUCTIONS_MAX_LENGTH) || null;
     } catch {

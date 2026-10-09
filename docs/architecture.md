@@ -25,7 +25,8 @@ Dependency direction: `domain` ← `server-contract` ← `thread-view`, `plugin`
 `plugins/*` ← `profiles/default` ← `server` ← `cli`; in the browser `client-core`, `shared-ui` ←
 `app-kit` ← `plugins/*` ← `profiles/default` ← `app`. A plugin imports `@bb/plugin`, the kits and the
 shared schema packages, never `@bb/server`, `apps/` or another plugin's files (its `contract` aside).
-The runner never imports the server. The server talks to machines only through the `Runner` interface.
+The runner never imports the server. The server talks to machines only through the `Runner` interface
+and the operations runner parts implement.
 
 ## Process and data model
 
@@ -157,14 +158,20 @@ sign-in-link` on the server machine is how the owner signs a remote browser in t
 
 ## The Runner interface
 
-`packages/runner/src/types.ts` (sessions) and `workspace-types.ts` (git, files, terminals) define
-`Runner = SessionApi & WorkspaceApi`. Two implementations:
+`packages/runner/src/types.ts` defines `SessionApi`: describing the machine, the event outbox,
+provider sessions and turns, loading runner parts and `callOp`. `Runner = SessionApi & { call }`,
+where `call(op, input, { timeoutMs? })` runs an operation in the machine's own kernel. Git, files,
+terminals, lifecycle scripts and file watching are operations (`packages/runner/src/contract.ts`:
+`git`, `machineFiles`, `machineTerminals`, `workspaces`) implemented by the built-in `workspace`
+runner part (`workspace/part.ts`), so another runner part can hook, refuse or answer them. Each
+declares how long the server waits for it. Two implementations of `Runner`:
 
 - `createLocalRunner({ dataDir, serverUrl, sink })`: direct calls, events through a callback.
 - `connectRemoteRunner(socket, sink)` on the server and `serveRunner(runner, socket)` in `bb runner`:
   the same interface as JSON frames over one WebSocket (`packages/runner/src/remote/protocol.ts`):
   `{t:"req",id,method,params}` → `{t:"res",id,ok,result|error}`, `{t:"evt",event}`, `{t:"ack",seq}`,
-  `{t:"ping"}`/`{t:"pong"}`. Only the methods of `Runner` can be called.
+  `{t:"ping"}`/`{t:"pong"}`. Only the methods of `SessionApi` can be called; an operation travels
+  as `callOp`.
 
 Remote transport rules:
 

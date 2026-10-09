@@ -170,6 +170,19 @@
   "delete": {"type":"op","kind":"write","hooks":"rewrite","allow":"member","internal":true,"doors":{},"input":{"type":"object","properties":{"threadId":{"type":"string"},"path":{"type":"string"},"recursive":{"default":false,"type":"boolean"}},"required":["threadId","path"]},"output":{}},
   "move": {"type":"op","kind":"write","hooks":"rewrite","allow":"member","internal":true,"doors":{},"input":{"type":"object","properties":{"threadId":{"type":"string"},"from":{"type":"string"},"to":{"type":"string"}},"required":["threadId","from","to"]},"output":{}}
  },
+ "git": {
+  "inspect": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "source": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "branches": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "status": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "diffFiles": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "diffPatch": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "diffFile": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "commit": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "createWorktree": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "deleteWorktree": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "switchBranch": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}}
+ },
  "interactions": {
   "pending": {"type":"event","payload":{}},
   "ask": {"type":"op","kind":"write","hooks":"rewrite","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
@@ -178,6 +191,23 @@
   "resolve": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":false,"doors":{"http":"POST /threads/:threadId/interactions/:interactionId/resolve"},"input":{"$shape":"tw38w1"},"output":{"$shape":"r9iih3"}},
   "respond": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":false,"doors":{"http":"POST /threads/:threadId/interactions/:interactionId/respond"},"input":{"$shape":"1dy9p18"},"output":{"$shape":"r9iih3"}},
   "cancel": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":false,"doors":{"http":"POST /threads/:threadId/interactions/:interactionId/cancel"},"input":{"type":"object","properties":{"threadId":{"type":"string"},"interactionId":{"type":"string"}},"required":["threadId","interactionId"]},"output":{"$shape":"r9iih3"}}
+ },
+ "machineFiles": {
+  "read": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "readChunk": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "write": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "writeChunk": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "list": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "browse": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "exist": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "mutate": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}}
+ },
+ "machineTerminals": {
+  "open": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "attach": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "write": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "resize": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "close": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}}
  },
  "machines": {
   "access": {"type":"slot","key":null,"pick":"one"},
@@ -246,6 +276,9 @@
   "branches": {"type":"op","kind":"read","hooks":"rewrite","allow":"member","internal":false,"doors":{"http":"GET /projects/:projectId/branches"},"input":{"$shape":"1afzd"},"output":{"$shape":"1jk2cqg"}},
   "branchOptions": {"type":"op","kind":"read","hooks":"rewrite","allow":"member","internal":false,"doors":{"http":"GET /projects/:projectId/branch-options"},"input":{"$shape":"1afzd"},"output":{"$shape":"1jk2cqg"}},
   "copyAttachments": {"type":"op","kind":"write","hooks":"rewrite","allow":"member","internal":false,"doors":{"http":"POST /projects/:projectId/attachments/copy"},"input":{"$shape":"wnr44v"},"output":{}}
+ },
+ "runner": {
+  "provider": {"type":"slot","key":"id","pick":"many"}
  },
  "sections": {
   "list": {"type":"op","kind":"read","hooks":"rewrite","allow":"member","internal":false,"doors":{"http":"GET /sections"},"input":{"type":"object","properties":{}},"output":{}},
@@ -394,6 +427,15 @@
   "createInvite": {"type":"op","kind":"write","hooks":"rewrite","allow":"user","internal":false,"doors":{"http":"POST /users/invites"},"input":{"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":80},"email":{"type":"string"},"role":{"type":"string","enum":["owner","member"]}},"additionalProperties":false},"output":{}},
   "deleteInvite": {"type":"op","kind":"write","hooks":"rewrite","allow":"user","internal":false,"doors":{"http":"DELETE /users/invites/:inviteId"},"input":{"type":"object","properties":{"inviteId":{"type":"string"}},"required":["inviteId"]},"output":{}},
   "presence": {"type":"op","kind":"read","hooks":"rewrite","allow":"member","internal":false,"doors":{"http":"GET /users/presence"},"input":{"type":"object","properties":{}},"output":{}}
+ },
+ "workspaces": {
+  "ensurePersonal": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "runScript": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "cancelScript": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "watch": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "commands": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "openTargets": {"type":"op","kind":"read","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}},
+  "openIn": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":true,"doors":{},"input":{},"output":{}}
  }
 }
 }

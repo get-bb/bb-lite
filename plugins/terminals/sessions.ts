@@ -1,3 +1,4 @@
+import { machineTerminals } from "@bb/runner";
 import type { PluginServerApi } from "@bb/plugin";
 import { terminals as terminalEvents } from "@bb/plugin";
 import type { TerminalSessionCloseReason } from "@bb/domain";
@@ -99,7 +100,9 @@ function endTerminal(
 ): contract.TerminalSession {
   const { hostId, id: terminalId } = session;
   if (session.status !== "exited" && bb.runners.isConnected(hostId)) {
-    const closing = bb.runners.get(hostId).closeTerminal({ terminalId });
+    const closing = bb.runners
+      .get(hostId)
+      .call(machineTerminals.close, { terminalId });
     closing.catch(() => undefined);
   }
   return finish(bb, session, closeReason);
@@ -123,7 +126,7 @@ async function replay(
   try {
     const runner = bb.runners.get(hostId);
     const sinceSeq = client.nextSeq;
-    const page = await runner.attachTerminal({
+    const page = await runner.call(machineTerminals.attach, {
       terminalId,
       sinceSeq,
       tailBytes,
@@ -288,10 +291,12 @@ export async function createTerminal(
   try {
     const env = await resolveContributedEnvironment(bb, projectId);
     const launch = { terminalId, cwd, ...size, start, env };
-    const opened = await runner.openTerminal(launch);
+    const opened = await runner.call(machineTerminals.open, launch);
     const current = requireTerminal(bb, terminalId);
     if (current.status !== "starting") {
-      runner.closeTerminal({ terminalId }).catch(() => undefined);
+      runner
+        .call(machineTerminals.close, { terminalId })
+        .catch(() => undefined);
       return current;
     }
     const running = changeTerminal(bb, current, {
@@ -342,7 +347,9 @@ export async function writeTerminalInput(
     session.lastUserInputAt === null
       ? changeTerminal(bb, session, { lastUserInputAt: bb.now() })
       : session;
-  await bb.runners.get(hostId).writeTerminal({ terminalId, dataBase64 });
+  await bb.runners
+    .get(hostId)
+    .call(machineTerminals.write, { terminalId, dataBase64 });
   const { threadId } = session;
   bb.emit(terminalEvents.inputReceived, { terminalId, hostId, threadId });
   return marked;
@@ -356,7 +363,9 @@ export async function resizeTerminal(
   const { id: terminalId, hostId } = session;
   const same = session.cols === cols && session.rows === rows;
   const resized = same ? session : changeTerminal(bb, session, { cols, rows });
-  await bb.runners.get(hostId).resizeTerminal({ terminalId, cols, rows });
+  await bb.runners
+    .get(hostId)
+    .call(machineTerminals.resize, { terminalId, cols, rows });
   return resized;
 }
 
@@ -383,7 +392,7 @@ export async function readTerminalOutput(
   let nextSeq = sinceSeq;
   do {
     const page = await runner
-      .attachTerminal({ terminalId, sinceSeq: from, tailBytes })
+      .call(machineTerminals.attach, { terminalId, sinceSeq: from, tailBytes })
       .catch((error: unknown) => {
         const gone = errorFrame(error).code === "terminal_not_found";
         if (!gone) throw error;

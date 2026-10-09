@@ -825,6 +825,30 @@
                 pattern.
               </td>
             </tr>
+            <tr>
+              <td>What bb does on a machine</td>
+              <td>Done</td>
+              <td>
+                Git, files, terminals, lifecycle scripts and file watching are
+                operations (<code>git</code>, <code>machineFiles</code>,
+                <code>machineTerminals</code>, <code>workspaces</code>)
+                implemented by a built-in runner part. Another runner part can
+                hook, refuse or answer them. Provider sessions stay in the
+                runner's host, behind the <code>runner.provider</code> slot.
+              </td>
+            </tr>
+            <tr>
+              <td>Versioning</td>
+              <td>Done</td>
+              <td>
+                One version for the whole API, a committed description of every
+                contract with a test that classifies each change as an addition
+                or a break, <code>engines.bb</code> and versioned
+                <code>requires</code> enforced at load, deprecation with a
+                warning, REST path aliases, and a version header checked between
+                clients and the server.
+              </td>
+            </tr>
           </table>
         </div>
 

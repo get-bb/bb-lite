@@ -240,5 +240,9 @@ export interface SessionApi {
   loadPlugins(args: {
     plugins: RunnerPartBundle[];
   }): Promise<LoadPluginsResult>;
-  callOp(args: { name: string; input: unknown }): Promise<unknown>;
+  callOp(args: {
+    name: string;
+    input: unknown;
+    timeoutMs?: number;
+  }): Promise<unknown>;
 }

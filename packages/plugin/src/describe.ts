@@ -75,7 +75,8 @@ export function describeApi(exported: Record<string, unknown>): ApiDescription {
   const described: ApiDescription = {};
   for (const name of Object.keys(exported).sort()) {
     const value = exported[name];
-    if (typeof value !== "object" || value === null) continue;
+    const listed = typeof value !== "object" || Array.isArray(value);
+    if (listed || value === null) continue;
     const members = Object.entries(value as Record<string, ContractMember>);
     const isContract =
       members.length > 0 &&

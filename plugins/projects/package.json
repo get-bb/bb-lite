@@ -15,6 +15,7 @@
   "dependencies": {
     "@bb/domain": "workspace:*",
     "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "@bb/server-kit": "workspace:*"
   },

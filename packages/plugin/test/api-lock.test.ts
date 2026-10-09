@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
+import * as machine from "@bb/runner";
 import * as app from "../src/app.js";
 import * as server from "../src/index.js";
 
@@ -8,7 +9,7 @@ const { API_VERSION, compareApi, describeApi, satisfies, unpackApi } = server;
 it("matches the locked description of every contract", () => {
   const file = new URL("../api.lock.json", import.meta.url);
   const locked = JSON.parse(readFileSync(file, "utf8")) as server.ApiLock;
-  const current = describeApi({ ...server, ...app });
+  const current = describeApi({ ...server, ...app, ...machine });
   const changes = compareApi(unpackApi(locked), current);
   const hint = "run `pnpm api:lock` after raising API_VERSION";
   expect({ ...changes, hint }).toEqual({ breaking: [], additive: [], hint });

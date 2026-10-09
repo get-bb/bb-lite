@@ -1,3 +1,4 @@
+import { git, workspaces } from "@bb/runner";
 import { projects, type PluginServerApi } from "@bb/plugin";
 import { PERSONAL_PROJECT_ID, type GitSourceInspection } from "@bb/domain";
 import type {
@@ -76,8 +77,8 @@ export function implementProjects(bb: PluginServerApi): void {
     const runner = runners.get(hostId);
     const search = { path, ...branchSearch(query) };
     const [source, branches] = await Promise.all([
-      runner.inspectGitSource({ path }),
-      runner.listBranches(search),
+      runner.call(git.source, { path }),
+      runner.call(git.branches, search),
     ]);
     const defaultBase = defaultWorktreeBaseBranch(source);
     return { ...source, ...branches, defaultWorktreeBaseBranch: defaultBase };
@@ -196,7 +197,7 @@ export function implementProjects(bb: PluginServerApi): void {
     const provider = findProviderDefinition(db, query.provider);
     if (provider === undefined) return { commands: [] };
     const providerId = provider.id;
-    return runners.get(hostId).listCommands({ providerId, cwd });
+    return runners.get(hostId).call(workspaces.commands, { providerId, cwd });
   });
 
   bb.implement(projects.branches, ({ projectId, ...query }) =>

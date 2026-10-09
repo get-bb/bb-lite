@@ -39,6 +39,11 @@ renamed copy that runs beside the original.
   `useCall`, and from any program with `createOpClient().call(op, input)`. Core's REST API is the
   core contracts' operations (`threads.get`, `machines.list`, …); call those instead of fetching
   URLs.
+- **Versions**: state the API you need in `package.json` (`"engines": { "bb": "^1" }`); the loader
+  refuses a plugin outside that range. `requires` may name versions: `{ "tasks": "^2" }`.
+- **On a machine**: git, files and terminals are operations from `@bb/runner` (`git.status`,
+  `machineFiles.read`, `machineTerminals.open`); a server part calls them with
+  `bb.runners.call(hostId, op, input)` and a runner part can hook them.
 - **Event**: `bb.emit(event, payload)`, `bb.on(event, listener)`.
 - **Slot**: a list other plugins add to. `bb.add(slot, item)`, `bb.wrap(slot, matcher, change)`.
   `service<T>()` is a slot with one winner that holds an object: `bb.use(service)`.

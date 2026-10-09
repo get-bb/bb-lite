@@ -254,6 +254,7 @@ export interface Runners {
     hostId: string,
     op: O,
     input: z.input<O["input"]>,
+    options?: { timeoutMs?: number },
   ): Promise<z.output<O["output"]>>;
 }
 

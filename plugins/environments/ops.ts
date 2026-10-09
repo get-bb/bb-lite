@@ -1,3 +1,4 @@
+import { git } from "@bb/runner";
 import { environments, threads, type PluginServerApi } from "@bb/plugin";
 import type { WorkspaceDiffTarget } from "@bb/domain";
 import { RunnerError } from "@bb/runner";
@@ -81,7 +82,10 @@ export function implementEnvironments(
   bb.implement(environments.status, ({ environmentId, mergeBaseBranch }) =>
     readGitWorkspace(bb, environmentId, "status", async (runner, found) => {
       const { path } = found;
-      const workspace = await runner.gitStatus({ path, mergeBaseBranch });
+      const workspace = await runner.call(git.status, {
+        path,
+        mergeBaseBranch,
+      });
       const { currentBranch: branchName, defaultBranch } = workspace.branch;
       const observed = { branchName, defaultBranch: defaultBranch || null };
       recordWorkspaceMetadata(bb, found, observed);
@@ -92,19 +96,19 @@ export function implementEnvironments(
   bb.implement(environments.diffFiles, ({ environmentId, ...query }) => {
     const target = diffTarget(query);
     return readGitWorkspace(bb, environmentId, "diff", (runner, { path }) =>
-      runner.gitDiffFiles({ path, target }),
+      runner.call(git.diffFiles, { path, target }),
     );
   });
 
   bb.implement(environments.diffPatch, ({ environmentId, target, paths }) =>
     readGitWorkspace(bb, environmentId, "diff", (runner, { path }) =>
-      runner.gitDiffPatch({ path, target, paths }),
+      runner.call(git.diffPatch, { path, target, paths }),
     ),
   );
 
   bb.implement(environments.diffFile, async ({ environmentId, ...file }) => {
     const { hostId, path } = requireReadyEnvironment(bb, environmentId);
-    const read = await runners.get(hostId).gitDiffFile({ path, file });
+    const read = await runners.get(hostId).call(git.diffFile, { path, file });
     const { content, contentEncoding, mimeType, sizeBytes } = read;
     const described = mimeType === undefined ? {} : { mimeType };
     const body = { path: read.path, content, contentEncoding, sizeBytes };
@@ -113,7 +117,9 @@ export function implementEnvironments(
 
   bb.implement(environments.diffBranches, ({ environmentId, ...query }) => {
     const { hostId, path } = requireReadyEnvironment(bb, environmentId);
-    return runners.get(hostId).listBranches({ path, ...branchSearch(query) });
+    return runners
+      .get(hostId)
+      .call(git.branches, { path, ...branchSearch(query) });
   });
 
   bb.implement(environments.paths, ({ environmentId, ...query }) => {
@@ -125,7 +131,10 @@ export function implementEnvironments(
     const { id, hostId, path } = requireReadyEnvironment(bb, environmentId);
     try {
       const runner = runners.get(hostId);
-      const commit = await runner.gitCommit({ path, message: COMMIT_MESSAGE });
+      const commit = await runner.call(git.commit, {
+        path,
+        message: COMMIT_MESSAGE,
+      });
       hub.environment(id, ["work-status-changed", "git-refs-changed"]);
       const message = `Created commit ${commit.commitSha}`;
       return {
