@@ -579,10 +579,6 @@ export function registerCli(bb: PluginServerApi): void {
     defineCli({
       name: "automation",
       summary: "Inspect and manage automations (scheduled agent/script runs)",
-      root: cliCommand({
-        summary: "Show the automation commands",
-        run: (input) => ({ exitCode: 0, stdout: input.help }),
-      }),
       commands: {
         list: cliCommand({
           summary: "List automations for a project",
