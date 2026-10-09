@@ -14,15 +14,9 @@ type Rule = [match: RegExp, status: PortStatus, now: string];
 type Path = [PortStatus, string];
 
 const GITHUB = 'from "bb-plugin-github/contract"';
-const PULL_REQUESTS: Path = [
-  "feature",
-  `pullRequests ${GITHUB} has get, list, create, details and forThread; nothing marks ready, draft or merges`,
-];
-const MARKETPLACE: Path = [
-  "feature",
-  'marketplace from "bb-plugin-marketplace/contract" reads its catalogs from its own settings; none are added at run time',
-];
-const SKILLS: Path = ["feature", "no skills browser"];
+const MARKETPLACE = 'from "bb-plugin-marketplace/contract"';
+const SKILLS = 'from "bb-plugin-skills/contract.js"';
+const CONNECT = 'from "bb-plugin-connect/contract.js"';
 const DESKTOP: Path = ["feature", "no desktop app"];
 const METADATA: Path = [
   "changed",
@@ -80,8 +74,8 @@ const SDK_PATHS: Record<string, Path> = {
     "bb.call(threads.fork, { sourceThreadId, sourceSeqEnd })",
   ],
   "threads.editMessage": [
-    "feature",
-    "providers cannot rewind a session; threads.fork up to the message, then send the edit",
+    "changed",
+    "bb.call(threads.updateMessage, { threadId, seq, input }); the provider must declare checkpoint fork",
   ],
   "threads.paneAction": [
     "changed",
@@ -139,9 +133,18 @@ const SDK_PATHS: Record<string, Path> = {
     "renamed",
     `bb.call(pullRequests.get, { environmentId }) ${GITHUB}`,
   ],
-  "environments.markPullRequestReady": PULL_REQUESTS,
-  "environments.markPullRequestDraft": PULL_REQUESTS,
-  "environments.mergePullRequest": PULL_REQUESTS,
+  "environments.markPullRequestReady": [
+    "changed",
+    `bb.call(pullRequests.update, { environmentId, draft: false }) ${GITHUB}`,
+  ],
+  "environments.markPullRequestDraft": [
+    "changed",
+    `bb.call(pullRequests.update, { environmentId, draft: true }) ${GITHUB}`,
+  ],
+  "environments.mergePullRequest": [
+    "renamed",
+    `bb.call(pullRequests.merge, { environmentId, method }) ${GITHUB}`,
+  ],
   "plugins.install": ["changed", "bb.call(plugins.install, { path })"],
   "plugins.applyUpdate": ["renamed", "bb.call(marketplace.update, { id })"],
   "plugins.checkUpdates": ["renamed", "bb.call(marketplace.updates)"],
@@ -157,15 +160,42 @@ const SDK_PATHS: Record<string, Path> = {
     "renamed",
     "bb.call(marketplace.catalog, { query })",
   ],
-  "plugins.marketplaces.add": MARKETPLACE,
-  "plugins.marketplaces.list": MARKETPLACE,
-  "skills.list": SKILLS,
-  "skills.getContent": SKILLS,
-  "skills.registry.detail": SKILLS,
-  "skills.registry.entries": SKILLS,
-  "skills.registry.get": SKILLS,
-  "skills.registry.repositoryStars": SKILLS,
-  "skills.registry.search": SKILLS,
+  "plugins.marketplaces.add": [
+    "renamed",
+    `bb.call(marketplace.addCatalog, { url }) ${MARKETPLACE}`,
+  ],
+  "plugins.marketplaces.list": [
+    "renamed",
+    `bb.call(marketplace.catalogs) ${MARKETPLACE}`,
+  ],
+  "skills.list": [
+    "renamed",
+    `bb.call(skills.list, { projectId, hostId }) ${SKILLS}`,
+  ],
+  "skills.getContent": [
+    "changed",
+    `bb.call(skills.get, { id }) returns content and files ${SKILLS}`,
+  ],
+  "skills.registry.detail": [
+    "changed",
+    `bb.call(skills.search, { query }) entries carry install and skill; bb.call(skills.install, { source, skill }) ${SKILLS}`,
+  ],
+  "skills.registry.entries": [
+    "changed",
+    `bb.call(skills.search, {}) lists every registry source's skills ${SKILLS}`,
+  ],
+  "skills.registry.get": [
+    "changed",
+    `bb.call(skills.search, { query }) ${SKILLS}`,
+  ],
+  "skills.registry.repositoryStars": [
+    "changed",
+    `skills.search entries carry installs, not stars ${SKILLS}`,
+  ],
+  "skills.registry.search": [
+    "renamed",
+    `bb.call(skills.search, { query }) ${SKILLS}`,
+  ],
   "terminals.restart": [
     "changed",
     "bb.call(terminals.close), then bb.call(terminals.create)",
@@ -380,8 +410,8 @@ const RULES: Rule[] = [
   ],
   [
     /^server\.hosts\.(declareSharedPorts|ensureSharedPortTunnel)$/u,
-    "feature",
-    "ports are shared from the server's machine only",
+    "changed",
+    `bb.call(connect.expose, { port, hostId }) ${CONNECT}; HTTP only from other machines`,
   ],
   [/^server\.server\.appUrl$/u, "changed", "bb.pick(server.publicUrl)"],
   [/^server\.server\.loopbackBaseUrl$/u, "renamed", "bb.server.url"],

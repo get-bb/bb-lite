@@ -81,7 +81,8 @@ export const notes = contract("notes", {
   `deprecated` (what to use instead; each caller is warned once in the log), `description`, `doors`.
 - An input is one flat object. Ids are named for what they identify (`threadId`, `hostId`), never
   `id`.
-- `event(schema)`: something that happened. `live(schema)`: a value the server holds and pushes.
+- `event(schema)`: something that happened; `EventPayload<typeof notes.created>` is its payload's
+  type. `live(schema)`: a value the server holds and pushes.
 - `slot<Item>({ key?, pick?, check? })`: a list other plugins add to. `key` names the field that
   identifies an item (one winner per key). `pick: "one"` has one winner. `check(item, mine)` returns
   a message to refuse an entry; `mine` is what the same plugin already added.
@@ -199,10 +200,14 @@ enabledFor?(context) }`. The implementation sees `caller.thread` (the calling th
 - `doors.agent` operations can be hidden per thread by `enabledFor(context)` on the door or
   `offered(context)` on `bb.implement`; either returning `false` hides the tool.
 - `doors.cli` makes `bb <path>`: `{ path, summary, description?, aliases?, positionals?, flags?,
-from?, constraints?, print?(output, input), exitCode?(output, input) }`. Flags come from the input
-  schema (`projectKey` is `--project-key`; booleans are switches; arrays repeat; `.describe()` is the
-  help text). All of a plugin's CLI doors share their first word, and so do `aliases` (other full
-  paths for the same command). `description` is the long help text.
+from?, constraints?, print?(output, input), json?(output, input), compactJson?, exitCode?(output,
+input) }`. Flags come from the input schema (`projectKey` is `--project-key`; booleans are switches;
+  arrays repeat; `.describe()` is the help text). All of a plugin's CLI doors share their first word.
+  `aliases` are other spellings; one under another first word (`"plugin search"` on a `marketplace`
+  door) is listed among the plugin's commands under that full name, and `bb` runs it when its own
+  `bb <group>` has no such command. `description` is the long help text.
+  - `positionals` are the input fields taken by position, in order. An entry `{ field, name }` shows
+    the field under `name` in the help instead of its kebab-case name.
   - `flags: { field: { aliases?, placeholder?, split?, duration? } }` adjusts one flag: `split: ","`
     lets one value of an array flag carry several; `duration: { min?, max?, units? }` reads a number
     field as a duration (`1500ms`, `90s`, `5m`, `2h`, `1d`) in milliseconds, with `min`/`max` in
@@ -214,8 +219,11 @@ from?, constraints?, print?(output, input), exitCode?(output, input) }`. Flags c
 machineFiles.*)` (`machineFiles` is exported by `@bb/runner`).
   - `constraints` relate flags: `{ kind: "exactly-one" | "at-most-one" | "at-least-one", options }`
     or `{ kind: "requires", option, needs }`.
-  - `print(output, input)` is the text shown; `--json` prints the output as JSON instead.
+  - `print(output, input)` is the text shown; `--json` prints the output as JSON instead, or what
+    `json(output, input)` returns when the door has it, indented unless `compactJson: true`.
     `exitCode(output, input)` sets the exit status either way (0 by default).
+  - A CLI call sent with a `threadId` (as `bb` does in an agent session) runs with that thread as
+    `caller.thread`, as an agent tool call does.
 - A hand-written CLI (`bb.cli.register(defineCli({ name, summary, description?, root?, commands }))`)
   builds each command with `cliCommand({ summary, description?, aliases?, options?, positionals?,
 constraints?, passthrough?, unexpectedPositionalHint?, run(input, context) })`. An option is
@@ -250,23 +258,23 @@ app's `callOp`, `useOp` and `useCall` and the CLI are built on it.
 
 ### What core offers (`packages/plugin/src/core-contracts.ts`)
 
-| Contract       | Operations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Events, slots, services, tables                                                                                                                                                               |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `threads`      | `create`, `fork`, `get`, `list`, `search`, `update`, `delete`, `send`, `stop`, `archive`, `unarchive`, `compact`, `clearContext`, `pin`, `unpin`, `reorderPinned`, `markRead`, `markUnread`, `open`, `tabs`, `updateTabs`, `timeline`, `timelineTurnSummaryDetails`, `output`, `events`, `nextEvent`, `childSummary`, `promptHistory`, `recentPrompts`, `defaultExecutionOptions`, `resolveMentions`, `storageLocation`, `listQueuedMessages`, `createQueuedMessage`, `updateQueuedMessage`, `reorderQueuedMessages`, `deleteQueuedMessage`, `sendQueuedMessage`; server only: `workspace`, `addRow`, `hold` (hook it to keep a message queued), `release`, `waitSettled`, `sweep` | events `created`, `active`, `idle`, `failed`, `archived`, `unarchived`, `deleted`, `retired`, `appended`, `paneAction`, `messageQueued`, `messageDispatched`, `messageDeleted`; table `table` |
-| `interactions` | `list`, `get`, `resolve`, `respond`, `cancel`; server only: `ask` (ask the user through a thread)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | event `pending`                                                                                                                                                                               |
-| `projects`     | `list`, `create`, `get`, `update`, `delete`, `sidebar`, `order`, `updateOrder`, `createSource`, `updateSource`, `deleteSource`, `paths`, `commands`, `branches`, `branchOptions`, `promptHistory`, `defaultExecutionOptions`, `copyAttachments`, `machineEnvironment`, `updateMachineEnvironment`                                                                                                                                                                                                                                                                                                                                                                                  | event `deleted`; table `table`                                                                                                                                                                |
-| `environments` | `list`, `get`, `update`, `delete`, `providers`, `status`, `diffFiles`, `diffFile`, `diffPatch`, `diffBranches`, `paths`, `commitMessage`, `runAction`, `archiveThreads`; server only: `instructions`, `sweep`. `ensure` is in `bb-plugin-environments/contract`                                                                                                                                                                                                                                                                                                                                                                                                                    | slot `kind`; event `destroyed`                                                                                                                                                                |
-| `machines`     | `list`, `create`, `get`, `update`, `updateSharing`, `updatePermissionCeiling`, `delete`, `enrollmentCommand`, `createReconnectCommand`, `directory`, `pathsExist`, `readFile`, `writeFile`, `listFiles`, `openTargets`, `open`; server only: `enroll`, `waitConnected`, `suspend`, `resume`, `reconcile`, `resource`                                                                                                                                                                                                                                                                                                                                                               | events `connected`, `disconnected`, `deleted`, `signaled`; slot `provider`; services `access`, `guard`                                                                                        |
-| `terminals`    | `list`, `create`, `get`, `update`, `close`, `write`, `output`; server only: `resize`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | event `inputReceived`                                                                                                                                                                         |
-| `sessions`     | `providers`, `providerStatus`, `providerCatalog`, `updateProvider`, `executionOptions`, `environmentHealth`, `searchMentions`, `transcribe`; `instructions`, `env`, `skillDirs` (hook these to contribute or filter per thread); server only: `tools` (hook it too), `title`, `resolveMention`                                                                                                                                                                                                                                                                                                                                                                                     | slots `provider`, `mention`, `inference`, `usage`, `transcription`; services `titleFallback`, `completion`                                                                                    |
-| `files`        | `url`; server only: `read`, `write`, `list`, `mkdir`, `delete`, `move` (in a thread's workspace)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |                                                                                                                                                                                               |
-| `sections`     | `list`, `create`, `update`, `delete`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |                                                                                                                                                                                               |
-| `users`        | `current`, `list`, `update`, `setPassword`, `createSignInLink`, `listInvites`, `createInvite`, `deleteInvite`, `presence`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |                                                                                                                                                                                               |
-| `settings`     | `updateGeneral`, `updateKeyboard`, `updateAppearance`, `uiPreferences`, `updateUiPreference`, `resetUiPreference`, `machineEnvironment`, `updateMachineEnvironment`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | in the app: slots `page`, `section`                                                                                                                                                           |
-| `plugins`      | `list`, `contributions`, `reload`, `enable`, `disable`, `settings`, `updateSettings`, `inspect`, `contracts`, `describe`, `install`, `uninstall`; server only: `agentTools`, `callAgentTool`, `agentInstructions`, `skillDirs` (the host answers these)                                                                                                                                                                                                                                                                                                                                                                                                                            |                                                                                                                                                                                               |
-| `server`       | `config`, `experiments`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | services `publicUrl`, `authenticator`                                                                                                                                                         |
-| `appearance`   | `themeCss`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | slot `theme`; event `changed`                                                                                                                                                                 |
-| `audit`        | `list`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |                                                                                                                                                                                               |
+| Contract       | Operations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Events, slots, services, tables                                                                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `threads`      | `create`, `fork`, `get`, `list`, `search`, `update`, `delete`, `send`, `updateMessage`, `stop`, `archive`, `unarchive`, `compact`, `clearContext`, `pin`, `unpin`, `reorderPinned`, `markRead`, `markUnread`, `open`, `tabs`, `updateTabs`, `timeline`, `timelineTurnSummaryDetails`, `output`, `events`, `nextEvent`, `childSummary`, `promptHistory`, `recentPrompts`, `defaultExecutionOptions`, `resolveMentions`, `storageLocation`, `listQueuedMessages`, `createQueuedMessage`, `updateQueuedMessage`, `reorderQueuedMessages`, `setQueuedMessageBoundary`, `deleteQueuedMessage`, `sendQueuedMessage`; server only: `workspace`, `addRow`, `hold` (hook it to keep a message queued), `release`, `waitSettled`, `sweep` | events `created`, `active`, `idle`, `failed`, `archived`, `unarchived`, `deleted`, `retired`, `appended`, `paneAction`, `messageQueued`, `messageDispatched`, `messageDeleted`; table `table` |
+| `interactions` | `list`, `get`, `resolve`, `respond`, `cancel`; server only: `ask` (ask the user through a thread)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | event `pending`                                                                                                                                                                               |
+| `projects`     | `list`, `create`, `get`, `update`, `delete`, `sidebar`, `order`, `updateOrder`, `createSource`, `updateSource`, `deleteSource`, `paths`, `commands`, `branches`, `branchOptions`, `promptHistory`, `defaultExecutionOptions`, `copyAttachments`, `machineEnvironment`, `updateMachineEnvironment`                                                                                                                                                                                                                                                                                                                                                                                                                               | event `deleted`; table `table`                                                                                                                                                                |
+| `environments` | `list`, `get`, `update`, `delete`, `providers`, `status`, `diffFiles`, `diffFile`, `diffPatch`, `diffBranches`, `paths`, `commitMessage`, `runAction`, `archiveThreads`; server only: `instructions`, `sweep`. `ensure` is in `bb-plugin-environments/contract`                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | slot `kind`; event `destroyed`                                                                                                                                                                |
+| `machines`     | `list`, `create`, `get`, `update`, `updateSharing`, `updatePermissionCeiling`, `delete`, `enrollmentCommand`, `createReconnectCommand`, `directory`, `pathsExist`, `readFile`, `writeFile`, `listFiles`, `openTargets`, `open`; server only: `enroll`, `waitConnected`, `suspend`, `resume`, `reconcile`, `resource`                                                                                                                                                                                                                                                                                                                                                                                                            | events `connected`, `disconnected`, `deleted`, `signaled`; slot `provider`; services `access`, `guard`                                                                                        |
+| `terminals`    | `list`, `create`, `get`, `update`, `close`, `write`, `output`; server only: `resize`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | event `inputReceived`                                                                                                                                                                         |
+| `sessions`     | `providers`, `providerStatus`, `providerCatalog`, `updateProvider`, `executionOptions`, `environmentHealth`, `searchMentions`, `transcribe`; `instructions`, `env`, `skillDirs` (hook these to contribute or filter per thread); server only: `tools` (hook it too), `title`, `resolveMention`                                                                                                                                                                                                                                                                                                                                                                                                                                  | slots `provider`, `mention`, `inference`, `usage`, `transcription`; services `titleFallback`, `completion`                                                                                    |
+| `files`        | `url`; server only: `read`, `write`, `list`, `mkdir`, `delete`, `move` (in a thread's workspace; `source?: "thread-storage"` works in its storage directory, `"host"` takes absolute paths on its machine)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |                                                                                                                                                                                               |
+| `sections`     | `list`, `create`, `update`, `delete`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |                                                                                                                                                                                               |
+| `users`        | `current`, `list`, `update`, `setPassword`, `createSignInLink`, `listInvites`, `createInvite`, `deleteInvite`, `presence`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |                                                                                                                                                                                               |
+| `settings`     | `updateGeneral`, `updateKeyboard`, `updateAppearance`, `uiPreferences`, `updateUiPreference`, `resetUiPreference`, `machineEnvironment`, `updateMachineEnvironment`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | in the app: slots `page`, `section`                                                                                                                                                           |
+| `plugins`      | `list`, `contributions`, `reload`, `enable`, `disable`, `settings`, `updateSettings`, `inspect`, `contracts`, `describe`, `install`, `uninstall`; server only: `agentTools`, `callAgentTool`, `agentInstructions`, `skillDirs` (the host answers these)                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |                                                                                                                                                                                               |
+| `server`       | `config`, `experiments`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | services `publicUrl`, `authenticator`                                                                                                                                                         |
+| `appearance`   | `themeCss`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | slot `theme`; event `changed`                                                                                                                                                                 |
+| `audit`        | `list`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |                                                                                                                                                                                               |
 
 - Every operation not marked "server only" is callable from outside the server; `GET /api/v1/kernel`
   lists each one with its doors. `threads.get` is `GET /threads/:threadId`, `machines.list` is
@@ -297,6 +305,20 @@ threadId, projectId, scope: "project" | "thread", sentAt }], nextCursor }` (limi
   `threads.reorderQueuedMessages({ threadId, queuedMessageIds })`
   (`PUT /threads/:threadId/queued-messages/order`) puts the listed ids first, in that order; the rest
   keep theirs, and messages are sent in this order.
+  `threads.setQueuedMessageBoundary({ threadId, queuedMessageId,
+expectedGroupedPrefixQueuedMessageIds? })` (`PUT
+/threads/:threadId/queued-messages/:queuedMessageId/boundary`) groups the queue from its head
+  through that message, which the engine then sends as one turn with the inputs joined by a blank
+  line; a boundary on the head ungroups. All of them must share sender and execution options. It
+  returns the queue, where each row's `groupWithNext` says it joins the next.
+- `threads.updateMessage({ threadId, seq, input })` (`POST /threads/:threadId/messages/update`)
+  edits a sent message in place: it removes the thread's events, search entries and prompt history
+  from the request at `seq` on, restarts the provider session at the checkpoint of the turn before
+  it (`SessionSpec.forkFrom` with the thread's own checkpoint; a fresh session when nothing came
+  before or context was cleared since) and sends `input` as a new turn. It needs
+  `capabilities.fork: "checkpoint"` and fails `unavailable` with reason `rewind_unsupported`
+  without it or without a checkpoint on the preceding turn, `conflict` while a turn runs and
+  `not_found` when `seq` is not a sent message.
 - A `threads.hold` hook gets `{ threadId, projectId, providerId, sendNow, hostId, queuedMessageId,
 input }` and answers `{ pluginId, reason }` to keep the message queued (`null` lets it go):
   `hostId` is the machine the turn will run on (also before the thread has an environment),
@@ -311,9 +333,12 @@ input }` and answers `{ pluginId, reason }` to keep the message queued (`null` l
   only that person's apps act on it.
 - `projects.order` / `projects.updateOrder({ projectIds })` (`GET`/`PUT /projects/order`) are per
   user; `list` and `sidebar` follow the order, with unlisted projects after.
-- `files.url({ threadId, path, source? })` (`GET /files/url`; `source` is `workspace`,
-  `thread-storage` or `host`) returns `{ url }` where the server serves the file, for iframes and
-  images.
+- `projects.commands` (and the machine's `workspaces.commands`) give each discovered command its
+  file as `path`. `parseFrontmatter(text)` from `@bb/runner` reads a SKILL.md's fields.
+- `files.url({ threadId, path, source? })` (`GET /files/url`) returns `{ url }` where the server
+  serves the file, for iframes and images. Every `files` operation takes `source?: FileSource`
+  (`"workspace"`, the default, `"thread-storage"` or `"host"`; the type is exported by
+  `@bb/plugin` and `@bb/plugin/app`).
 - `server.experiments` (`GET /server/experiments`) returns `{ flags }` parsed from `BB_EXPERIMENTS`
   (e.g. `a,-b`).
 - `appearance.themeCss({ themeId })` (`GET /appearance/themes/:themeId/css`) returns `{ css }` of a
@@ -446,13 +471,25 @@ that adds a `ProviderDeclaration` to `sessions.provider`.
   system prompt; the runner gets `SessionSpec.instructionMode`), `nativeSkillRoots: { user, project }`
   (folders under home / each project ancestor whose skills bb lists with its own) and
   `capabilities.fork: "checkpoint"` (a fork's session gets `SessionSpec.forkFrom: { providerThreadId,
-checkpointId }` from the source's latest checkpoint at or before the fork's `sourceSeqEnd`). The
-  echo provider declares it: its checkpoints are `turn-<n>` and a forked session continues counting
-  turns from the checkpoint.
+checkpointId }` from the source's latest checkpoint at or before the fork's `sourceSeqEnd`; editing
+  a message with `threads.updateMessage` needs it too). The echo provider declares it: its
+  checkpoints are `turn-<n>` and a forked session continues counting turns from the checkpoint.
+  Codex declares it: its checkpoint is the Codex turn id and a fork opens with app-server
+  `thread/fork { threadId, lastTurnId }`. So does Claude Code: its checkpoint is the turn's last
+  message uuid and a fork copies the transcript with the SDK's `forkSession(providerThreadId,
+{ upToMessageId })`, then resumes the copy. Pi declares it as well and branches its session at the
+  checkpoint.
 - Contributions that depend on the thread are hooks on an operation (`sessions.instructions`, `env`,
   `tools`, `skillDirs`): the hook gets the thread's context and may filter what others added.
   Registrations that do not are slot entries (`sessions.provider`, `mention`, `inference`, `usage`,
   `transcription`).
+- Skills are the `skills` plugin's contract (`bb-plugin-skills/contract.js`): `skills.list({
+projectId?, hostId? })` (`{ id: "<source>:<name>", name, description, source: plugin | user |
+project | provider | installed, path, enabled }`), `get({ id })` (adds `content`, `files`),
+  `install({ source, skill? })` (a git repository or directory, copied into the machine's
+  `<data dir>/skills`), `uninstall`, `enable`, `disable`, `search({ query? })`. Fill the
+  `skills.source` slot (`{ id, label, search(query, signal) }`) to offer installable skills, as its
+  built-in registry source does.
 - Add a `sessions.usage` source to report quota: `{ providerId, scope?: "shared" | "host",
 read({ hostId }) }`, where `read` returns a `UsageReading` (`usageReadingSchema` in `@bb/plugin`:
   `null`, one usage, or `{ accounts }`). `scope: "host"` (codex, claude-code) reads per machine
@@ -559,20 +596,21 @@ Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills
   `openPanel({ actionId, title?, params? })` (opens a `sidePanel.panel` for this thread).
 - `bb.add(sidePanel.fileViewer, { id, extensions: ["pdf"], names?: ["Dockerfile"], view })` draws
   files with those extensions, or with exactly those names (for files without one); the view gets
-  `{ path, threadId, source, name, url, mimeType, content, refresh }`, where `threadId` (or null)
-  and `source` (`"workspace"`, `"thread-storage"` or `"host"`) are what a viewer needs to save the
-  file it shows.
+  `{ path, threadId, source, projectId, hostId, name, url, mimeType, content, refresh }`
+  (`FileViewerProps`), where `threadId` (or null) and `source` (`"workspace"`, `"thread-storage"` or
+  `"host"`) are what a viewer needs to save the file it shows; `projectId` and `hostId` (or null)
+  locate a project checkout file shown with no thread.
 
 ### Hooks and components from `@bb/plugin/app`
 
-| Group                | Names                                                                                                                                                                                                                                                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Operations and slots | `useOp(op, input, { enabled? })` gives `{ status, data, error, refetch }` and refetches on `bb.changed(op)`; `useCall(op)`; `callOp`; `useLive(live)`; `useChanged(member, handler)`; `useSlot`, `useSlotEntries` (with the plugin id), `useSlotEntry(slot, key)`; `SlotMount`; `describeApp`                                  |
-| The host             | `usePluginId`, `useSettings({ projectId? })`, `useExperiments`, `useRealtimeConnectionState`, `useBbContext`, `useBbNavigate` (`toThread`, `toProject`, `toPluginPanel`, `toCompose`, `openThreadPanel`, `openUrl`, `openFile({ threadId, path, source? })`), `useProviders`, `useEnvironmentProviders`, `useQuestionFormHost` |
-| Components           | `Icon`, `ProviderIcon`, `UrlLink`, `Markdown`, `Diff`, `FileLink`, `ImageLightbox`, `ThreadViewers`                                                                                                                                                                                                                            |
-| From the shell       | `useSidebarThreads`, `useSidebarThreadActions`, `useSidebarThreadSplit`, `useSidebarNavigationSplit`, `useSidebarSplitLayout`, `useSidebarThreadShortcut`, `useSidebarThreadDraft`, `useSidebarThreadDraftIds`, `useSidebarThreadRowStatus`, `useSidebarThreadRowStatuses`, `useSidebarNavigation`, `SidebarNavigationIcon`    |
-| From the thread view | `ThreadChat`, `ThreadTitle`                                                                                                                                                                                                                                                                                                    |
-| From the composer    | `useComposer`, `useComposers`                                                                                                                                                                                                                                                                                                  |
+| Group                | Names                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Operations and slots | `useOp(op, input, { enabled? })` gives `{ status, data, error, refetch }` and refetches on `bb.changed(op)`; `useCall(op)`; `callOp`; `useLive(live)`; `useChanged(member, handler)`; `useSlot`, `useSlotEntries` (with the plugin id), `useSlotEntry(slot, key)`; `SlotMount`; `describeApp`                                                                                                                                                 |
+| The host             | `usePluginId`, `useSettings({ projectId? })`, `useExperiments`, `useRealtimeConnectionState`, `useBbContext`, `useCodeTheme` (the active resolved code theme, `{ name, type, colors, tokenColors }` or null while it loads), `useBbNavigate` (`toThread`, `toProject`, `toPluginPanel`, `toCompose`, `openThreadPanel`, `openUrl`, `openFile({ threadId, path, source? })`), `useProviders`, `useEnvironmentProviders`, `useQuestionFormHost` |
+| Components           | `Icon`, `ProviderIcon`, `UrlLink`, `Markdown`, `Diff`, `FileLink`, `ImageLightbox`, `ThreadViewers`                                                                                                                                                                                                                                                                                                                                           |
+| From the shell       | `useSidebarThreads`, `useSidebarThreadActions`, `useSidebarThreadSplit`, `useSidebarNavigationSplit`, `useSidebarSplitLayout`, `useSidebarThreadShortcut`, `useSidebarThreadDraft`, `useSidebarThreadDraftIds`, `useSidebarThreadRowStatus`, `useSidebarThreadRowStatuses`, `useSidebarNavigation`, `SidebarNavigationIcon`                                                                                                                   |
+| From the thread view | `ThreadChat`, `ThreadTitle`                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| From the composer    | `useComposer`, `useComposers`                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 - `<Markdown content document?={{ threadId, path, source? }} />`: with `document`, relative links
   and images resolve against that file (`source` is `"workspace"`, `"thread-storage"` or `"host"`;
@@ -608,6 +646,8 @@ control, a popup), or the focused one elsewhere; `useComposers()` gives every co
 | `openPopupId`, `openPopup(id)`, `closePopup()`                                                                    | Which `composer.popup` is open; open or close one                                           |
 | `submit({ sendAt? })`, `onSubmitted(listener)`                                                                    | Send, and hear about each send                                                              |
 
+- The handle's `setSubmitHandler(handler | null)` (`ComposerHandle`) makes the composer's send call `handler` instead of sending
+  (thread-view uses it for "Edit and resend from here"); pass null to restore.
 - Menu items and send-menu items get a context in `run` and `isAvailable`: `{ surface, threadId,
 projectId, composer }`; a footer control's view gets it as its `context` prop.
 - `bb.add(composer.footerControl, { id, side, row?, view })`: `row: "actions"` draws the control in
@@ -699,6 +739,9 @@ built-in `workspace` runner part:
 | `machineTerminals` | `open`, `attach`, `write`, `resize`, `close`                                                                                                  |
 | `workspaces`       | `ensurePersonal`, `runScript`, `cancelScript`, `watch`, `commands`, `openTargets`, `openIn`                                                   |
 
+`machineFiles.list` reuses a listing for 2 s unless given `fresh: true`; `machineFiles.browse`
+entries carry `modifiedAt` (ms).
+
 A server part calls them with `bb.runners.call(hostId, git.status, { path })`. Another runner part
 can hook them (`bb.on(machineFiles.write, (input, next) => …)`), refuse with `deny`, or answer in
 place of the built-in one. Starting and steering agent sessions is not an operation: that is the
@@ -709,6 +752,14 @@ rejects the call on the server and tells the machine, where the implementation's
 second argument, `{ caller, signal }`) aborts. A runner implementation that runs for long should
 pass it on. The built-in `workspace` part does not; a lifecycle script is stopped with
 `workspaces.cancelScript`.
+
+A runner call answers once, with JSON. To move a large or open-ended byte stream, answer the first
+part with an id and let the server ask for the next with a second operation until `done`, then close:
+`plugins/connect` relays HTTP from another machine's port this way (`connect.shareRequest`,
+`connect.shareChunk`, `connect.shareClose`; base64 chunks of up to 1 MiB, each waiting at most 20 s).
+`connect.expose({ port, hostId? })` shares a port of that machine (the server's own by default)
+at a public URL through the signed-in getbb.dev account, `unexpose` stops; `connect.redeem({ code })` (`bb account login
+--code`, owner only) signs the server in with a one-time code.
 
 How the three sides reach each other:
 
@@ -749,6 +800,10 @@ core server plugins and the core app plugins (`shell`, `thread-view`, `composer`
   by the server into one utilities sheet for the app and every external plugin together, so the
   order of responsive and state variants is the same as in a single build. A plugin's own imported
   `.css` files are served separately and unlayered rules in them win over utilities.
+- A web worker started as `new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })`
+  (or `SharedWorker`, or without `type` for a classic worker) works in a forked or installed app
+  part too: the path must be a relative string literal in the plugin's own source; the worker is
+  bundled on its own and inlined as a `blob:` URL.
 - `import.meta.url` in a server or runner part still points at the source file, so reading files
   beside the source (`new URL("./logo.svg", import.meta.url)`) works from a fork.
 - Core server features fork the same way: `threads`, `environments`, `terminals`, `machines`,
@@ -775,10 +830,13 @@ changing a manifest's entries; `node scripts/gen-builtins.mjs --check` fails whe
 
 ## Versions
 
-- `API_VERSION` in `@bb/plugin` (now `1.3.0`) is the version of everything in this file: the handle,
+- `API_VERSION` in `@bb/plugin` (now `1.5.0`) is the version of everything in this file: the handle,
   the verbs and every contract. A plugin states what it needs in `package.json`:
   `"engines": { "bb": "^1.2" }`. The loader refuses a plugin whose range does not include the
   running version and shows why in the plugin list.
+- A plugin written for the original SDK (`@get-bb/plugin-sdk` among its `package.json` dependencies,
+  with a `server`, `app` or `runner` entry) is refused at load with a pointer to `bb dev port
+<directory>`.
 - `"bb": { "requires": … }` may be a list of plugin ids or `{ "tasks": "^2.1" }`, checked against the
   required plugin's own `version`.
 - `packages/plugin/api.lock.json` describes every contract: names, read or write, who may hook and
@@ -807,7 +865,12 @@ changing a manifest's entries; `node scripts/gen-builtins.mjs --check` fails whe
 
 ## Tools
 
-`bb dev inspect [name]` lists live operations, events, slots, live values and plugins.
+`bb dev inspect [name]` lists live operations, events, slots, live values and plugins;
+`--machine <hostId>` lists that machine's runner parts instead (each with its tier, `policy`,
+`installed` or `product`, and what it implements).
+`bb dev upgrade <path> [--to <version>]` moves a plugin's `engines.bb` to a newer plugin API (this
+bb's by default) and lists each member the plugin uses that changed since, `breaking` or
+`additive` (owner only).
 `bb dev new <id>` writes a working plugin. `bb dev watch <dir>` loads a directory and reloads it when
 a file changes (`bb plugin add <dir>` loads it without watching). `bb dev validate <dir>` checks the
 manifest and lists what the source implements, hooks, calls and adds, and where it reaches outside bb.
@@ -828,10 +891,17 @@ this bb does not have, or has no counterpart. `docs/plugin-migration-gaps.md` ha
 
 The `marketplace` plugin reads plugin catalogs (the official one by default, or the URLs and files in
 its `catalogs` setting; the original bb's v2 format, entries may add `engines.bb` and `parts`) and
-installs through `plugin-dev.install`: `marketplace.catalog({ query? })`, `install({ id, version? })`,
-`list`, `updates`, `update({ id })`, `uninstall({ id })`, as `bb marketplace search|install|list|
-updates|update|remove` and Settings > Marketplace. It records each install's source, ref, range and
-version.
+installs through `plugin-dev.install`: `marketplace.catalog({ query? })` (`bb marketplace search`),
+`list` (`plugins`), `install({ id, version? })`, `updates` (`updates`, also `outdated`),
+`update({ id })`, `uninstall({ id })`, and Settings > Marketplace; `search`, `install`, `outdated`
+and `update` also answer as `bb plugin <command>`. `catalogs` (`bb marketplace list`),
+`addCatalog({ url })` (`add`), `removeCatalog({ url })` (`remove`) and `refresh({ url? })` manage the
+catalogs (owner only for changes). It records each install's source, ref, range and version.
+
+The `github` plugin's `pullRequests` contract (`bb-plugin-github/contract.js`) has, beside `get`,
+`list`, `create`, `details`, `forThread`, `createComment` and `createReview`, `update({ environmentId, draft })` (mark the
+environment's pull request ready or draft) and `merge({ environmentId, method? })` (`merge`,
+`squash`, the default, or `rebase`).
 
 `createPluginHarness()` from `@bb/plugin/testing` loads a server part against a bare kernel for unit
 tests: `harness.load(id, entry, options)`, `harness.stub(op, run)` for core operations the plugin

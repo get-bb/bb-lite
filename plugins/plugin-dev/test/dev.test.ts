@@ -416,8 +416,7 @@ it("reports what a plugin written for the original bb uses and what each call is
     return from < 0 ? "" : rest.slice(0, next < 0 ? undefined : next);
   };
   expect(stdout).not.toContain("No counterpart");
-  const feature = section("Needs a feature this bb does not have");
-  expect(feature).toContain("server.sdk.environments.mergePullRequest");
+  expect(section("Renamed")).toContain("bb.call(pullRequests.merge");
   expect(section("Renamed")).toContain("bb.call(pullRequests.get");
   expect(section("Works differently")).toContain("emit(threads.paneAction");
   expect(section("Renamed")).toContain("bb.call(files.mkdir");
@@ -467,5 +466,15 @@ it("points calls whose feature arrived since at the new operation", () => {
   );
   expect(pathFor("app.useComposer.openPopup").status).toBe("same");
   expect(pathFor("app.component.FileLink").status).toBe("same");
-  expect(pathFor("server.sdk.threads.editMessage").status).toBe("feature");
+  expect(pathFor("server.sdk.threads.editMessage")).toMatchObject({
+    status: "changed",
+    now: expect.stringContaining("threads.updateMessage"),
+  });
+  expect(pathFor("server.sdk.skills.list").now).toContain("skills.list");
+  expect(pathFor("server.sdk.plugins.marketplaces.add").now).toContain(
+    "marketplace.addCatalog",
+  );
+  expect(pathFor("server.hosts.declareSharedPorts").now).toContain(
+    "connect.expose",
+  );
 });
