@@ -222,7 +222,7 @@ export function KeyboardSettingsSection() {
     .map(({ row }) => row);
   const visibleGroups =
     query.length === 0
-      ? groups
+      ? groups.filter((group) => group.commands.length > 0)
       : matches.length === 0
         ? []
         : [{ label: "Search results", commands: matches }];
