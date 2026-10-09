@@ -157,6 +157,7 @@ export function buildNavigationPaletteActions(args: {
     shortcut: null,
     run: () => args.navigate(path),
   });
+  const sectionLabels = new Set(args.sections.map(({ label }) => label));
   return [
     ...args.sections.map((section) =>
       action(
@@ -172,7 +173,9 @@ export function buildNavigationPaletteActions(args: {
         "Settings",
         "Plugin settings",
         `settings:plugin:${plugin.id}`,
-        `${plugin.label} settings`,
+        sectionLabels.has(plugin.label)
+          ? `${plugin.label} plugin settings`
+          : `${plugin.label} settings`,
         getPluginConfigurationRoutePath({ pluginId: plugin.id }),
       ),
     ),
