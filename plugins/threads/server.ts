@@ -1,4 +1,4 @@
-import { projects, threads, type PluginServerApi } from "@bb/plugin";
+import { machines, projects, threads, type PluginServerApi } from "@bb/plugin";
 import { createThreadEngine } from "./engine.js";
 import { implementThreadViews } from "./ops.js";
 import { implementThreadReads } from "./reads.js";
@@ -19,6 +19,9 @@ export default function threadsPlugin(bb: PluginServerApi): void {
   bb.implement(threads.waitSettled, () => engine.settled());
   bb.implement(threads.sweep, () => engine.sweep());
   bb.on(projects.deleted, (deleted) => engine.releaseDeletedProject(deleted));
+  bb.on(machines.deleted, (deleted) =>
+    engine.failQueuedOnRemovedMachine(deleted),
+  );
   bb.storage.tables.migrate([THREADS_VIEW]);
   bb.storage.tables.publish(threads.table, "threads");
   bb.onStart(() => {

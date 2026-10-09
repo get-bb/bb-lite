@@ -1,4 +1,5 @@
 import type { PendingInteractionPayload } from "@bb/domain";
+import { machines } from "@bb/plugin";
 import { expect, it } from "vitest";
 import { deny, threads as threadOps } from "@bb/plugin";
 import { createThreadServer, events, text } from "./thread-harness.js";
@@ -97,6 +98,24 @@ it("refuses a message to a thread whose machine was removed", async () => {
   const refused = [409, "machine_removed"];
   expect(await server.send(id, "auto", "anyone?")).toEqual(refused);
   expect(server.queued(id)).toEqual([]);
+});
+
+it("fails messages queued before their machine was removed", async () => {
+  const server = await createThreadServer();
+  const { http, ingest } = server;
+  const id = await server.spawn();
+  await ingest(id, events.identity(), events.started("t1"));
+  await server.send(id, "queue-if-active", "waiting");
+  server.ctx.runners.disconnect(server.hostId);
+  const removed = "UPDATE hosts SET destroyed_at = 1 WHERE id = ?";
+  server.ctx.db.run(removed, server.hostId);
+  const machinesPlugin = server.ctx.kernel.scope("machines", "product");
+  machinesPlugin.emit(machines.deleted, { hostId: server.hostId });
+  await server.settle();
+  type Queued = { failureReason: string | null }[];
+  const path = `/threads/${id}/queued-messages`;
+  const [failed] = (await http<Queued>("GET", path)).body;
+  expect(failed?.failureReason).toMatch(/was removed; this thread can no/);
 });
 
 it("stops a running turn and pauses the turn-bound queue", async () => {

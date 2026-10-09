@@ -192,6 +192,30 @@ export function restoreLeadQueuedGroup(
   }
 }
 
+export function failQueuedMessagesOnHost(
+  db: Db,
+  hostId: string,
+  reason: string,
+): string[] {
+  const rows = db.all<{ threadId: string }>(
+    `SELECT DISTINCT q.thread_id FROM queued_thread_messages q
+     JOIN threads t ON t.id = q.thread_id
+     JOIN environments e ON e.id = t.environment_id
+     WHERE e.host_id = ? AND q.failure_reason IS NULL`,
+    hostId,
+  );
+  const threadIds = rows.map(({ threadId }) => threadId);
+  for (const threadId of threadIds) {
+    db.run(
+      `UPDATE queued_thread_messages SET failure_reason = ?
+       WHERE thread_id = ? AND failure_reason IS NULL`,
+      reason,
+      threadId,
+    );
+  }
+  return threadIds;
+}
+
 export function clearQueuedGroupEdges(
   db: Db,
   threadId: string,

@@ -555,6 +555,7 @@ export function createThreadEngine(bb: PluginServerApi) {
     workspaceOf: (threadId: string) =>
       dispatching.sessionEnvironmentOf(engine, engine.requireThread(threadId)),
     releaseDeletedProject: direct(lifecycle.releaseDeletedProject),
+    failQueuedOnRemovedMachine: direct(lifecycle.failQueuedOnRemovedMachine),
   };
 }
 

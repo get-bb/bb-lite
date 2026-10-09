@@ -3,7 +3,10 @@ import * as domain from "@bb/domain";
 import { newId } from "@bb/server-kit/db/index";
 import * as pending from "@bb/server-kit/db/pending-interactions";
 import type { DeletedProject } from "@bb/server-kit/db/projects";
-import { listThreadIdsWaitingOn } from "@bb/server-kit/db/queued-messages";
+import {
+  failQueuedMessagesOnHost,
+  listThreadIdsWaitingOn,
+} from "@bb/server-kit/db/queued-messages";
 import * as store from "@bb/server-kit/db/threads";
 import { ApiError, conflict } from "@bb/server-kit/http/errors";
 import type { Outbox } from "./core.js";
@@ -267,6 +270,22 @@ export function releaseDeletedProject(
       const removed = runners.get(hostId).deleteThreadStorage({ threadId });
       engine.background("delete project thread storage", removed);
     }
+  }
+}
+
+export function failQueuedOnRemovedMachine(
+  engine: Engine,
+  { hostId }: { hostId: string },
+): void {
+  const { db, realtime } = engine.bb;
+  const name = db.get<{ name: string }>(
+    "SELECT name FROM hosts WHERE id = ?",
+    hostId,
+  )?.name;
+  const reason =
+    `Machine ${name ?? hostId} was removed; ` + "this thread can no longer run";
+  for (const threadId of failQueuedMessagesOnHost(db, hostId, reason)) {
+    realtime.thread(threadId, ["queue-changed"]);
   }
 }
 
