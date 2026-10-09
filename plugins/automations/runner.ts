@@ -62,6 +62,7 @@ export function runScript(
     }, args.timeoutMs);
     const abort = () => kill(child);
     signal.addEventListener("abort", abort);
+    if (signal.aborted) abort();
     const done = (exitCode: number | null) => {
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);

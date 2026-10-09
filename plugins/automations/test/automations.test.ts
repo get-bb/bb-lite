@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { createThreadServer } from "../../../apps/server/test/thread-harness.js";
@@ -267,19 +267,49 @@ it("runs a script automation on the machine and records output and exit status",
   expect(both.exitCode).not.toBe(0);
 });
 
-it("stops a running script when its signal aborts", async () => {
+it("stops a running script and its children when its signal aborts", async () => {
   const dir = scratch();
   const stop = new AbortController();
   const started = Date.now();
   const path = join(dir, "sleep.sh");
-  writeFileSync(path, "sleep 30\n");
+  const pidFile = join(dir, "pid");
+  writeFileSync(path, `sleep 30 &\necho $! > ${pidFile}\nwait\n`);
   const pending = runScript(
     { command: "bash", path, cwd: dir, env: {}, timeoutMs: 60_000 },
     stop.signal,
   );
+  await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true));
+  const sleeper = Number(readFileSync(pidFile, "utf8"));
+  const alive = () => {
+    try {
+      process.kill(sleeper, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  expect(alive()).toBe(true);
   stop.abort();
-  const result = await pending;
-  expect(result.exitCode).not.toBe(0);
+  expect(await pending).toEqual({
+    exitCode: null,
+    output: "",
+    stderr: "",
+    timedOut: false,
+  });
+  expect(Date.now() - started).toBeLessThan(5000);
+  await vi.waitFor(() => expect(alive()).toBe(false));
+});
+
+it("stops at once a script whose signal had already aborted", async () => {
+  const dir = scratch();
+  const path = join(dir, "sleep.sh");
+  writeFileSync(path, "sleep 30\n");
+  const started = Date.now();
+  const result = await runScript(
+    { command: "bash", path, cwd: dir, env: {}, timeoutMs: 60_000 },
+    AbortSignal.abort(),
+  );
+  expect(result).toMatchObject({ exitCode: null, timedOut: false });
   expect(Date.now() - started).toBeLessThan(5000);
 });
 
