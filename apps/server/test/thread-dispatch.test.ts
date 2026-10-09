@@ -1,5 +1,6 @@
 import type { PendingInteractionPayload } from "@bb/domain";
 import { expect, it } from "vitest";
+import { deny, threads as threadOps } from "@bb/plugin";
 import { createThreadServer, events, text } from "./thread-harness.js";
 
 const question: PendingInteractionPayload = {
@@ -233,4 +234,36 @@ it("starts a thread with no provider on an enabled one only", async () => {
     startedOnBehalfOf: null,
   });
   expect(created.body).toMatchObject({ providerId: "echo" });
+});
+
+it("runs a new thread's first prompt through send hooks", async () => {
+  const server = await createThreadServer();
+  const guard = server.ctx.kernel.scope("quiet-hours", "installed");
+  const seen: string[] = [];
+  guard
+    .on(threadOps.send, (input, next) => {
+      const [first] = input.input;
+      const said = first?.type === "text" ? first.text : "";
+      seen.push(said);
+      return said === "forbidden" ? deny("Not that one") : next(input);
+    })
+    .failClosed();
+  const allowed = await server.spawn();
+  expect(seen).toHaveLength(1);
+  const before = server.rows("SELECT id FROM threads").length;
+  const request = {
+    projectId: "proj_1",
+    origin: "app",
+    providerId: "codex",
+    input: text("forbidden"),
+    environment: { type: "project-default" },
+    startedOnBehalfOf: null,
+  };
+  const refused = await server.http("POST", "/threads", request);
+  expect(refused).toMatchObject({
+    status: 403,
+    body: { code: "denied_by_plugin" },
+  });
+  expect(server.rows("SELECT id FROM threads")).toHaveLength(before);
+  expect(server.thread(allowed).id).toBe(allowed);
 });

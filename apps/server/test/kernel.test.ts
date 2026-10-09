@@ -166,16 +166,18 @@ it("records who changed a thread, through which door and which plugin", async ()
   ]);
   const ensured = "tasks>threads";
   expect(trail).toEqual([
+    ["threads.send", "usr_owner", "http", null, "", "ok"],
     ["threads.create", "usr_owner", "http", null, "", "ok"],
     ["environments.ensure", "usr_owner", "http", null, "threads", "ok"],
     ["threads.send", "usr_owner", "app", null, "", "ok"],
+    ["threads.send", "usr_owner", "agent", threadId, "tasks", "ok"],
     ["threads.create", "usr_owner", "agent", threadId, "tasks", "ok"],
     ["environments.ensure", "usr_owner", "agent", threadId, ensured, "ok"],
   ]);
-  const [, , send] = await auditOf(server);
+  const [, , , send] = await auditOf(server);
   expect(send.input).toContain(threadId);
   const byPlugin = await auditOf(server, { plugin: "tasks" });
-  const viaTasks = ["threads.create", "environments.ensure"];
+  const viaTasks = ["threads.send", "threads.create", "environments.ensure"];
   expect(byPlugin.map(({ op }) => op)).toEqual(viaTasks);
   expect(spawned.originPluginId).toBe("tasks");
   const cli = { argv: ["list", "--op", "threads.send"], cwd: "/" };
@@ -184,7 +186,7 @@ it("records who changed a thread, through which door and which plugin", async ()
   expect(listed.body).toMatchObject({ exitCode: 0 });
   expect(String(listed.body.stdout)).not.toContain(line);
   expect(String(listed.body.stdout)).toMatch(
-    /threads\.send {2}usr_owner {2}app {2}ok$/u,
+    /threads\.send {2}usr_owner {2}app {2}ok$/mu,
   );
 });
 
@@ -251,6 +253,7 @@ it("shows a member only their own records", async () => {
   ]);
   const everything = await auditOf(server);
   expect(everything.map(({ op }) => op)).toEqual([
+    "threads.send",
     "threads.create",
     "environments.ensure",
     "threads.stop",

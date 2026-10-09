@@ -27,7 +27,6 @@ import {
 import type { EnvironmentIntent } from "@bb/server-kit/environments/types";
 import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
 import { assertHostUsable, defaultHostId } from "@bb/server-kit/runners/access";
-import { dispatchMessage } from "./dispatch.js";
 import type { Engine } from "./engine.js";
 import { resolveCreateExecution } from "./execution.js";
 import { deriveTitleFallback, type StartupContext } from "./provisioning.js";
@@ -229,23 +228,11 @@ export async function createThread(
     out.after(() => bb.emit(threads.created, { thread: response }));
     return row;
   });
+  const { input, sendAt } = request;
+  const timed = sendAt === undefined ? {} : { sendAt };
+  const first = { threadId: thread.id, input, mode: "start" as const };
   try {
-    await engine.inThread(thread.id, () =>
-      dispatchMessage(engine, thread.id, {
-        message: {
-          input: request.input,
-          execution,
-          senderThreadId: null,
-          actorUserId: createdByUserId,
-          initiator: "user",
-          systemNotice: null,
-        },
-        mode: "start",
-        sendAt: request.sendAt ?? null,
-        rows: [],
-        sendNow: false,
-      }),
-    );
+    await bb.call(threads.send, { ...first, ...timed });
   } catch (error) {
     store.deleteThreadRow(db, thread.id);
     bb.realtime.thread(thread.id, ["thread-deleted"], { projectId });
