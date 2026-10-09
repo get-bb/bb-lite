@@ -194,9 +194,7 @@ export const threadTell: Run = async (c) => {
     response.delivery === "queued"
       ? `message queued (${queueWait(response.queuedMessage)}); it ` +
         "dispatches when that clears"
-      : mode === "steer"
-        ? "steered"
-        : "updated";
+      : "message sent";
   c.out({ threadId, ...response, mode }, `Thread ${threadId} ${outcome}`);
 };
 

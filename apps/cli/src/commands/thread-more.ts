@@ -132,12 +132,15 @@ export const threadInteractionsResolve: Run = async (c) => {
 export const threadQueueList: Run = async (c) => {
   const threadId = threadTarget(c);
   const queued = await c.op(c.ops.threads.listQueuedMessages, { threadId });
+  const thread = await c.op(c.ops.threads.get, { threadId });
+  const paused = thread.status === "idle";
   const rows = queued.map((row) => {
     const texts = row.content.flatMap((block) =>
       block.type === "text" ? [block.text] : [],
     );
     const failed = row.failureReason;
-    const waiting = failed === null ? queueWait(row) : `Failed: ${failed}`;
+    const waiting =
+      failed === null ? queueWait(row, paused) : `Failed: ${failed}`;
     const message = clip(texts.join(" ") || "(no text)", 40);
     return { id: row.id, thread: row.threadId, message, waiting };
   });

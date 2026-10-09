@@ -173,3 +173,27 @@ it(
   },
   SLOW,
 );
+
+it(
+  "says a queue is paused by a manual stop and how to resume it",
+  async () => {
+    const { bb, project, ctx } = await startBb();
+    const spawn = ["thread", "spawn", "--project", project.id];
+    const first = [...spawn, "--provider", "echo", "--prompt", "hold_turn"];
+    const thread = parsed<Thread>(await bb([...first, "--json"]));
+    const turn = "SELECT active_turn_id FROM threads WHERE id = ?";
+    const running = { activeTurnId: expect.any(String) };
+    const drained = { timeout: 30_000, interval: 250 };
+    await vi.waitFor(
+      () => expect(ctx.db.get(turn, thread.id)).toEqual(running),
+      drained,
+    );
+    await bb(["thread", "tell", thread.id, "later", "--mode", "queue"]);
+    await bb(["thread", "stop", thread.id]);
+    await bb(["thread", "wait", thread.id, "--timeout", "30"]);
+    const listed = await bb(["thread", "queue", "list", thread.id]);
+    expect(listed.stdout).toContain("paused by a manual stop");
+    expect(listed.stdout).toContain("`bb thread queue send` resumes");
+  },
+  SLOW,
+);
