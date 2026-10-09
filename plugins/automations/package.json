@@ -21,6 +21,9 @@
   "keywords": [
     "bb-plugin"
   ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@bb/domain": "workspace:*",
     "@bb/plugin": "workspace:*",
