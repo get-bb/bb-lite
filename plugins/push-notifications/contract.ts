@@ -71,7 +71,9 @@ function formatOutcome(outcome: LastSendOutcome): string {
 export const pushNotifications = contract("pushNotifications", {
   test: op({
     input: z.object({
-      channel: clientChannelSchema.describe("Client type to notify"),
+      channel: z
+        .enum(clientChannelSchema.options, { error: "Use web or desktop" })
+        .describe("Client type to notify"),
     }),
     output: z.object({ ok: z.literal(true) }),
     kind: "write",

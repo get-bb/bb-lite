@@ -130,6 +130,8 @@ it("refuses a test for a disabled channel", async () => {
   expect((await server.op("test", { channel: "web" })).body).toEqual({
     ok: true,
   });
+  const bogus = await server.op("test", { channel: "bogus" });
+  expect(JSON.stringify(bogus.body)).toContain("Use web or desktop");
   await server.settings({ webEnabled: false });
   const refused = await server.op("test", { channel: "web" });
   expect(refused.status).toBe(400);

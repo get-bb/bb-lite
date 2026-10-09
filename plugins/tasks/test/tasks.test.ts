@@ -335,6 +335,11 @@ it("dispatches to a new thread, follows it and notifies its agent", async () => 
   const saved = await cli(`preset set 'Codex high' ${execution} ${guard}`);
   expect(saved.stdout).toContain("Saved preset Codex high");
   expect((await cli("preset set Other")).stderr).toContain("--provider");
+  const missing = await cli("preset set Nope --delete");
+  expect([missing.exitCode, missing.stderr]).toEqual([
+    1,
+    expect.stringContaining("preset not found: Nope"),
+  ]);
   const sent = "dispatch bb-1 --preset 'codex HIGH' --json";
   const dispatched = await cli(`${sent} --instructions 'Be quick'`);
   const { threadId } = dispatched.json<{ threadId: string }>();

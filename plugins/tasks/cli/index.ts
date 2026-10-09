@@ -566,7 +566,10 @@ export function registerTasksCli(ctx: TasksContext): void {
         reply(options.json, () => {
           const base = preset(positionals.name);
           if (options.delete) {
-            const deleted = base !== undefined && store.deletePreset(base.id);
+            if (base === undefined) {
+              fail(`preset not found: ${positionals.name}`, "preset_not_found");
+            }
+            const deleted = store.deletePreset(base.id);
             return [{ deleted, preset: base }, `Deleted: ${deleted}`];
           }
           const providerId = options.provider ?? base?.providerId;
