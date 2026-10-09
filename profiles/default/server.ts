@@ -15,6 +15,7 @@ import keepAwake from "../../plugins/keep-awake/server.js";
 import pluginDev from "../../plugins/plugin-dev/server.js";
 import claudeCode from "../../plugins/provider-claude-code/server.js";
 import codex from "../../plugins/provider-codex/server.js";
+import memory from "../../plugins/memory/server.js";
 import echo from "../../plugins/provider-echo/server.js";
 import inlineVis from "../../plugins/inline-vis/server.js";
 import secrets from "../../plugins/secrets/src/server.js";
@@ -74,6 +75,7 @@ export const serverPlugins: BuiltinPlugin[] = [
   },
   { directory: pluginDirectory("provider-retry"), server: providerRetry },
   { directory: pluginDirectory("scheduled-send"), server: null },
+  { directory: pluginDirectory("memory"), server: memory },
   { directory: pluginDirectory("connect"), server: connect },
   { directory: pluginDirectory("audit"), server: audit },
   { directory: pluginDirectory("plugin-dev"), server: pluginDev },

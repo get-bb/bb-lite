@@ -15,6 +15,7 @@
 @source "../../../../plugins/connect/app.tsx";
 @source "../../../../plugins/inline-vis/app.tsx";
 @source "../../../../plugins/keep-awake/app.tsx";
+@source "../../../../plugins/memory";
 @source "../../../../plugins/navigation/app.tsx";
 @source "../../../../plugins/navigation/app";
 @source "../../../../plugins/pdf-preview/app.tsx";

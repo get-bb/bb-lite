@@ -276,10 +276,11 @@ it("serves operations and the live chain over HTTP", async () => {
     status: 200,
     body: {
       ok: true,
-      result: [
+      result: expect.arrayContaining([
         { source: "custom-instructions", text: "Always use pnpm" },
         { source: "bb-guide", text: expect.stringContaining("bb status") },
-      ],
+        expect.objectContaining({ source: "memory" }),
+      ]),
     },
   });
   const unknown = await server.http("POST", "/ops/nope.nothing", {});

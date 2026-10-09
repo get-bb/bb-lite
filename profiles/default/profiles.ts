@@ -12,6 +12,7 @@ const AGENT_FEATURES = [
   "drafts",
   "provider-retry",
   "scheduled-send",
+  "memory",
   "audit",
   "plugin-dev",
 ];
