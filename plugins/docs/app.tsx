@@ -462,10 +462,10 @@ function MarkdownFileViewer({
   source,
   content,
 }: FileViewerProps) {
-  const editable = threadId !== null && source === "workspace";
+  const editable = threadId !== null;
   const opened = useOp(
     docs.openFile,
-    { threadId: threadId ?? "", path },
+    { threadId: threadId ?? "", path, source },
     { enabled: editable },
   );
   const save = useCall(docs.saveOpenedFile);
@@ -479,7 +479,7 @@ function MarkdownFileViewer({
     if (!threadId || draft === null) return;
     setStatus("Saving…");
     const expectedSha256 = opened.data?.sha256 ?? null;
-    save({ threadId, path, content: draft, expectedSha256 }).then(
+    save({ threadId, path, source, content: draft, expectedSha256 }).then(
       () => setStatus("Saved"),
       (failure: unknown) => setStatus(message(failure)),
     );

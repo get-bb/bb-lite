@@ -212,6 +212,7 @@ export interface WorkspaceApi {
     includeDirectories: boolean;
     includeHidden?: boolean;
     excludeNames?: string[];
+    fresh?: boolean;
   }): Promise<WorkspacePathListResponse>;
   browseDirectory(args: { path?: string }): Promise<HostDirectoryListing>;
   pathsExist(args: {

@@ -39,6 +39,8 @@ interface QueryFilePreviewProps extends Omit<
   statusLabel?: WorkspaceFilePreviewStatusLabel | null;
   threadId: string | null;
   source: "workspace" | "host";
+  projectId: string | null;
+  hostId: string | null;
 }
 
 function QueryFilePreview({
@@ -51,6 +53,8 @@ function QueryFilePreview({
   statusLabel,
   threadId,
   source,
+  projectId,
+  hostId,
 }: QueryFilePreviewProps) {
   const viewers = useSlotEntries(sidePanel.fileViewer);
   const viewer = viewers
@@ -69,6 +73,8 @@ function QueryFilePreview({
           path={activePath}
           threadId={threadId}
           source={source}
+          projectId={projectId}
+          hostId={hostId}
           name={data.name ?? activePath}
           url={data.url ?? null}
           mimeType={data.mimeType ?? null}
@@ -108,10 +114,7 @@ export function WorkspaceFilePreviewTabContent({
   ...props
 }: WorkspaceFilePreviewTabContentProps) {
   const { activePath, markdownLinkRouting } = props;
-  const environmentQuery = useEnvironment(environmentId, {
-    enabled: markdownLinkRouting?.localImage === undefined,
-    staleTime: 5_000,
-  });
+  const environmentQuery = useEnvironment(environmentId, { staleTime: 5_000 });
   const query = useEnvironmentFilePreview(environmentId, activePath, source, {
     enabled: isPanelOpen,
   });
@@ -121,6 +124,8 @@ export function WorkspaceFilePreviewTabContent({
       query={query}
       threadId={threadId}
       source="workspace"
+      projectId={environmentQuery.data?.projectId ?? null}
+      hostId={environmentQuery.data?.hostId ?? null}
       markdownLinkRouting={buildMarkdownFileImageRouting({
         path: activePath,
         rootPath: environmentQuery.data?.path ?? null,
@@ -145,6 +150,9 @@ export function HostFilePreviewTabContent({
   ...props
 }: HostFilePreviewTabContentProps) {
   const { activePath, markdownLinkRouting } = props;
+  const environment = useEnvironment(environmentId ?? "", {
+    staleTime: 5_000,
+  }).data;
   const query = useThreadHostFilePreview(threadId, environmentId, activePath, {
     enabled: isPanelOpen,
   });
@@ -154,6 +162,8 @@ export function HostFilePreviewTabContent({
       query={query}
       threadId={threadId}
       source="host"
+      projectId={environment?.projectId ?? null}
+      hostId={environment?.hostId ?? null}
       markdownLinkRouting={buildMarkdownFileImageRouting({
         path: activePath,
         rootPath:

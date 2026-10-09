@@ -167,6 +167,7 @@ export default function docsServer(bb: PluginServerApi): void {
       includeFiles: true,
       includeDirectories: true,
       includeHidden: false,
+      fresh: true,
       limit: 5000,
     });
     const kinds = new Map<string, Entry["kind"]>();

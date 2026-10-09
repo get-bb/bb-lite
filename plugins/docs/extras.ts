@@ -24,9 +24,7 @@ export function registerDocsExtras(
   order: string,
   read: Reader,
 ) {
-  bb.implement(docs.openFile, ({ threadId, path }) =>
-    bb.call(files.read, { threadId, path }),
-  );
+  bb.implement(docs.openFile, (input) => bb.call(files.read, input));
   bb.implement(docs.saveOpenedFile, async (input) => {
     const result = await bb.call(files.write, input);
     if (result.outcome === "conflict")

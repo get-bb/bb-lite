@@ -1894,9 +1894,6 @@ importers:
       '@bb/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
-      '@pierre/diffs':
-        specifier: ^1.2.9
-        version: 1.2.9(patch_hash=wdjikkl65wfpocm6wrflymrtdq)(@shikijs/themes@3.23.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       monaco-editor:
         specifier: ^0.56.0
         version: 0.56.0

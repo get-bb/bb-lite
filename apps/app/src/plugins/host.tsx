@@ -45,6 +45,7 @@ import {
   getThreadRoutePath,
 } from "@bb/app-kit/lib/route-paths";
 import { wsManager } from "@bb/app-kit/lib/ws";
+import { useCodeTheme } from "@bb/app-kit/lib/code-theme-registration";
 import { requestFileOpen } from "@bb/app-kit/lib/file-open-requests";
 import { PluginContext, usePluginId } from "@bb/app-kit/plugins/context";
 import { readLive } from "@bb/app-kit/plugins/ops";
@@ -235,6 +236,7 @@ export const pluginAppHost: PluginAppHost = {
   usePluginId,
   useBbContext,
   useBbNavigate,
+  useCodeTheme,
   useProviders,
   useEnvironmentProviders,
   useQuestionFormHost,

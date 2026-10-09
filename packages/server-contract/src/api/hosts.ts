@@ -11,6 +11,7 @@ export const hostDirectoryEntrySchema = z.object({
   kind: z.enum(["file", "directory"]),
   name: z.string(),
   path: z.string(),
+  modifiedAt: z.number().optional(),
 });
 
 export const hostDirectoryListingSchema = z.object({

@@ -52,6 +52,7 @@ export interface PluginAppHost {
   usePluginId(): string;
   useBbContext(): T.BbContext;
   useBbNavigate(): T.BbNavigate;
+  useCodeTheme(): T.CodeTheme | null;
   useProviders(): T.ProvidersState;
   useEnvironmentProviders(): T.EnvironmentProvidersState;
   useQuestionFormHost(): T.QuestionFormHost;
@@ -116,6 +117,7 @@ export const useExperiments = hook("useExperiments");
 export const usePluginId = hook("usePluginId");
 export const useBbContext = hook("useBbContext");
 export const useBbNavigate = hook("useBbNavigate");
+export const useCodeTheme = hook("useCodeTheme");
 export const useProviders = hook("useProviders");
 export const useEnvironmentProviders = hook("useEnvironmentProviders");
 export const useQuestionFormHost = hook("useQuestionFormHost");

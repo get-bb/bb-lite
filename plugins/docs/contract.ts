@@ -310,7 +310,11 @@ export const docs = contract("docs", {
     },
   }),
   openFile: op({
-    input: z.object({ threadId: z.string(), path: z.string() }),
+    input: z.object({
+      threadId: z.string(),
+      path: z.string(),
+      source: z.enum(["workspace", "thread-storage", "host"]).optional(),
+    }),
     output: z.object({ content: z.string(), sha256: z.string() }).nullable(),
   }),
   saveOpenedFile: op({
@@ -319,6 +323,7 @@ export const docs = contract("docs", {
       path: z.string(),
       content: z.string(),
       expectedSha256: z.string().nullable(),
+      source: z.enum(["workspace", "thread-storage", "host"]).optional(),
     }),
     output: z.object({ sha256: z.string() }),
     kind: "write",

@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { fail, threads, type PluginServerApi } from "@bb/plugin";
+import { fail, projects, threads, type PluginServerApi } from "@bb/plugin";
 import { machineFiles, RunnerError } from "@bb/runner";
 import {
   MAX_EDITABLE_BYTES,
@@ -11,6 +11,8 @@ interface Location {
   threadId: string | null;
   source: "workspace" | "thread-storage" | "host";
   path: string;
+  projectId?: string | null;
+  hostId?: string | null;
 }
 interface Target {
   hostId: string;
@@ -26,14 +28,29 @@ const unsupported = (reason: string) => ({
 });
 
 export default function monacoEditorServer(bb: PluginServerApi): void {
+  const checkout = async (projectId: string, hostId: string, path: string) => {
+    const { sources } = await bb.call(projects.get, { projectId });
+    const found = sources.find((source) => source.hostId === hostId);
+    if (found === undefined) {
+      fail("not_found", "This project has no checkout on that machine");
+    }
+    const root = found.path;
+    const absolute = posix.isAbsolute(path) ? path : posix.join(root, path);
+    return { hostId, root, path: absolute };
+  };
   const resolveTarget = async ({
     threadId,
     source,
     path,
+    projectId,
+    hostId = null,
   }: Location): Promise<Target> => {
     if (source === "workspace") {
       if (threadId === null) {
-        fail("invalid", "A workspace file needs a thread");
+        if (projectId == null) {
+          fail("invalid", "A workspace file needs a thread or a project");
+        }
+        return checkout(projectId, hostId ?? bb.server.hostId, path);
       }
       const workspace = await bb.call(threads.workspace, { threadId });
       const root = workspace.path;
@@ -52,7 +69,7 @@ export default function monacoEditorServer(bb: PluginServerApi): void {
     if (!posix.isAbsolute(path)) fail("invalid", "A host path is absolute");
     if (threadId === null) {
       const root = posix.dirname(path);
-      return { hostId: bb.server.hostId, root, path };
+      return { hostId: hostId ?? bb.server.hostId, root, path };
     }
     const storage = await bb.call(threads.storageLocation, { threadId });
     if (storage !== null && path.startsWith(`${storage.path}/`)) {

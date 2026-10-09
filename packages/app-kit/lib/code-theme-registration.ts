@@ -13,7 +13,10 @@ import {
   lightCodeThemes,
   type JsonObject,
 } from "@bb/domain";
+import type { CodeTheme } from "@bb/plugin/app";
+import { codeThemeData } from "./code-theme-data";
 import { useResolvedCodeThemePair } from "./code-theme";
+import { usePreferredTheme } from "../hooks/useTheme";
 
 for (const light of lightCodeThemes) {
   registerCustomTheme(light.name, async () =>
@@ -61,4 +64,27 @@ export function useCodeHighlighter(path: string) {
     };
   }, [isReady, key, language, theme.dark, theme.light]);
   return { theme, isReady };
+}
+
+export function useCodeTheme(): CodeTheme | null {
+  const pair = useResolvedCodeThemePair();
+  const dark = usePreferredTheme() === "dark";
+  const name = dark ? pair.dark : pair.light;
+  registerServedTheme(name);
+  const [resolved, setResolved] = useState<CodeTheme | null>(null);
+  useEffect(() => {
+    let current = true;
+    resolveTheme(name).then(
+      (raw) => {
+        if (current) setResolved(codeThemeData(name, dark, raw));
+      },
+      () => {
+        if (current) setResolved(null);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [name, dark]);
+  return resolved?.name === name ? resolved : null;
 }

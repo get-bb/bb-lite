@@ -46,6 +46,18 @@ export interface MarkdownProps {
   document?: { threadId: string; path: string; source?: FileSource };
 }
 
+export interface CodeThemeTokenColor {
+  scope?: string | string[];
+  settings: { foreground?: string; background?: string; fontStyle?: string };
+}
+
+export interface CodeTheme {
+  name: string;
+  type: "light" | "dark";
+  colors: Record<string, string>;
+  tokenColors: CodeThemeTokenColor[];
+}
+
 export interface DiffProps {
   patch: string;
   path?: string;

@@ -117,4 +117,23 @@ describe("files", () => {
     expect(plain).toContain("state/config.json");
     expect(plain).not.toContain("link");
   });
+
+  it("lists fresh past the reuse window and browses with modified times", async () => {
+    const dir = path.join(h.root, "fresh");
+    h.write(h.root, { "fresh/a.md": "" });
+    const args = { rootPath: dir, limit: 50, includeDirectories: false };
+    const names = async (fresh?: boolean) =>
+      (await h.api.listPaths({ ...args, includeFiles: true, fresh })).paths
+        .map((entry) => entry.path)
+        .sort();
+    expect(await names()).toEqual(["a.md"]);
+    h.write(h.root, { "fresh/b.md": "" });
+    expect(await names()).toEqual(["a.md"]);
+    expect(await names(true)).toEqual(["a.md", "b.md"]);
+    const stamp = new Date(1_700_000_000_000);
+    fs.utimesSync(path.join(dir, "a.md"), stamp, stamp);
+    const listing = await h.api.browseDirectory({ path: dir });
+    const entry = listing.entries.find(({ name }) => name === "a.md");
+    expect(entry?.modifiedAt).toBe(1_700_000_000_000);
+  });
 });

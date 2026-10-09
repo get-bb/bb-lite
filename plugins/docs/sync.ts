@@ -15,6 +15,7 @@ const State = z.object({
 type State = z.infer<typeof State>;
 type Change = z.infer<typeof Change>;
 type Caller = { cwd?: string; hostId?: string };
+type Local = { path: string; modifiedAt: number | undefined };
 
 const sha = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const inScope = (state: State, path: string) =>
@@ -26,6 +27,7 @@ export const onHost =
     bb.runners.call(hostId, op, input);
 
 export function registerDocsSync(bb: PluginServerApi): void {
+  const hashes = new Map<string, { modifiedAt: number; sha256: string }>();
   const machine = (caller: Caller, dir = ".") => {
     const hostId = caller.hostId ?? bb.runners.localHostId;
     const base = posix.resolve(caller.cwd ?? ".", dir);
@@ -46,7 +48,7 @@ export function registerDocsSync(bb: PluginServerApi): void {
       call(machineFiles.mutate, { op: "remove", path: at(path) }).catch(
         () => null,
       );
-    const walk = async (dir = base, prefix = ""): Promise<string[]> => {
+    const walk = async (dir = base, prefix = ""): Promise<Local[]> => {
       const listing = await call(machineFiles.browse, { path: dir }).catch(
         () => ({ entries: [] }),
       );
@@ -54,10 +56,21 @@ export function registerDocsSync(bb: PluginServerApi): void {
         listing.entries.map((e) =>
           e.kind === "directory"
             ? walk(e.path, `${prefix}${e.name}/`)
-            : [`${prefix}${e.name}`],
+            : [{ path: `${prefix}${e.name}`, modifiedAt: e.modifiedAt }],
         ),
       );
       return nested.flat();
+    };
+    const hashOf = async ({ path, modifiedAt }: Local) => {
+      const key = `${hostId}:${at(path)}`;
+      const seen = hashes.get(key);
+      if (seen && modifiedAt !== undefined && seen.modifiedAt === modifiedAt)
+        return seen.sha256;
+      const now = await bytes(path);
+      if (!now) return null;
+      const sha256 = sha(now);
+      if (modifiedAt !== undefined) hashes.set(key, { modifiedAt, sha256 });
+      return sha256;
     };
     const loadState = async () => {
       const raw = await bytes(STATE);
@@ -70,7 +83,7 @@ export function registerDocsSync(bb: PluginServerApi): void {
     };
     const saveState = (state: State) =>
       put(STATE, Buffer.from(`${JSON.stringify(state, null, 2)}\n`));
-    return { base, bytes, put, remove, walk, loadState, saveState };
+    return { base, bytes, put, remove, walk, hashOf, loadState, saveState };
   };
   type Machine = ReturnType<typeof machine>;
 
@@ -81,16 +94,17 @@ export function registerDocsSync(bb: PluginServerApi): void {
       .catch(() => "");
 
   async function changes(m: Machine, state: State, withDeletes: boolean) {
-    const local = (await m.walk()).filter((p) => inScope(state, p));
+    const found = (await m.walk()).filter((f) => inScope(state, f.path));
+    const local = new Set(found.map((f) => f.path));
     const changed: Change[] = [];
-    for (const path of local) {
-      const known = state.files[path];
-      const now = await m.bytes(path);
-      if (now && known !== sha(now))
-        changed.push({ path, status: known ? "modified" : "added" });
+    for (const file of found) {
+      const known = state.files[file.path];
+      const now = await m.hashOf(file);
+      if (now && known !== now)
+        changed.push({ path: file.path, status: known ? "modified" : "added" });
     }
     const gone = Object.keys(state.files)
-      .filter((p) => !local.includes(p))
+      .filter((p) => !local.has(p))
       .map((path): Change => ({ path, status: "deleted" }));
     return [...changed, ...(withDeletes ? gone : [])];
   }

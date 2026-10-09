@@ -7,6 +7,8 @@ export const MAX_TREE_ENTRIES = 10_000;
 const location = z.object({
   threadId: z.string().min(1).nullable(),
   source: z.enum(["workspace", "thread-storage", "host"]).default("workspace"),
+  projectId: z.string().min(1).nullable().optional(),
+  hostId: z.string().min(1).nullable().optional(),
 });
 const file = location.extend({ path: z.string().min(1) });
 

@@ -169,3 +169,20 @@ it("opens host and thread-storage files where they live", async () => {
     relativePath: "notes.md",
   });
 });
+
+it("opens a project checkout file with no thread", async () => {
+  const { call } = await editorServer({ "/repo/src/b.ts": "let b = 2" });
+  const opened = await call("read", {
+    threadId: null,
+    projectId: "proj_1",
+    path: "src/b.ts",
+  });
+  expect(opened.body.result).toMatchObject({
+    kind: "text",
+    content: "let b = 2",
+    absolutePath: "/repo/src/b.ts",
+    relativePath: "src/b.ts",
+  });
+  const missing = await call("read", { threadId: null, path: "src/b.ts" });
+  expect(missing.status).toBe(400);
+});

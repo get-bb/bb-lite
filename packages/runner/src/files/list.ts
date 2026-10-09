@@ -96,7 +96,7 @@ export const listPaths: Method<"listPaths"> = async (ctx, args) => {
   const excluded = new Set(args.excludeNames);
   const skipHidden = args.includeHidden !== true;
   const key = JSON.stringify([root, skipHidden, [...excluded].sort()]);
-  let recent = recentListings.get(key);
+  let recent = args.fresh === true ? undefined : recentListings.get(key);
   if (recent === undefined || Date.now() - recent.at > LISTING_REUSE_MS) {
     const isExcluded = (segment: string) =>
       excluded.has(segment) || (skipHidden && segment.startsWith("."));
@@ -145,7 +145,8 @@ export const browseDirectory: Method<"browseDirectory"> = async (
         : await fs.stat(entryPath).catch(() => null);
     if (stat?.isDirectory() || stat?.isFile()) {
       const kind = stat.isDirectory() ? "directory" : "file";
-      entries.push({ kind, name: entry.name, path: entryPath });
+      const modifiedAt = stat.mtimeMs;
+      entries.push({ kind, name: entry.name, path: entryPath, modifiedAt });
     }
   }
   entries.sort(

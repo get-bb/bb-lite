@@ -822,6 +822,8 @@ export const interactions = contract("interactions", {
   }),
 });
 
+const fileSource = z.enum(["workspace", "thread-storage", "host"]).optional();
+
 export const files = contract("files", {
   read: op({
     input: z.custom<FileReadArgs>(),
@@ -842,6 +844,7 @@ export const files = contract("files", {
     input: z.object({
       threadId: z.string(),
       path: z.string().optional(),
+      source: fileSource,
       query: z.string().optional(),
       limit: z.number().int().positive().max(5_000).default(1_000),
       directories: z.boolean().default(false),
@@ -853,7 +856,11 @@ export const files = contract("files", {
     internal: true,
   }),
   mkdir: op({
-    input: z.object({ threadId: z.string(), path: z.string() }),
+    input: z.object({
+      threadId: z.string(),
+      path: z.string(),
+      source: fileSource,
+    }),
     output: nothing,
     kind: "write",
     internal: true,
@@ -863,6 +870,7 @@ export const files = contract("files", {
       threadId: z.string(),
       path: z.string(),
       recursive: z.boolean().default(false),
+      source: fileSource,
     }),
     output: nothing,
     kind: "write",
@@ -873,6 +881,7 @@ export const files = contract("files", {
       threadId: z.string(),
       from: z.string(),
       to: z.string(),
+      source: fileSource,
     }),
     output: nothing,
     kind: "write",
@@ -882,7 +891,7 @@ export const files = contract("files", {
     input: z.object({
       threadId: z.string(),
       path: z.string(),
-      source: z.enum(["workspace", "thread-storage", "host"]).optional(),
+      source: fileSource,
     }),
     output: z.object({ url: z.string() }),
     doors: { http: { method: "GET", path: "/files/url" } },

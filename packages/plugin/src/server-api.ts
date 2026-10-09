@@ -202,10 +202,12 @@ export interface InferenceService {
   complete(prompt: string, options: { signal: AbortSignal }): Promise<string>;
 }
 
+export type FileSource = "workspace" | "thread-storage" | "host";
 export interface FileReadArgs {
   threadId: string;
   path: string;
   encoding?: "utf8" | "base64";
+  source?: FileSource;
 }
 export interface FileWriteArgs extends FileReadArgs {
   content: string;

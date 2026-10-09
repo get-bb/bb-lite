@@ -4,15 +4,13 @@ import {
   shell,
   sidePanel,
   useCall,
+  useCodeTheme,
   useOp,
   type FileViewerProps,
   type PluginAppApi,
 } from "@bb/plugin/app";
 import { usePreferredTheme } from "@bb/app-kit/hooks/useTheme";
 import { copyToClipboardWithToast } from "@bb/app-kit/lib/clipboard";
-import { useResolvedCodeThemePair } from "@bb/app-kit/lib/code-theme";
-import "@bb/app-kit/lib/code-theme-registration";
-import { resolveTheme } from "@pierre/diffs";
 import { Button } from "@bb/shared-ui/button";
 import { monacoEditor } from "./contract";
 import { FileTree } from "./FileTree";
@@ -99,12 +97,16 @@ function MonacoFileViewer({
   path,
   threadId,
   source,
+  projectId,
+  hostId,
   content,
 }: FileViewerProps) {
-  const readable = threadId !== null || source === "host";
+  const checkout = source === "workspace" && projectId !== null;
+  const readable = threadId !== null || source === "host" || checkout;
+  const place = { projectId, hostId };
   const file = useOp(
     monacoEditor.read,
-    { threadId, source, path },
+    { threadId, source, path, ...place },
     { enabled: readable },
   );
   const [reloads, setReloads] = useState(0);
@@ -116,6 +118,7 @@ function MonacoFileViewer({
         path={path}
         threadId={null}
         source={source}
+        place={place}
         loaded={{
           content,
           sha256: null,
@@ -146,6 +149,7 @@ function MonacoFileViewer({
       path={path}
       threadId={threadId}
       source={source}
+      place={place}
       loaded={file.data}
       onReload={() => {
         void file.refetch();
@@ -159,11 +163,19 @@ interface EditorProps {
   path: string;
   threadId: string | null;
   source: FileViewerProps["source"];
+  place: Pick<FileViewerProps, "projectId" | "hostId">;
   loaded: Loaded;
   onReload(): void;
 }
 
-function Editor({ path, threadId, source, loaded, onReload }: EditorProps) {
+function Editor({
+  path,
+  threadId,
+  source,
+  place,
+  loaded,
+  onReload,
+}: EditorProps) {
   const host = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<CodeEditor | null>(null);
   const sha = useRef(loaded.sha256);
@@ -176,7 +188,7 @@ function Editor({ path, threadId, source, loaded, onReload }: EditorProps) {
   darkRef.current = dark;
   const paths = useRef(loaded);
   paths.current = loaded;
-  const codeTheme = useResolvedCodeThemePair();
+  const codeTheme = useCodeTheme();
   const [showTree, setShowTree] = useState(treeShown);
   const write = useCall(monacoEditor.write);
   const readOnly = loaded.sha256 === null;
@@ -191,6 +203,7 @@ function Editor({ path, threadId, source, loaded, onReload }: EditorProps) {
         threadId,
         source,
         path,
+        ...place,
         content,
         ...(force ? {} : { expectedSha256: sha.current }),
       });
@@ -262,17 +275,15 @@ function Editor({ path, threadId, source, loaded, onReload }: EditorProps) {
 
   useEffect(() => {
     let current = true;
-    const name = dark ? codeTheme.dark : codeTheme.light;
-    const data = resolveTheme(name).catch(() => null);
-    void Promise.all([loadMonaco(), data]).then(([loaded, theme]) => {
+    void loadMonaco().then((loaded) => {
       if (!current) return;
-      loaded.applyCodeTheme(dark, theme);
+      loaded.applyCodeTheme(dark, codeTheme);
       loaded.overflowWidgetsNode(dark);
     });
     return () => {
       current = false;
     };
-  }, [dark, codeTheme.dark, codeTheme.light]);
+  }, [dark, codeTheme]);
 
   if (failed !== null) {
     return <Centered>Failed to load the editor: {failed}</Centered>;

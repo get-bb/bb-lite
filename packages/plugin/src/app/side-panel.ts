@@ -30,6 +30,8 @@ export interface FileViewerProps {
   path: string;
   threadId: string | null;
   source: FileSource;
+  projectId: string | null;
+  hostId: string | null;
   name: string;
   url: string | null;
   mimeType: string | null;
