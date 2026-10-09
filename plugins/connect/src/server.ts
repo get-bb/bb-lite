@@ -7,6 +7,7 @@ import {
   PluginCliError,
   server,
   sessions,
+  threads,
 } from "@bb/plugin";
 import type * as Plugin from "@bb/plugin";
 import { ConnectAccount, legacyLink, shareUrl, type Link } from "./account.js";
@@ -322,8 +323,8 @@ export default async function connectPlugin(
 
   if (process.env.BB_CONNECT_LINK !== undefined) {
     const busy = async () => {
-      const threads = await bb.threads.list({ archived: "false" });
-      return threads.some((thread) => BUSY_STATUSES.includes(thread.status));
+      const listed = await bb.call(threads.list, { archived: false });
+      return listed.some((thread) => BUSY_STATUSES.includes(thread.status));
     };
     const report = async () => {
       const link = activeLink();
