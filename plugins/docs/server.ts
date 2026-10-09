@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { posix } from "node:path";
 import { homedir } from "node:os";
-import { fail, sessions, type PluginServerApi } from "@bb/plugin";
+import { fail, machines, sessions, type PluginServerApi } from "@bb/plugin";
 import { machineFiles, type PathMutation } from "@bb/runner";
 import { registerDocsCli } from "./cli.js";
 import { registerDocsExtras } from "./extras.js";
@@ -150,6 +150,7 @@ export default function docsServer(bb: PluginServerApi): void {
   bb.implement(docs.createVault, ({ name, absoluteRoot, hostId }) => {
     if (!posix.isAbsolute(absoluteRoot))
       fail("invalid", "The vault root must be an absolute path");
+    bb.pick(machines.guard)?.(hostId ?? bb.runners.localHostId);
     const base = name.toLowerCase().replace(/[^a-z0-9]+/gu, "-") || "vault";
     const taken = new Set(allVaults().map((v) => v.vaultId));
     let vaultId = base;
@@ -161,7 +162,8 @@ export default function docsServer(bb: PluginServerApi): void {
     return getVault(vaultId);
   });
   bb.implement(docs.deleteVault, ({ vaultId }) => {
-    getVault(vaultId);
+    const { hostId } = getVault(vaultId);
+    bb.pick(machines.guard)?.(hostId ?? bb.runners.localHostId);
     bb.db.run(`DELETE FROM ${vaults} WHERE vault_id = ?`, vaultId);
     bb.db.run(`DELETE FROM ${proposals} WHERE vault_id = ?`, vaultId);
     bb.changed(docs.vaults);

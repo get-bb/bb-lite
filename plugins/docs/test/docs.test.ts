@@ -1,8 +1,11 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runAs } from "../../../packages/server-kit/src/auth/actor.js";
 import { expect, it } from "vitest";
 import { createTestServer } from "../../../apps/server/test/helpers.js";
+import { insertRow } from "../../../packages/server-kit/src/db/index.js";
+import { docs } from "../contract.js";
 
 type Row = Record<string, unknown>;
 
@@ -168,4 +171,24 @@ it("creates the Personal vault folder and lists every command in help", async ()
   expect(help.exitCode).toBe(0);
   for (const command of ["propose", "list", "read", "pull", "push", "status"])
     expect(help.stdout).toContain(`bb docs ${command} `);
+});
+
+it("refuses a member vault changes on a machine that is not shared with them", async () => {
+  const { server, root } = await docsServer();
+  const { db, kernel } = server.ctx;
+  const at = { createdAt: 1, updatedAt: 1 };
+  const bo = { id: "usr_bo", name: "Bo", role: "member", externalId: "ext_bo" };
+  insertRow(db, "users", { ...bo, ...at });
+  const member = {
+    userId: bo.id,
+    role: "member" as const,
+    agentThreadId: null,
+  };
+  const notShared = { body: { code: "machine_not_shared" } };
+  const vault = { name: "Mine", absoluteRoot: root };
+  const create = runAs(member, () => kernel.call(docs.createVault, vault));
+  await expect(create).rejects.toMatchObject(notShared);
+  const personal = { vaultId: "personal" };
+  const remove = runAs(member, () => kernel.call(docs.deleteVault, personal));
+  await expect(remove).rejects.toMatchObject(notShared);
 });
