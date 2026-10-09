@@ -3,6 +3,7 @@ import {
   cliCommand,
   defineCli,
   machines,
+  OpError,
   PluginCliError,
   type CliCommand,
   type CliContext,
@@ -13,11 +14,9 @@ import {
   browserAutomation,
   MAX_TIMEOUT_MS,
   MIN_TIMEOUT_MS,
+  REOPEN_HINT,
   type Selection,
 } from "./contract.js";
-
-const REOPEN_HINT =
-  "Open a new session with `bb browser-automation open --backend <desktop|local> --machine <host-id>`.";
 
 const SESSION = {
   name: "session-id",
@@ -40,11 +39,11 @@ export function cliFailure(error: unknown): PluginCliError {
   if (error instanceof PluginCliError) return error;
   const message =
     error instanceof Error ? error.message : "Browser command failed";
-  const code =
-    typeof error === "object" && error !== null && "cliCode" in error
-      ? String(error.cliCode)
-      : undefined;
-  if (code !== undefined) return new PluginCliError(message, { code });
+  if (error instanceof OpError && error.reason !== null)
+    return new PluginCliError(message, {
+      code: error.reason,
+      ...(error.hint === null ? {} : { hint: error.hint }),
+    });
   if (/stopped or expired|does not belong to this thread/u.test(message)) {
     return new PluginCliError(message, {
       code: "session_unavailable",
@@ -74,29 +73,6 @@ function threadOf(option: string | undefined, ctx: CliContext): string {
     );
   }
   return threadId;
-}
-
-export function parseTimeout(value: string): number {
-  const match = /^(\d+(?:\.\d+)?)(ms|s|m)?$/u.exec(value.trim());
-  if (match === null) throw usage(`Invalid --timeout '${value}'`);
-  const amount = Number(match[1]);
-  const unit = match[2];
-  const ms =
-    unit === "ms"
-      ? amount
-      : unit === "m"
-        ? amount * 60_000
-        : unit === "s" || amount <= MAX_TIMEOUT_MS / 1_000
-          ? amount * 1_000
-          : amount;
-  if (!Number.isInteger(ms) || ms < MIN_TIMEOUT_MS || ms > MAX_TIMEOUT_MS) {
-    throw usage("--timeout must be between 1s and 120s");
-  }
-  return ms;
-}
-
-function usage(message: string) {
-  return new PluginCliError(message, { code: "usage" });
 }
 
 function printed(value: unknown, exitCode = 0): CliResult {
@@ -197,6 +173,8 @@ export function registerCli(bb: PluginServerApi): void {
     defineCli({
       name: "browser-automation",
       summary: "Persistent DevBrowser desktop and headless sessions",
+      description:
+        "Sessions belong to the thread that opened them and expire after 30 minutes idle.\nA stopped or expired session cannot be resumed; open a new one.",
       commands: guarded({
         open: cliCommand({
           summary:
@@ -288,6 +266,12 @@ export function registerCli(bb: PluginServerApi): void {
           description:
             "Scripts may return at most 4 screenshots per run, JPEG only, 500 KB combined;\nanything larger or in another format fails the run.",
           positionals: [SESSION],
+          constraints: [
+            { kind: "exactly-one", options: ["script", "script-file"] },
+            { kind: "requires", option: "script-file", needs: ["script-host"] },
+            { kind: "requires", option: "script-host", needs: ["script-file"] },
+            { kind: "at-most-one", options: ["timeout", "timeout-ms"] },
+          ],
           options: {
             script: {
               type: "string",
@@ -306,12 +290,16 @@ export function registerCli(bb: PluginServerApi): void {
             },
             "timeout-ms": {
               type: "integer",
+              min: MIN_TIMEOUT_MS,
+              max: MAX_TIMEOUT_MS,
               description:
                 "Run timeout in milliseconds (1000-120000, default 30000)",
             },
             timeout: {
-              type: "string",
-              placeholder: "duration",
+              type: "duration",
+              units: ["s", "ms"],
+              min: MIN_TIMEOUT_MS,
+              max: MAX_TIMEOUT_MS,
               description:
                 "Run timeout as a duration (90s, 2m, 1500ms); a bare number is seconds (1-120) or milliseconds (1000-120000)",
             },
@@ -321,19 +309,7 @@ export function registerCli(bb: PluginServerApi): void {
             const { options } = input;
             const file = options["script-file"];
             const host = options["script-host"];
-            if ((options.script === undefined) === (file === undefined))
-              throw usage("Pass exactly one of --script or --script-file");
-            if ((file === undefined) !== (host === undefined))
-              throw usage("--script-file and --script-host go together");
-            if (
-              options.timeout !== undefined &&
-              options["timeout-ms"] !== undefined
-            )
-              throw usage("Pass at most one of --timeout or --timeout-ms");
-            const timeoutMs =
-              options.timeout === undefined
-                ? options["timeout-ms"]
-                : parseTimeout(options.timeout);
+            const timeoutMs = options.timeout ?? options["timeout-ms"];
             const target = owned(input, ctx);
             const script =
               file !== undefined && host !== undefined

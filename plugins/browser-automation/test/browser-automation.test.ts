@@ -267,3 +267,49 @@ it("checks the pinned digest list and npm provenance without downloading", () =>
     ),
   ).toThrow(/does not cover/u);
 });
+
+it("serves live preview frames to the app and closes sessions when the thread is archived", async () => {
+  const server = await browserServer();
+  const { cli, hostId, threadId, sent } = server;
+  const session = (
+    await cli(["open", "--backend", "local", "--headless", "--machine", hostId])
+  ).json();
+  const frame = {
+    sequence: 3,
+    mimeType: "image/jpeg",
+    data: "AAAA",
+    width: 800,
+    height: 450,
+    url: "https://example.test",
+    title: "Example",
+  };
+  const answer = server.runner.script.callOp;
+  server.runner.script.callOp = async (op, ...rest) => {
+    const { name } = op as Sent;
+    if (name.endsWith("hostPreview"))
+      setTimeout(
+        () =>
+          void server.emit({
+            kind: "plugin.event",
+            name: "browser-automation.previewFrame",
+            payload: { sessionId: session.id, size: "thumbnail", frame },
+          }),
+        10,
+      );
+    return answer?.(op, ...rest);
+  };
+  const { body } = await server.http<{
+    result: { frame: typeof frame | null };
+  }>("POST", "/ops/browser-automation.preview", {
+    threadId,
+    sessionId: session.id,
+  });
+  expect(body.result.frame).toEqual(frame);
+
+  await server.ctx.threads.archive(threadId);
+  await expect
+    .poll(() => sent.at(-1)?.name)
+    .toBe("browser-automation.hostClose");
+  const listed = (await cli(["list"])).json();
+  expect(listed[0]).toMatchObject({ id: session.id, state: "closed" });
+});

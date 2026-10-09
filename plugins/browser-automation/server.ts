@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  fail,
   machines,
   sessions as agentSessions,
   threads,
@@ -9,6 +10,7 @@ import { registerCli } from "./cli.js";
 import {
   browserAutomation as ba,
   previewDirective,
+  REOPEN_HINT,
   sessionSchema,
   type PreviewFrame,
   type Session,
@@ -24,15 +26,6 @@ const shotScript = (page: string) =>
 
 const INSTRUCTIONS =
   "When `bb browser-automation open` returns a previewDirective, copy it into your next response exactly once as a standalone line before you continue working. Do not wrap it in backticks or a code fence, and do not invent or edit the session ID. The directive shows the user a live view of that headless browser in BB chat. Desktop sessions return no directive.";
-
-class CodedError extends Error {
-  constructor(
-    readonly cliCode: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
 
 interface Active {
   session: Session;
@@ -56,7 +49,10 @@ export default function browserAutomationServer(bb: PluginServerApi): void {
         .optional()
         .parse(await bb.storage.kv.get(key({ threadId, id: sessionId })));
     if (stored === undefined || stored.threadId !== threadId)
-      throw new Error("Session does not belong to this thread");
+      fail("not_found", "Session does not belong to this thread", {
+        reason: "session_unavailable",
+        hint: REOPEN_HINT,
+      });
     return stored;
   }
 
@@ -68,7 +64,10 @@ export default function browserAutomationServer(bb: PluginServerApi): void {
       session.state !== "ready" ||
       bb.now() >= session.expiresAt
     )
-      throw new Error("Session stopped or expired; open a new session");
+      fail("conflict", "Session stopped or expired; open a new session", {
+        reason: "session_unavailable",
+        hint: REOPEN_HINT,
+      });
     return entry;
   }
 
@@ -117,9 +116,10 @@ export default function browserAutomationServer(bb: PluginServerApi): void {
   bb.implement(ba.open, async ({ threadId, selection }) => {
     await bb.call(threads.get, { threadId });
     if (selection.backend === "desktop")
-      throw new CodedError(
-        "desktop_unavailable",
+      fail(
+        "unavailable",
         "The desktop backend is not available in this bb: it has no in-app desktop browser. Use --backend local --headless.",
+        { reason: "desktop_unavailable" },
       );
     if (active.size >= MAX_SESSIONS)
       throw new Error(
@@ -254,9 +254,26 @@ export default function browserAutomationServer(bb: PluginServerApi): void {
   bb.on(machines.disconnected, ({ hostId }) =>
     closeWhere((s) => s.hostId === hostId),
   );
-  bb.on(threads.deleted, ({ thread }) =>
-    closeWhere((s) => s.threadId === thread.id),
-  );
+  for (const event of [threads.deleted, threads.archived, threads.failed])
+    bb.on(event, ({ thread }) => closeWhere((s) => s.threadId === thread.id));
+
+  async function closeStale() {
+    const names = await bb.storage.kv.list("sessions/");
+    const stored = await Promise.all(names.map((n) => bb.storage.kv.get(n)));
+    const stale = stored.flatMap((value) => {
+      const parsed = sessionSchema.safeParse(value);
+      return parsed.success &&
+        parsed.data.state === "ready" &&
+        !active.has(parsed.data.id)
+        ? [parsed.data]
+        : [];
+    });
+    await Promise.all(
+      stale.map((session) =>
+        finish({ session, lastUsed: 0, busy: 0 }, "closed"),
+      ),
+    );
+  }
 
   bb.on(agentSessions.instructions, async (_context, next) => [
     { source: bb.pluginId, text: INSTRUCTIONS },
@@ -264,6 +281,11 @@ export default function browserAutomationServer(bb: PluginServerApi): void {
   ]);
 
   bb.onStart(() => {
+    void closeStale().catch((error: unknown) =>
+      bb.log.warn(
+        `Browser Automation could not close stale sessions: ${String(error)}`,
+      ),
+    );
     const timer = setInterval(() => {
       const now = bb.now();
       void closeWhere(

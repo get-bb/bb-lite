@@ -2,6 +2,8 @@ import { contract, event, op } from "@bb/plugin";
 import { z } from "zod";
 
 export const PREVIEW_DIRECTIVE_ID = "browser-preview";
+export const REOPEN_HINT =
+  "Open a new session with `bb browser-automation open --backend <desktop|local> --machine <host-id>`.";
 export const MAX_SCRIPT_CHARS = 128_000;
 export const MIN_TIMEOUT_MS = 1_000;
 export const MAX_TIMEOUT_MS = 120_000;

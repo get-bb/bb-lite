@@ -7,6 +7,7 @@ import {
   type RuntimeState,
 } from "./contract.js";
 import { installRuntime, PIN } from "./installer.js";
+import { launchSession, machineIo, type RuntimeIo } from "./runtime.js";
 
 export const MAX_HOST_SESSIONS = 32;
 const PREPARE_POLL_MS = 20_000;
@@ -38,18 +39,21 @@ interface Hosted {
   abort: AbortController;
 }
 
-export function releaseRuntime(dataDir: string): BrowserRuntime {
+export function releaseRuntime(
+  dataDir: string,
+  io: RuntimeIo = machineIo,
+): BrowserRuntime {
+  const binary = (signal: AbortSignal) => installRuntime({ dataDir, signal });
   return {
-    prepare: (signal) =>
-      installRuntime({ dataDir, signal }).then(() => ({
+    prepare: (signal) => binary(signal).then(() => ({ version: PIN.version })),
+    open: async (_sessionId, signal) =>
+      launchSession({
+        binary: await binary(signal),
         version: PIN.version,
-      })),
-    open: () =>
-      Promise.reject(
-        new Error(
-          "The DevBrowser session launcher is not ported yet; this bb cannot start Chrome",
-        ),
-      ),
+        dataDir,
+        signal,
+        io,
+      }),
   };
 }
 

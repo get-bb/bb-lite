@@ -7,6 +7,7 @@ export const appLoaders: Record<string, Load> = {
   "ask-user-question": () => import("../../plugins/ask-user-question/app"),
   automations: () => import("../../plugins/automations/app"),
   "bb-guide": () => import("../../plugins/bb-guide/app"),
+  "browser-automation": () => import("../../plugins/browser-automation/app"),
   composer: () => import("../../plugins/composer/app"),
   "concurrency-limit": () => import("../../plugins/concurrency-limit/app"),
   connect: () => import("../../plugins/connect/app"),

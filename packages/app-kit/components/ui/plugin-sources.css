@@ -2,6 +2,7 @@
 @source "../../../../plugins/ask-user-question";
 @source "../../../../plugins/automations";
 @source "../../../../plugins/bb-guide";
+@source "../../../../plugins/browser-automation";
 @source "../../../../plugins/composer";
 @source "../../../../plugins/concurrency-limit";
 @source "../../../../plugins/connect";

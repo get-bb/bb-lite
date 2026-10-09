@@ -12,6 +12,7 @@
     "description": "Let BB control headless browsers on connected machines, with live previews for headless sessions.",
     "icon": "Globe",
     "server": "./server.ts",
+    "app": "./app.tsx",
     "runner": "./runner.ts",
     "skills": [
       "skills"
@@ -31,6 +32,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.1"
   }

@@ -13,5 +13,5 @@
     "types": ["node", "vitest/globals"],
     "customConditions": ["source"]
   },
-  "include": ["*.ts", "test/**/*.ts"]
+  "include": ["*.ts", "app.tsx", "test/**/*.ts"]
 }
