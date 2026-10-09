@@ -468,3 +468,25 @@ it("warns once per plugin when a deprecated operation is used", async () => {
   expect(warnings).toHaveLength(2);
   expect(kernel.inspect()).toMatchObject({ api: expect.any(String) });
 });
+
+it("uses the slot a reloaded owner's contract now defines", () => {
+  const { kernel } = harness();
+  const before = contract("widgets", {
+    ping: op({ input: z.object({}), output: z.void() }),
+    tile: slot<{ id: string }>({ key: "id" }),
+  });
+  const after = contract("widgets", {
+    ping: op({ input: z.object({}), output: z.void() }),
+    tile: slot<{ id: string }>(),
+  });
+  const first = kernel.scope("widgets", "installed");
+  first.implement(before.ping, () => {});
+  const user = kernel.scope("user", "installed");
+  user.add(before.tile, { id: "a" });
+  user.add(before.tile, { id: "a" });
+  expect(kernel.entries(before.tile)).toHaveLength(1);
+  first.dispose();
+  const second = kernel.scope("widgets", "installed");
+  second.implement(after.ping, () => {});
+  expect(kernel.entries(after.tile)).toHaveLength(2);
+});

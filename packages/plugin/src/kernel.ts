@@ -450,6 +450,13 @@ export function createKernel(options: KernelOptions): Kernel {
     if (members === null || contracts.has(id)) return;
     const known = { id, plugin, members };
     contracts.set(id, known);
+    for (const definition of Object.values(members)) {
+      const state = slots.get(definition.name);
+      if (definition.type !== "slot" || state === undefined) continue;
+      if (state.slot === definition) continue;
+      state.slot = definition;
+      touched(state);
+    }
     undo.push(() => {
       if (contracts.get(id) === known) contracts.delete(id);
     });
