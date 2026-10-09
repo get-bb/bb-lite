@@ -17,6 +17,28 @@ export const slugTitle = (content: string) => {
     .trim();
 };
 
+export type Summary = { title: string; preview: string };
+
+const PREVIEW_LENGTH = 200;
+
+const cleanLine = (line: string) =>
+  line
+    .replace(/^\s*(#{1,6}\s+|[-*+]\s+|>\s*|\d+\.\s+)/u, "")
+    .replace(/[*_`]/gu, "")
+    .trim();
+
+export function summarize(content: string): Summary {
+  const body = content.replace(/^---\n[\s\S]*?\n---\n/u, "");
+  const lines = body.split("\n").map(cleanLine).filter(Boolean);
+  const heading = /^#\s+(.+)$/mu.exec(body)?.[1];
+  const title = (heading ? cleanLine(heading) : (lines[0] ?? "")).slice(0, 120);
+  const preview = lines
+    .filter((line) => line !== title)
+    .join(" ")
+    .slice(0, PREVIEW_LENGTH);
+  return { title, preview };
+}
+
 type Reader = (
   vault: string,
   path: string,

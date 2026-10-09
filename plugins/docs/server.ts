@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { fail, machines, sessions, type PluginServerApi } from "@bb/plugin";
 import { machineFiles, type PathMutation } from "@bb/runner";
 import { registerDocsCli } from "./cli.js";
-import { registerDocsExtras } from "./extras.js";
+import { registerDocsExtras, summarize, type Summary } from "./extras.js";
 import { onHost, registerDocsSync } from "./sync.js";
 import {
   docs,
@@ -15,6 +15,8 @@ import {
 } from "./contract.js";
 
 const ok = { ok: true } as const;
+const MENTION_LIMIT = 20;
+const SUMMARY_TTL_MS = 10_000;
 
 export function vaultPath(raw: string): string {
   const clean = posix.normalize(raw.replaceAll("\\", "/")).replace(/\/$/u, "");
@@ -297,6 +299,22 @@ export default function docsServer(bb: PluginServerApi): void {
     });
   });
 
+  const summaries = new Map<string, { at: number; summary: Summary }>();
+  const mentionSummary = async (vaultId: string, path: string) => {
+    const key = JSON.stringify([vaultId, path]);
+    const cached = summaries.get(key);
+    if (cached && Date.now() - cached.at < SUMMARY_TTL_MS) {
+      return cached.summary;
+    }
+    const file = path.endsWith(".md") ? await tryRead(vaultId, path) : null;
+    const summary =
+      file?.contentEncoding === "utf8"
+        ? summarize(file.content)
+        : { title: "", preview: "" };
+    summaries.set(key, { at: Date.now(), summary });
+    return summary;
+  };
+
   bb.add(sessions.mention, {
     id: "docs",
     label: "Docs",
@@ -307,16 +325,23 @@ export default function docsServer(bb: PluginServerApi): void {
         const entries = await bb
           .call(docs.list, { vault: vault.vaultId })
           .catch(() => []);
-        for (const { path, kind } of entries)
-          if (kind === "file" && path.toLowerCase().includes(needle))
+        const inVault = vault.name.toLowerCase().includes(needle);
+        for (const { path, kind } of entries) {
+          if (kind !== "file" || hits.length >= MENTION_LIMIT) continue;
+          const summary = await mentionSummary(vault.vaultId, path);
+          const haystack = [path, summary.title, summary.preview];
+          const matched =
+            inVault || haystack.some((t) => t.toLowerCase().includes(needle));
+          if (matched)
             hits.push({
               id: JSON.stringify([vault.vaultId, path]),
-              title: posix.basename(path),
+              title: summary.title || posix.basename(path),
               subtitle: `${vault.name}/${path}`,
               icon: "FileText",
             });
+        }
       }
-      return hits.slice(0, 20);
+      return hits;
     },
     async resolve(itemId) {
       const [vaultId, path] = JSON.parse(itemId) as [string, string];
