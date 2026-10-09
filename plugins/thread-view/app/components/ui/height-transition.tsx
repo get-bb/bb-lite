@@ -196,6 +196,7 @@ export function HeightTransition({ visible, children }: HeightTransitionProps) {
     <div
       ref={wrapperRef}
       className={cn(!visible && PAUSE_COLLAPSED_DESCENDANT_ANIMATIONS_CLASS)}
+      inert={!visible}
       style={{
         overflowX: "visible",
         overflowY: "clip",
