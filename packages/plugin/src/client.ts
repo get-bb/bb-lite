@@ -1,11 +1,13 @@
 import type { z } from "zod";
 import type { HttpDoor, Op } from "./contract.js";
+import { API_VERSION, API_VERSION_HEADER } from "./version.js";
 
 export const DEFAULT_CALL_TIMEOUT_MS = 75_000;
 export const THREAD_ID_HEADER = "x-bb-thread-id";
 
 const API_PREFIX = "/api/v1";
 const DOOR_HEADER = "x-bb-door";
+export const APP_PLUGIN_HEADER = "x-bb-app-plugin";
 const PATH_PARAM = /:([A-Za-z]+)/gu;
 
 export interface OpClientOptions {
@@ -18,6 +20,7 @@ export interface OpClientOptions {
 
 export interface RemoteCallOptions {
   signal?: AbortSignal;
+  plugin?: string;
 }
 
 export interface OpClient {
@@ -189,6 +192,7 @@ export function createOpClient(options: OpClientOptions = {}): OpClient {
       }
     };
     const headers = new Headers(init.headers);
+    headers.set(API_VERSION_HEADER, API_VERSION);
     if (door !== undefined) headers.set(DOOR_HEADER, door);
     if (threadId !== undefined) headers.set(THREAD_ID_HEADER, threadId);
     const connect = () =>
@@ -213,12 +217,12 @@ export function createOpClient(options: OpClientOptions = {}): OpClient {
 
   return {
     request,
-    async call(op, input, { signal } = {}) {
+    async call(op, input, { signal, plugin } = {}) {
       const { path, init } = opRequest(op, input);
-      const response = await request(path, {
-        ...init,
-        ...(signal && { signal }),
-      });
+      const headers = new Headers(init.headers);
+      if (plugin !== undefined) headers.set(APP_PLUGIN_HEADER, plugin);
+      const sent = { ...init, headers, ...(signal && { signal }) };
+      const response = await request(path, sent);
       if (response.status === 204) return null as never;
       const body: unknown = await response.json();
       if (op.doors.http !== undefined) return body as never;

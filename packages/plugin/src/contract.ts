@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 
 export type OpKind = "read" | "write";
 export type HookPower = "observe" | "rewrite" | "answer";
@@ -35,6 +35,7 @@ export interface HttpDoor {
   status?: 200 | 201;
   empty?: 204;
   body?: string;
+  aliases?: readonly string[];
 }
 
 export interface Doors<Input = unknown, Output = unknown> {
@@ -57,6 +58,7 @@ export interface Op<
   readonly secret: readonly string[];
   readonly internal: boolean;
   readonly audit: boolean;
+  readonly deprecated: string | null;
   readonly doors: Doors;
 }
 
@@ -105,6 +107,7 @@ export interface OpOptions<Input extends z.ZodType, Output extends z.ZodType> {
   secret?: readonly string[];
   internal?: boolean;
   audit?: boolean;
+  deprecated?: string;
   doors?: Doors<z.output<Input>, z.output<Output>>;
 }
 
@@ -115,8 +118,23 @@ export function op<Input extends z.ZodType, Output extends z.ZodType>(
   const { kind = "read", hooks = "rewrite", allow = "member" } = options;
   const { secret = [], internal = false, audit = true } = options;
   const doors = (options.doors ?? {}) as Doors;
-  const access = { kind, hooks, allow, secret, internal, audit };
+  const deprecated = options.deprecated ?? null;
+  const access = { kind, hooks, allow, secret, internal, audit, deprecated };
   return { type: "op", name: "", input, output, ...access, doors };
+}
+
+const shapes = new WeakMap<z.ZodType, z.ZodType>();
+
+export function typed<Schema extends z.ZodType>(
+  schema: Schema,
+): z.ZodType<z.output<Schema>> {
+  const unchecked = z.custom<z.output<Schema>>();
+  shapes.set(unchecked, schema);
+  return unchecked;
+}
+
+export function shapeBehind(schema: z.ZodType): z.ZodType {
+  return shapes.get(schema) ?? schema;
 }
 
 export function event<Payload extends z.ZodType>(

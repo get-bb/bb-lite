@@ -8,8 +8,7 @@ import {
   setProviderEnabled,
 } from "@bb/server-kit/providers/catalog";
 import { resolveExecutionOptions } from "@bb/server-kit/providers/models";
-import { pluginMentionSearchQuerySchema } from "@bb/server-contract";
-import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
+import { ApiError } from "@bb/server-kit/http/errors";
 import { resolveMention, searchMentions } from "./mentions.js";
 import { registerProviderRoutes } from "./routes.js";
 import { generateTitle } from "./title.js";
@@ -29,19 +28,14 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
     join(bb.server.cliDir, "skills"),
     ...(await bb.call(plugins.skillDirs, {})),
   ]);
-  bb.implement(sessions.searchMentions, (query) => searchMentions(bb, query));
+  bb.implement(sessions.searchMentions, (input) => {
+    const { trigger, projectId = null, threadId = null } = input;
+    const query = input.query.trim();
+    return searchMentions(bb, { trigger, query, projectId, threadId });
+  });
   bb.implement(sessions.resolveMention, ({ pluginId, itemId }) =>
     resolveMention(bb, pluginId, itemId),
   );
-  bb.http.api((app) => {
-    app.get("/plugins/mentions/search", async (c) => {
-      const parsed = pluginMentionSearchQuerySchema.safeParse(c.req.query());
-      if (!parsed.success) throw invalidRequest("Invalid mention search query");
-      const { q, trigger, projectId = null, threadId = null } = parsed.data;
-      const query = { trigger, query: q.trim(), projectId, threadId };
-      return c.json({ ok: true, groups: await searchMentions(bb, query) });
-    });
-  });
   bb.implement(sessions.title, ({ prompt }, { signal }) =>
     generateTitle(bb, prompt, signal),
   );

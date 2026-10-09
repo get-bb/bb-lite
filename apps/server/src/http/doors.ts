@@ -42,15 +42,13 @@ function shapeOf(path: string): string {
 export function registerOpDoors(app: ApiApp, kernel: Kernel): void {
   const offered = kernel.ops().flatMap(({ op, owner }) => {
     const door = op.doors.http;
-    return door === undefined || owner === null ? [] : [{ op, door }];
+    if (door === undefined || owner === null) return [];
+    const paths = [door.path, ...(door.aliases ?? [])];
+    return paths.map((path) => ({ op, door, path, shape: shapeOf(path) }));
   });
-  const shapes = new Map(offered.map(({ door }) => [door, shapeOf(door.path)]));
-  const shape = (door: HttpDoor) => shapes.get(door) ?? "";
-  offered.sort((left, right) =>
-    shape(left.door).localeCompare(shape(right.door)),
-  );
-  for (const { op, door } of offered) {
-    app.on(door.method, door.path, async (c) => {
+  offered.sort((left, right) => left.shape.localeCompare(right.shape));
+  for (const { op, door, path } of offered) {
+    app.on(door.method, path, async (c) => {
       const input = { ...(await fieldsOf(c, door)), ...c.req.param() };
       const result = await kernel.call(op, input).catch(rejected);
       if (result === null && door.empty === 204) return c.body(null, 204);

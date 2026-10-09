@@ -267,6 +267,7 @@ it("undoes everything a plugin registered when it is disposed", async () => {
     allow: "member",
     owner: "plugin",
     doors: ["app"],
+    deprecated: null,
     chain: [],
   });
   plugin.dispose();
@@ -352,4 +353,24 @@ it("hands the implementation a signal and the caller", async () => {
   });
   const options = { signal: abort.signal };
   expect(await kernel.call(probe.look, {}, options)).toBe("app:true");
+});
+
+it("warns once per plugin when a deprecated operation is used", async () => {
+  const { kernel, warnings } = harness();
+  const old = contract("old", {
+    hello: op({
+      input: z.object({}),
+      output: z.string(),
+      deprecated: "demo.greet",
+    }),
+  });
+  kernel.scope("owner", "product").implement(old.hello, () => "hi");
+  const caller = kernel.scope("caller", "installed");
+  expect(await caller.call(old.hello, {})).toBe("hi");
+  await caller.call(old.hello, {});
+  caller.on(old.hello, (_input, next) => next());
+  expect(warnings).toEqual(["A deprecated operation was used"]);
+  await kernel.call(old.hello, {});
+  expect(warnings).toHaveLength(2);
+  expect(kernel.inspect()).toMatchObject({ api: expect.any(String) });
 });

@@ -1,7 +1,15 @@
 import * as Domain from "@bb/domain";
 import * as Contract from "@bb/server-contract";
 import { z } from "zod";
-import { contract, event, op, service, slot, table } from "./contract.js";
+import {
+  contract,
+  event,
+  op,
+  service,
+  slot,
+  table,
+  typed,
+} from "./contract.js";
 import type { KernelInspection } from "./kernel.js";
 import type {
   Authenticator,
@@ -13,7 +21,6 @@ import type {
   InputResult,
   MachineAccessProvider,
   MentionProvider,
-  MentionQuery,
   ThreadFailure,
   ProviderEnvEntry,
 } from "./server-api.js";
@@ -150,7 +157,7 @@ export const sessions = contract("sessions", {
   }),
   tools: op({
     input: threadContextSchema,
-    output: z.array(z.custom<Domain.DynamicTool>()),
+    output: z.array(typed(Domain.dynamicToolSchema)),
     internal: true,
   }),
   skillDirs: op({
@@ -163,9 +170,14 @@ export const sessions = contract("sessions", {
   usage: slot<UsageSource>({ key: "providerId" }),
   titleFallback: service<TitleFallback>(),
   searchMentions: op({
-    input: z.custom<MentionQuery>(),
-    output: z.array(z.custom<Contract.PluginMentionGroup>()),
-    internal: true,
+    input: z.object({
+      query: z.string().default(""),
+      trigger: Contract.pluginMentionTriggerSchema.default("@"),
+      projectId: z.string().min(1).nullish(),
+      threadId: z.string().min(1).nullish(),
+    }),
+    output: z.array(typed(Contract.pluginMentionGroupSchema)),
+    doors: { http: { method: "GET", path: "/sessions/mentions" } },
   }),
   resolveMention: op({
     input: z.object({ pluginId: z.string(), itemId: z.string() }),
@@ -179,22 +191,22 @@ export const sessions = contract("sessions", {
   }),
   executionOptions: op({
     input: Contract.systemExecutionOptionsQuerySchema,
-    output: z.custom<Contract.SystemExecutionOptionsResponse>(),
+    output: typed(Contract.systemExecutionOptionsResponseSchema),
     doors: { http: { method: "GET", path: "/sessions/execution-options" } },
   }),
   providers: op({
     input: Contract.systemProvidersQuerySchema,
-    output: z.custom<Domain.ProviderInfo[]>(),
+    output: typed(z.array(Domain.providerInfoSchema)),
     doors: { http: { method: "GET", path: "/sessions/providers" } },
   }),
   providerCatalog: op({
     input: none,
-    output: z.custom<Contract.SystemProviderCatalogEntry[]>(),
+    output: typed(z.array(Contract.systemProviderCatalogEntrySchema)),
     doors: { http: { method: "GET", path: "/sessions/providers/catalog" } },
   }),
   updateProvider: op({
     input: at(Contract.systemProviderEnabledRequestSchema, "providerId"),
-    output: z.custom<Contract.SystemProviderCatalogEntry[]>(),
+    output: typed(z.array(Contract.systemProviderCatalogEntrySchema)),
     kind: "write",
     allow: "user",
     doors: {
@@ -286,22 +298,22 @@ export const threads = contract("threads", {
   deleted: threadEvent(),
   list: op({
     input: Contract.threadListQuerySchema,
-    output: z.custom<Contract.ThreadListResponse>(),
+    output: typed(Contract.threadListResponseSchema),
     doors: { http: { method: "GET", path: "/threads" } },
   }),
   search: op({
     input: Contract.threadSearchQuerySchema,
-    output: z.custom<Contract.ThreadSearchResponse>(),
+    output: typed(Contract.threadSearchResponseSchema),
     doors: { http: { method: "GET", path: "/threads/search" } },
   }),
   resolveMentions: op({
     input: Contract.resolveThreadMentionsRequestSchema,
-    output: z.custom<Contract.ResolveThreadMentionsResponse>(),
+    output: typed(Contract.resolveThreadMentionsResponseSchema),
     doors: { http: { method: "POST", path: "/threads/resolve-mentions" } },
   }),
   create: op({
     input: Contract.createThreadRequestSchema,
-    output: z.custom<Contract.ThreadResponse>(),
+    output: typed(Contract.threadResponseSchema),
     kind: "write",
     hooks: "answer",
     doors: { http: { method: "POST", path: "/threads", status: 201 } },
@@ -315,7 +327,7 @@ export const threads = contract("threads", {
   }),
   update: op({
     input: at(Contract.updateThreadRequestSchema, "threadId"),
-    output: z.custom<Contract.ThreadResponse>(),
+    output: typed(Contract.threadResponseSchema),
     kind: "write",
     hooks: "answer",
     doors: { http: { method: "PATCH", path: "/threads/:threadId" } },
@@ -329,28 +341,28 @@ export const threads = contract("threads", {
   }),
   childSummary: op({
     input: ref("threadId"),
-    output: z.custom<Contract.ThreadChildSummaryResponse>(),
+    output: typed(Contract.threadChildSummaryResponseSchema),
     doors: {
       http: { method: "GET", path: "/threads/:threadId/child-summary" },
     },
   }),
   send: op({
     input: at(Contract.sendMessageRequestSchema, "threadId"),
-    output: z.custom<Contract.SendMessageResponse>(),
+    output: typed(Contract.sendMessageResponseSchema),
     kind: "write",
     hooks: "answer",
     doors: { http: { method: "POST", path: "/threads/:threadId/send" } },
   }),
   listQueuedMessages: op({
     input: ref("threadId"),
-    output: z.custom<Contract.ThreadQueuedMessageListResponse>(),
+    output: typed(Contract.threadQueuedMessageListResponseSchema),
     doors: {
       http: { method: "GET", path: "/threads/:threadId/queued-messages" },
     },
   }),
   createQueuedMessage: op({
     input: at(Contract.createQueuedMessageRequestSchema, "threadId"),
-    output: z.custom<Domain.ThreadQueuedMessage>(),
+    output: typed(Domain.threadQueuedMessageSchema),
     kind: "write",
     hooks: "answer",
     doors: {
@@ -367,7 +379,7 @@ export const threads = contract("threads", {
       "threadId",
       "queuedMessageId",
     ),
-    output: z.custom<Domain.ThreadQueuedMessage>(),
+    output: typed(Domain.threadQueuedMessageSchema),
     kind: "write",
     hooks: "answer",
     doors: {
@@ -383,7 +395,7 @@ export const threads = contract("threads", {
       "threadId",
       "queuedMessageId",
     ),
-    output: z.custom<Contract.SendQueuedMessageResponse>(),
+    output: typed(Contract.sendQueuedMessageResponseSchema),
     kind: "write",
     hooks: "answer",
     doors: {
@@ -395,7 +407,7 @@ export const threads = contract("threads", {
   }),
   promptHistory: op({
     input: at(Contract.promptHistoryQuerySchema, "threadId"),
-    output: z.custom<Contract.PromptHistoryResponse>(),
+    output: typed(Contract.promptHistoryResponseSchema),
     doors: {
       http: { method: "GET", path: "/threads/:threadId/prompt-history" },
     },
@@ -436,7 +448,7 @@ export const threads = contract("threads", {
   }),
   open: op({
     input: at(Contract.threadOpenRequestSchema, "threadId"),
-    output: z.custom<Contract.ThreadOpenResponse>(),
+    output: typed(Contract.threadOpenResponseSchema),
     kind: "write",
     audit: false,
     doors: { http: { method: "POST", path: "/threads/:threadId/open" } },
@@ -455,28 +467,28 @@ export const threads = contract("threads", {
   }),
   pin: op({
     input: ref("threadId"),
-    output: z.custom<Contract.ThreadResponse>(),
+    output: typed(Contract.threadResponseSchema),
     kind: "write",
     audit: false,
     doors: { http: { method: "POST", path: "/threads/:threadId/pin" } },
   }),
   unpin: op({
     input: ref("threadId"),
-    output: z.custom<Contract.ThreadResponse>(),
+    output: typed(Contract.threadResponseSchema),
     kind: "write",
     audit: false,
     doors: { http: { method: "POST", path: "/threads/:threadId/unpin" } },
   }),
   reorderPinned: op({
     input: at(Contract.reorderPinnedThreadRequestSchema, "threadId"),
-    output: z.custom<Contract.ThreadListResponse>(),
+    output: typed(Contract.threadListResponseSchema),
     kind: "write",
     audit: false,
     doors: { http: { method: "PATCH", path: "/threads/:threadId/pin-order" } },
   }),
   archive: op({
     input: ref("threadId"),
-    output: z.custom<Contract.ThreadArchiveAllResponse>(),
+    output: typed(Contract.threadArchiveAllResponseSchema),
     kind: "write",
     doors: { http: { method: "POST", path: "/threads/:threadId/archive-all" } },
   }),
@@ -488,26 +500,26 @@ export const threads = contract("threads", {
   }),
   markRead: op({
     input: ref("threadId"),
-    output: z.custom<Contract.ThreadResponse>(),
+    output: typed(Contract.threadResponseSchema),
     kind: "write",
     audit: false,
     doors: { http: { method: "POST", path: "/threads/:threadId/read" } },
   }),
   markUnread: op({
     input: ref("threadId"),
-    output: z.custom<Contract.ThreadResponse>(),
+    output: typed(Contract.threadResponseSchema),
     kind: "write",
     audit: false,
     doors: { http: { method: "POST", path: "/threads/:threadId/unread" } },
   }),
   timeline: op({
     input: at(Contract.threadTimelineQuerySchema, "threadId"),
-    output: z.custom<Contract.ThreadTimelineResponse>(),
+    output: typed(Contract.threadTimelineResponseSchema),
     doors: { http: { method: "GET", path: "/threads/:threadId/timeline" } },
   }),
   timelineTurnSummaryDetails: op({
     input: at(Contract.timelineTurnSummaryDetailsQuerySchema, "threadId"),
-    output: z.custom<Contract.TimelineTurnSummaryDetailsResponse>(),
+    output: typed(Contract.timelineTurnSummaryDetailsResponseSchema),
     doors: {
       http: {
         method: "GET",
@@ -558,12 +570,12 @@ export const interactions = contract("interactions", {
   }),
   list: op({
     input: ref("threadId"),
-    output: z.custom<Contract.ThreadPendingInteractionsResponse>(),
+    output: typed(Contract.threadPendingInteractionsResponseSchema),
     doors: { http: { method: "GET", path: "/threads/:threadId/interactions" } },
   }),
   get: op({
     input: ref("threadId", "interactionId"),
-    output: z.custom<Domain.PendingInteraction>(),
+    output: typed(Domain.pendingInteractionSchema),
     doors: {
       http: {
         method: "GET",
@@ -577,7 +589,7 @@ export const interactions = contract("interactions", {
       "threadId",
       "interactionId",
     ),
-    output: z.custom<Domain.PendingInteraction>(),
+    output: typed(Domain.pendingInteractionSchema),
     kind: "write",
     hooks: "answer",
     doors: {
@@ -594,7 +606,7 @@ export const interactions = contract("interactions", {
       "threadId",
       "interactionId",
     ),
-    output: z.custom<Domain.PendingInteraction>(),
+    output: typed(Domain.pendingInteractionSchema),
     kind: "write",
     hooks: "answer",
     doors: {
@@ -606,7 +618,7 @@ export const interactions = contract("interactions", {
   }),
   cancel: op({
     input: ref("threadId", "interactionId"),
-    output: z.custom<Domain.PendingInteraction>(),
+    output: typed(Domain.pendingInteractionSchema),
     kind: "write",
     hooks: "answer",
     doors: {
@@ -700,14 +712,14 @@ export const projects = contract("projects", {
   deleted: event(z.custom<ProjectDeletion>()),
   machineEnvironment: op({
     input: ref("projectId"),
-    output: z.custom<Contract.ProjectMachineEnvironmentList>(),
+    output: typed(Contract.projectMachineEnvironmentListSchema),
     doors: {
       http: { method: "GET", path: "/projects/:projectId/machine-environment" },
     },
   }),
   updateMachineEnvironment: op({
     input: at(Contract.machineEnvironmentReplaceSchema, "projectId"),
-    output: z.custom<Contract.ProjectMachineEnvironmentList>(),
+    output: typed(Contract.projectMachineEnvironmentListSchema),
     kind: "write",
     allow: "user",
     doors: {
@@ -723,23 +735,23 @@ export const projects = contract("projects", {
   }),
   create: op({
     input: Contract.createProjectRequestSchema,
-    output: z.custom<Contract.ProjectResponse>(),
+    output: typed(Contract.projectResponseSchema),
     kind: "write",
     doors: { http: { method: "POST", path: "/projects", status: 201 } },
   }),
   sidebar: op({
     input: none,
-    output: z.custom<Contract.SidebarBootstrapResponse>(),
+    output: typed(Contract.sidebarBootstrapResponseSchema),
     doors: { http: { method: "GET", path: "/projects/sidebar" } },
   }),
   get: op({
     input: ref("projectId"),
-    output: z.custom<Contract.ProjectResponse>(),
+    output: typed(Contract.projectResponseSchema),
     doors: { http: { method: "GET", path: "/projects/:projectId" } },
   }),
   update: op({
     input: at(Contract.updateProjectRequestSchema, "projectId"),
-    output: z.custom<Contract.ProjectResponse>(),
+    output: typed(Contract.projectResponseSchema),
     kind: "write",
     doors: { http: { method: "PATCH", path: "/projects/:projectId" } },
   }),
@@ -761,7 +773,7 @@ export const projects = contract("projects", {
   }),
   promptHistory: op({
     input: at(Contract.promptHistoryQuerySchema, "projectId"),
-    output: z.custom<Contract.PromptHistoryResponse>(),
+    output: typed(Contract.promptHistoryResponseSchema),
     doors: {
       http: { method: "GET", path: "/projects/:projectId/prompt-history" },
     },
@@ -771,7 +783,7 @@ export const projects = contract("projects", {
       z.object({ source: Contract.createProjectSourceRequestSchema }),
       "projectId",
     ),
-    output: z.custom<Domain.ProjectSource>(),
+    output: typed(Domain.projectSourceSchema),
     kind: "write",
     doors: {
       http: {
@@ -788,7 +800,7 @@ export const projects = contract("projects", {
       "projectId",
       "sourceId",
     ),
-    output: z.custom<Domain.ProjectSource>(),
+    output: typed(Domain.projectSourceSchema),
     kind: "write",
     doors: {
       http: { method: "PATCH", path: "/projects/:projectId/sources/:sourceId" },
@@ -807,22 +819,22 @@ export const projects = contract("projects", {
   }),
   paths: op({
     input: at(Contract.projectPathsQuerySchema, "projectId"),
-    output: z.custom<Contract.WorkspacePathListResponse>(),
+    output: typed(Contract.workspacePathListResponseSchema),
     doors: { http: { method: "GET", path: "/projects/:projectId/paths" } },
   }),
   commands: op({
     input: at(Contract.projectCommandsQuerySchema, "projectId"),
-    output: z.custom<Contract.CommandListResponse>(),
+    output: typed(Contract.commandListResponseSchema),
     doors: { http: { method: "GET", path: "/projects/:projectId/commands" } },
   }),
   branches: op({
     input: at(Contract.projectBranchesQuerySchema, "projectId"),
-    output: z.custom<Contract.ProjectBranchesResponse>(),
+    output: typed(Contract.projectBranchesResponseSchema),
     doors: { http: { method: "GET", path: "/projects/:projectId/branches" } },
   }),
   branchOptions: op({
     input: at(Contract.projectBranchesQuerySchema, "projectId"),
-    output: z.custom<Contract.ProjectBranchesResponse>(),
+    output: typed(Contract.projectBranchesResponseSchema),
     doors: {
       http: { method: "GET", path: "/projects/:projectId/branch-options" },
     },
@@ -925,14 +937,14 @@ export const machines = contract("machines", {
   }),
   create: op({
     input: Contract.createMachineRequestSchema,
-    output: z.custom<Domain.Host>(),
+    output: typed(Domain.hostSchema),
     kind: "write",
     allow: "user",
     doors: { http: { method: "POST", path: "/machines", status: 201 } },
   }),
   list: op({
     input: Contract.hostListQuerySchema,
-    output: z.custom<Domain.Host[]>(),
+    output: typed(z.array(Domain.hostSchema)),
     doors: { http: { method: "GET", path: "/machines" } },
   }),
   get: op({
@@ -947,14 +959,14 @@ export const machines = contract("machines", {
   }),
   enrollmentCommand: op({
     input: ref("hostId"),
-    output: z.custom<Contract.HostEnrollmentCommandResponse>(),
+    output: typed(Contract.hostEnrollmentCommandResponseSchema),
     doors: {
       http: { method: "GET", path: "/machines/:hostId/enrollment-command" },
     },
   }),
   createReconnectCommand: op({
     input: ref("hostId"),
-    output: z.custom<Contract.HostReconnectResponse>(),
+    output: typed(Contract.hostReconnectResponseSchema),
     kind: "write",
     allow: "user",
     doors: {
@@ -970,21 +982,21 @@ export const machines = contract("machines", {
       name: z.string().trim().min(1).max(100).optional(),
       resource: Domain.jsonValueSchema.optional(),
     }),
-    output: z.custom<Domain.Host>(),
+    output: typed(Domain.hostSchema),
     kind: "write",
     allow: "user",
     doors: { http: { method: "PATCH", path: "/machines/:hostId" } },
   }),
   updateSharing: op({
     input: at(Contract.updateHostSharingRequestSchema, "hostId"),
-    output: z.custom<Domain.Host>(),
+    output: typed(Domain.hostSchema),
     kind: "write",
     allow: "user",
     doors: { http: { method: "PATCH", path: "/machines/:hostId/sharing" } },
   }),
   updatePermissionCeiling: op({
     input: at(Contract.updateHostPermissionCeilingRequestSchema, "hostId"),
-    output: z.custom<Domain.Host>(),
+    output: typed(Domain.hostSchema),
     kind: "write",
     allow: "user",
     doors: {
@@ -1000,7 +1012,7 @@ export const machines = contract("machines", {
   }),
   directory: op({
     input: at(Contract.hostDirectoryQuerySchema, "hostId"),
-    output: z.custom<Contract.HostDirectoryListing>(),
+    output: typed(Contract.hostDirectoryListingSchema),
     doors: { http: { method: "GET", path: "/machines/:hostId/directory" } },
   }),
   pathsExist: op({
@@ -1024,22 +1036,22 @@ export const machines = contract("machines", {
 });
 
 export const users = contract("users", {
-  current: op({ input: none, output: z.custom<Domain.User>().nullable() }),
+  current: op({ input: none, output: typed(Domain.userSchema).nullable() }),
   list: op({
     input: none,
-    output: z.custom<Domain.User[]>(),
+    output: typed(z.array(Domain.userSchema)),
     doors: { http: { method: "GET", path: "/users" } },
   }),
   update: op({
     input: at(Contract.updateUserRequestSchema, "userId"),
-    output: z.custom<Domain.User>(),
+    output: typed(Domain.userSchema),
     kind: "write",
     allow: "user",
     doors: { http: { method: "PATCH", path: "/users/:userId" } },
   }),
   setPassword: op({
     input: at(Contract.setPasswordRequestSchema, "userId"),
-    output: z.custom<Domain.User>(),
+    output: typed(Domain.userSchema),
     kind: "write",
     allow: "user",
     doors: { http: { method: "PUT", path: "/users/:userId/password" } },
@@ -1097,13 +1109,13 @@ export const sections = contract("sections", {
   }),
   update: op({
     input: Contract.updateThreadSectionRequestSchema,
-    output: z.custom<Contract.ThreadSectionMutationResponse>(),
+    output: typed(Contract.threadSectionMutationResponseSchema),
     kind: "write",
     doors: { http: { method: "PATCH", path: "/sections" } },
   }),
   delete: op({
     input: Contract.deleteThreadSectionRequestSchema,
-    output: z.custom<Contract.ThreadSectionMutationResponse>(),
+    output: typed(Contract.threadSectionMutationResponseSchema),
     kind: "write",
     doors: { http: { method: "DELETE", path: "/sections" } },
   }),
@@ -1136,17 +1148,17 @@ export const plugins = contract("plugins", {
   }),
   list: op({
     input: none,
-    output: z.custom<Contract.PluginListResponse>(),
+    output: typed(Contract.pluginListResponseSchema),
     doors: { http: { method: "GET", path: "/plugins" } },
   }),
   contributions: op({
     input: none,
-    output: z.custom<Contract.PluginContributionsResponse>(),
+    output: typed(Contract.pluginContributionsResponseSchema),
     doors: { http: { method: "GET", path: "/plugins/contributions" } },
   }),
   reload: op({
     input: z.object({ id: z.string().optional() }),
-    output: z.custom<Contract.PluginListResponse>(),
+    output: typed(Contract.pluginListResponseSchema),
     kind: "write",
     allow: "owner",
     doors: { http: { method: "POST", path: "/plugins/reload" } },
@@ -1167,12 +1179,12 @@ export const plugins = contract("plugins", {
   }),
   settings: op({
     input: ref("pluginId"),
-    output: z.custom<Contract.PluginSettingsResponse>(),
+    output: typed(Contract.pluginSettingsResponseSchema),
     doors: { http: { method: "GET", path: "/plugins/:pluginId/settings" } },
   }),
   updateSettings: op({
     input: at(Contract.pluginSettingsUpdateRequestSchema, "pluginId"),
-    output: z.custom<Contract.PluginSettingsResponse>(),
+    output: typed(Contract.pluginSettingsResponseSchema),
     kind: "write",
     secret: ["values"],
     doors: { http: { method: "PUT", path: "/plugins/:pluginId/settings" } },
@@ -1184,7 +1196,7 @@ export const plugins = contract("plugins", {
   }),
   agentTools: op({
     input: threadContextSchema,
-    output: z.array(z.custom<Domain.DynamicTool>()),
+    output: z.array(typed(Domain.dynamicToolSchema)),
     internal: true,
   }),
   callAgentTool: op({
@@ -1193,7 +1205,7 @@ export const plugins = contract("plugins", {
       input: z.unknown(),
       context: threadContextSchema,
     }),
-    output: z.custom<Domain.ToolCallResponse>(),
+    output: typed(Domain.toolCallResponseSchema),
     kind: "write",
     hooks: "observe",
     internal: true,
@@ -1221,42 +1233,42 @@ export const terminals = contract("terminals", {
   ),
   list: op({
     input: Contract.terminalListQuerySchema,
-    output: z.custom<Contract.TerminalListResponse>(),
+    output: typed(Contract.terminalListResponseSchema),
     doors: { http: { method: "GET", path: "/terminals" } },
   }),
   create: op({
     input: Contract.createTerminalRequestSchema,
-    output: z.custom<Contract.TerminalSession>(),
+    output: typed(Contract.terminalSessionSchema),
     kind: "write",
     doors: { http: { method: "POST", path: "/terminals", status: 201 } },
   }),
   get: op({
     input: ref("terminalId"),
-    output: z.custom<Contract.TerminalSession>(),
+    output: typed(Contract.terminalSessionSchema),
     doors: { http: { method: "GET", path: "/terminals/:terminalId" } },
   }),
   update: op({
     input: at(Contract.updateTerminalRequestSchema, "terminalId"),
-    output: z.custom<Contract.TerminalSession>(),
+    output: typed(Contract.terminalSessionSchema),
     kind: "write",
     doors: { http: { method: "PATCH", path: "/terminals/:terminalId" } },
   }),
   close: op({
     input: at(Contract.closeTerminalRequestSchema, "terminalId"),
-    output: z.custom<Contract.TerminalSession>(),
+    output: typed(Contract.terminalSessionSchema),
     kind: "write",
     doors: { http: { method: "POST", path: "/terminals/:terminalId/close" } },
   }),
   write: op({
     input: at(Contract.terminalInputRequestSchema, "terminalId"),
-    output: z.custom<Contract.TerminalSession>(),
+    output: typed(Contract.terminalSessionSchema),
     kind: "write",
     audit: false,
     doors: { http: { method: "POST", path: "/terminals/:terminalId/input" } },
   }),
   output: op({
     input: at(Contract.terminalOutputQuerySchema, "terminalId"),
-    output: z.custom<Contract.TerminalOutputResponse>(),
+    output: typed(Contract.terminalOutputResponseSchema),
     doors: { http: { method: "GET", path: "/terminals/:terminalId/output" } },
   }),
 });
@@ -1270,7 +1282,7 @@ export const server = contract("server", {
   authenticator: service<Authenticator>(),
   config: op({
     input: none,
-    output: z.custom<Contract.SystemConfigResponse>(),
+    output: typed(Contract.systemConfigResponseSchema),
     doors: { http: { method: "GET", path: "/server/config" } },
   }),
 });
@@ -1290,7 +1302,7 @@ export const environments = contract("environments", {
   ),
   list: op({
     input: Contract.listEnvironmentsQuerySchema,
-    output: z.custom<Domain.Environment[]>(),
+    output: typed(z.array(Domain.environmentSchema)),
     doors: { http: { method: "GET", path: "/environments" } },
   }),
   delete: op({
@@ -1301,46 +1313,46 @@ export const environments = contract("environments", {
   }),
   get: op({
     input: ref("environmentId"),
-    output: z.custom<Domain.Environment>(),
+    output: typed(Domain.environmentSchema),
     doors: { http: { method: "GET", path: "/environments/:environmentId" } },
   }),
   update: op({
     input: at(Contract.updateEnvironmentRequestSchema, "environmentId"),
-    output: z.custom<Domain.Environment>(),
+    output: typed(Domain.environmentSchema),
     kind: "write",
     doors: { http: { method: "PATCH", path: "/environments/:environmentId" } },
   }),
   status: op({
     input: at(Contract.environmentStatusQuerySchema, "environmentId"),
-    output: z.custom<Contract.EnvironmentStatusResponse>(),
+    output: typed(Contract.environmentStatusResponseSchema),
     doors: {
       http: { method: "GET", path: "/environments/:environmentId/status" },
     },
   }),
   diffFiles: op({
     input: at(Contract.environmentDiffQuerySchema, "environmentId"),
-    output: z.custom<Contract.EnvironmentDiffFilesResponse>(),
+    output: typed(Contract.environmentDiffFilesResponseSchema),
     doors: {
       http: { method: "GET", path: "/environments/:environmentId/diff/files" },
     },
   }),
   diffPatch: op({
     input: at(Contract.environmentDiffPatchRequestSchema, "environmentId"),
-    output: z.custom<Contract.EnvironmentDiffPatchResponse>(),
+    output: typed(Contract.environmentDiffPatchResponseSchema),
     doors: {
       http: { method: "POST", path: "/environments/:environmentId/diff/patch" },
     },
   }),
   diffFile: op({
     input: at(Contract.environmentDiffFileQuerySchema, "environmentId"),
-    output: z.custom<Contract.EnvironmentDiffFileResponse>(),
+    output: typed(Contract.environmentDiffFileResponseSchema),
     doors: {
       http: { method: "GET", path: "/environments/:environmentId/diff/file" },
     },
   }),
   diffBranches: op({
     input: at(Contract.environmentDiffBranchesQuerySchema, "environmentId"),
-    output: z.custom<Contract.EnvironmentDiffBranchesResponse>(),
+    output: typed(Contract.environmentDiffBranchesResponseSchema),
     doors: {
       http: {
         method: "GET",
@@ -1350,14 +1362,14 @@ export const environments = contract("environments", {
   }),
   paths: op({
     input: at(Contract.environmentPathsQuerySchema, "environmentId"),
-    output: z.custom<Contract.WorkspacePathListResponse>(),
+    output: typed(Contract.workspacePathListResponseSchema),
     doors: {
       http: { method: "GET", path: "/environments/:environmentId/paths" },
     },
   }),
   runAction: op({
     input: environmentRef.extend({ action: z.literal("commit") }),
-    output: z.custom<Contract.EnvironmentActionResponse>(),
+    output: typed(Contract.environmentActionResponseSchema),
     kind: "write",
     doors: {
       http: { method: "POST", path: "/environments/:environmentId/actions" },
@@ -1365,7 +1377,7 @@ export const environments = contract("environments", {
   }),
   archiveThreads: op({
     input: ref("environmentId"),
-    output: z.custom<Contract.EnvironmentArchiveThreadsResponse>(),
+    output: typed(Contract.environmentArchiveThreadsResponseSchema),
     kind: "write",
     doors: {
       http: {
@@ -1376,7 +1388,7 @@ export const environments = contract("environments", {
   }),
   providers: op({
     input: Contract.systemEnvironmentProvidersQuerySchema,
-    output: z.custom<Contract.SystemEnvironmentProvidersResponse>(),
+    output: typed(Contract.systemEnvironmentProvidersResponseSchema),
     doors: { http: { method: "GET", path: "/environments/providers" } },
   }),
 });
@@ -1384,19 +1396,19 @@ export const environments = contract("environments", {
 export const settings = contract("settings", {
   machineEnvironment: op({
     input: none,
-    output: z.custom<Contract.MachineEnvironmentList>(),
+    output: typed(Contract.machineEnvironmentListSchema),
     doors: { http: { method: "GET", path: "/settings/machine-environment" } },
   }),
   updateMachineEnvironment: op({
     input: Contract.machineEnvironmentReplaceSchema,
-    output: z.custom<Contract.MachineEnvironmentList>(),
+    output: typed(Contract.machineEnvironmentListSchema),
     kind: "write",
     allow: "user",
     doors: { http: { method: "PUT", path: "/settings/machine-environment" } },
   }),
   updateGeneral: op({
     input: z.object({ settings: Domain.appSettingsUpdateSchema }),
-    output: z.custom<Domain.AppSettings>(),
+    output: typed(Domain.appSettingsSchema),
     kind: "write",
     allow: "user",
     doors: {
@@ -1405,7 +1417,7 @@ export const settings = contract("settings", {
   }),
   updateKeyboard: op({
     input: z.object({ overrides: Domain.appKeybindingOverridesSchema }),
-    output: z.custom<Domain.AppKeybindingOverrides>(),
+    output: typed(Domain.appKeybindingOverridesSchema),
     kind: "write",
     allow: "user",
     doors: {
@@ -1414,7 +1426,7 @@ export const settings = contract("settings", {
   }),
   updateAppearance: op({
     input: Domain.appThemeSchema,
-    output: z.custom<Domain.AppTheme>(),
+    output: typed(Domain.appThemeSchema),
     kind: "write",
     allow: "user",
     doors: { http: { method: "PUT", path: "/settings/appearance" } },

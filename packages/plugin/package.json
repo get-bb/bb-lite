@@ -1,6 +1,6 @@
 {
   "name": "@bb/plugin",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -22,7 +22,8 @@
   },
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "api:lock": "tsx scripts/api-lock.ts"
   },
   "dependencies": {
     "@bb/domain": "workspace:*",

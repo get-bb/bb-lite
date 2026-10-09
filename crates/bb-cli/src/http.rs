@@ -11,6 +11,8 @@ use crate::call::{CliError, CliResult};
 pub const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 75_000;
 pub const THREAD_ID_HEADER: &str = "x-bb-thread-id";
 pub const DOOR_HEADER: &str = "x-bb-door";
+pub const API_VERSION_HEADER: &str = "x-bb-api";
+pub const API_VERSION: &str = "1.0.0";
 const BODY_LIMIT: u64 = 1 << 34;
 
 /// Blocking client for `<base>/api/v1`; paths passed to it start with `/` and omit `/api/v1`.
@@ -30,6 +32,7 @@ fn agent(timeout_ms: Option<u64>, thread_id: Option<&str>) -> Agent {
     let stamp = move |mut request: Request<SendBody>, next: MiddlewareNext| {
         let headers = request.headers_mut();
         headers.insert(DOOR_HEADER, HeaderValue::from_static("cli"));
+        headers.insert(API_VERSION_HEADER, HeaderValue::from_static(API_VERSION));
         if let Some(value) = &thread {
             headers.insert(THREAD_ID_HEADER, value.clone());
         }

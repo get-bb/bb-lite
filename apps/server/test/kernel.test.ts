@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  API_VERSION,
   contract,
   deny,
   live,
@@ -12,6 +13,7 @@ import {
   type Op,
   type PluginServerApi,
   plugins as hostOps,
+  majorOf,
 } from "@bb/plugin";
 import { createThreadRequestSchema } from "@bb/server-contract";
 import { createRunnerPlugins } from "@bb/runner";
@@ -50,6 +52,39 @@ async function auditOf(
   const { result } = (await response.json()) as { result: Entry[] };
   return result.reverse();
 }
+
+it("records the app plugin a client names, without giving it authority", async () => {
+  const server = await createThreadServer();
+  const json = { "content-type": "application/json" };
+  const named = { ...json, ...APP, "x-bb-app-plugin": "thread-list" };
+  const create = (headers: Record<string, string>, name: string) =>
+    server.request("/sections", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name }),
+    });
+  expect((await create(named, "From the app")).status).toBe(201);
+  expect(
+    (
+      await create(
+        { ...json, ...named, ...{ "x-bb-door": "cli" } },
+        "From the CLI",
+      )
+    ).status,
+  ).toBe(201);
+  const trail = (await auditOf(server)).map((entry) => [entry.door, entry.via]);
+  expect(trail).toEqual([
+    ["app", ["app:thread-list"]],
+    ["cli", []],
+  ]);
+  const machine = { "x-bb-via-tunnel": "1", "x-bb-gate-auth": "machine" };
+  const refused = await server.request("/machines", {
+    method: "POST",
+    headers: { ...named, ...machine },
+    body: "{}",
+  });
+  expect(refused.status).toBe(403);
+});
 
 it("records who changed a thread, through which door and which plugin", async () => {
   const server = await createThreadServer();
@@ -643,7 +678,9 @@ it("answers an operation at its REST path with one flat input", async () => {
     recent: op({
       input: z.object({}),
       output: z.array(z.string()),
-      doors: { http: { method: "GET", path: "/notes/recent" } },
+      doors: {
+        http: { method: "GET", path: "/notes/recent", aliases: ["/memos"] },
+      },
     }),
     replace: op({
       input: note.extend({ lines: z.array(z.string()) }),
@@ -691,6 +728,14 @@ it("answers an operation at its REST path with one flat input", async () => {
   const read = await server.http("GET", "/notes/n1?limit=5");
   expect(read.body).toEqual({ noteId: "n1", limit: 5 });
   expect((await server.http("GET", "/notes/recent")).body).toEqual(["n1"]);
+  expect((await server.http("GET", "/memos")).body).toEqual(["n1"]);
+  const speaking = (version: string) =>
+    server.request("/notes/recent", { headers: { "x-bb-api": version } });
+  const ours = majorOf(API_VERSION) ?? 0;
+  expect((await speaking(`${ours}.99.0`)).status).toBe(200);
+  const newer = await speaking(`${ours + 1}.0.0`);
+  expect(newer.status).toBe(426);
+  expect(await newer.json()).toMatchObject({ code: "api_version_mismatch" });
   const replaced = await server.http("PUT", "/notes/n1", ["a", "b"]);
   expect(replaced.body).toBe(2);
   expect((await server.request("/notes/n1/next")).status).toBe(204);

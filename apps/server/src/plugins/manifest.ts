@@ -5,6 +5,8 @@ import { z } from "zod";
 
 const packageSchema = z.object({
   name: z.string().min(1),
+  version: z.string().optional(),
+  engines: z.looseObject({ bb: z.string().optional() }).optional(),
   bb: z.object({
     name: z.string().min(1),
     description: z.string().default(""),
@@ -14,7 +16,12 @@ const packageSchema = z.object({
     app: z.string().min(1).optional(),
     runner: z.string().min(1).optional(),
     host: z.string().min(1).optional(),
-    requires: z.array(z.string().min(1)).default([]),
+    requires: z
+      .union([
+        z.array(z.string().min(1)),
+        z.record(z.string().min(1), z.string().min(1)),
+      ])
+      .default([]),
     forkOf: z.string().min(1).optional(),
     skills: z.array(z.string().min(1)).default([]),
     themes: z
@@ -60,7 +67,10 @@ export interface PluginManifest {
   serverEntry: string | null;
   appEntry: string | null;
   runnerEntry: string | null;
+  version: string | null;
+  apiRange: string | null;
   requires: string[];
+  requiredVersions: Record<string, string>;
   forkOf: string | null;
   skillDirs: string[];
   themes: ManifestTheme[];
@@ -91,7 +101,12 @@ export function resolveInside(directory: string, path: string): string | null {
 export async function readManifest(path: string): Promise<PluginManifest> {
   const directory = resolve(path);
   const text = await readFile(join(directory, "package.json"), "utf8");
-  const { name, bb } = packageSchema.parse(JSON.parse(text));
+  const parsed = packageSchema.parse(JSON.parse(text));
+  const { name, bb } = parsed;
+  const ranged = Array.isArray(bb.requires) ? {} : bb.requires;
+  const required = Array.isArray(bb.requires)
+    ? bb.requires
+    : Object.keys(ranged);
   const runner = bb.runner ?? bb.host;
   const inside = (entry: string) => {
     const resolved = resolveInside(directory, entry);
@@ -107,7 +122,10 @@ export async function readManifest(path: string): Promise<PluginManifest> {
     serverEntry: bb.server === undefined ? null : inside(bb.server),
     appEntry: bb.app === undefined ? null : inside(bb.app),
     runnerEntry: runner === undefined ? null : inside(runner),
-    requires: bb.requires,
+    version: parsed.version ?? null,
+    apiRange: parsed.engines?.bb ?? null,
+    requires: required,
+    requiredVersions: ranged,
     forkOf: bb.forkOf ?? null,
     skillDirs: bb.skills.map(inside),
     themes: bb.themes.map(({ css, codeTheme, ...theme }) => ({

@@ -1,11 +1,9 @@
-import { callOp, plugins } from "@bb/plugin/app";
+import { callOp, plugins, sessions } from "@bb/plugin/app";
 import { useQuery } from "@tanstack/react-query";
-import {
-  pluginMentionGroupSchema,
-  type PluginMentionGroup,
-  type PluginMentionTrigger,
+import type {
+  PluginMentionGroup,
+  PluginMentionTrigger,
 } from "@bb/server-contract";
-import { z } from "zod";
 import { qk } from "@bb/app-kit/hooks/queries/query-keys";
 
 export type PluginMentionSearchGroup = PluginMentionGroup;
@@ -17,10 +15,6 @@ interface PluginMentionSearchArgs {
   threadId: string | null;
 }
 
-const mentionSearchSchema = z.object({
-  groups: z.array(pluginMentionGroupSchema),
-});
-
 export function usePluginContributions() {
   return useQuery({
     queryKey: qk.pluginContributions(),
@@ -29,17 +23,11 @@ export function usePluginContributions() {
   });
 }
 
-async function searchPluginMentions(
+function searchPluginMentions(
   args: PluginMentionSearchArgs,
   signal: AbortSignal,
 ): Promise<PluginMentionSearchGroup[]> {
-  const params = new URLSearchParams({ q: args.query, trigger: args.trigger });
-  if (args.projectId !== null) params.set("projectId", args.projectId);
-  if (args.threadId !== null) params.set("threadId", args.threadId);
-  const path = `/api/v1/plugins/mentions/search?${params.toString()}`;
-  const response = await fetch(path, { signal });
-  if (!response.ok) return [];
-  return mentionSearchSchema.parse(await response.json()).groups;
+  return callOp(sessions.searchMentions, args, { signal }).catch(() => []);
 }
 
 export function usePluginMentionSearch(

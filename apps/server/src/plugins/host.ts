@@ -1,3 +1,4 @@
+import { API_VERSION, satisfies } from "@bb/plugin";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { watch as watchDirectory, type FSWatcher } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -350,9 +351,23 @@ export class PluginHost extends PluginRegistry {
     );
     const fallbacks = this.fallbacks(record.manifest);
     try {
+      const { apiRange, requiredVersions } = record.manifest;
+      if (apiRange !== null && !satisfies(API_VERSION, apiRange)) {
+        const has = `this bb has ${API_VERSION}`;
+        throw new Error(`needs plugin API ${apiRange}; ${has}`);
+      }
       for (const required of record.manifest.requires) {
-        if (this.records.get(required)?.instance != null) continue;
-        throw new Error(`requires "${required}", which is not running`);
+        const needed = this.records.get(required);
+        if (needed?.instance == null) {
+          throw new Error(`requires "${required}", which is not running`);
+        }
+        const wanted = requiredVersions[required];
+        const found = needed.manifest.version;
+        const fits = found !== null && satisfies(found, wanted ?? "*");
+        if (wanted !== undefined && !fits) {
+          const has = found ?? "no version";
+          throw new Error(`requires "${required}" ${wanted}; it is ${has}`);
+        }
       }
       if (record.external && appEntry !== null) {
         const { directory } = record.manifest;

@@ -11,7 +11,6 @@ import {
   type PluginAppApi,
   type PluginAppEntry,
   type PluginScope,
-  type PluginVerbs,
   type Slot,
   type SlotEntryView,
   type RemoteCallOptions,
@@ -24,7 +23,7 @@ export type Owned<Item> = Item & { pluginId: string };
 
 const APP_CALLER: Caller = {
   user: null,
-  role: "member",
+  role: "system",
   door: "app",
   thread: null,
   via: [],
@@ -37,6 +36,8 @@ function newKernel(): Kernel {
     record: () => {},
     now: Date.now,
     warn: (message, fields) => console.warn(`[plugin] ${message}`, fields),
+    unowned: (op, input, { caller, signal }) =>
+      callRemoteOp(op, input, { signal, plugin: caller.via.at(-1) }),
   });
 }
 
@@ -46,19 +47,14 @@ export function appKernel(): Kernel {
   return kernel;
 }
 
-function hasLocalOwner(op: Op): boolean {
-  return kernel
-    .ops()
-    .some((entry) => entry.op.name === op.name && entry.owner !== null);
-}
-
 export function callOp<O extends Op>(
   op: O,
   input: z.input<O["input"]>,
-  options?: RemoteCallOptions,
+  options: RemoteCallOptions = {},
 ): Promise<z.output<O["output"]>> {
-  if (hasLocalOwner(op)) return kernel.call(op, input, options);
-  return callRemoteOp(op, input, options) as Promise<z.output<O["output"]>>;
+  const { plugin, signal } = options;
+  const scope = plugin === undefined ? undefined : running.get(plugin)?.scope;
+  return (scope ?? kernel).call(op, input, { signal });
 }
 
 interface Running {
@@ -198,13 +194,8 @@ export function registerPluginApp(
   const scope = kernel.scope(pluginId, tier);
   const { dispose: _, ...verbs } = scope;
   const entry: Running = { scope, stops: [], starters: [] };
-  const call = (op: Op, input: unknown, options?: RemoteCallOptions) =>
-    hasLocalOwner(op)
-      ? verbs.call(op, input, options)
-      : callRemoteOp(op, input, options);
   const bb: PluginAppApi = {
     ...verbs,
-    call: call as PluginVerbs["call"],
     pluginId,
     log: logger(pluginId),
     onStart: (begin) => void entry.starters.push(begin),

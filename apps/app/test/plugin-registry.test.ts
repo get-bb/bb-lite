@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  sections,
   settings,
   shell,
   sidePanel,
@@ -11,6 +12,7 @@ import {
 import {
   AUTOMATIC_PROVIDER,
   NO_PROVIDER,
+  callOp,
   isSlotCrashed,
   markPluginsSettled,
   markSlotCrashed,
@@ -219,5 +221,31 @@ describe("plugin registry", () => {
     );
     registerPluginApp("late", entry);
     await vi.waitFor(() => expect(ran.at(-1)).toBe("started"));
+  });
+
+  it("runs an app hook on a server operation and names the calling plugin", async () => {
+    const sent: unknown[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit = {}) => {
+      const plugin = new Headers(init.headers).get("x-bb-app-plugin");
+      const body: unknown = JSON.parse(String(init.body ?? "null"));
+      sent.push([init.method ?? "GET", new URL(url).pathname, plugin, body]);
+      return Response.json([]);
+    });
+    registerPluginApp("shout", (bb) => {
+      bb.on(sections.create, (input, next) =>
+        next({ name: input.name.toUpperCase() }),
+      );
+    });
+    const handles: PluginAppApi[] = [];
+    registerPluginApp("caller", (bb) => void handles.push(bb));
+    await handles[0]?.call(sections.create, { name: "later" });
+    await callOp(sections.list, {});
+    await callOp(sections.list, {}, { plugin: "caller" });
+    expect(sent).toEqual([
+      ["POST", "/api/v1/sections", "caller", { name: "LATER" }],
+      ["GET", "/api/v1/sections", null, null],
+      ["GET", "/api/v1/sections", "caller", null],
+    ]);
+    vi.unstubAllGlobals();
   });
 });

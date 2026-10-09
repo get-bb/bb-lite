@@ -22,6 +22,7 @@ export * from "./core-contracts.js";
 export { createKernel, deny, OpError } from "./kernel.js";
 export type * from "./kernel.js";
 export * from "./shared-modules.js";
+export * from "./version.js";
 
 export interface OpState<Output> {
   status: "loading" | "ready" | "error";

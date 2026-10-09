@@ -1,5 +1,12 @@
 import { threads } from "@bb/plugin/app";
-import { createElement, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type {
@@ -35,7 +42,7 @@ import {
 } from "@bb/app-kit/lib/route-paths";
 import { wsManager } from "@bb/app-kit/lib/ws";
 import { requestFileOpen } from "@bb/app-kit/lib/file-open-requests";
-import { usePluginId } from "@bb/app-kit/plugins/context";
+import { PluginContext, usePluginId } from "@bb/app-kit/plugins/context";
 import { readLive } from "@bb/app-kit/plugins/ops";
 import { appKernel, callOp } from "@bb/app-kit/plugins/registry";
 import {
@@ -52,9 +59,10 @@ function useOp<O extends Op>(
   input: unknown,
   options: { enabled?: boolean } = {},
 ): OpState<never> {
+  const plugin = useContext(PluginContext) ?? undefined;
   const query = useQuery({
     queryKey: [OP_QUERY_KEY, op.name, input],
-    queryFn: () => callOp(op, input as never),
+    queryFn: ({ signal }) => callOp(op, input as never, { signal, plugin }),
     enabled: options.enabled ?? true,
   });
   const { data, error, status, refetch } = query;
@@ -75,9 +83,11 @@ function useOp<O extends Op>(
 }
 
 function useCall<O extends Op>(op: O) {
+  const plugin = useContext(PluginContext) ?? undefined;
   return useCallback(
-    (input: unknown) => callOp(op, input as never) as Promise<never>,
-    [op],
+    (input: unknown) =>
+      callOp(op, input as never, { plugin }) as Promise<never>,
+    [op, plugin],
   );
 }
 

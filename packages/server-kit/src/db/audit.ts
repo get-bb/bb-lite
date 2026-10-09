@@ -37,7 +37,11 @@ export function recordAudit(db: Db, entry: AuditRecord): void {
     role: caller.role,
     door: caller.door,
     threadId: caller.thread,
-    via: JSON.stringify(caller.via),
+    via: JSON.stringify(
+      caller.app === undefined
+        ? caller.via
+        : [`app:${caller.app}`, ...caller.via],
+    ),
     hooks: JSON.stringify(entry.hooks),
     outcome,
     detail,

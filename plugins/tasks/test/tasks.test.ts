@@ -95,8 +95,8 @@ it("round-trips tasks, labels, comments and mentions over rpc", async () => {
   const foreign = { taskId: task.id, labelIds: [ulid("ZZ")] };
   await expect(rpc("updateTask", foreign)).rejects.toThrow("must belong");
 
-  const search = `${url}/api/v1/plugins/mentions/search?q=fix&projectId=proj_1`;
-  const { groups } = (await (await fetch(search)).json()) as { groups: Row[] };
+  const search = `${url}/api/v1/sessions/mentions?query=fix&projectId=proj_1`;
+  const groups = (await (await fetch(search)).json()) as Row[];
   const itemId = `task:${task.id}`;
   const item = { itemId, title: "BB-1 · Fix it", subtitle: "bb · Backlog" };
   expect(groups).toMatchObject([{ providerId: "task", items: [item] }]);

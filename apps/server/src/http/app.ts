@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import {
+  API_VERSION,
+  API_VERSION_HEADER,
+  APP_PLUGIN_HEADER,
   DOOR_HEADER,
+  majorOf,
   server,
   type ApiRoutes,
   type Authenticator,
@@ -8,7 +12,11 @@ import {
 import { runAs } from "@bb/server-kit/auth/actor";
 import type { HostContext } from "../host-context.js";
 import { THREAD_ID_HEADER } from "@bb/server-kit/runners/access";
-import { declaredDoor, throughDoor } from "@bb/server-kit/kernel/caller";
+import {
+  declaredAppPlugin,
+  declaredDoor,
+  throughDoor,
+} from "@bb/server-kit/kernel/caller";
 import type { ApiApp, AppEnv } from "@bb/server-kit/http/api";
 import { compressJson } from "./compression.js";
 import { registerOpDoors } from "./doors.js";
@@ -59,6 +67,13 @@ function assemble(ctx: HostContext, table: RouteTable): ApiApp {
   app.use("*", async (c, next) => {
     const { origin } = new URL(c.req.url);
     const sender = c.req.header("origin") ?? null;
+    const spoken = c.req.header(API_VERSION_HEADER);
+    if (spoken !== undefined && majorOf(spoken) !== majorOf(API_VERSION)) {
+      const message =
+        `This bb speaks plugin API ${API_VERSION} and the caller speaks ` +
+        `${spoken}. Update whichever is older.`;
+      throw new ApiError(426, "api_version_mismatch", message);
+    }
     const { headers, socket } = c.env.incoming;
     const { method, path } = c.req;
     const request = { method, path, headers, socket };
@@ -70,12 +85,16 @@ function assemble(ctx: HostContext, table: RouteTable): ApiApp {
     const actor = authenticator.actor(principal, threadId);
     const machine = principal.kind === "runner";
     const scope = { principal, origin, sender };
+    const plugin = declaredAppPlugin(c.req.header(APP_PLUGIN_HEADER));
     await runAs(actor, () =>
-      throughDoor(door, machine, () => withRequest(scope, next)),
+      throughDoor(door, machine, () => withRequest(scope, next), plugin),
     );
   });
   app.use("/api/v1/*", compressJson);
-  app.get("/health", (c) => c.json({ ok: true, version: ctx.config.version }));
+  app.get("/health", (c) => {
+    const { version } = ctx.config;
+    return c.json({ ok: true, version, api: API_VERSION });
+  });
   const doors: ApiRoutes = (scoped) => registerOpDoors(scoped, ctx.kernel);
   mount(app, "/api/v1", [...table.of(false), doors]);
   mount(app, "/internal", table.of(true));

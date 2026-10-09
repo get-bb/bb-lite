@@ -8,6 +8,7 @@ import type {
   OpKind,
   Slot,
 } from "./contract.js";
+import { API_VERSION } from "./version.js";
 
 export type Door = "app" | "cli" | "agent" | "http" | "system";
 export const DOOR_HEADER = "x-bb-door";
@@ -33,6 +34,7 @@ export interface Caller {
   door: Door;
   thread: string | null;
   via: readonly string[];
+  app?: string;
 }
 
 export interface HookTrace {
@@ -162,6 +164,7 @@ export interface PluginScope extends PluginVerbs {
 }
 
 export interface KernelInspection {
+  api: string;
   ops: {
     name: string;
     kind: OpKind;
@@ -169,6 +172,7 @@ export interface KernelInspection {
     allow: Allow;
     owner: string | null;
     doors: string[];
+    deprecated: string | null;
     chain: { plugin: string; tier: Tier; failClosed: boolean }[];
   }[];
   events: { name: string; listeners: string[] }[];
@@ -194,6 +198,11 @@ export interface KernelOptions {
   record(entry: AuditRecord): void;
   now(): number;
   warn(message: string, fields: Record<string, unknown>): void;
+  unowned?(
+    op: Op,
+    input: unknown,
+    context: { caller: Caller; signal: AbortSignal },
+  ): Promise<unknown>;
   changed?(name: string): void;
   hookBudgetMs?: number;
 }
@@ -407,12 +416,22 @@ export function createKernel(options: KernelOptions): Kernel {
     return state.shown;
   };
 
+  const warned = new Set<string>();
+  const outdated = (op: Op, by: string) => {
+    const key = `${by} ${op.name}`;
+    if (op.deprecated === null || warned.has(key)) return;
+    warned.add(key);
+    const fields = { op: op.name, by, instead: op.deprecated };
+    options.warn("A deprecated operation was used", fields);
+  };
+
   async function run(
     op: Op,
     raw: unknown,
     caller: Caller,
     signal: AbortSignal,
   ): Promise<unknown> {
+    outdated(op, caller.via.at(-1) ?? caller.door);
     const refused = refusal(op, caller);
     if (refused !== null) throw new OpError("forbidden", refused);
     const accepted = await op.input.safeParseAsync(raw);
@@ -425,10 +444,13 @@ export function createKernel(options: KernelOptions): Kernel {
     const chain = byTier(state.chain, "policy");
     const traces: HookTrace[] = [];
     const owner = async (input: unknown): Promise<unknown> => {
-      if (state.owner === null) {
-        throw new OpError("unimplemented", `Nothing implements ${op.name}`);
+      if (state.owner !== null) {
+        return state.owner.run(input, { caller, signal });
       }
-      return state.owner.run(input, { caller, signal });
+      if (options.unowned !== undefined) {
+        return options.unowned(op, input, { caller, signal });
+      }
+      throw new OpError("unimplemented", `Nothing implements ${op.name}`);
     };
     const dispatch = async (
       index: number,
@@ -665,6 +687,7 @@ export function createKernel(options: KernelOptions): Kernel {
           };
           return registration;
         }
+        outdated(target, plugin);
         const state = stateOf(target);
         const hook = (third ?? second) as AnyHook;
         const matcher = third === undefined ? null : (second as Matcher);
@@ -780,6 +803,7 @@ export function createKernel(options: KernelOptions): Kernel {
     implementations: () => implemented,
     inspect() {
       return {
+        api: API_VERSION,
         ops: [...ops.values()].map(({ op, owner, chain }) => ({
           name: op.name,
           kind: op.kind,
@@ -787,6 +811,7 @@ export function createKernel(options: KernelOptions): Kernel {
           allow: op.allow,
           owner: owner?.plugin ?? null,
           doors: [...(op.internal ? [] : ["app"]), ...Object.keys(op.doors)],
+          deprecated: op.deprecated,
           chain: chain.map(({ plugin, tier, failClosed }) => {
             return { plugin, tier, failClosed };
           }),

@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import {
+  API_VERSION,
   contract,
   files,
   op,
@@ -208,12 +209,12 @@ it("reloads a changed external plugin and refuses rewritten migrations", async (
   const source = join(directory, "server.ts");
   const edit = (from: string, to: string) =>
     writeFileSync(source, readFileSync(source, "utf8").replace(from, to));
-  const reload = async (query = ""): Promise<InstalledPlugin[]> =>
-    ((await send(`/reload${query}`, {})).body as Listing).plugins;
+  const reload = async (id?: string): Promise<InstalledPlugin[]> =>
+    ((await send("/reload", { id })).body as Listing).plugins;
   await call("echo.echo", { text: "a" });
   edit('default: "hello"', 'default: "howdy"');
   edit('NOT NULL)"]', 'NOT NULL)", "CREATE TABLE extra (id INTEGER)"]');
-  await reload("?id=echo");
+  await reload("echo");
   const echoed = { text: "howdy b", calls: 2 };
   expect(await call("echo.echo", { text: "b" })).toEqual([200, echoed]);
   edit("extra (id INTEGER)", "extra (id TEXT)");
@@ -222,6 +223,31 @@ it("reloads a changed external plugin and refuses rewritten migrations", async (
   expect((await reload()).at(-1)).toMatchObject(failed);
   writeFileSync(configFile, JSON.stringify({ plugins: [] }));
   expect((await reload()).map((plugin) => plugin.id)).not.toContain("echo");
+});
+
+it("loads a plugin only on the API and plugin versions it names", async () => {
+  const directory = join(scratch(), "echo");
+  cpSync(FIXTURE, directory, { recursive: true });
+  const file = join(directory, "package.json");
+  const original = JSON.parse(readFileSync(file, "utf8")) as { bb: object };
+  const declare = (engines: string, requires: object = []) => {
+    const bb = { ...original.bb, requires };
+    const next = { ...original, engines: { bb: engines }, bb };
+    writeFileSync(file, JSON.stringify(next));
+  };
+  declare("^99");
+  const { send } = await serverWithEcho(directory);
+  const echo = async () => {
+    const { plugins } = (await send("/reload", {})).body as Listing;
+    const { status, statusMessage } = plugins.find(({ id }) => id === "echo")!;
+    return [status, statusMessage ?? ""].join(" ").trim();
+  };
+  const here = `this bb has ${API_VERSION}`;
+  expect(await echo()).toBe(`error needs plugin API ^99; ${here}`);
+  declare(`^${API_VERSION}`, ["threads"]);
+  expect(await echo()).toBe("running");
+  declare(">=1", { threads: "^99" });
+  expect(await echo()).toContain('error requires "threads" ^99; it is ');
 });
 
 it("serves an external app bundle whose shared imports resolve at runtime", async () => {

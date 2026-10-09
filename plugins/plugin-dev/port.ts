@@ -52,6 +52,10 @@ const SDK_PATHS: Record<string, Path> = {
     "events: bb.on(threads.*), bb.on(machines.*); useChanged in the app",
   ],
   "threads.storageLocation": ["renamed", "bb.call(threads.storageLocation)"],
+  "threads.spawn": [
+    "changed",
+    'threads.create; set origin: "plugin" and originPluginId yourself',
+  ],
   "projects.attachments.upload": [
     "changed",
     "POST /api/v1/projects/:projectId/attachments with a multipart file",
@@ -171,7 +175,11 @@ const RULES: Rule[] = [
     "same",
     "accepted as written; bb.runner is the new name",
   ],
-  [/^manifest\.engines\./u, "same", "ignored; no version gate yet"],
+  [
+    /^manifest\.engines\./u,
+    "changed",
+    "engines.bb is a range of the plugin API version (now 1.x) and is enforced at load",
+  ],
   [
     /^manifest\.branding\.(logo|icons)/u,
     "changed",
@@ -642,10 +650,10 @@ export function pathFor(id: string): PortPath {
   if (sdk !== null) {
     const [, tier = "", method = ""] = sdk;
     const call = tier === "server" ? "bb.call" : "callOp";
-    const op = SDK_OPS[method];
-    if (op !== undefined) return { status: "renamed", now: `${call}(${op})` };
     const known = SDK_PATHS[method];
     if (known !== undefined) return { status: known[0], now: known[1] };
+    const op = SDK_OPS[method];
+    if (op !== undefined) return { status: "renamed", now: `${call}(${op})` };
     return { status: "none", now: "the feature behind it does not exist here" };
   }
   for (const [match, status, now] of RULES) {

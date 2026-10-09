@@ -27,6 +27,7 @@
     "apps/mobile/android/",
     "apps/mobile/.expo/",
     "apps/mobile/expo-env.d.ts",
-    "apps/mobile/build-output/"
+    "apps/mobile/build-output/",
+    "packages/plugin/api.lock.json"
   ]
 }

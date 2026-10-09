@@ -6,6 +6,13 @@ interface Origin {
   door: Door | null;
   via: readonly string[];
   machine: boolean;
+  app?: string;
+}
+
+const PLUGIN_ID = /^[a-z0-9][a-z0-9-]*$/u;
+
+export function declaredAppPlugin(header: string | undefined): string | null {
+  return header !== undefined && PLUGIN_ID.test(header) ? header : null;
 }
 
 const DECLARED_DOORS: readonly Door[] = ["app", "cli"];
@@ -19,8 +26,10 @@ export function throughDoor<T>(
   door: Door | null,
   machine: boolean,
   work: () => T,
+  app: string | null = null,
 ): T {
-  return storage.run({ door, via: [], machine }, work);
+  const claimed = door === "app" && app !== null ? { app } : {};
+  return storage.run({ door, via: [], machine, ...claimed }, work);
 }
 
 export function currentCaller(): Caller {
@@ -33,12 +42,15 @@ export function currentCaller(): Caller {
   const { userId: user, agentThreadId: thread } = actor;
   const role = origin?.machine === true ? "machine" : actor.role;
   const door = thread === null ? (origin?.door ?? "http") : "agent";
-  return { user, role, door, thread, via };
+  const claimed = origin?.app === undefined ? {} : { app: origin.app };
+  return { user, role, door, thread, via, ...claimed };
 }
 
 export function enterCaller<T>(caller: Caller, work: () => T): T {
   const machine = storage.getStore()?.machine ?? false;
-  return storage.run({ door: caller.door, via: caller.via, machine }, work);
+  const { door, via } = caller;
+  const claimed = caller.app === undefined ? {} : { app: caller.app };
+  return storage.run({ door, via, machine, ...claimed }, work);
 }
 
 export function asPlugin<T>(pluginId: string, work: () => T): T {
