@@ -407,3 +407,13 @@ fn prompt_history_lists_pages() {
                     hello\n\nNext page: bb prompt-history list --cursor c1 --limit 1\n";
     assert_eq!(out, expected);
 }
+
+#[test]
+fn thread_and_project_history_print_json() {
+    let fake = Fake::json(json!([]));
+    assert_eq!(ok(&fake.url, None, &["thread", "history", "thr_a", "--limit", "2"]), "[]\n");
+    assert_eq!(fake.only(), request("GET", "/threads/thr_a/prompt-history", "limit=2", None));
+    let fake = Fake::json(json!([]));
+    assert_eq!(ok(&fake.url, None, &["project", "history", "proj_1"]), "[]\n");
+    assert_eq!(fake.only(), request("GET", "/projects/proj_1/prompt-history", "", None));
+}

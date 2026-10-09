@@ -1,7 +1,7 @@
 use serde_json::{Map, Value, json};
 
 use crate::call::{
-    Call, CliResult, Handler, Output, clip, confirm, iso_date, parse_json, thread_target,
+    Call, CliResult, Handler, Output, clip, confirm, integer, iso_date, parse_json, thread_target,
     usage_error, valid_id,
 };
 use crate::http::encode;
@@ -12,6 +12,8 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
     vec![
         ("threadInteractionsList", thread_interactions_list),
         ("promptHistoryList", prompt_history_list),
+        ("threadHistory", thread_history),
+        ("projectHistory", project_history),
         ("threadInteractionsShow", thread_interactions_show),
         ("threadInteractionsResolve", thread_interactions_resolve),
         ("threadQueueList", thread_queue_list),
@@ -348,4 +350,20 @@ fn prompt_history_list(call: &mut Call) -> CliResult<Output> {
         }
         table => Ok(table),
     }
+}
+
+fn prompt_history_of(call: &mut Call, kind: &str) -> CliResult<Output> {
+    let limit = integer(call.flag("limit")?.as_deref(), "--limit", 1)?.map(|n| n.to_string());
+    let id = valid_id(call.arg("id")?, "<id> argument")?;
+    let query: Vec<(&str, &str)> = limit.iter().map(|n| ("limit", n.as_str())).collect();
+    let path = format!("/{kind}/{}/prompt-history", encode(&id));
+    Ok(Output::json(call.http.get(&path, &query)?))
+}
+
+fn thread_history(call: &mut Call) -> CliResult<Output> {
+    prompt_history_of(call, "threads")
+}
+
+fn project_history(call: &mut Call) -> CliResult<Output> {
+    prompt_history_of(call, "projects")
 }

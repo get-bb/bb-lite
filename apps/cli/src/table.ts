@@ -89,6 +89,9 @@ ${SELF}
 thread output [id]  Print the final assistant message of the last turn
 ${SELF}
   > {output}
+thread history <id>  List a thread's prompt history
+  --limit <count>  Maximum history entries
+  > [{id, createdAt, input, projectId, threadId, scope}] (bare array)
 thread list  List threads
   --project <id>  Only this project
   --environment <id>  Only this environment
@@ -175,6 +178,9 @@ project list  List projects
   --include-personal  Include the personal project
   > [{id, kind, name, gitRemoteUrl, sources: [{id, hostId, path}]}]
 project show <id>  Show a project and its sources
+project history <id>  List a project's prompt history
+  --limit <count>  Maximum history entries
+  > [{id, createdAt, input, projectId, threadId, scope}] (bare array)
 project create  Create a project from a directory on a machine
   --name <name>  Project name (required)
   --root <path>  Project directory (default: the current directory)

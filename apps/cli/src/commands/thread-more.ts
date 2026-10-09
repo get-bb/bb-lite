@@ -7,6 +7,7 @@ import type {
 import {
   clip,
   confirm,
+  integer,
   loaded,
   parseJson,
   threadTarget,
@@ -217,4 +218,16 @@ export const promptHistoryList: Run = async (c) => {
   }));
   c.rows(rows, ["created", "thread", "prompt"]);
   if (next.length > 0) c.out(result, next);
+};
+
+export const threadHistory: Run = async (c) => {
+  const limit = integer(c.flag("limit"), "--limit");
+  const threadId = validId(c.arg("id"), "<id> argument");
+  c.out(await c.op(c.ops.threads.promptHistory, { threadId, limit }));
+};
+
+export const projectHistory: Run = async (c) => {
+  const limit = integer(c.flag("limit"), "--limit");
+  const projectId = validId(c.arg("id"), "<id> argument");
+  c.out(await c.op(c.ops.projects.promptHistory, { projectId, limit }));
 };

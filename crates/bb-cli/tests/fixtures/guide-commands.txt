@@ -82,6 +82,12 @@ Options:
   --self  Target the current thread (BB_THREAD_ID)
 JSON (--json): {output}
 
+Usage: bb thread history <id> [options]
+List a thread's prompt history
+Options:
+  --limit <count>  Maximum history entries
+JSON (--json): [{id, createdAt, input, projectId, threadId, scope}] (bare array)
+
 Usage: bb thread list [options]
 List threads
 Options:
@@ -240,6 +246,12 @@ JSON (--json): [{id, kind, name, gitRemoteUrl, sources: [{id, hostId, path}]}]
 
 Usage: bb project show <id> [options]
 Show a project and its sources
+
+Usage: bb project history <id> [options]
+List a project's prompt history
+Options:
+  --limit <count>  Maximum history entries
+JSON (--json): [{id, createdAt, input, projectId, threadId, scope}] (bare array)
 
 Usage: bb project create [options]
 Create a project from a directory on a machine
