@@ -2,14 +2,12 @@ import type { PluginServerApi, SqlValue } from "@bb/plugin";
 import { CronExpressionParser } from "cron-parser";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { AgentExecution, Automation, Run, Trigger } from "./contract.js";
+import { Automation, Execution, Run, Trigger } from "./contract.js";
 
 const AutomationRow = Automation.extend({
   enabled: z.number().transform(Boolean),
   trigger: z.string().transform((text) => Trigger.parse(JSON.parse(text))),
-  execution: z
-    .string()
-    .transform((text) => AgentExecution.parse(JSON.parse(text))),
+  execution: z.string().transform((text) => Execution.parse(JSON.parse(text))),
 });
 
 export function nextRunAt(trigger: Trigger, after: number): number | null {
@@ -154,6 +152,7 @@ export function openStore(bb: PluginServerApi) {
     },
     startRun(args: {
       automationId: string;
+      runMode?: Run["runMode"];
       trigger: Run["trigger"];
       scheduledFor: number;
       now: number;
@@ -167,9 +166,10 @@ export function openStore(bb: PluginServerApi) {
         db.run(
           `INSERT INTO ${R} (id, automation_id, run_mode, status, trigger,
             skip_reason, scheduled_for, started_at, finished_at,
-            idempotency_key) VALUES (?, ?, 'agent', ?, ?, ?, ?, ?, ?, ?)`,
+            idempotency_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id,
           args.automationId,
+          args.runMode ?? "agent",
           status,
           args.trigger,
           args.skipReason ?? null,
@@ -202,13 +202,19 @@ export function openStore(bb: PluginServerApi) {
       status: Run["status"],
       error: string | null,
       now: number,
+      result: Partial<Pick<Run, "output" | "exitCode" | "skipReason">> = {},
     ): Run {
       const done = run(runId);
       db.run(
-        `UPDATE ${R} SET status = ?, error = ?, finished_at = ? WHERE id = ?`,
+        `UPDATE ${R} SET status = ?, error = ?, finished_at = ?,
+          output = ?, exit_code = ?, skip_reason = COALESCE(?, skip_reason)
+         WHERE id = ?`,
         status,
         error,
         now,
+        result.output ?? null,
+        result.exitCode ?? null,
+        result.skipReason ?? null,
         runId,
       );
       db.run(
@@ -228,15 +234,21 @@ export function openStore(bb: PluginServerApi) {
           threadId,
         )
         .map((row) => Run.parse(row)),
-    runs: (automationId: string, limit: number) =>
-      db
+    runs(automationId: string, limit: number, offset: number) {
+      const rows = db
         .all(
           `SELECT * FROM ${R} WHERE automation_id = ?
-           ORDER BY started_at DESC, id DESC LIMIT ?`,
+           ORDER BY started_at DESC, id DESC LIMIT ? OFFSET ?`,
           automationId,
-          limit,
+          limit + 1,
+          offset,
         )
-        .map((row) => Run.parse(row)),
+        .map((row) => Run.parse(row));
+      return {
+        runs: rows.slice(0, limit),
+        nextCursor: rows.length > limit ? String(offset + limit) : null,
+      };
+    },
   };
 }
 

@@ -1,6 +1,11 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { createThreadServer } from "../../../apps/server/test/thread-harness.js";
+import { createRunnerPlugins } from "@bb/runner";
+import { scratch } from "../../../apps/server/test/helpers.js";
 import type { Automation, Run } from "../contract.js";
+import automationsRunner, { runScript } from "../runner.js";
 
 interface CliOutput {
   exitCode: number;
@@ -183,9 +188,145 @@ it("runs on demand, reuses an idempotency key and re-prompts a target thread", a
   );
   expect(server.threadsOfPlugin()).toHaveLength(0);
   expect(await server.runs(created.id)).toHaveLength(1);
+});
 
-  const script = await server.cli(
-    "automation create --project proj_1 --name S --in 5m --script 'echo hi'",
+async function withRunner() {
+  const server = await automationsServer();
+  const runners = createRunnerPlugins({ dataDir: scratch(), sink: () => {} });
+  runners.load({ id: "automations", entry: automationsRunner });
+  const fallback = server.runner.script.callOp;
+  server.runner.script.callOp = async (op) => {
+    const { name, input } = op as { name: string; input: unknown };
+    if (name.startsWith("automations.")) return runners.callOp(name, input);
+    return fallback?.(op);
+  };
+  return server;
+}
+
+it("runs a script automation on the machine and records output and exit status", async () => {
+  const server = await withRunner();
+  const dir = scratch();
+  const create = async (flags: string) => {
+    const result = await server.cli(
+      `automation create --project proj_1 --name Script --in 5m ${flags} --json`,
+    );
+    expect(result.exitCode, result.stderr).toBe(0);
+    return result.json<Automation>();
+  };
+  const ok = await create(
+    `--script 'echo "hello $GREETING from $(pwd)"' --env-json '{"GREETING":"hi"}' --working-directory ${dir} --timeout 30s`,
   );
-  expect(script.exitCode).not.toBe(0);
+  expect(ok.execution).toMatchObject({
+    mode: "script",
+    timeoutMs: 30_000,
+    env: { GREETING: "hi" },
+    workingDirectory: { type: "path", path: dir },
+  });
+  const ran = await server.cli(
+    `automation run ${ok.id} --project proj_1 --json`,
+  );
+  expect(ran.json<{ run: Run }>().run).toMatchObject({ runMode: "script" });
+  await vi.waitFor(async () => {
+    const [run] = await server.runs(ok.id);
+    expect(run).toMatchObject({
+      status: "succeeded",
+      exitCode: 0,
+      output: `hello hi from ${dir}\n`,
+      threadId: null,
+    });
+  }, WAIT);
+
+  const bad = await create("--script 'echo oops >&2; exit 3'");
+  await server.cli(`automation run ${bad.id} --project proj_1`);
+  await vi.waitFor(async () => {
+    expect((await server.runs(bad.id))[0]).toMatchObject({
+      status: "failed",
+      exitCode: 3,
+      error: "Script exited with code 3: oops",
+    });
+  }, WAIT);
+
+  const quiet = await create("--script 'true'");
+  server.clock.now += 6 * MINUTE;
+  await vi.waitFor(async () => {
+    expect((await server.runs(quiet.id))[0]).toMatchObject({
+      status: "skipped",
+      skipReason: "empty output",
+      trigger: "schedule",
+    });
+  }, WAIT);
+  expect(server.threadsOfPlugin()).toHaveLength(0);
+
+  const mixed = await server.cli(
+    "automation create --project proj_1 --name X --in 5m --script 'true' --prompt hi",
+  );
+  expect(mixed.exitCode).not.toBe(0);
+  const both = await server.cli(
+    "automation create --project proj_1 --name X --cron '* * * * *' --timezone UTC --in 5m --script 'true'",
+  );
+  expect(both.exitCode).not.toBe(0);
+});
+
+it("stops a running script when its signal aborts", async () => {
+  const dir = scratch();
+  const stop = new AbortController();
+  const started = Date.now();
+  const path = join(dir, "sleep.sh");
+  writeFileSync(path, "sleep 30\n");
+  const pending = runScript(
+    { command: "bash", path, cwd: dir, env: {}, timeoutMs: 60_000 },
+    stop.signal,
+  );
+  stop.abort();
+  const result = await pending;
+  expect(result.exitCode).not.toBe(0);
+  expect(Date.now() - started).toBeLessThan(5000);
+});
+
+it("gives path and worktree environments the machine so they fire", async () => {
+  const server = await automationsServer();
+  const dir = scratch();
+  const created = await server.create(`--in 5m --environment ${dir}`);
+  expect(created.execution).toMatchObject({
+    environment: {
+      type: "host",
+      hostId: server.hostId,
+      workspace: { type: "unmanaged", path: dir },
+    },
+  });
+  const worktree = await server.create("--in 5m --new-environment worktree");
+  expect(worktree.execution).toMatchObject({
+    environment: { type: "host", hostId: server.hostId },
+  });
+  await server.cli(`automation run ${created.id} --project proj_1`);
+  await vi.waitFor(
+    () => expect(server.threadsOfPlugin()).toHaveLength(1),
+    WAIT,
+  );
+  expect((await server.runs(created.id))[0]?.status).not.toBe("failed");
+});
+
+it("pages runs with nextCursor", async () => {
+  const server = await automationsServer();
+  const created = await server.create("--in 5m");
+  for (const key of ["a", "b", "c"]) {
+    await server.cli(
+      `automation run ${created.id} --project proj_1 --idempotency-key ${key}`,
+    );
+  }
+  const first = await server.cli(
+    `automation runs ${created.id} --project proj_1 --limit 2 --json`,
+  );
+  const page = first.json<{ runs: Run[]; nextCursor: string | null }>();
+  expect(page.runs).toHaveLength(2);
+  expect(page.nextCursor).toBe("2");
+  const second = await server.cli(
+    `automation runs ${created.id} --project proj_1 --limit 2 --cursor 2 --json`,
+  );
+  expect(
+    second.json<{ nextCursor: string | null; runs: Run[] }>(),
+  ).toMatchObject({
+    runs: [expect.anything()],
+    nextCursor: null,
+  });
 });

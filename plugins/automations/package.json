@@ -12,6 +12,7 @@
     "description": "Schedule recurring and one-shot agent or script work.",
     "icon": "Repeat",
     "server": "./server.ts",
+    "runner": "./runner.ts",
     "skills": [
       "skills"
     ],
@@ -23,6 +24,7 @@
   "dependencies": {
     "@bb/domain": "workspace:*",
     "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "@bb/server-kit": "workspace:*",
     "@bb/shared-ui": "workspace:*",

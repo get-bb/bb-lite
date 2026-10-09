@@ -36,6 +36,48 @@ export const AgentExecution = z.object({
 });
 export type AgentExecution = z.infer<typeof AgentExecution>;
 
+export const SCRIPT_TIMEOUT_DEFAULT_MS = 120_000;
+export const SCRIPT_TIMEOUT_MAX_MS = 900_000;
+export const INTERPRETERS = ["bash", "sh", "node", "python3"] as const;
+
+export const WorkingDirectory = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("automation-storage") }),
+  z.object({ type: z.literal("project") }),
+  z.object({ type: z.literal("path"), path: z.string().min(1).max(4096) }),
+]);
+export type WorkingDirectory = z.infer<typeof WorkingDirectory>;
+
+export const ScriptExecution = z.object({
+  mode: z.literal("script"),
+  script: z.string().min(1).max(262_144),
+  scriptFile: z.string().min(1).max(200).optional(),
+  hostId: z.string().min(1).optional(),
+  interpreter: z.enum(INTERPRETERS).optional(),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(SCRIPT_TIMEOUT_MAX_MS)
+    .default(SCRIPT_TIMEOUT_DEFAULT_MS),
+  env: z.record(z.string(), z.string()).optional(),
+  workingDirectory: WorkingDirectory.default({ type: "automation-storage" }),
+});
+export type ScriptExecution = z.infer<typeof ScriptExecution>;
+
+export const Execution = z.discriminatedUnion("mode", [
+  AgentExecution,
+  ScriptExecution,
+]);
+export type Execution = z.infer<typeof Execution>;
+
+export const ScriptResult = z.object({
+  exitCode: z.number().int().nullable(),
+  output: z.string(),
+  stderr: z.string(),
+  timedOut: z.boolean(),
+});
+export type ScriptResult = z.infer<typeof ScriptResult>;
+
 export const RunStatus = z.enum(["running", "succeeded", "failed", "skipped"]);
 
 export const Automation = z.object({
@@ -44,7 +86,7 @@ export const Automation = z.object({
   name: z.string(),
   enabled: z.boolean(),
   trigger: Trigger,
-  execution: AgentExecution,
+  execution: Execution,
   origin: z.enum(["human", "app", "agent"]),
   createdByThreadId: z.string().nullable(),
   nextRunAt: z.number().nullable(),
@@ -87,7 +129,7 @@ export const automations = contract("automations", {
       name,
       enabled: z.boolean().default(true),
       trigger: Trigger,
-      execution: AgentExecution,
+      execution: Execution,
       origin: z.enum(["human", "app", "agent"]).default("app"),
       createdByThreadId: z.string().min(1).optional(),
     }),
@@ -98,7 +140,7 @@ export const automations = contract("automations", {
     input: ref.extend({
       name: name.optional(),
       trigger: Trigger.optional(),
-      execution: AgentExecution.optional(),
+      execution: Execution.optional(),
     }),
     output: Automation,
     kind: "write",
@@ -116,8 +158,22 @@ export const automations = contract("automations", {
   runs: op({
     input: ref.extend({
       limit: z.number().int().min(1).max(RUNS_LIMIT_MAX).optional(),
+      cursor: z.string().regex(/^\d+$/u).optional(),
     }),
     output: z.object({ runs: z.array(Run), nextCursor: z.string().nullable() }),
+  }),
+  runScript: op({
+    input: z.object({
+      script: z.string().min(1),
+      interpreter: z.enum(INTERPRETERS),
+      timeoutMs: z.number().int().positive().max(SCRIPT_TIMEOUT_MAX_MS),
+      env: z.record(z.string(), z.string()).default({}),
+      cwd: z.string().min(1).nullable(),
+    }),
+    output: ScriptResult,
+    kind: "write",
+    audit: false,
+    internal: true,
   }),
   changed: event(z.object({ projectId: z.string(), automationId: z.string() })),
 });

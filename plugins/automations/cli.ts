@@ -2,6 +2,9 @@ import {
   PluginCliError,
   cliCommand,
   defineCli,
+  machines,
+  projects,
+  sessions,
   type CliContext,
   type PluginServerApi,
 } from "@bb/plugin";
@@ -11,19 +14,40 @@ import {
   reasoningLevelSchema,
   reasoningLevelValues,
   serviceTierSchema,
+  type PermissionMode,
 } from "@bb/domain";
+import { machineFiles } from "@bb/runner";
+import { extname, isAbsolute, resolve } from "node:path";
+import { z } from "zod";
 import {
   RUNS_LIMIT_DEFAULT,
   RUNS_LIMIT_MAX,
+  INTERPRETERS,
+  SCRIPT_TIMEOUT_DEFAULT_MS,
+  SCRIPT_TIMEOUT_MAX_MS,
   automations,
   type AgentExecution,
+  type Execution,
+  type ScriptExecution,
+  type WorkingDirectory,
   type Automation,
   type Run,
   type Trigger,
 } from "./contract.js";
 
-const SCRIPT_UNAVAILABLE =
-  "Script automations are not available yet in this version of bb.";
+const SCHEDULE_RULES = [
+  { kind: "requires", option: "cron", needs: ["timezone"] },
+  { kind: "requires", option: "timezone", needs: ["cron"] },
+] as const;
+const TARGET_RULES = [
+  {
+    kind: "at-most-one",
+    options: ["target-thread", "environment", "new-environment"],
+  },
+  { kind: "requires", option: "base-branch", needs: ["new-environment"] },
+  { kind: "at-most-one", options: ["service-tier", "clear-service-tier"] },
+  { kind: "at-most-one", options: ["script", "script-file"] },
+] as const;
 
 const PROJECT = {
   type: "string",
@@ -56,8 +80,9 @@ const SCHEDULE = {
     description: "One-shot run time, preferably ISO 8601",
   },
   in: {
-    type: "string",
-    placeholder: "duration",
+    type: "duration",
+    min: 1,
+    units: ["s"],
     description: "One-shot delay from now: 30s, 5m, 2h, or 1d",
   },
 } as const;
@@ -141,9 +166,11 @@ const SCRIPT = {
     description: "Script interpreter",
   },
   timeout: {
-    type: "string",
-    placeholder: "duration",
-    description: "Run timeout",
+    type: "duration",
+    min: 1,
+    max: SCRIPT_TIMEOUT_MAX_MS,
+    units: ["ms"],
+    description: `Run timeout; a bare number is milliseconds (default ${SCRIPT_TIMEOUT_DEFAULT_MS}, max ${SCRIPT_TIMEOUT_MAX_MS})`,
   },
   "env-json": {
     type: "string",
@@ -160,14 +187,16 @@ const SCRIPT = {
 type Values = Partial<
   Record<
     keyof typeof SCHEDULE | keyof typeof AGENT | keyof typeof SCRIPT,
-    string | boolean
+    string | number | boolean
   >
 >;
 
 const fail = (message: string, code = "invalid_value"): never => {
   throw new PluginCliError(message, { code });
 };
-const text = (value: string | boolean | undefined): string | undefined =>
+const text = (
+  value: string | number | boolean | undefined,
+): string | undefined =>
   typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 const time = (value: number | null) =>
@@ -181,21 +210,12 @@ function projectOf(value: string | undefined, ctx: CliContext): string {
   });
 }
 
-const UNITS: Record<string, number> = { s: 1e3, m: 6e4, h: 36e5, d: 864e5 };
-
 function trigger(options: Values, now: number): Trigger | undefined {
-  const [cron, timezone, at, delay] = [
+  const [cron, timezone, at] = [
     text(options.cron),
     text(options.timezone),
     text(options.at),
-    text(options.in),
   ];
-  if ([cron, at, delay].filter(Boolean).length > 1) {
-    fail("Choose only one of --cron, --at and --in.", "unexpected_argument");
-  }
-  if (cron && !timezone)
-    fail("--cron requires --timezone.", "missing_required");
-  if (timezone && !cron) fail("--timezone is only used with --cron.");
   if (cron && timezone) return { triggerType: "schedule", cron, timezone };
   if (at) {
     const runAt = Date.parse(at);
@@ -204,72 +224,85 @@ function trigger(options: Values, now: number): Trigger | undefined {
     if (runAt <= now) fail("--at must be in the future.");
     return { triggerType: "once", runAt };
   }
-  if (delay) {
-    const match = /^(\d+)([smhd])$/u.exec(delay);
-    if (!match) return fail("--in must be a duration like 30s, 5m, 2h, or 1d.");
-    const amount = Number(match[1]) * (UNITS[match[2] ?? "s"] ?? 0);
-    if (amount <= 0) fail("--in must be greater than zero.");
-    return { triggerType: "once", runAt: now + amount };
+  if (typeof options.in === "number") {
+    return { triggerType: "once", runAt: now + options.in };
   }
   return undefined;
 }
 
 function environment(
   options: Values,
+  hostId: string | undefined,
 ): AgentExecution["environment"] | undefined {
   const reuse = text(options.environment);
   const fresh = text(options["new-environment"]);
   const base = text(options["base-branch"]);
-  const target = text(options["target-thread"]);
-  if ([reuse, fresh, target].filter(Boolean).length > 1) {
-    fail(
-      "Cannot combine target options: --target-thread, --environment, and --new-environment.",
-      "unexpected_argument",
-    );
-  }
-  if (base && !fresh)
-    fail("--base-branch requires --new-environment worktree.");
+  const host = hostId ? { hostId } : {};
   if (fresh) {
     const baseBranch = base
       ? { kind: "named" as const, name: base }
       : { kind: "default" as const };
     return {
       type: "host",
+      ...host,
       workspace: { type: "managed-worktree", baseBranch },
     };
   }
   if (!reuse) return undefined;
   if (reuse.includes("/") || reuse.startsWith(".") || reuse.startsWith("~")) {
-    return { type: "host", workspace: { type: "unmanaged", path: reuse } };
+    return {
+      type: "host",
+      ...host,
+      workspace: { type: "unmanaged", path: reuse },
+    };
   }
   return { type: "reuse", environmentId: reuse };
 }
 
-function rejectScript(options: Values): void {
-  if (
-    Object.keys(SCRIPT).some(
-      (name) => options[name as keyof Values] !== undefined,
-    )
-  ) {
-    fail(SCRIPT_UNAVAILABLE, "unsupported");
+const SCRIPT_ONLY = [
+  "interpreter",
+  "timeout",
+  "env-json",
+  "working-directory",
+] as const;
+const AGENT_ONLY = ["prompt", "provider", "model"] as const;
+const EXTENSIONS: Record<string, ScriptExecution["interpreter"]> = {
+  sh: "bash",
+  bash: "bash",
+  js: "node",
+  mjs: "node",
+  cjs: "node",
+  py: "python3",
+};
+
+function workingDirectory(raw: string): WorkingDirectory {
+  if (raw === "automation-storage" || raw === "project") return { type: raw };
+  if (isAbsolute(raw)) return { type: "path", path: raw };
+  return fail(
+    "Invalid --working-directory. Expected automation-storage, project, or an absolute path on the machine.",
+  );
+}
+
+function envOf(raw: string): Record<string, string> {
+  try {
+    return z.record(z.string(), z.string()).parse(JSON.parse(raw));
+  } catch {
+    return fail("--env-json must be a JSON object of string values.");
   }
 }
 
-function agentPatch(options: Values): Partial<AgentExecution> {
-  const serviceTier = text(options["service-tier"]);
-  if (serviceTier && options["clear-service-tier"]) {
-    fail(
-      "Cannot combine --service-tier with --clear-service-tier.",
-      "unexpected_argument",
-    );
-  }
-  const env = environment(options);
+function agentPatch(
+  options: Values,
+  hostId: string | undefined,
+): Partial<AgentExecution> {
+  const env = environment(options, hostId);
   const patch: Partial<AgentExecution> = {};
   const prompt = text(options.prompt);
   const providerId = text(options.provider);
   const model = text(options.model);
   const reasoning = text(options.reasoning);
   const permission = text(options["permission-mode"]);
+  const serviceTier = text(options["service-tier"]);
   const target = text(options["target-thread"]);
   if (prompt) patch.prompt = prompt;
   if (providerId) patch.providerId = providerId;
@@ -282,9 +315,21 @@ function agentPatch(options: Values): Partial<AgentExecution> {
   return patch;
 }
 
-function newExecution(options: Values): AgentExecution {
-  rejectScript(options);
-  const patch = agentPatch(options);
+const has = (options: Values, names: readonly string[]) =>
+  names.some((name) => options[name as keyof Values] !== undefined);
+
+function newAgent(
+  options: Values,
+  hostId: string | undefined,
+  permissionMode: PermissionMode,
+): AgentExecution {
+  if (has(options, SCRIPT_ONLY)) {
+    fail(
+      "Agent automations do not accept --interpreter, --timeout, --env-json, or --working-directory.",
+      "unexpected_argument",
+    );
+  }
+  const patch = agentPatch(options, hostId);
   if (!patch.prompt)
     fail("Missing required option --prompt <value>.", "missing_required");
   if (!patch.providerId || !patch.model) {
@@ -298,28 +343,39 @@ function newExecution(options: Values): AgentExecution {
     providerId: "",
     model: "",
     reasoningLevel: "medium",
-    permissionMode: "auto",
+    permissionMode,
     environment: { type: "project-default" },
     ...patch,
     mode: "agent",
   };
 }
 
-function changedExecution(
-  current: Automation,
+function changedAgent(
+  current: AgentExecution,
   options: Values,
+  hostId: string | undefined,
 ): AgentExecution | undefined {
-  rejectScript(options);
-  const patch = agentPatch(options);
+  const patch = agentPatch(options, hostId);
   const clear = options["clear-service-tier"] === true;
   if (Object.keys(patch).length === 0 && !clear) return undefined;
-  const next: AgentExecution = { ...current.execution, ...patch };
+  const next: AgentExecution = { ...current, ...patch };
   if (patch.targetThreadId) next.environment = { type: "project-default" };
   if (patch.environment) delete next.targetThreadId;
   if (clear) delete next.serviceTier;
   return next;
 }
 
+function scriptPatch(options: Values): Partial<ScriptExecution> {
+  const patch: Partial<ScriptExecution> = {};
+  const interpreter = text(options.interpreter);
+  const directory = text(options["working-directory"]);
+  const env = text(options["env-json"]);
+  if (interpreter) patch.interpreter = z.enum(INTERPRETERS).parse(interpreter);
+  if (typeof options.timeout === "number") patch.timeoutMs = options.timeout;
+  if (env) patch.env = envOf(env);
+  if (directory) patch.workingDirectory = workingDirectory(directory);
+  return patch;
+}
 function table(header: string[], rows: string[][]): string {
   const widths = header.map((title, column) =>
     Math.max(title.length, ...rows.map((row) => (row[column] ?? "").length)),
@@ -349,10 +405,20 @@ function describe(automation: Automation): string {
     ["Last run", time(automation.lastRunAt)],
     ["Last status", automation.lastRunStatus ?? "-"],
     ["Runs", String(automation.runCount)],
-    ["Mode", "agent"],
-    ["Provider", `${execution.providerId} / ${execution.model}`],
-    ["Target", execution.targetThreadId ?? execution.environment.type],
-    ["Prompt", execution.prompt],
+    ...(execution.mode === "agent"
+      ? [
+          ["Mode", "agent"],
+          ["Provider", `${execution.providerId} / ${execution.model}`],
+          ["Target", execution.targetThreadId ?? execution.environment.type],
+          ["Prompt", execution.prompt],
+        ]
+      : [
+          ["Mode", "script"],
+          ["Interpreter", execution.interpreter ?? "bash"],
+          ["Timeout", `${execution.timeoutMs}ms`],
+          ["Working directory", execution.workingDirectory.type],
+          ["Script", execution.scriptFile ?? execution.script],
+        ]),
     ...(automation.lastError ? [["Last error", automation.lastError]] : []),
   ];
   return lines.map(([label, value]) => `${label}: ${value}`).join("\n") + "\n";
@@ -368,8 +434,119 @@ function runRows(runs: Run[]): string[][] {
   ]);
 }
 
+export async function defaultHost(
+  bb: PluginServerApi,
+  projectId: string,
+): Promise<string> {
+  const project = await bb.call(projects.get, { projectId });
+  const source = project.sources[0];
+  if (source) return source.hostId;
+  const [first] = await bb.call(machines.list, {});
+  if (!first) return fail("No machine is connected.", "unavailable");
+  return first.id;
+}
+
 export function registerCli(bb: PluginServerApi): void {
   const call = bb.call.bind(bb);
+
+  async function scriptSource(options: Values, ctx: CliContext) {
+    const inline = text(options.script);
+    if (inline) return { script: inline };
+    const file = text(options["script-file"]);
+    if (!file) return undefined;
+    const hostId = text(options.host) ?? ctx.hostId;
+    if (!hostId) return fail("--script-file needs --host <id>.");
+    const path = isAbsolute(file) ? file : resolve(ctx.cwd ?? "/", file);
+    const read = await bb.runners.call(hostId, machineFiles.read, { path });
+    if (!("content" in read) || read.contentEncoding !== "utf8") {
+      return fail(`--script-file is not UTF-8 text: ${path}`);
+    }
+    const interpreter = EXTENSIONS[extname(path).slice(1)];
+    return {
+      script: read.content,
+      scriptFile: path,
+      hostId,
+      ...(interpreter ? { interpreter } : {}),
+    };
+  }
+
+  async function bestPermission(providerId: string): Promise<PermissionMode> {
+    const options = await call(sessions.executionOptions, { providerId });
+    const modes = options.providers.find((each) => each.id === providerId)
+      ?.capabilities.permissionModes;
+    if (!modes || modes.includes("auto")) return "auto";
+    return modes.includes("full") ? "full" : (modes[0] ?? "auto");
+  }
+
+  const hostOf = async (options: Values, ctx: CliContext, projectId: string) =>
+    ctx.hostId ??
+    (text(options.environment) || text(options["new-environment"])
+      ? await defaultHost(bb, projectId)
+      : undefined);
+
+  async function newExecution(
+    options: Values,
+    ctx: CliContext,
+    projectId: string,
+  ): Promise<Execution> {
+    const source = await scriptSource(options, ctx);
+    if (!source) {
+      const providerId = text(options.provider);
+      const permission = providerId ? await bestPermission(providerId) : "auto";
+      return newAgent(
+        options,
+        await hostOf(options, ctx, projectId),
+        permission,
+      );
+    }
+    if (has(options, AGENT_ONLY)) {
+      fail(
+        "Script automations do not accept --prompt, --provider or --model.",
+        "unexpected_argument",
+      );
+    }
+    return {
+      mode: "script",
+      timeoutMs: SCRIPT_TIMEOUT_DEFAULT_MS,
+      workingDirectory: { type: "automation-storage" },
+      ...(ctx.hostId ? { hostId: ctx.hostId } : {}),
+      ...source,
+      ...scriptPatch(options),
+    };
+  }
+
+  async function changedExecution(
+    current: Automation,
+    options: Values,
+    ctx: CliContext,
+  ): Promise<Execution | undefined> {
+    const execution = current.execution;
+    if (execution.mode === "agent") {
+      if (has(options, ["script", "script-file", ...SCRIPT_ONLY])) {
+        fail(
+          "Agent automations do not accept --interpreter, --timeout, --env-json, or --working-directory.",
+          "unexpected_argument",
+        );
+      }
+      return changedAgent(
+        execution,
+        options,
+        await hostOf(options, ctx, current.projectId),
+      );
+    }
+    if (has(options, AGENT_ONLY)) {
+      fail(
+        "Script automations do not accept --prompt, --provider or --model.",
+        "unexpected_argument",
+      );
+    }
+    const patch = {
+      ...(await scriptSource(options, ctx)),
+      ...scriptPatch(options),
+    };
+    if (Object.keys(patch).length === 0) return undefined;
+    return { ...execution, ...patch };
+  }
   const one = (
     summary: string,
     op: typeof automations.pause | typeof automations.resume,
@@ -456,16 +633,21 @@ export function registerCli(bb: PluginServerApi): void {
             ...SCRIPT,
             json: JSON_OPTION,
           },
+          constraints: [
+            { kind: "exactly-one", options: ["cron", "at", "in"] },
+            ...SCHEDULE_RULES,
+            ...TARGET_RULES,
+          ],
           run: async ({ options }, ctx) => {
-            const when =
-              trigger(options, bb.now()) ??
-              fail("Choose one of --cron, --at or --in.", "missing_required");
+            const when = trigger(options, bb.now());
+            if (!when) return fail("Choose one of --cron, --at or --in.");
+            const projectId = projectOf(options.project, ctx);
             const created = await call(automations.create, {
-              projectId: projectOf(options.project, ctx),
+              projectId,
               name: options.name,
               enabled: !options.disabled,
               trigger: when,
-              execution: newExecution(options),
+              execution: await newExecution(options, ctx, projectId),
               origin: ctx.threadId ? "agent" : "human",
               ...(ctx.threadId ? { createdByThreadId: ctx.threadId } : {}),
             });
@@ -507,6 +689,11 @@ export function registerCli(bb: PluginServerApi): void {
             ...SCRIPT,
             json: JSON_OPTION,
           },
+          constraints: [
+            { kind: "at-most-one", options: ["cron", "at", "in"] },
+            ...SCHEDULE_RULES,
+            ...TARGET_RULES,
+          ],
           run: async ({ options, positionals }, ctx) => {
             const ref = {
               projectId: projectOf(options.project, ctx),
@@ -514,7 +701,7 @@ export function registerCli(bb: PluginServerApi): void {
             };
             const current = await call(automations.get, ref);
             const when = trigger(options, bb.now());
-            const execution = changedExecution(current, options);
+            const execution = await changedExecution(current, options, ctx);
             const updated = await call(automations.update, {
               ...ref,
               ...(options.name !== undefined ? { name: options.name } : {}),
@@ -572,6 +759,11 @@ export function registerCli(bb: PluginServerApi): void {
               default: RUNS_LIMIT_DEFAULT,
               description: `How many recent runs to read (at most ${RUNS_LIMIT_MAX})`,
             },
+            cursor: {
+              type: "string",
+              placeholder: "cursor",
+              description: "Read the page after this nextCursor",
+            },
             output: {
               type: "string",
               placeholder: "runId",
@@ -585,6 +777,7 @@ export function registerCli(bb: PluginServerApi): void {
               projectId: projectOf(options.project, ctx),
               automationId: positionals.automationId,
               limit: options.limit,
+              ...(options.cursor ? { cursor: options.cursor } : {}),
             });
             if (options.output) {
               const run =

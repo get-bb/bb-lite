@@ -97,6 +97,8 @@ function Overview() {
   const go = useGo();
   const navigate = useBbNavigate();
   const list = useOp(projects.list, { includePersonal: true });
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
   return (
     <Page
       title="Automations"
@@ -121,11 +123,32 @@ function Overview() {
         </>
       }
     >
+      <div className="flex gap-2">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search automations"
+          className="h-8 min-w-0 flex-1 rounded-md border bg-transparent px-2 text-sm"
+        />
+        <select
+          value={filter}
+          onChange={(event) => setFilter(filterOf(event.target.value))}
+          className="h-8 rounded-md border bg-transparent px-2 text-sm"
+        >
+          {FILTERS.map((each) => (
+            <option key={each} value={each}>
+              {each}
+            </option>
+          ))}
+        </select>
+      </div>
       {(list.data ?? []).map((project) => (
         <ProjectSection
           key={project.id}
           projectId={project.id}
           name={project.name}
+          query={query.trim().toLowerCase()}
+          filter={filter}
         />
       ))}
       <p className="text-xs text-muted-foreground">
@@ -135,16 +158,40 @@ function Overview() {
   );
 }
 
+const FILTERS = ["all", "active", "paused", "failing"] as const;
+type Filter = (typeof FILTERS)[number];
+const filterOf = (value: string): Filter =>
+  FILTERS.find((each) => each === value) ?? "all";
+
+function shown(automation: Automation, query: string, filter: Filter) {
+  const text = `${automation.name} ${
+    automation.execution.mode === "agent"
+      ? automation.execution.prompt
+      : automation.execution.script
+  }`.toLowerCase();
+  if (query && !text.includes(query)) return false;
+  if (filter === "active") return automation.enabled;
+  if (filter === "paused") return !automation.enabled;
+  if (filter === "failing") return automation.lastRunStatus === "failed";
+  return true;
+}
+
 function ProjectSection({
   projectId,
   name,
+  query,
+  filter,
 }: {
   projectId: string;
   name: string;
+  query: string;
+  filter: Filter;
 }) {
   const go = useGo();
   const list = useOp(automations.list, { projectId });
-  const items = list.data ?? [];
+  const items = (list.data ?? []).filter((automation) =>
+    shown(automation, query, filter),
+  );
   if (items.length === 0) return null;
   return (
     <section className="grid gap-1">
@@ -234,13 +281,15 @@ function Detail({
           <Button size="sm" variant="ghost" onClick={() => act(() => run(ref))}>
             Run now
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => go(`${pathOf(automation)}/edit`)}
-          >
-            Edit
-          </Button>
+          {execution.mode === "agent" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => go(`${pathOf(automation)}/edit`)}
+            >
+              Edit
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -281,12 +330,25 @@ function Detail({
         </dd>
         <dt className="text-muted-foreground">Status</dt>
         <dd>{statusLabel(automation)}</dd>
-        <dt className="text-muted-foreground">Agent</dt>
-        <dd>
-          {execution.providerId} · {execution.model} ·{" "}
-          {execution.reasoningLevel} · {execution.permissionMode}
-        </dd>
-        {execution.targetThreadId && (
+        {execution.mode === "agent" ? (
+          <>
+            <dt className="text-muted-foreground">Agent</dt>
+            <dd>
+              {execution.providerId} · {execution.model} ·{" "}
+              {execution.reasoningLevel} · {execution.permissionMode}
+            </dd>
+          </>
+        ) : (
+          <>
+            <dt className="text-muted-foreground">Script</dt>
+            <dd>
+              {execution.interpreter ?? "bash"}
+              {execution.scriptFile && ` · ${execution.scriptFile}`} · timeout{" "}
+              {Math.round(execution.timeoutMs / 1000)}s
+            </dd>
+          </>
+        )}
+        {execution.mode === "agent" && execution.targetThreadId && (
           <>
             <dt className="text-muted-foreground">Sends to</dt>
             <dd>
@@ -302,7 +364,7 @@ function Detail({
         )}
       </dl>
       <pre className="whitespace-pre-wrap rounded-md border p-3 text-sm">
-        {execution.prompt}
+        {execution.mode === "agent" ? execution.prompt : execution.script}
       </pre>
       <section className="grid gap-1">
         <h2 className="text-xs font-medium text-muted-foreground">Runs</h2>

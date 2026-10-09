@@ -1,20 +1,74 @@
-import { threads, type PluginServerApi } from "@bb/plugin";
 import {
-  forbidden,
-  invalidRequest,
-  notFound,
-} from "@bb/server-kit/http/errors";
-import { registerCli } from "./cli.js";
+  deny,
+  fail,
+  projects,
+  threads,
+  type PluginServerApi,
+} from "@bb/plugin";
+import { findLocalPathProjectSourceForHost } from "@bb/domain";
+import { defaultHost, registerCli } from "./cli.js";
 import {
   RUNS_LIMIT_DEFAULT,
   automations,
   type Automation,
   type Run,
+  type ScriptExecution,
+  type ScriptResult,
   type Trigger,
 } from "./contract.js";
 import { nextRunAt, openStore, validateTrigger } from "./store.js";
 
 const SWEEP_INTERVAL_MS = 1000;
+const FAILURE_DETAIL_MAX = 200;
+
+function firstLine(text: string): string | null {
+  const line = text
+    .split(/\r?\n/u)
+    .map((each) => each.replace(/\p{Cc}/gu, " ").trim())
+    .find(Boolean);
+  if (!line) return null;
+  return line.length > FAILURE_DETAIL_MAX
+    ? `${line.slice(0, FAILURE_DETAIL_MAX - 1)}\u2026`
+    : line;
+}
+
+function wakeAgentOff(output: string): boolean {
+  const last = output.trim().split(/\r?\n/u).at(-1) ?? "";
+  try {
+    const parsed: unknown = JSON.parse(last);
+    return (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "wakeAgent" in parsed &&
+      parsed.wakeAgent === false
+    );
+  } catch {
+    return false;
+  }
+}
+
+function outcome(result: ScriptResult) {
+  const output = result.output.length > 0 ? result.output : null;
+  if (result.timedOut) {
+    return { status: "failed" as const, error: "Script timed out", output };
+  }
+  if (result.exitCode !== 0) {
+    const detail = firstLine(result.stderr);
+    const code = result.exitCode ?? "null";
+    return {
+      status: "failed" as const,
+      error: `Script exited with code ${code}${detail ? `: ${detail}` : ""}`,
+      output,
+    };
+  }
+  if (output === null || output.trim() === "") {
+    return { status: "skipped" as const, skipReason: "empty output" };
+  }
+  if (wakeAgentOff(output)) {
+    return { status: "skipped" as const, skipReason: "wakeAgent false" };
+  }
+  return { status: "succeeded" as const, output };
+}
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -35,13 +89,13 @@ export default function automationsServer(bb: PluginServerApi): void {
 
   const find = (projectId: string, automationId: string): Automation => {
     const found = store.get(projectId, automationId);
-    if (!found) throw notFound("Automation not found");
+    if (!found) return fail("not_found", "Automation not found");
     return found;
   };
 
   const checkTrigger = (trigger: Trigger) => {
     const problem = validateTrigger(trigger, bb.now());
-    if (problem) throw invalidRequest(problem);
+    if (problem) fail("invalid", problem);
   };
 
   const schedule = (automation: Automation): Automation => ({
@@ -57,8 +111,71 @@ export default function automationsServer(bb: PluginServerApi): void {
     return find(automation.projectId, automation.id);
   };
 
+  const stops = new Map<string, AbortController>();
+
+  async function scriptDirectory(
+    projectId: string,
+    hostId: string,
+    execution: ScriptExecution,
+  ): Promise<string | null> {
+    const directory = execution.workingDirectory;
+    if (directory.type === "path") return directory.path;
+    if (directory.type === "automation-storage") return null;
+    const project = await bb.call(projects.get, { projectId });
+    const source = findLocalPathProjectSourceForHost(project.sources, hostId);
+    if (!source) {
+      return fail(
+        "unavailable",
+        `Project ${projectId} has no folder on machine ${hostId}`,
+      );
+    }
+    return source.path;
+  }
+
+  async function runScript(
+    automation: Automation,
+    execution: ScriptExecution,
+    run: Run,
+  ): Promise<void> {
+    const stop = new AbortController();
+    stops.set(run.id, stop);
+    try {
+      const hostId =
+        execution.hostId ?? (await defaultHost(bb, automation.projectId));
+      const result = await bb.runners.call(
+        hostId,
+        automations.runScript,
+        {
+          script: execution.script,
+          interpreter: execution.interpreter ?? "bash",
+          timeoutMs: execution.timeoutMs,
+          env: execution.env ?? {},
+          cwd: await scriptDirectory(automation.projectId, hostId, execution),
+        },
+        { timeoutMs: execution.timeoutMs + 30_000, signal: stop.signal },
+      );
+      const ended = outcome(result);
+      store.finish(run.id, ended.status, ended.error ?? null, bb.now(), {
+        output: ended.output ?? null,
+        exitCode: result.exitCode,
+        ...(ended.skipReason ? { skipReason: ended.skipReason } : {}),
+      });
+    } catch (error) {
+      if (store.byId(automation.id)) {
+        store.finish(run.id, "failed", message(error), bb.now());
+      }
+    } finally {
+      stops.delete(run.id);
+    }
+    if (store.byId(automation.id)) changed(automation);
+  }
+
   async function dispatch(automation: Automation, run: Run): Promise<void> {
     const { execution } = automation;
+    if (execution.mode === "script") {
+      void runScript(automation, execution, run);
+      return;
+    }
     const text = `[bb automation due:${automation.id}]\n\n${execution.prompt}`;
     const input = [{ type: "text" as const, text, mentions: [] }];
     try {
@@ -113,6 +230,7 @@ export default function automationsServer(bb: PluginServerApi): void {
     if (store.running(automation.id)) {
       store.startRun({
         automationId: automation.id,
+        runMode: automation.execution.mode,
         trigger: "schedule",
         scheduledFor,
         now,
@@ -124,6 +242,7 @@ export default function automationsServer(bb: PluginServerApi): void {
     }
     const run = store.startRun({
       automationId: automation.id,
+      runMode: automation.execution.mode,
       trigger: "schedule",
       scheduledFor,
       now,
@@ -196,9 +315,7 @@ export default function automationsServer(bb: PluginServerApi): void {
     if (creator) {
       const thread = await bb.call(threads.get, { threadId: creator });
       if (thread.originPluginId === bb.pluginId) {
-        throw forbidden(
-          "Threads started by an automation cannot create automations.",
-        );
+        deny("Threads started by an automation cannot create automations.");
       }
     }
     const id = store.insert(input, bb.now());
@@ -209,12 +326,13 @@ export default function automationsServer(bb: PluginServerApi): void {
   bb.implement(automations.update, (input) => {
     const current = find(input.projectId, input.automationId);
     if (input.trigger) checkTrigger(input.trigger);
+    const execution = input.execution ?? current.execution;
     return save(
       schedule({
         ...current,
         name: input.name ?? current.name,
         trigger: input.trigger ?? current.trigger,
-        execution: input.execution ?? current.execution,
+        execution,
       }),
     );
   });
@@ -228,6 +346,9 @@ export default function automationsServer(bb: PluginServerApi): void {
   });
   bb.implement(automations.delete, ({ projectId, automationId }) => {
     const current = find(projectId, automationId);
+    for (const run of store.runs(current.id, RUNS_LIMIT_DEFAULT, 0).runs) {
+      stops.get(run.id)?.abort();
+    }
     store.remove(current.id);
     changed(current);
   });
@@ -239,6 +360,7 @@ export default function automationsServer(bb: PluginServerApi): void {
     const now = bb.now();
     const run = store.startRun({
       automationId: automation.id,
+      runMode: automation.execution.mode,
       trigger: "manual",
       scheduledFor: now,
       now,
@@ -250,10 +372,11 @@ export default function automationsServer(bb: PluginServerApi): void {
   });
   bb.implement(automations.runs, (input) => {
     const automation = find(input.projectId, input.automationId);
-    return {
-      runs: store.runs(automation.id, input.limit ?? RUNS_LIMIT_DEFAULT),
-      nextCursor: null,
-    };
+    return store.runs(
+      automation.id,
+      input.limit ?? RUNS_LIMIT_DEFAULT,
+      Number(input.cursor ?? 0),
+    );
   });
 
   registerCli(bb);

@@ -81,7 +81,8 @@ export function AutomationForm({
   onDone: (automation: Automation) => void;
   onCancel: () => void;
 }) {
-  const execution = automation?.execution;
+  const execution =
+    automation?.execution.mode === "agent" ? automation.execution : undefined;
   const trigger = automation?.trigger;
   const projectList = useOp(
     projects.list,
@@ -139,6 +140,17 @@ export function AutomationForm({
       label: option.displayName,
     })),
   ];
+  const chosenModel = executionOptions.data?.models.find((option) =>
+    model ? option.model === model : option.isDefault,
+  );
+  const supported = chosenModel?.supportedReasoningEfforts.map(
+    (option) => option.reasoningEffort,
+  );
+  const reasoningLevels =
+    supported && supported.length > 0 ? supported : reasoningLevelValues;
+  if (!reasoningLevels.includes(reasoningLevel)) {
+    setReasoningLevel(chosenModel?.defaultReasoningEffort ?? "medium");
+  }
   if (!modelOptions.some((option) => option.value === model)) {
     modelOptions.push({ value: model, label: model });
   }
@@ -266,7 +278,7 @@ export function AutomationForm({
         <Choice
           label="Reasoning"
           value={reasoningLevel}
-          options={plain(reasoningLevelValues)}
+          options={plain(reasoningLevels)}
           onChange={setReasoningLevel}
         />
         <Choice
