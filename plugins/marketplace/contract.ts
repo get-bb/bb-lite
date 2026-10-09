@@ -102,8 +102,11 @@ const byUrl = z.object({
 const printCatalogs = (rows: CatalogSource[]) =>
   rows
     .map((row) => {
-      const state =
-        row.error === null ? `${row.entries ?? "?"} plugins` : row.error;
+      const count =
+        row.entries === null
+          ? "not read yet"
+          : `${row.entries} plugin${row.entries === 1 ? "" : "s"}`;
+      const state = row.error ?? count;
       return `${row.url}  ${state}`;
     })
     .join("\n");
@@ -126,13 +129,17 @@ export const marketplace = contract("marketplace", {
         aliases: ["plugin search"],
         summary: "Search the plugin catalogs",
         positionals: ["query"],
-        print: ({ entries }) =>
-          entries
-            .map((entry) => {
+        print: ({ entries, errors }) =>
+          [
+            ...entries.map((entry) => {
               const state = entry.installed === null ? "" : " (installed)";
               return `${entry.id}${state}  ${entry.description}`;
-            })
-            .join("\n"),
+            }),
+            ...(entries.length === 0 ? ["No plugins match"] : []),
+            ...errors.map(
+              ({ catalog, message }) => `Could not read ${catalog}: ${message}`,
+            ),
+          ].join("\n"),
       },
     },
   }),

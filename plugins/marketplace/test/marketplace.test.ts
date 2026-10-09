@@ -163,6 +163,9 @@ it("manages catalogs with add, list, refresh and remove", async () => {
   const missing = await op("marketplace.addCatalog", { url: `${other}.x` });
   expect(missing.status).toBe(400);
   writeFileSync(other, "not json");
+  const searched = await cli(["search", "nothing-matches", "--refresh"]);
+  expect(searched.stdout).toContain("No plugins match");
+  expect(searched.stdout).toContain(`Could not read ${other}: `);
   const refreshed = await op("marketplace.refresh", { url: other });
   expect(refreshed.result).toMatchObject([
     { url: catalog, error: null },
