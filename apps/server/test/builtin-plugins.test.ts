@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import * as interactions from "@bb/server-kit/db/pending-interactions";
-import { createEchoServer, type Json } from "./helpers.js";
+import { createEchoServer, createTestServer, type Json } from "./helpers.js";
 import { createThreadServer, text } from "./thread-harness.js";
 
 type EventData = { item: Json; interaction: Json };
@@ -159,4 +159,21 @@ it("adds the custom instructions to sessions and gates the question tool", async
   expect(JSON.stringify(codex.dynamicTools)).toContain("AskUserQuestion");
   expect(claude.instructions).not.toContain("pnpm");
   expect(JSON.stringify(claude.dynamicTools)).not.toContain("AskUserQuestion");
+});
+
+it("restarts the plugins that require one when it is turned off and on", async () => {
+  const plugins = ["bb-account", "bb-ai"];
+  const { ctx } = await createTestServer({}, "fake", ":memory:", plugins);
+  const status = () => {
+    const found = ctx.plugins.list().find(({ id }) => id === "bb-ai");
+    return [found?.status, found?.statusMessage];
+  };
+  expect(status()).toEqual(["running", null]);
+  await ctx.plugins.setEnabled("bb-account", false);
+  expect(status()).toEqual([
+    "error",
+    'requires "bb-account", which is not running',
+  ]);
+  await ctx.plugins.setEnabled("bb-account", true);
+  expect(status()).toEqual(["running", null]);
 });

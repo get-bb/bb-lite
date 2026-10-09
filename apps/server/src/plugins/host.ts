@@ -112,7 +112,7 @@ export class PluginHost extends PluginRegistry {
   async refresh(id: string): Promise<void> {
     await this.discover();
     const record = this.records.get(id);
-    if (record !== undefined) await this.load(record);
+    if (record !== undefined) await this.loadWithDependents(record);
     await this.announce();
   }
 
@@ -151,7 +151,7 @@ export class PluginHost extends PluginRegistry {
       throw new ApiError(409, "core_plugin", message);
     }
     setPluginEnabled(this.options.db, id, enabled);
-    await this.load(record);
+    await this.loadWithDependents(record);
     await this.announce();
     return this.describe(record);
   }
@@ -339,6 +339,17 @@ export class PluginHost extends PluginRegistry {
     }
     this.records.clear();
     for (const [id, record] of found) this.records.set(id, record);
+  }
+
+  private async loadWithDependents(record: PluginRecord): Promise<void> {
+    await this.load(record);
+    const changed = new Set([record.manifest.id]);
+    for (const other of this.inDependencyOrder()) {
+      const { requires } = other.manifest;
+      if (!requires.some((required) => changed.has(required))) continue;
+      changed.add(other.manifest.id);
+      await this.load(other);
+    }
   }
 
   private load(record: PluginRecord): Promise<void> {
