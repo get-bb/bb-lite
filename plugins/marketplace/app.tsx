@@ -22,12 +22,14 @@ export default function marketplaceApp(bb: PluginAppApi): void {
 
 type Pending = { entry: Offered; action: "install" | "update" | "remove" };
 
+const VERB = { install: "Install", update: "Update", remove: "Remove" };
+
 function origin(entry: Offered): string[] {
   const facts = [`Source: ${entry.source}`];
   if (entry.subdir !== null) facts.push(`Directory: ${entry.subdir}`);
   if (entry.ref !== null) facts.push(`Ref: ${entry.ref}`);
   if (entry.range !== null) {
-    const tags = entry.tagPrefix === null ? "" : ` (tags ${entry.tagPrefix}v*)`;
+    const tags = entry.tagPrefix === null ? "" : ` (tags ${entry.tagPrefix}*)`;
     facts.push(`Version: ${entry.range}${tags}`);
   }
   return facts;
@@ -58,6 +60,11 @@ function MarketplacePage() {
   const newer = new Map(
     (updates.data ?? []).map((row) => [row.id, row.latest]),
   );
+
+  const ask = (next: Pending | null) => {
+    setError(null);
+    setPending(next);
+  };
 
   const confirm = async ({ entry, action }: Pending) => {
     setError(null);
@@ -93,8 +100,7 @@ function MarketplacePage() {
       {pending !== null && (
         <div className="rounded-md border p-3 text-sm">
           <p className="font-medium">
-            {pending.action === "remove" ? "Remove" : "Install"}{" "}
-            {pending.entry.name}?
+            {VERB[pending.action]} {pending.entry.name}?
           </p>
           {pending.action !== "remove" && (
             <p className="text-muted-foreground">
@@ -110,7 +116,7 @@ function MarketplacePage() {
           {error !== null && <p className="text-destructive">{error}</p>}
           <div className="mt-2 flex gap-2">
             <Button onClick={() => void confirm(pending)}>Confirm</Button>
-            <Button variant="outline" onClick={() => setPending(null)}>
+            <Button variant="outline" onClick={() => ask(null)}>
               Cancel
             </Button>
           </div>
@@ -135,21 +141,19 @@ function MarketplacePage() {
             </div>
             <div className="flex flex-col gap-2">
               {entry.installed === null && entry.installable && (
-                <Button
-                  onClick={() => setPending({ entry, action: "install" })}
-                >
+                <Button onClick={() => ask({ entry, action: "install" })}>
                   Install
                 </Button>
               )}
               {latest !== undefined && (
-                <Button onClick={() => setPending({ entry, action: "update" })}>
+                <Button onClick={() => ask({ entry, action: "update" })}>
                   Update to {latest}
                 </Button>
               )}
               {entry.installed !== null && (
                 <Button
                   variant="outline"
-                  onClick={() => setPending({ entry, action: "remove" })}
+                  onClick={() => ask({ entry, action: "remove" })}
                 >
                   Remove
                 </Button>

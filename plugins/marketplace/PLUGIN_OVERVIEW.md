@@ -10,4 +10,5 @@ Each install records where it came from (catalog, source, ref, range, version) s
 a newer version in range. Install, update and remove are owner only and audited.
 
 CLI: `bb marketplace search [query]`, `install <id> [--version <range>]`, `updates`,
-`update <id>`, `list`, `remove <id>`. App: Settings > Marketplace.
+`update <id>`, `plugins` (installed from the marketplace), `uninstall <id>`, and for catalogs
+`list`, `add <url>`, `remove <url>`, `refresh [url]`. App: Settings > Marketplace.
