@@ -1,6 +1,6 @@
 import { createPluginHarness } from "@bb/plugin/testing";
 import { expect, it } from "vitest";
-import { connect, type ConnectStatus } from "../../connect/src/contract.js";
+import { connect, type ConnectStatus } from "bb-plugin-connect/contract.js";
 import { bbAccount, describeAccount } from "../contract.js";
 import { createBbAccount } from "../server.js";
 

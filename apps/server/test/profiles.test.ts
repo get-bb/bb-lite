@@ -1,5 +1,5 @@
-import { readdirSync } from "node:fs";
-import { basename, sep } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { profiles } from "@bb/profile-default/profiles";
@@ -33,6 +33,30 @@ it("registers every plugin directory through the generated tables", () => {
   expect(execFileSync("node", check, { cwd, encoding: "utf8" })).toContain(
     "current",
   );
+});
+
+it("keeps every plugin's source inside its own folder, so a fork still builds", () => {
+  const root = fileURLToPath(new URL("../../../plugins", import.meta.url));
+  const skipped = new Set(["node_modules", "dist", "test"]);
+  const sources = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return skipped.has(entry.name) ? [] : sources(path);
+      }
+      return /\.tsx?$/u.test(entry.name) ? [path] : [];
+    });
+  const escapes = sources(root).flatMap((file) => {
+    const [plugin] = relative(root, file).split(sep);
+    const imports = readFileSync(file, "utf8").matchAll(
+      /from\s+"(\.\.?\/[^"]+)"/gu,
+    );
+    return [...imports]
+      .map(([, specifier]) => resolve(dirname(file), specifier ?? ""))
+      .filter((target) => relative(root, target).split(sep)[0] !== plugin)
+      .map((target) => `${relative(root, file)} -> ${relative(root, target)}`);
+  });
+  expect(escapes).toEqual([]);
 });
 
 it("loads core through the plugin loader, in the order requirements give", async () => {

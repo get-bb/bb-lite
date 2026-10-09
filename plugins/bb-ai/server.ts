@@ -10,7 +10,7 @@ import {
   bbAccount,
   type AccountFetchOutput,
   type AccountStatus,
-} from "../bb-account/contract.js";
+} from "bb-plugin-bb-account/contract.js";
 import {
   bbAi,
   formatResetTime,

@@ -1,6 +1,6 @@
 import { deny, type PluginServerApi } from "@bb/plugin";
 import { setTimeout as sleep } from "node:timers/promises";
-import { connect } from "../connect/src/contract.js";
+import { connect } from "bb-plugin-connect/contract.js";
 import {
   bbAccount,
   type AccountFetchOutput,
