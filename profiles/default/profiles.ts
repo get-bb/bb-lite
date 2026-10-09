@@ -32,6 +32,7 @@ const AGENT_FEATURES = [
   "audit",
   "plugin-dev",
   "plugin-api-tester",
+  "plugin-api-docs",
   "workflows",
 ];
 const PRODUCT = [

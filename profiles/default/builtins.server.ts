@@ -23,6 +23,7 @@ import inlineVis from "../../plugins/inline-vis/server.js";
 import keepAwake from "../../plugins/keep-awake/server.js";
 import machines from "../../plugins/machines/server.js";
 import memory from "../../plugins/memory/server.js";
+import pluginApiDocs from "../../plugins/plugin-api-docs/server.js";
 import pluginApiTester from "../../plugins/plugin-api-tester/server.js";
 import pluginDev from "../../plugins/plugin-dev/server.js";
 import projects from "../../plugins/projects/server.js";
@@ -74,6 +75,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   memory: memory,
   navigation: null,
   "pdf-preview": null,
+  "plugin-api-docs": pluginApiDocs,
   "plugin-api-tester": pluginApiTester,
   "plugin-dev": pluginDev,
   projects: projects,

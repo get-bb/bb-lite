@@ -19,6 +19,7 @@ export const appLoaders: Record<string, Load> = {
   memory: () => import("../../plugins/memory/app"),
   navigation: () => import("../../plugins/navigation/app"),
   "pdf-preview": () => import("../../plugins/pdf-preview/app"),
+  "plugin-api-docs": () => import("../../plugins/plugin-api-docs/app"),
   "plugin-api-tester": () => import("../../plugins/plugin-api-tester/app"),
   "prompt-library": () => import("../../plugins/prompt-library/app"),
   "provider-usage": () => import("../../plugins/provider-usage/app"),
