@@ -180,24 +180,25 @@ export const sessions = contract("sessions", {
   executionOptions: op({
     input: Contract.systemExecutionOptionsQuerySchema,
     output: z.custom<Contract.SystemExecutionOptionsResponse>(),
-    doors: { http: { method: "GET", path: "/system/execution-options" } },
+    doors: { http: { method: "GET", path: "/sessions/execution-options" } },
   }),
   providers: op({
     input: Contract.systemProvidersQuerySchema,
     output: z.custom<Domain.ProviderInfo[]>(),
-    doors: { http: { method: "GET", path: "/system/providers" } },
+    doors: { http: { method: "GET", path: "/sessions/providers" } },
   }),
   providerCatalog: op({
     input: none,
     output: z.custom<Contract.SystemProviderCatalogEntry[]>(),
-    doors: { http: { method: "GET", path: "/system/providers/catalog" } },
+    doors: { http: { method: "GET", path: "/sessions/providers/catalog" } },
   }),
   updateProvider: op({
     input: at(Contract.systemProviderEnabledRequestSchema, "providerId"),
     output: z.custom<Contract.SystemProviderCatalogEntry[]>(),
     kind: "write",
+    allow: "user",
     doors: {
-      http: { method: "PUT", path: "/system/providers/:providerId/enabled" },
+      http: { method: "PUT", path: "/sessions/providers/:providerId/enabled" },
     },
   }),
 });
@@ -708,6 +709,7 @@ export const projects = contract("projects", {
     input: at(Contract.machineEnvironmentReplaceSchema, "projectId"),
     output: z.custom<Contract.ProjectMachineEnvironmentList>(),
     kind: "write",
+    allow: "user",
     doors: {
       http: { method: "PUT", path: "/projects/:projectId/machine-environment" },
     },
@@ -728,7 +730,7 @@ export const projects = contract("projects", {
   sidebar: op({
     input: none,
     output: z.custom<Contract.SidebarBootstrapResponse>(),
-    doors: { http: { method: "GET", path: "/sidebar-bootstrap" } },
+    doors: { http: { method: "GET", path: "/projects/sidebar" } },
   }),
   get: op({
     input: ref("projectId"),
@@ -908,29 +910,30 @@ export const machines = contract("machines", {
   readFile: op({
     input: Contract.hostFileReadRequestSchema,
     output: z.custom<Contract.HostFileReadResponse>(),
-    doors: { http: { method: "POST", path: "/files/read" } },
+    doors: { http: { method: "POST", path: "/machines/files/read" } },
   }),
   writeFile: op({
     input: Contract.hostFileWriteRequestSchema,
     output: z.custom<Contract.HostFileWriteResponse>(),
     kind: "write",
-    doors: { http: { method: "POST", path: "/files/write" } },
+    doors: { http: { method: "POST", path: "/machines/files/write" } },
   }),
   listFiles: op({
     input: Contract.hostFileListRequestSchema,
     output: z.custom<Contract.HostFileListResponse>(),
-    doors: { http: { method: "POST", path: "/files/list" } },
+    doors: { http: { method: "POST", path: "/machines/files/list" } },
   }),
   create: op({
     input: Contract.createMachineRequestSchema,
     output: z.custom<Domain.Host>(),
     kind: "write",
-    doors: { http: { method: "POST", path: "/hosts", status: 201 } },
+    allow: "user",
+    doors: { http: { method: "POST", path: "/machines", status: 201 } },
   }),
   list: op({
     input: Contract.hostListQuerySchema,
     output: z.custom<Domain.Host[]>(),
-    doors: { http: { method: "GET", path: "/hosts" } },
+    doors: { http: { method: "GET", path: "/machines" } },
   }),
   get: op({
     input: ref("hostId"),
@@ -940,23 +943,24 @@ export const machines = contract("machines", {
         threadStorageRootPath: string | null;
       }
     >(),
-    doors: { http: { method: "GET", path: "/hosts/:hostId" } },
+    doors: { http: { method: "GET", path: "/machines/:hostId" } },
   }),
   enrollmentCommand: op({
     input: ref("hostId"),
     output: z.custom<Contract.HostEnrollmentCommandResponse>(),
     doors: {
-      http: { method: "GET", path: "/hosts/:hostId/enrollment-command" },
+      http: { method: "GET", path: "/machines/:hostId/enrollment-command" },
     },
   }),
   createReconnectCommand: op({
     input: ref("hostId"),
     output: z.custom<Contract.HostReconnectResponse>(),
     kind: "write",
+    allow: "user",
     doors: {
       http: {
         method: "POST",
-        path: "/hosts/:hostId/reconnect-commands",
+        path: "/machines/:hostId/reconnect-commands",
         status: 201,
       },
     },
@@ -968,49 +972,54 @@ export const machines = contract("machines", {
     }),
     output: z.custom<Domain.Host>(),
     kind: "write",
-    doors: { http: { method: "PATCH", path: "/hosts/:hostId" } },
+    allow: "user",
+    doors: { http: { method: "PATCH", path: "/machines/:hostId" } },
   }),
   updateSharing: op({
     input: at(Contract.updateHostSharingRequestSchema, "hostId"),
     output: z.custom<Domain.Host>(),
     kind: "write",
-    doors: { http: { method: "PATCH", path: "/hosts/:hostId/sharing" } },
+    allow: "user",
+    doors: { http: { method: "PATCH", path: "/machines/:hostId/sharing" } },
   }),
   updatePermissionCeiling: op({
     input: at(Contract.updateHostPermissionCeilingRequestSchema, "hostId"),
     output: z.custom<Domain.Host>(),
     kind: "write",
+    allow: "user",
     doors: {
-      http: { method: "PATCH", path: "/hosts/:hostId/permission-ceiling" },
+      http: { method: "PATCH", path: "/machines/:hostId/permission-ceiling" },
     },
   }),
   delete: op({
     input: ref("hostId"),
     output: nothing,
     kind: "write",
-    doors: { http: { method: "DELETE", path: "/hosts/:hostId" } },
+    allow: "user",
+    doors: { http: { method: "DELETE", path: "/machines/:hostId" } },
   }),
   directory: op({
     input: at(Contract.hostDirectoryQuerySchema, "hostId"),
     output: z.custom<Contract.HostDirectoryListing>(),
-    doors: { http: { method: "GET", path: "/hosts/:hostId/directory" } },
+    doors: { http: { method: "GET", path: "/machines/:hostId/directory" } },
   }),
   pathsExist: op({
     input: at(Contract.hostPathsExistRequestSchema, "hostId"),
     output: z.custom<Contract.HostPathsExistResponse>(),
-    doors: { http: { method: "POST", path: "/hosts/:hostId/paths/exist" } },
+    doors: { http: { method: "POST", path: "/machines/:hostId/paths/exist" } },
   }),
   openTargets: op({
     input: ref("hostId"),
     output: z.custom<Contract.HostOpenTargetsResponse>(),
-    doors: { http: { method: "GET", path: "/hosts/:hostId/open-targets" } },
+    doors: { http: { method: "GET", path: "/machines/:hostId/open-targets" } },
   }),
   open: op({
     input: at(Contract.hostOpenRequestSchema, "hostId"),
     output: nothing,
     kind: "write",
+    allow: "user",
     audit: false,
-    doors: { http: { method: "POST", path: "/hosts/:hostId/open" } },
+    doors: { http: { method: "POST", path: "/machines/:hostId/open" } },
   }),
 });
 
@@ -1025,18 +1034,21 @@ export const users = contract("users", {
     input: at(Contract.updateUserRequestSchema, "userId"),
     output: z.custom<Domain.User>(),
     kind: "write",
+    allow: "user",
     doors: { http: { method: "PATCH", path: "/users/:userId" } },
   }),
   setPassword: op({
     input: at(Contract.setPasswordRequestSchema, "userId"),
     output: z.custom<Domain.User>(),
     kind: "write",
+    allow: "user",
     doors: { http: { method: "PUT", path: "/users/:userId/password" } },
   }),
   createSignInLink: op({
     input: ref("userId"),
     output: z.custom<Contract.SignInLinkResponse>(),
     kind: "write",
+    allow: "user",
     doors: {
       http: {
         method: "POST",
@@ -1048,24 +1060,26 @@ export const users = contract("users", {
   listInvites: op({
     input: none,
     output: z.custom<Contract.UserInvite[]>(),
-    doors: { http: { method: "GET", path: "/user-invites" } },
+    doors: { http: { method: "GET", path: "/users/invites" } },
   }),
   createInvite: op({
     input: Contract.createInviteRequestSchema,
     output: z.custom<Contract.CreatedInviteResponse>(),
     kind: "write",
-    doors: { http: { method: "POST", path: "/user-invites", status: 201 } },
+    allow: "user",
+    doors: { http: { method: "POST", path: "/users/invites", status: 201 } },
   }),
   deleteInvite: op({
     input: ref("inviteId"),
     output: nothing,
     kind: "write",
-    doors: { http: { method: "DELETE", path: "/user-invites/:inviteId" } },
+    allow: "user",
+    doors: { http: { method: "DELETE", path: "/users/invites/:inviteId" } },
   }),
   presence: op({
     input: none,
     output: z.custom<Contract.PresenceResponse>(),
-    doors: { http: { method: "GET", path: "/presence" } },
+    doors: { http: { method: "GET", path: "/users/presence" } },
   }),
 });
 
@@ -1073,25 +1087,25 @@ export const sections = contract("sections", {
   list: op({
     input: none,
     output: z.custom<Contract.ThreadSectionResponse[]>(),
-    doors: { http: { method: "GET", path: "/thread-sections" } },
+    doors: { http: { method: "GET", path: "/sections" } },
   }),
   create: op({
     input: Contract.createThreadSectionRequestSchema,
     output: z.custom<Contract.ThreadSectionResponse>(),
     kind: "write",
-    doors: { http: { method: "POST", path: "/thread-sections", status: 201 } },
+    doors: { http: { method: "POST", path: "/sections", status: 201 } },
   }),
   update: op({
     input: Contract.updateThreadSectionRequestSchema,
     output: z.custom<Contract.ThreadSectionMutationResponse>(),
     kind: "write",
-    doors: { http: { method: "PATCH", path: "/thread-sections" } },
+    doors: { http: { method: "PATCH", path: "/sections" } },
   }),
   delete: op({
     input: Contract.deleteThreadSectionRequestSchema,
     output: z.custom<Contract.ThreadSectionMutationResponse>(),
     kind: "write",
-    doors: { http: { method: "DELETE", path: "/thread-sections" } },
+    doors: { http: { method: "DELETE", path: "/sections" } },
   }),
 });
 
@@ -1257,7 +1271,7 @@ export const server = contract("server", {
   config: op({
     input: none,
     output: z.custom<Contract.SystemConfigResponse>(),
-    doors: { http: { method: "GET", path: "/system/config" } },
+    doors: { http: { method: "GET", path: "/server/config" } },
   }),
 });
 
@@ -1363,7 +1377,7 @@ export const environments = contract("environments", {
   providers: op({
     input: Contract.systemEnvironmentProvidersQuerySchema,
     output: z.custom<Contract.SystemEnvironmentProvidersResponse>(),
-    doors: { http: { method: "GET", path: "/system/environment-providers" } },
+    doors: { http: { method: "GET", path: "/environments/providers" } },
   }),
 });
 
@@ -1377,12 +1391,14 @@ export const settings = contract("settings", {
     input: Contract.machineEnvironmentReplaceSchema,
     output: z.custom<Contract.MachineEnvironmentList>(),
     kind: "write",
+    allow: "user",
     doors: { http: { method: "PUT", path: "/settings/machine-environment" } },
   }),
   updateGeneral: op({
     input: z.object({ settings: Domain.appSettingsUpdateSchema }),
     output: z.custom<Domain.AppSettings>(),
     kind: "write",
+    allow: "user",
     doors: {
       http: { method: "PUT", path: "/settings/general", body: "settings" },
     },
@@ -1391,6 +1407,7 @@ export const settings = contract("settings", {
     input: z.object({ overrides: Domain.appKeybindingOverridesSchema }),
     output: z.custom<Domain.AppKeybindingOverrides>(),
     kind: "write",
+    allow: "user",
     doors: {
       http: { method: "PUT", path: "/settings/keyboard", body: "overrides" },
     },
@@ -1399,25 +1416,28 @@ export const settings = contract("settings", {
     input: Domain.appThemeSchema,
     output: z.custom<Domain.AppTheme>(),
     kind: "write",
+    allow: "user",
     doors: { http: { method: "PUT", path: "/settings/appearance" } },
   }),
   uiPreferences: op({
     input: none,
     output: z.custom<Contract.UiPreferencesResponse>(),
-    doors: { http: { method: "GET", path: "/preferences/ui" } },
+    doors: { http: { method: "GET", path: "/settings/ui-preferences" } },
   }),
   updateUiPreference: op({
     input: at(Contract.updateUiPreferenceRequestSchema, "key"),
     output: z.custom<Contract.UiPreferenceResponse>(),
     kind: "write",
     audit: false,
-    doors: { http: { method: "PUT", path: "/preferences/ui/:key" } },
+    doors: { http: { method: "PUT", path: "/settings/ui-preferences/:key" } },
   }),
   resetUiPreference: op({
     input: ref("key"),
     output: z.custom<Contract.UiPreferenceResponse>(),
     kind: "write",
     audit: false,
-    doors: { http: { method: "DELETE", path: "/preferences/ui/:key" } },
+    doors: {
+      http: { method: "DELETE", path: "/settings/ui-preferences/:key" },
+    },
   }),
 });

@@ -275,21 +275,21 @@ fn thread_queue_delete(call: &mut Call) -> CliResult<Output> {
 }
 
 fn thread_section_list(call: &mut Call) -> CliResult<Output> {
-    let sections = call.http.get("/thread-sections", &[])?;
+    let sections = call.http.get("/sections", &[])?;
     let rows = sections.as_array().cloned().unwrap_or_default();
     Ok(Output::rows(&rows, &["id", "name"], sections))
 }
 
 fn thread_section_create(call: &mut Call) -> CliResult<Output> {
     let name = call.arg("name")?.to_string();
-    let section = call.http.post("/thread-sections", &json!({ "name": name }))?;
+    let section = call.http.post("/sections", &json!({ "name": name }))?;
     let text = format!("Section {} created", field(&section, "id"));
     Ok(Output::text(section, text))
 }
 
 fn thread_section_rename(call: &mut Call) -> CliResult<Output> {
     let change = json!({ "id": call.arg("id")?, "name": call.arg("name")? });
-    let section = call.http.patch("/thread-sections", &change)?;
+    let section = call.http.patch("/sections", &change)?;
     let text = format!("Section {} renamed to {}", field(&section, "id"), field(&section, "name"));
     Ok(Output::text(section, text))
 }
@@ -298,7 +298,7 @@ fn thread_section_delete(call: &mut Call) -> CliResult<Output> {
     let id = call.arg("id")?.to_string();
     confirm(call, &format!("Delete section {id}? Its threads stay, unsectioned."))?;
     let body = json!({ "id": id });
-    let result = call.http.request("DELETE", "/thread-sections", &[], Some(&body))?;
+    let result = call.http.request("DELETE", "/sections", &[], Some(&body))?;
     let moved = format!("{} thread(s) unsectioned", field(&result, "updatedThreadCount"));
     let text = format!("Section {} deleted; {moved}", field(&result, "id"));
     Ok(Output::text(result, text))

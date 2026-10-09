@@ -74,8 +74,8 @@ async function enrollMachine(server: TestServer) {
   const relay = await startRelay(server.url);
   const dataDir = fs.mkdtempSync(join(tmpdir(), "bb-remote-machine-"));
   const json = { machineProviderId: "manual", inputs: null };
-  const { id: hostId } = await (await api.hosts.$post({ json })).json();
-  const issued = `${relay.url}/api/v1/hosts/${hostId}/enrollment-command`;
+  const { id: hostId } = await (await api.machines.$post({ json })).json();
+  const issued = `${relay.url}/api/v1/machines/${hostId}/enrollment-command`;
   const { command } = (await (await fetch(issued)).json()) as {
     command: string;
   };

@@ -139,7 +139,7 @@ sign-in-link` on the server machine is how the owner signs a remote browser in t
   viewer is the first owner.
 - Presence: `/ws` sockets belong to a user; a client sends `{type:"presence", threadIds}` for the
   threads it shows and the hub broadcasts `{type:"presence", users:[{userId, threadIds}]}` when the set
-  changes. `GET /presence` returns the same. The app shows it in three places: who is online (navigation
+  changes. `GET /users/presence` returns the same. The app shows it in three places: who is online (navigation
   rail), who else has a thread open (its header, and its row in the sidebar through the plugin component
   `ThreadViewers`). `thread-open` signals go to the acting user's sockets.
 

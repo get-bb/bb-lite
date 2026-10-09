@@ -52,8 +52,6 @@ const PROXY_HEADERS = [
 ];
 const RUNNER_BEARER = /^Bearer (bbr_\S+)$/u;
 const READ_METHODS = ["GET", "HEAD", "OPTIONS"];
-const RUNNER_FORBIDDEN_WRITES =
-  /^\/api\/v1\/(?:hosts|settings|system|users|user-invites)(?:\/|$)|\/machine-environment$/u;
 
 export function requestHeader(
   request: Pick<TrustRequest, "headers">,
@@ -249,11 +247,6 @@ export function authorize(
     assertAnonymousAccess(request, principal.identity);
   } else if (!path.startsWith(RUNNER_PREFIX) && !path.startsWith(API_PREFIX)) {
     throw notFound();
-  } else if (
-    !READ_METHODS.includes(request.method) &&
-    RUNNER_FORBIDDEN_WRITES.test(path)
-  ) {
-    throw forbidden("Machine credentials cannot manage machines or settings");
   }
   return principal;
 }

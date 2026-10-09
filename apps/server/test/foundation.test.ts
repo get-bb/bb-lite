@@ -148,13 +148,10 @@ it.each<[string | number, Headers, string?, string?]>([
   [404, tunnel, "GET /"],
   [404, session, "GET /api/v1/threads", remote],
   ["runner", machine, "POST /api/v1/threads/thr_1/send"],
-  [403, machine, "POST /api/v1/hosts"],
-  [403, machine, "PUT /api/v1/settings/general"],
-  [403, machine, "POST /api/v1/user-invites"],
+  ["runner", machine, "POST /api/v1/machines"],
   ["anonymous", {}, "POST /internal/runner/join", remote],
   ["runner", enrolled, "POST /api/v1/threads/thr_1/send", remote],
-  [403, enrolled, "DELETE /api/v1/hosts/host_1"],
-  [403, enrolled, "PATCH /api/v1/users/usr_owner"],
+  ["runner", enrolled, "DELETE /api/v1/machines/host_1"],
   [401, revoked, "GET /api/v1/threads"],
   ["anonymous", revoked, "GET /internal/runner/ws"],
   ["runner", { ...machine, ...revoked }, "GET /api/v1/threads"],
@@ -178,14 +175,14 @@ it("answers errors in the API envelope", async () => {
     return [response.status, ...Object.values(await response.json())].join();
   };
   expect(await outcome("/api/v1/nope")).toBe("404,not_found,Not found");
-  const config = "/api/v1/system/config";
+  const config = "/api/v1/server/config";
   expect(await outcome(config, { headers: evil })).toContain("403,forbidden_o");
   const empty = { method: "PUT", body: "{}" };
   const appearance = await outcome("/api/v1/settings/appearance", empty);
   expect(appearance).toContain("400,invalid_request");
   ctx.db.close();
   const internal = "500,internal_error,Internal server error";
-  expect(await outcome("/api/v1/preferences/ui")).toBe(internal);
+  expect(await outcome("/api/v1/settings/ui-preferences")).toBe(internal);
 });
 
 it("guards ui preferences with per-key revisions", async () => {
@@ -198,12 +195,14 @@ it("guards ui preferences with per-key revisions", async () => {
     revision: 3,
     updatedAt: 1,
   });
-  const { preferences } = await (await api.preferences.ui.$get()).json();
+  const { preferences } = await (
+    await api.settings["ui-preferences"].$get()
+  ).json();
   expect(Object.keys(preferences)).toEqual(UI_PREFERENCE_KEYS);
   expect(preferences[key]).toEqual({ revision: 0, value });
   const write = async (expectedRevision: number, next: unknown) => {
     const json = { expectedRevision, value: next };
-    const path = api.preferences.ui[":key"];
+    const path = api.settings["ui-preferences"][":key"];
     const response = await path.$put({ param: { key }, json });
     return { status: response.status, ...(await response.json()) };
   };
@@ -212,7 +211,9 @@ it("guards ui preferences with per-key revisions", async () => {
   const conflict = { status: 409, code: "ui_preference_conflict" };
   const details = { currentRevision: 1 };
   expect(await write(0, "other")).toMatchObject({ ...conflict, details });
-  const reset = await api.preferences.ui[":key"].$delete({ param: { key } });
+  const reset = await api.settings["ui-preferences"][":key"].$delete({
+    param: { key },
+  });
   expect(await reset.json()).toEqual({ key, revision: 2, value });
 });
 
@@ -224,7 +225,7 @@ it("announces settings writes to system subscribers", async () => {
   expect((await api.settings.general.$put({ json })).status).toBe(200);
   const changes = ["config-changed"];
   expect(await client.next()).toMatchObject({ entity: "system", changes });
-  const config = await (await api.system.config.$get()).json();
+  const config = await (await api.server.config.$get()).json();
   expect(config.generalSettings.steerActiveThreadOnEnter).toBe(false);
   expect(config.keybindings.length).toBeGreaterThan(40);
   const refused = new WebSocket(`${url.replace("http", "ws")}/ws`, evil);
@@ -248,7 +249,7 @@ it("keeps stored keybinding overrides whose command still exists", async () => {
   const value = JSON.stringify([removed, kept]);
   const row = { key: "keybindingOverrides", value, updatedAt: 1 };
   insertRow(ctx.db, "settings", row);
-  const config = await (await api.system.config.$get()).json();
+  const config = await (await api.server.config.$get()).json();
   expect(config.keybindingOverrides).toEqual([kept]);
 });
 
@@ -292,11 +293,11 @@ it("compresses large JSON answers and leaves streams and small ones alone", asyn
   const { ctx, request, send } = server;
   const asked = (path: string, accept: string) =>
     request(path, { headers: { "accept-encoding": accept } });
-  const plain = await asked("/system/config", "identity");
+  const plain = await asked("/server/config", "identity");
   const config = await plain.text();
   expect(plain.headers.get("content-encoding")).toBeNull();
   for (const coding of ["br", "gzip"]) {
-    const packed = await asked("/system/config", `${coding}, deflate`);
+    const packed = await asked("/server/config", `${coding}, deflate`);
     const { headers } = packed;
     const marks = [headers.get("content-encoding"), headers.get("vary")];
     expect([...marks, await packed.text()]).toEqual([

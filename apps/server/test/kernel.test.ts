@@ -9,6 +9,7 @@ import {
   table,
   projects as projectOps,
   threads as threadOps,
+  type Op,
   type PluginServerApi,
   plugins as hostOps,
 } from "@bb/plugin";
@@ -215,6 +216,21 @@ it("serves operations and the live chain over HTTP", async () => {
     });
   expect((await reload(machine)).status).toBe(403);
   expect((await reload({})).status).toBe(200);
+  const refused = [
+    "POST /machines",
+    "POST /ops/machines.create",
+    "PUT /settings/general",
+    "POST /users/invites",
+    "DELETE /machines/host_1",
+    "PATCH /users/usr_owner",
+    "PUT /projects/prj_1/machine-environment",
+  ];
+  for (const route of refused) {
+    const [method, path = ""] = route.split(" ");
+    const headers = { ...json, ...machine };
+    const answer = await server.request(path, { method, headers, body: "{}" });
+    expect([route, answer.status]).toEqual([route, 403]);
+  }
   const invalid = await server.http("POST", "/ops/threads.stop", {});
   expect(invalid).toMatchObject({
     status: 400,
@@ -577,6 +593,7 @@ it("names every core contract member after its export and by one set of verbs", 
   };
   const misnamed: string[] = [];
   let checked = 0;
+  let routed = 0;
   for (const [contractName, value] of exported) {
     for (const [key, member] of membersOf(value)) {
       checked += 1;
@@ -587,10 +604,103 @@ it("names every core contract member after its export and by one set of verbs", 
       const noun = member.type === "event" && ["signal", "input"].includes(key);
       if (oldVerb || noun)
         misnamed.push(`${member.name} breaks the naming rule`);
+      const path = (member as Partial<Op>).doors?.http?.path;
+      if (path === undefined) continue;
+      routed += 1;
+      const home = contractName === "interactions" ? "threads" : contractName;
+      const [, first = ""] = path.split("/");
+      const params = path.split("/").filter((part) => part.startsWith(":"));
+      const unnamed = params.filter(
+        (part) => !/^:(key|[a-z]+Id)$/iu.test(part),
+      );
+      if (first !== home || unnamed.length > 0)
+        misnamed.push(`${member.name} is served at ${path}`);
     }
   }
   expect(misnamed).toEqual([]);
   expect(checked).toBeGreaterThan(120);
+  expect(routed).toBeGreaterThan(120);
+});
+
+it("answers an operation at its REST path with one flat input", async () => {
+  const server = await createThreadServer();
+  const { ctx } = server;
+  const note = z.object({ noteId: z.string() });
+  const notes = contract("notes", {
+    create: op({
+      input: z.object({ title: z.string().min(1) }),
+      output: z.object({ noteId: z.string(), title: z.string() }),
+      kind: "write",
+      audit: false,
+      doors: { http: { method: "POST", path: "/notes", status: 201 } },
+    }),
+    get: op({
+      input: note.extend({ limit: z.coerce.number().optional() }),
+      output: z.object({ noteId: z.string(), limit: z.number().nullable() }),
+      doors: { http: { method: "GET", path: "/notes/:noteId" } },
+    }),
+    recent: op({
+      input: z.object({}),
+      output: z.array(z.string()),
+      doors: { http: { method: "GET", path: "/notes/recent" } },
+    }),
+    replace: op({
+      input: note.extend({ lines: z.array(z.string()) }),
+      output: z.number(),
+      kind: "write",
+      doors: {
+        http: { method: "PUT", path: "/notes/:noteId", body: "lines" },
+      },
+    }),
+    next: op({
+      input: note,
+      output: z.string().nullable(),
+      doors: {
+        http: { method: "GET", path: "/notes/:noteId/next", empty: 204 },
+      },
+    }),
+    delete: op({
+      input: note,
+      output: z.void(),
+      kind: "write",
+      doors: { http: { method: "DELETE", path: "/notes/:noteId" } },
+    }),
+  });
+  const plugin = ctx.kernel.scope("notes", "installed");
+  plugin.implement(notes.create, ({ title }) => ({ noteId: "n1", title }));
+  plugin.implement(notes.get, ({ noteId, limit = null }) => ({
+    noteId,
+    limit,
+  }));
+  plugin.implement(notes.recent, () => ["n1"]);
+  plugin.implement(notes.replace, ({ lines }) => lines.length);
+  plugin.implement(notes.next, () => null);
+  plugin.implement(notes.delete, () => {});
+  const created = await server.http("POST", "/notes", { title: "First" });
+  expect(created).toMatchObject({ status: 201, body: { noteId: "n1" } });
+  const required = await server.http("POST", "/notes", {});
+  expect(required).toMatchObject({
+    status: 400,
+    body: { message: "Required" },
+  });
+  const broken = await server.request("/notes", { method: "POST", body: "{" });
+  expect(await broken.json()).toMatchObject({
+    message: "Invalid JSON request body",
+  });
+  const read = await server.http("GET", "/notes/n1?limit=5");
+  expect(read.body).toEqual({ noteId: "n1", limit: 5 });
+  expect((await server.http("GET", "/notes/recent")).body).toEqual(["n1"]);
+  const replaced = await server.http("PUT", "/notes/n1", ["a", "b"]);
+  expect(replaced.body).toBe(2);
+  expect((await server.request("/notes/n1/next")).status).toBe(204);
+  const deleted = await server.http("DELETE", "/notes/n1");
+  expect(deleted).toMatchObject({ status: 200, body: { ok: true } });
+  const recorded = (await auditOf(server))
+    .filter((entry) => entry.op.startsWith("notes."))
+    .map((entry) => `${entry.op} ${entry.door}`);
+  expect(recorded.sort()).toEqual(["notes.delete http", "notes.replace http"]);
+  plugin.dispose();
+  expect((await server.http("GET", "/notes/recent")).status).toBe(404);
 });
 
 it("gives a runner part the same handle as the other parts", async () => {

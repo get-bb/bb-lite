@@ -105,7 +105,7 @@ test("moves an original install into a fresh data directory", async () => {
     return [(await body.json()) as Record<string, unknown>[]].flat();
   };
   const names = { sections: [{ name: "Later" }], projects: [{ name: "demo" }] };
-  expect((await get("/sidebar-bootstrap"))[0]).toMatchObject(names);
+  expect((await get("/projects/sidebar"))[0]).toMatchObject(names);
   const threads = await get("/threads");
   const listed = (id: string) => threads.find((thread) => thread.id === id);
   expect(threads).toHaveLength(3);

@@ -11,7 +11,7 @@ import type {
 
 export type Door = "app" | "cli" | "agent" | "http" | "system";
 export const DOOR_HEADER = "x-bb-door";
-export type CallerRole = "owner" | "member" | "system";
+export type CallerRole = "owner" | "member" | "machine" | "system";
 export type Tier = "policy" | "installed" | "product";
 export type HookAction =
   | "rewrote-input"
@@ -57,8 +57,9 @@ export class OpError extends Error {
     readonly code: OpErrorCode,
     message: string,
     readonly plugin: string | null = null,
+    cause?: unknown,
   ) {
-    super(message);
+    super(message, { cause });
     this.name = "OpError";
   }
 }
@@ -259,8 +260,15 @@ const INPUT_RECORD_LIMIT = 600;
 const DEFAULT_HOOK_BUDGET_MS = 10_000;
 const UNSETTLED = Symbol("unsettled");
 
-function allowed(allow: Allow, role: CallerRole): boolean {
-  return allow === "member" || role !== "member";
+function refusal(op: Op, { role, via }: Caller): string | null {
+  const privileged = role === "owner" || role === "system";
+  if (op.allow === "owner" && !privileged) {
+    return `Only an owner may call ${op.name}`;
+  }
+  if (op.allow === "user" && role === "machine" && via.length === 0) {
+    return `Machine credentials cannot call ${op.name}`;
+  }
+  return null;
 }
 
 function matches(matcher: Matcher | null, input: unknown): boolean {
@@ -405,13 +413,13 @@ export function createKernel(options: KernelOptions): Kernel {
     caller: Caller,
     signal: AbortSignal,
   ): Promise<unknown> {
-    if (!allowed(op.allow, caller.role)) {
-      throw new OpError("forbidden", `Only an owner may call ${op.name}`);
-    }
+    const refused = refusal(op, caller);
+    if (refused !== null) throw new OpError("forbidden", refused);
     const accepted = await op.input.safeParseAsync(raw);
     if (!accepted.success) {
       const problem = issueMessage(accepted.error);
-      throw new OpError("invalid_input", `${op.name}: ${problem}`);
+      const cause = accepted.error;
+      throw new OpError("invalid_input", `${op.name}: ${problem}`, null, cause);
     }
     const state = stateOf(op);
     const chain = byTier(state.chain, "policy");

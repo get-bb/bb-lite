@@ -129,7 +129,7 @@ it("archives a tree, keeps turns through the undo grace and unarchives", async (
   expect(archived.body).toEqual(swept);
   const change = [["archived-changed"], { projectId: "proj_1" }];
   expect(await server.changes(client)).toEqual(change);
-  await server.matches("/sidebar-bootstrap", { projects: [{ threads: [] }] });
+  await server.matches("/projects/sidebar", { projects: [{ threads: [] }] });
   await server.advance(29_000);
   expect(thread(child).status).toBe("active");
   expect(server.callsTo("closeTerminal")).toEqual([]);

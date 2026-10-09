@@ -91,7 +91,7 @@ fn user_invite(call: &mut Call) -> CliResult<Output> {
     if let Some(role) = call.choice("role", ROLES)? {
         body.insert("role".into(), json!(role));
     }
-    let invite = call.http.post("/user-invites", &Value::Object(body))?;
+    let invite = call.http.post("/users/invites", &Value::Object(body))?;
     let head = format!(
         "Invite {} for a new {} (expires {}):",
         text(&invite, "id"),
@@ -103,14 +103,14 @@ fn user_invite(call: &mut Call) -> CliResult<Output> {
 }
 
 fn user_invites(call: &mut Call) -> CliResult<Output> {
-    let invites = call.http.get("/user-invites", &[])?;
+    let invites = call.http.get("/users/invites", &[])?;
     let rows = invites.as_array().cloned().unwrap_or_default();
     Ok(Output::rows(&rows, &["id", "name", "email", "role", "expiresAt"], invites))
 }
 
 fn user_revoke_invite(call: &mut Call) -> CliResult<Output> {
     let invite_id = id(call, "id")?;
-    let result = call.http.delete(&format!("/user-invites/{}", encode(&invite_id)), &[])?;
+    let result = call.http.delete(&format!("/users/invites/{}", encode(&invite_id)), &[])?;
     let line = format!("Invite {invite_id} revoked");
     Ok(Output::text(with(result, json!({ "inviteId": invite_id })), line))
 }

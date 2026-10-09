@@ -63,7 +63,7 @@ function visitor(server: ThreadServer) {
 
 async function invite(server: ThreadServer, name: string) {
   const email = `${name.toLowerCase()}@example.test`;
-  const created = await server.http("POST", "/user-invites", { name, email });
+  const created = await server.http("POST", "/users/invites", { name, email });
   const token = new URL(String(created.body.url)).searchParams.get("token");
   const member = visitor(server);
   const account = { name, email, password: PASSWORD };
@@ -118,7 +118,7 @@ it("signs people in through invites, passwords and sign-in links", async () => {
   expect(users.body).toMatchObject([{ id: OWNER }, { id: bo.id }]);
 
   const forbidden = { status: 403 };
-  expect(await bo.call("POST", "/user-invites", {})).toMatchObject(forbidden);
+  expect(await bo.call("POST", "/users/invites", {})).toMatchObject(forbidden);
   const promote = { role: "owner" };
   expect(await bo.call("PATCH", `/users/${bo.id}`, promote)).toMatchObject(
     forbidden,
@@ -171,7 +171,7 @@ it("keeps a private machine to its owner and says who did what", async () => {
   const bo = await invite(server, "Bo");
   const notShared = { status: 403, body: { code: "machine_not_shared" } };
 
-  const hosts = await bo.call("GET", "/hosts");
+  const hosts = await bo.call("GET", "/machines");
   const local = { id: hostId, ownerUserId: OWNER, sharing: "private" };
   expect(hosts.body).toMatchObject([{ ...local, usable: false }]);
   expect(await bo.call("POST", "/threads", spawnRequest())).toMatchObject(
@@ -187,7 +187,7 @@ it("keeps a private machine to its owner and says who did what", async () => {
     status: 200,
   });
   const share = { sharing: "shared" };
-  const sharing = `/hosts/${hostId}/sharing`;
+  const sharing = `/machines/${hostId}/sharing`;
   expect(await bo.call("PATCH", sharing, share)).toMatchObject({ status: 403 });
   expect(await server.http("PATCH", sharing, share)).toMatchObject({
     body: { sharing: "shared", usable: true },
@@ -233,12 +233,12 @@ it("gives a machine to whoever adds it", async () => {
   const server = await createThreadServer();
   const bo = await invite(server, "Bo");
   const manual = { machineProviderId: "manual", inputs: null };
-  const added = await bo.call("POST", "/hosts", manual);
+  const added = await bo.call("POST", "/machines", manual);
   expect(added).toMatchObject({ status: 201, body: { ownerUserId: bo.id } });
-  const path = `/hosts/${String(added.body.id)}`;
+  const path = `/machines/${String(added.body.id)}`;
   const command = await bo.call("GET", `${path}/enrollment-command`);
   expect(String(command.body.command)).toContain("bb runner join ");
-  const all = "/hosts?includeCreating=true";
+  const all = "/machines?includeCreating=true";
   const seen = (await server.http<Json[]>("GET", all)).body;
   const usable = seen.map((host) => [host.id === added.body.id, host.usable]);
   expect(usable.sort()).toEqual([
@@ -269,7 +269,9 @@ it("tells everyone who is viewing which thread", async () => {
   ].sort((left, right) => left.userId.localeCompare(right.userId));
   await vi.waitFor(() => expect(latest(owner)).toEqual(both));
   expect(latest(member)).toEqual(both);
-  expect((await bo.call("GET", "/presence")).body).toEqual({ users: both });
+  expect((await bo.call("GET", "/users/presence")).body).toEqual({
+    users: both,
+  });
   member.socket.close();
   await vi.waitFor(() => expect(latest(owner)).toEqual(alone));
   const refused = new WebSocket(`${server.url.replace("http", "ws")}/ws`, {

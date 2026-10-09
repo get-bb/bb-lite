@@ -22,8 +22,8 @@ fn config(data_dir: &str) -> Value {
 fn settings_server() -> FakeServer {
     let ui = json!({ "preferences": { "sidebarWidth": { "value": 300, "revision": 2 } } });
     FakeServer::start(vec![
-        route("GET", "/system/config", config("/data")),
-        route("GET", "/preferences/ui", ui),
+        route("GET", "/server/config", config("/data")),
+        route("GET", "/settings/ui-preferences", ui),
         route("PUT", "/settings/general", json!({})),
         route("PUT", "/settings/keyboard", json!([])),
     ])
@@ -87,7 +87,7 @@ fn plugin_list_add_and_remove() {
         "cliCommands": [{ "name": "tasks" }], "statusMessage": null, "description": "Tasks" }] });
     let server = FakeServer::start(vec![
         route("GET", "/plugins", listed.clone()),
-        route("GET", "/system/config", config(data.to_str().unwrap())),
+        route("GET", "/server/config", config(data.to_str().unwrap())),
         route("POST", "/plugins/reload", listed),
     ]);
     let (result, printed) = run(&server, &["plugin", "list"], CliEnv::default());
@@ -114,9 +114,9 @@ fn plugin_list_add_and_remove() {
 #[test]
 fn file_commands_post_to_the_files_routes() {
     let server = FakeServer::start(vec![
-        route("POST", "/files/read", json!({ "content": "hi\n", "contentEncoding": "utf8" })),
-        route("POST", "/files/write", json!({ "outcome": "written" })),
-        route("POST", "/files/list", json!({ "files": [{ "path": "a" }, { "path": "b" }] })),
+        route("POST", "/machines/files/read", json!({ "content": "hi\n", "contentEncoding": "utf8" })),
+        route("POST", "/machines/files/write", json!({ "outcome": "written" })),
+        route("POST", "/machines/files/list", json!({ "files": [{ "path": "a" }, { "path": "b" }] })),
     ]);
     let env = CliEnv::default;
     let (result, printed) = run(&server, &["file", "read", "/a", "--machine", "host_1"], env());
@@ -133,16 +133,16 @@ fn file_commands_post_to_the_files_routes() {
     assert_eq!(
         server.requests(),
         [
-            request("POST", "/files/read", Some(json!({ "hostId": "host_1", "path": "/a" }))),
-            request("POST", "/files/write", Some(json!({ "path": "/a", "content": "x" }))),
-            request("POST", "/files/list", Some(json!({ "limit": 2, "path": "/src" }))),
+            request("POST", "/machines/files/read", Some(json!({ "hostId": "host_1", "path": "/a" }))),
+            request("POST", "/machines/files/write", Some(json!({ "path": "/a", "content": "x" }))),
+            request("POST", "/machines/files/list", Some(json!({ "limit": 2, "path": "/src" }))),
         ]
     );
 }
 
 #[test]
 fn server_status_reports_the_data_directory() {
-    let server = FakeServer::start(vec![route("GET", "/system/config", config("/data"))]);
+    let server = FakeServer::start(vec![route("GET", "/server/config", config("/data"))]);
     let (result, printed) = run(&server, &["server", "status"], CliEnv::default());
     result.unwrap();
     assert_eq!(printed, format!("bb server at {} (data in /data)\n", server.url));
@@ -156,7 +156,7 @@ fn status_reports_project_server_and_plugins() {
         { "id": "off", "enabled": false, "status": "stopped" },
     ]});
     let server = FakeServer::start(vec![
-        route("GET", "/system/config", config("/data")),
+        route("GET", "/server/config", config("/data")),
         route("GET", "/projects/prj_1", json!({ "id": "prj_1", "name": "Demo" })),
         route("GET", "/plugins", plugins),
     ]);

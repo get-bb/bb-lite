@@ -245,7 +245,7 @@ it("runs a thread in an environment kind a plugin contributed", async () => {
       removed.push(path);
     },
   });
-  const listed = await world.api.system["environment-providers"].$get({
+  const listed = await world.api.environments.providers.$get({
     query: { projectId: world.project.id },
   });
   const { providers }: { providers: { id: string; pluginId: string }[] } =

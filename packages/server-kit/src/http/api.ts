@@ -7,19 +7,23 @@ export type { ApiApp };
 
 const MISSING = /^Invalid input: expected .*, received undefined$/u;
 
+export function problemOf(error: z.ZodError): string {
+  const [issue] = error.issues;
+  if (issue === undefined) return "Invalid request";
+  const missing =
+    issue.code === "invalid_type" &&
+    issue.input === undefined &&
+    MISSING.test(issue.message);
+  return missing ? "Required" : issue.message;
+}
+
 export function requireValid<Schema extends z.ZodType>(
   schema: Schema,
   input: unknown,
 ): z.output<Schema> {
   const parsed = schema.safeParse(input);
   if (parsed.success) return parsed.data;
-  const [issue] = parsed.error.issues;
-  if (issue === undefined) throw invalidRequest("Invalid request");
-  const missing =
-    issue.code === "invalid_type" &&
-    issue.input === undefined &&
-    MISSING.test(issue.message);
-  throw invalidRequest(missing ? "Required" : issue.message);
+  throw invalidRequest(problemOf(parsed.error));
 }
 
 export async function readJsonBody<Schema extends z.ZodType>(

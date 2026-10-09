@@ -20,7 +20,7 @@ it("caches model catalogs and merges custom models", async () => {
   const server = await createTestServer();
   const { api, clock, ctx, runner } = server;
   const changed = await watchChanges(server);
-  const route = api.system["execution-options"];
+  const route = api.sessions["execution-options"];
   const query = { providerId: "codex" };
   const options = async (): Promise<SystemExecutionOptionsResponse> =>
     (await route.$get({ query })).json();
@@ -58,12 +58,12 @@ it("disables providers and turns their toggles into options", async () => {
   const server = await createTestServer();
   const { api, ctx, url } = server;
   const changed = await watchChanges(server);
-  const enabled = api.system.providers[":id"].enabled;
+  const enabled = api.sessions.providers[":id"].enabled;
   const off = { param: { id: "codex" }, json: { enabled: false } };
   const [codex] = await (await enabled.$put(off)).json();
   expect(codex).toMatchObject({ enabled: false, pluginId: "provider-codex" });
   await changed("system", "config-changed");
-  const logo = await fetch(`${url}/api/v1/system/providers/claude-code/logo`);
+  const logo = await fetch(`${url}/api/v1/sessions/providers/claude-code/logo`);
   expect(logo.headers.get("content-type")).toBe("image/svg+xml");
   const defaults = { memoryEnabled: true, providerSubagentsEnabled: true };
   expect(providerOptionsFor(ctx.db, "codex")).toEqual(defaults);

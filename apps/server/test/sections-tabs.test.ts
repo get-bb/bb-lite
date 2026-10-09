@@ -12,7 +12,7 @@ it("keeps section names unique and un-sections threads on delete", async () => {
   const server = await createTestServer();
   const { api, ctx } = server;
   const changed = await watchChanges(server);
-  const sections = api["thread-sections"];
+  const sections = api.sections;
   const create = (name: string) => sections.$post({ json: { name } });
   const later = threadSectionSchema.parse(
     await (await create(" Later ")).json(),

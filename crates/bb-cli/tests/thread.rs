@@ -239,23 +239,23 @@ fn queue_commands() {
 fn section_commands() {
     let fake = Fake::json(json!([{ "id": "sec_1", "name": "Work" }]));
     let out = ok(&fake.url, None, &["thread", "section", "list"]);
-    assert_eq!(fake.only(), request("GET", "/thread-sections", "", None));
+    assert_eq!(fake.only(), request("GET", "/sections", "", None));
     assert_eq!(out, "\nID     NAME\nsec_1  Work\n\n");
 
     let fake = Fake::json(json!({ "id": "sec_2", "name": "New" }));
     let out = ok(&fake.url, None, &["thread", "section", "create", "New"]);
     let body = Some(json!({ "name": "New" }));
-    assert_eq!(fake.only(), request("POST", "/thread-sections", "", body));
+    assert_eq!(fake.only(), request("POST", "/sections", "", body));
     assert_eq!(out, "Section sec_2 created\n");
     let out = ok(&fake.url, None, &["thread", "section", "rename", "sec_2", "New"]);
     let body = Some(json!({ "id": "sec_2", "name": "New" }));
-    assert_eq!(fake.requests()[1], request("PATCH", "/thread-sections", "", body));
+    assert_eq!(fake.requests()[1], request("PATCH", "/sections", "", body));
     assert_eq!(out, "Section sec_2 renamed to New\n");
 
     let fake = Fake::json(json!({ "id": "sec_2", "updatedThreadCount": 3 }));
     let out = ok(&fake.url, None, &["thread", "section", "delete", "sec_2", "--yes"]);
     let body = Some(json!({ "id": "sec_2" }));
-    assert_eq!(fake.only(), request("DELETE", "/thread-sections", "", body));
+    assert_eq!(fake.only(), request("DELETE", "/sections", "", body));
     assert_eq!(out, "Section sec_2 deleted; 3 thread(s) unsectioned\n");
 }
 

@@ -31,7 +31,7 @@ export function currentCaller(): Caller {
     return { user: null, role: "system", door: "system", thread: null, via };
   }
   const { userId: user, agentThreadId: thread } = actor;
-  const role = origin?.machine === true ? "member" : actor.role;
+  const role = origin?.machine === true ? "machine" : actor.role;
   const door = thread === null ? (origin?.door ?? "http") : "agent";
   return { user, role, door, thread, via };
 }

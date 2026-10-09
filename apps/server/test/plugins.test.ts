@@ -509,7 +509,7 @@ it("offers the themes a plugin's manifest declares", async () => {
   const started = await serverWithEcho(directory);
   const { request, read, server, configFile, ctx } = started;
   type Config = { themes: unknown[]; appearance: { themeId: string } };
-  const config = () => read<Config>("/system/config");
+  const config = () => read<Config>("/server/config");
   const cssUrl = "/api/v1/plugins/echo/themes/dusk.css";
   const id = "plugin:echo:dusk";
   const listed = { id, pluginId: "echo", name: "Dusk", cssUrl, codeTheme };

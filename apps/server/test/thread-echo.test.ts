@@ -23,7 +23,7 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   const row = () =>
     ctx.db.get<ThreadRow>("SELECT * FROM threads WHERE id = ?", id);
   const listed = async (): Promise<ThreadListEntry | undefined> => {
-    const sidebar = await get<SidebarBootstrapResponse>("/sidebar-bootstrap");
+    const sidebar = await get<SidebarBootstrapResponse>("/projects/sidebar");
     const entries = await get<ThreadListEntry[]>("/threads");
     const entry = entries.find((thread) => thread.id === id);
     expect(sidebar.projects[0]?.threads).toEqual([entry]);

@@ -6,7 +6,7 @@ import { ApiError } from "@bb/server-kit/http/errors";
 const IMMUTABLE = "public, max-age=31536000, immutable";
 
 export function registerProviderRoutes(app: ApiApp, bb: PluginServerApi): void {
-  app.get("/system/providers/:providerId/logo", (c) => {
+  app.get("/sessions/providers/:providerId/logo", (c) => {
     const id = c.req.param("providerId");
     const logo = findProviderDefinition(bb.db, id)?.logo ?? null;
     if (logo === null) {

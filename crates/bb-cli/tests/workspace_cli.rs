@@ -75,7 +75,7 @@ fn machine_list_shows_creating_hosts_with_owner_and_sharing() {
           "ownerUserId": null, "sharing": "shared" },
     ]);
     let users = json!([{ "id": "usr_1", "name": "Ada" }]);
-    let routes = vec![route("GET", "/hosts", hosts.clone()), route("GET", "/users", users)];
+    let routes = vec![route("GET", "/machines", hosts.clone()), route("GET", "/users", users)];
     let server = FakeServer::start(routes);
     let (result, printed) = run(&server, &["machine", "list"], CliEnv::default());
     result.unwrap();
@@ -85,9 +85,9 @@ fn machine_list_shows_creating_hosts_with_owner_and_sharing() {
         host_3  old   offline  shared   -      -\n\n";
     assert_eq!(printed, expected);
     let listed =
-        [request("GET", "/hosts?includeCreating=true", None), request("GET", "/users", None)];
+        [request("GET", "/machines?includeCreating=true", None), request("GET", "/users", None)];
     assert_eq!(server.requests(), listed);
-    let forbidden = FakeServer::start(vec![route("GET", "/hosts", hosts.clone())]);
+    let forbidden = FakeServer::start(vec![route("GET", "/machines", hosts.clone())]);
     let (result, printed) = run(&forbidden, &["machine", "list", "--json"], CliEnv::default());
     result.unwrap();
     assert_eq!(serde_json::from_str::<serde_json::Value>(&printed).unwrap(), hosts);
@@ -96,13 +96,13 @@ fn machine_list_shows_creating_hosts_with_owner_and_sharing() {
 #[test]
 fn machine_share_and_unshare_patch_the_sharing_of_a_machine() {
     let host = json!({ "id": "host_1", "sharing": "shared" });
-    let server = FakeServer::start(vec![route("PATCH", "/hosts/host_1/sharing", host)]);
+    let server = FakeServer::start(vec![route("PATCH", "/machines/host_1/sharing", host)]);
     let (result, printed) = run(&server, &["machine", "share", "host_1"], CliEnv::default());
     result.unwrap();
     assert_eq!(printed, "Machine host_1 is shared\n");
     run(&server, &["machine", "unshare", "host_1"], CliEnv::default()).0.unwrap();
     let sent = |sharing: &str| {
-        request("PATCH", "/hosts/host_1/sharing", Some(json!({ "sharing": sharing })))
+        request("PATCH", "/machines/host_1/sharing", Some(json!({ "sharing": sharing })))
     };
     assert_eq!(server.requests(), [sent("shared"), sent("private")]);
 }
@@ -112,8 +112,8 @@ fn provider_list_and_models_route_by_machine() {
     let models = json!({ "models": [{ "model": "m1", "displayName": "M1", "isDefault": true }],
         "modelLoadError": null });
     let server = FakeServer::start(vec![
-        route("GET", "/system/providers", json!([{ "id": "codex", "displayName": "Codex" }])),
-        route("GET", "/system/execution-options", models),
+        route("GET", "/sessions/providers", json!([{ "id": "codex", "displayName": "Codex" }])),
+        route("GET", "/sessions/execution-options", models),
     ]);
     let (result, printed) = run(&server, &["provider", "list"], CliEnv::default());
     result.unwrap();
@@ -125,8 +125,8 @@ fn provider_list_and_models_route_by_machine() {
     assert_eq!(
         server.requests(),
         [
-            request("GET", "/system/providers", None),
-            request("GET", "/system/execution-options?hostId=host_1&providerId=codex", None),
+            request("GET", "/sessions/providers", None),
+            request("GET", "/sessions/execution-options?hostId=host_1&providerId=codex", None),
         ]
     );
 }

@@ -1,5 +1,6 @@
-import type { HttpDoor, Kernel } from "@bb/plugin";
-import { requireValid, type ApiApp } from "@bb/server-kit/http/api";
+import { OpError, type HttpDoor, type Kernel } from "@bb/plugin";
+import { ZodError } from "zod";
+import { problemOf, type ApiApp } from "@bb/server-kit/http/api";
 import { invalidRequest } from "@bb/server-kit/http/errors";
 
 const OK = { ok: true } as const;
@@ -25,16 +26,17 @@ async function fieldsOf(c: Incoming, door: HttpDoor): Promise<object> {
   return typeof body === "object" && body !== null ? body : {};
 }
 
-function bySpecificity(left: string, right: string): number {
-  const ours = left.split("/");
-  const theirs = right.split("/");
-  for (const [index, segment] of ours.entries()) {
-    const other = theirs[index];
-    if (other === undefined) return 0;
-    const open = segment.startsWith(":");
-    if (open !== other.startsWith(":")) return open ? 1 : -1;
+function rejected(error: unknown): never {
+  const invalid = error instanceof OpError && error.code === "invalid_input";
+  if (invalid && error.cause instanceof ZodError) {
+    throw invalidRequest(problemOf(error.cause));
   }
-  return 0;
+  throw error;
+}
+
+function shapeOf(path: string): string {
+  const open = (segment: string) => (segment.startsWith(":") ? "1" : "0");
+  return path.split("/").map(open).join("");
 }
 
 export function registerOpDoors(app: ApiApp, kernel: Kernel): void {
@@ -42,12 +44,15 @@ export function registerOpDoors(app: ApiApp, kernel: Kernel): void {
     const door = op.doors.http;
     return door === undefined || owner === null ? [] : [{ op, door }];
   });
-  offered.sort((left, right) => bySpecificity(left.door.path, right.door.path));
+  const shapes = new Map(offered.map(({ door }) => [door, shapeOf(door.path)]));
+  const shape = (door: HttpDoor) => shapes.get(door) ?? "";
+  offered.sort((left, right) =>
+    shape(left.door).localeCompare(shape(right.door)),
+  );
   for (const { op, door } of offered) {
     app.on(door.method, door.path, async (c) => {
       const input = { ...(await fieldsOf(c, door)), ...c.req.param() };
-      requireValid(op.input, input);
-      const result = await kernel.call(op, input);
+      const result = await kernel.call(op, input).catch(rejected);
       if (result === null && door.empty === 204) return c.body(null, 204);
       return c.json(result === undefined ? OK : result, door.status ?? 200);
     });

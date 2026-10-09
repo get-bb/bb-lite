@@ -328,7 +328,7 @@ fn env_delete(call: &mut Call) -> CliResult<Output> {
 }
 
 fn machine_list(call: &mut Call) -> CliResult<Output> {
-    let hosts = call.http.get("/hosts", &[("includeCreating", "true")])?;
+    let hosts = call.http.get("/machines", &[("includeCreating", "true")])?;
     let users = call.http.get("/users", &[]).unwrap_or_default();
     let named = |id: &Value| {
         let found = users.as_array()?.iter().find(|user| user.get("id") == Some(id))?;
@@ -360,7 +360,7 @@ fn join_instructions(join: &Value) -> Vec<String> {
 }
 
 fn host_path(host_id: &str, suffix: &str) -> String {
-    format!("/hosts/{}{suffix}", encode(host_id))
+    format!("/machines/{}{suffix}", encode(host_id))
 }
 
 fn machine_show(call: &mut Call) -> CliResult<Output> {
@@ -370,7 +370,7 @@ fn machine_show(call: &mut Call) -> CliResult<Output> {
 
 fn machine_add(call: &mut Call) -> CliResult<Output> {
     let request = json!({ "machineProviderId": MANUAL_MACHINE_PROVIDER, "inputs": null });
-    let created = call.http.post("/hosts", &request)?;
+    let created = call.http.post("/machines", &request)?;
     let host_id = text(&created, "id");
     let host = match call.flag("name")? {
         None => created,
@@ -489,12 +489,12 @@ fn borrowed<'q>(query: &'q [(&'static str, String)]) -> Vec<(&'static str, &'q s
 
 fn provider_list(call: &mut Call) -> CliResult<Output> {
     if call.on("all")? {
-        let catalog = call.http.get("/system/providers/catalog", &[])?;
+        let catalog = call.http.get("/sessions/providers/catalog", &[])?;
         let rows = catalog.as_array().cloned().unwrap_or_default();
         return Ok(Output::rows(&rows, &["id", "displayName", "enabled", "available"], catalog));
     }
     let query = routing(call)?;
-    let providers = call.http.get("/system/providers", &borrowed(&query))?;
+    let providers = call.http.get("/sessions/providers", &borrowed(&query))?;
     let rows = providers.as_array().cloned().unwrap_or_default();
     Ok(Output::rows(&rows, &["id", "displayName"], providers))
 }
@@ -504,7 +504,7 @@ fn provider_models(call: &mut Call) -> CliResult<Output> {
     if let Some(provider_id) = call.args("providerId") {
         query.push(("providerId", provider_id.to_string()));
     }
-    let options = call.http.get("/system/execution-options", &borrowed(&query))?;
+    let options = call.http.get("/sessions/execution-options", &borrowed(&query))?;
     if let Some(error) = options.get("modelLoadError").filter(|e| !e.is_null()) {
         let detail = match error.get("detail") {
             None | Some(Value::Null) => String::new(),
@@ -520,7 +520,7 @@ fn provider_models(call: &mut Call) -> CliResult<Output> {
 
 fn set_provider_enabled(call: &mut Call, enabled: bool) -> CliResult<Output> {
     let provider_id = call.arg("providerId")?.to_string();
-    let path = format!("/system/providers/{}/enabled", encode(&provider_id));
+    let path = format!("/sessions/providers/{}/enabled", encode(&provider_id));
     let catalog = call.http.put(&path, &json!({ "enabled": enabled }))?;
     let state = if enabled { "enabled" } else { "disabled" };
     Ok(Output::text(catalog, format!("{provider_id} {state}")))

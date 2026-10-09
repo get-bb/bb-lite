@@ -120,7 +120,7 @@ function eventCount(legacy: Legacy, threads: Row[]) {
 }
 
 async function refuseRunningServer(config: ServerConfig) {
-  const url = `${loopbackUrl(config)}/api/v1/system/config`;
+  const url = `${loopbackUrl(config)}/api/v1/server/config`;
   const signal = AbortSignal.timeout(SERVER_PROBE_MS);
   const answer: unknown = await fetch(url, { signal })
     .then((response) => response.json())

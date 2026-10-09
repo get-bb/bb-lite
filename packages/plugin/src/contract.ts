@@ -2,7 +2,7 @@ import type { z } from "zod";
 
 export type OpKind = "read" | "write";
 export type HookPower = "observe" | "rewrite" | "answer";
-export type Allow = "owner" | "member";
+export type Allow = "owner" | "user" | "member";
 
 export interface DoorContext {
   threadId: string;

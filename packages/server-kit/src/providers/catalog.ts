@@ -82,7 +82,7 @@ function defineProvider(seed: ProviderDeclaration): ProviderDefinition {
   if (known !== undefined) return known;
   const { id, reasoningLevels } = seed;
   const logo = seed.logo === null ? null : loadLogo(seed.logo);
-  const logoPath = `/api/v1/system/providers/${id}/logo`;
+  const logoPath = `/api/v1/sessions/providers/${id}/logo`;
   const info: domain.ProviderInfo = {
     id,
     pluginId: `provider-${id}`,

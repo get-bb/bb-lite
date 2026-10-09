@@ -46,16 +46,16 @@ it("serves gate-authenticated visitors through the tunnel", async () => {
   const { ctx, gate } = await startServer();
   expect(ctx.kernel.pick(server.publicUrl)?.()).toBe(gate.gateUrl);
   const ownerJson = { ...OWNER, ...JSON_BODY, origin: gate.gateUrl };
-  const hostPath = `/api/v1/hosts/${ctx.config.hostId}`;
+  const hostPath = `/api/v1/machines/${ctx.config.hostId}`;
   const code = async (path: string, init: Parameters<typeof visit>[2] = {}) => {
     const { status, text } = await visit(gate, path, init);
     const body = JSON.parse(text || "{}") as { code?: string } | null;
     return [status, body?.code];
   };
-  const listed = await visit(gate, "/api/v1/hosts", { headers: OWNER });
+  const listed = await visit(gate, "/api/v1/machines", { headers: OWNER });
   expect(JSON.parse(listed.text)).toMatchObject([{ id: ctx.config.hostId }]);
   const zipped = { ...OWNER, "accept-encoding": "gzip" };
-  const config = await visit(gate, "/api/v1/system/config", {
+  const config = await visit(gate, "/api/v1/server/config", {
     headers: zipped,
   });
   const { primaryHostId } = JSON.parse(config.text) as {
@@ -76,14 +76,14 @@ it("serves gate-authenticated visitors through the tunnel", async () => {
   const asMachine = { ...added, headers: { ...machine, ...JSON_BODY } };
   const command = `${hostPath}/enrollment-command`;
   expect((await code(command, { headers: OWNER }))[0]).toBe(200);
-  expect((await code("/api/v1/hosts", { headers: machine }))[0]).toBe(200);
+  expect((await code("/api/v1/machines", { headers: machine }))[0]).toBe(200);
   expect(await code(command, { headers: machine })).toEqual([403, "forbidden"]);
-  expect(await code("/api/v1/hosts", asMachine)).toEqual([403, "forbidden"]);
+  expect(await code("/api/v1/machines", asMachine)).toEqual([403, "forbidden"]);
   const removal = { method: "DELETE", headers: machine };
   expect(await code(hostPath, removal)).toEqual([403, "forbidden"]);
   const anonymous = await code("/install.sh", { headers: forged });
   expect(anonymous).toEqual([404, "not_found"]);
-  expect(await code("/api/v1/hosts")).toEqual([401, undefined]);
+  expect(await code("/api/v1/machines")).toEqual([401, undefined]);
   const live = `${gate.gateUrl.replace("http", "ws")}/ws`;
   const socket = new WebSocket(live, { headers: OWNER });
   onTestFinished(() => socket.terminate());

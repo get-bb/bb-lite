@@ -45,7 +45,7 @@ fn quiet(call: &Call, path: &str, query: &[(&str, &str)]) -> Value {
 
 fn status(call: &mut Call) -> CliResult<Output> {
     let CliEnv { project_id, thread_id, server_url, .. } = call.env.clone();
-    let config = quiet(call, "/system/config", &[]);
+    let config = quiet(call, "/server/config", &[]);
     let project = match &project_id {
         Some(id) => quiet(call, &format!("/projects/{}", encode(id)), &[]),
         None => Value::Null,
@@ -158,7 +158,7 @@ fn write_out(call: &mut Call, bytes: &[u8]) -> CliResult<()> {
 fn file_read(call: &mut Call) -> CliResult<Output> {
     let mut body = host_path(call)?;
     put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
-    let file = call.http.post("/files/read", &Value::Object(body))?;
+    let file = call.http.post("/machines/files/read", &Value::Object(body))?;
     if call.json() {
         return Ok(Output::json(file));
     }
@@ -181,7 +181,7 @@ fn file_write(call: &mut Call) -> CliResult<Output> {
     body.insert("content".into(), json!(content));
     put_some(&mut body, "createParents", call.on("create-parents")?.then_some(json!(true)));
     put_some(&mut body, "expectedSha256", call.flag("expected-sha256")?.map(Value::String));
-    let result = call.http.post("/files/write", &Value::Object(body))?;
+    let result = call.http.post("/machines/files/write", &Value::Object(body))?;
     let outcome =
         if text(&result, "outcome") == "written" { "Wrote" } else { "Write conflict for" };
     let line = format!("{outcome} {}", call.arg("path")?);
@@ -197,15 +197,15 @@ fn file_list(call: &mut Call) -> CliResult<Output> {
     put_some(&mut body, "limit", limit.map(Value::from));
     put_some(&mut body, "path", located.get("path").cloned());
     put_some(&mut body, "query", query.map(Value::String));
-    let result = call.http.post("/files/list", &Value::Object(body))?;
+    let result = call.http.post("/machines/files/list", &Value::Object(body))?;
     let files = result.get("files").and_then(Value::as_array);
     let paths: Vec<String> = files.into_iter().flatten().map(|f| text(f, "path")).collect();
     Ok(Output::lines(result, &paths))
 }
 
 fn read_settings(call: &Call) -> CliResult<Map<String, Value>> {
-    let config = call.http.get("/system/config", &[])?;
-    let ui = call.http.get("/preferences/ui", &[])?;
+    let config = call.http.get("/server/config", &[])?;
+    let ui = call.http.get("/settings/ui-preferences", &[])?;
     let mut settings = config["generalSettings"].as_object().cloned().unwrap_or_default();
     let appearance = &config["appearance"];
     settings.insert("theme".into(), appearance["themeId"].clone());
@@ -256,7 +256,7 @@ fn default_setting(key: &str) -> Option<Value> {
 }
 
 fn write_setting(call: &Call, key: &str, raw: Option<&str>) -> CliResult<Value> {
-    let config = call.http.get("/system/config", &[])?;
+    let config = call.http.get("/server/config", &[])?;
     if key == "theme" || key == "theme.faviconColor" {
         let mut selection = json!({
             "themeId": config["appearance"]["themeId"],
@@ -283,14 +283,14 @@ fn write_setting(call: &Call, key: &str, raw: Option<&str>) -> CliResult<Value> 
         return call.http.put("/settings/keyboard", &Value::Array(overrides));
     }
     if let Some(name) = key.strip_prefix(UI) {
-        let listed = call.http.get("/preferences/ui", &[])?;
+        let listed = call.http.get("/settings/ui-preferences", &[])?;
         let preferences = listed["preferences"].as_object().cloned().unwrap_or_default();
         let Some(entry) = preferences.get(name) else {
             let known: Vec<&str> = preferences.keys().map(String::as_str).collect();
             let message = format!("Unknown UI preference '{name}'.");
             return Err(usage_error(message).hint(format!("Known: {}", known.join(", "))));
         };
-        let path = format!("/preferences/ui/{}", encode(name));
+        let path = format!("/settings/ui-preferences/{}", encode(name));
         let Some(raw) = raw else { return call.http.delete(&path, &[]) };
         let body = json!({ "expectedRevision": entry["revision"], "value": setting_value(raw) });
         return call.http.put(&path, &body);
@@ -391,8 +391,8 @@ fn plugin_disable(call: &mut Call) -> CliResult<Output> {
 }
 
 fn reload(call: &Call, plugin_id: Option<&str>) -> CliResult<Value> {
-    let query: Vec<(&str, &str)> = plugin_id.map(|id| ("id", id)).into_iter().collect();
-    call.http.request("POST", "/plugins/reload", &query, Some(&json!({})))
+    let body = plugin_id.map_or_else(|| json!({}), |id| json!({ "id": id }));
+    call.http.request("POST", "/plugins/reload", &[], Some(&body))
 }
 
 fn plugin_reload(call: &mut Call) -> CliResult<Output> {
@@ -405,7 +405,7 @@ fn plugin_reload(call: &mut Call) -> CliResult<Output> {
 
 fn edit_plugin_config(call: &mut Call, add: bool) -> CliResult<Output> {
     let path = resolve_path(call.arg("path")?);
-    let config = call.http.get("/system/config", &[])?;
+    let config = call.http.get("/server/config", &[])?;
     let file = Path::new(&text(&config, "dataDir")).join("config.json");
     let file = file.to_string_lossy().into_owned();
     let raw = std::fs::read_to_string(&file).unwrap_or_else(|_| "{}".into());
@@ -453,7 +453,7 @@ fn plugin_remove(call: &mut Call) -> CliResult<Output> {
 
 fn server_status(call: &mut Call) -> CliResult<Output> {
     let url = call.env.server_url.clone();
-    let config = call.http.get("/system/config", &[]).map_err(|error| {
+    let config = call.http.get("/server/config", &[]).map_err(|error| {
         CliError::new(format!("No bb server at {url}: {}", error.message))
             .code("server_unreachable")
             .hint("Start it with `bb server`, or set BB_SERVER_URL.")

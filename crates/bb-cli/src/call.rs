@@ -422,7 +422,7 @@ pub fn machine_id(call: &Call, target: &str) -> CliResult<String> {
     if wanted.starts_with("host_") {
         return valid_id(wanted, "machine ID");
     }
-    let hosts = call.http.get("/hosts", &[("includeCreating", "true")])?;
+    let hosts = call.http.get("/machines", &[("includeCreating", "true")])?;
     let hosts = hosts.as_array().cloned().unwrap_or_default();
     let field =
         |host: &Value, key: &str| host.get(key).and_then(Value::as_str).unwrap_or("").to_string();
@@ -446,7 +446,7 @@ pub fn this_machine_id(call: &Call) -> CliResult<String> {
         let environment = call.http.get(&format!("/environments/{environment_id}"), &[])?;
         return Ok(text(&environment, "hostId").unwrap_or_default());
     }
-    let config = call.http.get("/system/config", &[])?;
+    let config = call.http.get("/server/config", &[])?;
     text(&config, "primaryHostId")
         .ok_or_else(|| usage_error("The server has no machine of its own.").hint("Pass --machine."))
 }
