@@ -15,5 +15,6 @@ it("picks a Monaco language from the file name", () => {
   expect(languageForPath("infra/main.tf")).toBe("hcl");
   expect(languageForPath(".gitignore")).toBe("plaintext");
   expect(languageForPath("Makefile")).toBe("plaintext");
+  expect(languageForPath("docker/Dockerfile")).toBe("dockerfile");
   expect(languageForPath("archive.unknown")).toBe("plaintext");
 });

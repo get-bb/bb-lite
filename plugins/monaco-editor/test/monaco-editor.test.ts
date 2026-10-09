@@ -11,6 +11,7 @@ interface WriteInput {
 
 async function editorServer(disk: Record<string, string>) {
   const server = await createThreadServer();
+  const listed: { rootPath: string; excludeNames: string[] }[] = [];
   const shaOf = (content: string) => `sha-${content.length}-${content}`;
   const absolute = (input: { path: string; rootPath?: string }) =>
     input.path.startsWith("/") ? input.path : `${input.rootPath}/${input.path}`;
@@ -36,6 +37,28 @@ async function editorServer(disk: Record<string, string>) {
       disk[path] = input.content;
       return { outcome: "written", path, sha256: shaOf(input.content) };
     },
+    listPaths: async (input: { rootPath: string; excludeNames: string[] }) => {
+      listed.push(input);
+      return {
+        paths: [
+          {
+            kind: "directory",
+            path: "src",
+            name: "src",
+            score: 0,
+            positions: [],
+          },
+          {
+            kind: "file",
+            path: "src/a.ts",
+            name: "a.ts",
+            score: 0,
+            positions: [],
+          },
+        ],
+        truncated: false,
+      };
+    },
   });
   const threadId = await server.spawn();
   const call = (name: string, input: Record<string, unknown>) =>
@@ -44,7 +67,7 @@ async function editorServer(disk: Record<string, string>) {
       `/ops/monaco-editor.${name}`,
       { threadId, ...input },
     );
-  return { call, disk };
+  return { call, disk, listed, threadId };
 }
 
 it("opens a workspace file and saves it, stopping on a changed file", async () => {
@@ -54,6 +77,8 @@ it("opens a workspace file and saves it, stopping on a changed file", async () =
     kind: "text",
     content: "let a = 1",
     sha256: "sha-9-let a = 1",
+    absolutePath: "/repo/src/a.ts",
+    relativePath: "src/a.ts",
   });
   const saved = await call("write", {
     path: "src/a.ts",
@@ -96,4 +121,51 @@ it("refuses missing, binary and oversized files", async () => {
     "This file is not text",
     "This file is too large to edit (8 MB)",
   ]);
+});
+
+it("lists the workspace as a tree for the file panel", async () => {
+  const { call, listed } = await editorServer({});
+  const tree = await call("tree", { path: "src/a.ts" });
+  expect(tree.body.result).toEqual({
+    root: "/repo",
+    entries: [
+      { path: "src", kind: "directory" },
+      { path: "src/a.ts", kind: "file" },
+    ],
+    truncated: false,
+  });
+  expect(listed[0]).toMatchObject({
+    rootPath: "/repo",
+    excludeNames: [".git", "node_modules"],
+  });
+});
+
+it("opens host and thread-storage files where they live", async () => {
+  const { call, disk, threadId } = await editorServer({ "/etc/hosts": "h" });
+  const host = await call("read", { path: "/etc/hosts", source: "host" });
+  expect(host.body.result).toMatchObject({
+    kind: "text",
+    absolutePath: "/etc/hosts",
+    relativePath: "hosts",
+  });
+  const saved = await call("write", {
+    path: "notes.md",
+    source: "thread-storage",
+    content: "kept",
+    expectedSha256: null,
+  });
+  expect(saved.body.result).toMatchObject({ outcome: "written" });
+  const [stored] = Object.keys(disk).filter((path) =>
+    path.endsWith(`${threadId}/notes.md`),
+  );
+  expect(disk[stored ?? ""]).toBe("kept");
+  const read = await call("read", {
+    path: "notes.md",
+    source: "thread-storage",
+  });
+  expect(read.body.result).toMatchObject({
+    content: "kept",
+    absolutePath: stored,
+    relativePath: "notes.md",
+  });
 });

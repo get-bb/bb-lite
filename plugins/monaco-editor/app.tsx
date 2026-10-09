@@ -3,16 +3,24 @@ import {
   Icon,
   shell,
   sidePanel,
-  useBbContext,
   useCall,
   useOp,
   type FileViewerProps,
   type PluginAppApi,
 } from "@bb/plugin/app";
 import { usePreferredTheme } from "@bb/app-kit/hooks/useTheme";
+import { copyToClipboardWithToast } from "@bb/app-kit/lib/clipboard";
+import { useResolvedCodeThemePair } from "@bb/app-kit/lib/code-theme";
+import "@bb/app-kit/lib/code-theme-registration";
+import { resolveTheme } from "@pierre/diffs";
 import { Button } from "@bb/shared-ui/button";
 import { monacoEditor } from "./contract";
-import { CLAIMED_EXTENSIONS, languageForPath } from "./languages";
+import { FileTree } from "./FileTree";
+import {
+  CLAIMED_EXTENSIONS,
+  CLAIMED_NAMES,
+  languageForPath,
+} from "./languages";
 
 type MonacoModule = typeof import("./monaco");
 type CodeEditor = ReturnType<MonacoModule["monaco"]["editor"]["create"]>;
@@ -24,11 +32,19 @@ type SaveState =
 interface Loaded {
   content: string;
   sha256: string | null;
+  absolutePath: string;
+  relativePath: string;
+}
+interface Active {
+  editor: CodeEditor;
+  absolutePath: string;
+  relativePath: string;
 }
 
 let loading: Promise<MonacoModule> | null = null;
 const loadMonaco = () => (loading ??= import("./monaco"));
-let active: { editor: CodeEditor; path: string } | null = null;
+let active: Active | null = null;
+let treeShown = true;
 
 const EDITOR_ACTIONS: readonly [string, string, string][] = [
   ...[1, 2, 3, 4, 5].map((level): [string, string, string] => [
@@ -56,6 +72,21 @@ const EDITOR_ACTIONS: readonly [string, string, string][] = [
   ],
 ];
 
+const COPY_COMMANDS = [
+  [
+    "copy-path",
+    "Monaco: copy path of current file",
+    "absolutePath",
+    "Absolute path copied",
+  ],
+  [
+    "copy-relative-path",
+    "Monaco: copy relative path of current file",
+    "relativePath",
+    "Relative path copied",
+  ],
+] as const;
+
 function Centered({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full min-h-0 items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
@@ -64,22 +95,33 @@ function Centered({ children }: { children: ReactNode }) {
   );
 }
 
-function MonacoFileViewer({ path, content }: FileViewerProps) {
-  const { threadId } = useBbContext();
+function MonacoFileViewer({
+  path,
+  threadId,
+  source,
+  content,
+}: FileViewerProps) {
+  const readable = threadId !== null || source === "host";
   const file = useOp(
     monacoEditor.read,
-    { threadId: threadId ?? "", path },
-    { enabled: threadId !== null },
+    { threadId, source, path },
+    { enabled: readable },
   );
   const [reloads, setReloads] = useState(0);
-  if (threadId === null) {
+  if (!readable) {
     return content === null ? (
       <Centered>This file has no text to show.</Centered>
     ) : (
       <Editor
         path={path}
         threadId={null}
-        loaded={{ content, sha256: null }}
+        source={source}
+        loaded={{
+          content,
+          sha256: null,
+          absolutePath: path,
+          relativePath: path,
+        }}
         onReload={() => undefined}
       />
     );
@@ -103,6 +145,7 @@ function MonacoFileViewer({ path, content }: FileViewerProps) {
       key={`${path}:${reloads}`}
       path={path}
       threadId={threadId}
+      source={source}
       loaded={file.data}
       onReload={() => {
         void file.refetch();
@@ -115,11 +158,12 @@ function MonacoFileViewer({ path, content }: FileViewerProps) {
 interface EditorProps {
   path: string;
   threadId: string | null;
+  source: FileViewerProps["source"];
   loaded: Loaded;
   onReload(): void;
 }
 
-function Editor({ path, threadId, loaded, onReload }: EditorProps) {
+function Editor({ path, threadId, source, loaded, onReload }: EditorProps) {
   const host = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<CodeEditor | null>(null);
   const sha = useRef(loaded.sha256);
@@ -130,17 +174,22 @@ function Editor({ path, threadId, loaded, onReload }: EditorProps) {
   const dark = usePreferredTheme() === "dark";
   const darkRef = useRef(dark);
   darkRef.current = dark;
+  const paths = useRef(loaded);
+  paths.current = loaded;
+  const codeTheme = useResolvedCodeThemePair();
+  const [showTree, setShowTree] = useState(treeShown);
   const write = useCall(monacoEditor.write);
-  const readOnly = threadId === null;
+  const readOnly = loaded.sha256 === null;
 
   saveRef.current = async (force) => {
     const editor = editorRef.current;
-    if (editor === null || threadId === null) return;
+    if (editor === null || readOnly) return;
     const content = editor.getValue();
     setState({ kind: "saving" });
     try {
       const result = await write({
         threadId,
+        source,
         path,
         content,
         ...(force ? {} : { expectedSha256: sha.current }),
@@ -162,14 +211,15 @@ function Editor({ path, threadId, loaded, onReload }: EditorProps) {
     let disposed = false;
     let editor: CodeEditor | null = null;
     loadMonaco().then(
-      ({ monaco, overflowWidgetsNode }) => {
+      ({ monaco, overflowWidgetsNode, ensureCodeTheme }) => {
         if (disposed || host.current === null) return;
+        ensureCodeTheme(darkRef.current);
         sha.current = loaded.sha256;
         setDirty(false);
         const opened = monaco.editor.create(host.current, {
           value: loaded.content,
           language: languageForPath(path),
-          theme: darkRef.current ? "bb-dark" : "bb-light",
+          theme: "bb-code",
           readOnly,
           automaticLayout: true,
           fixedOverflowWidgets: true,
@@ -185,10 +235,15 @@ function Editor({ path, threadId, loaded, onReload }: EditorProps) {
         opened.onDidChangeModelContent(() => {
           setDirty(opened.getModel()?.getAlternativeVersionId() !== initial);
         });
+        const focused = {
+          editor: opened,
+          absolutePath: paths.current.absolutePath,
+          relativePath: paths.current.relativePath,
+        };
         opened.onDidFocusEditorText(() => {
-          active = { editor: opened, path };
+          active = focused;
         });
-        active = { editor: opened, path };
+        active = focused;
         editor = opened;
         editorRef.current = opened;
       },
@@ -206,11 +261,18 @@ function Editor({ path, threadId, loaded, onReload }: EditorProps) {
   }, [path, loaded.content, loaded.sha256, readOnly]);
 
   useEffect(() => {
-    void loadMonaco().then(({ monaco, overflowWidgetsNode }) => {
-      monaco.editor.setTheme(dark ? "bb-dark" : "bb-light");
-      overflowWidgetsNode(dark);
+    let current = true;
+    const name = dark ? codeTheme.dark : codeTheme.light;
+    const data = resolveTheme(name).catch(() => null);
+    void Promise.all([loadMonaco(), data]).then(([loaded, theme]) => {
+      if (!current) return;
+      loaded.applyCodeTheme(dark, theme);
+      loaded.overflowWidgetsNode(dark);
     });
-  }, [dark]);
+    return () => {
+      current = false;
+    };
+  }, [dark, codeTheme.dark, codeTheme.light]);
 
   if (failed !== null) {
     return <Centered>Failed to load the editor: {failed}</Centered>;
@@ -218,6 +280,20 @@ function Editor({ path, threadId, loaded, onReload }: EditorProps) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3 text-sm">
+        {threadId === null ? null : (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={showTree ? "Hide files" : "Show files"}
+            aria-pressed={showTree}
+            onClick={() => {
+              treeShown = !showTree;
+              setShowTree(treeShown);
+            }}
+          >
+            <Icon name="Folder" className="size-4" aria-hidden />
+          </Button>
+        )}
         <span className="min-w-0 flex-1 truncate text-muted-foreground">
           {path}
           {dirty ? " •" : ""}
@@ -261,6 +337,14 @@ function Editor({ path, threadId, loaded, onReload }: EditorProps) {
           Failed to save: {state.message}
         </div>
       ) : null}
+      {showTree && threadId !== null ? (
+        <FileTree
+          threadId={threadId}
+          source={source}
+          path={path}
+          activePath={loaded.relativePath}
+        />
+      ) : null}
       <div ref={host} className="min-h-0 flex-1" />
     </div>
   );
@@ -270,6 +354,7 @@ export default function monacoEditorApp(bb: PluginAppApi): void {
   bb.add(sidePanel.fileViewer, {
     id: "monaco",
     extensions: CLAIMED_EXTENSIONS,
+    names: CLAIMED_NAMES,
     view: MonacoFileViewer,
   });
   for (const [id, title, action] of EDITOR_ACTIONS) {
@@ -280,10 +365,17 @@ export default function monacoEditorApp(bb: PluginAppApi): void {
       run: () => active?.editor.getAction(action)?.run(),
     });
   }
-  bb.add(shell.command, {
-    id: "copy-path",
-    title: "Monaco: copy path of current file",
-    isAvailable: () => active !== null,
-    run: () => navigator.clipboard.writeText(active?.path ?? ""),
-  });
+  for (const [id, title, key, message] of COPY_COMMANDS) {
+    bb.add(shell.command, {
+      id,
+      title,
+      isAvailable: () => active !== null,
+      run: () =>
+        active === null
+          ? undefined
+          : void copyToClipboardWithToast(active[key], {
+              successMessage: message,
+            }),
+    });
+  }
 }

@@ -101,10 +101,15 @@ export const CLAIMED_EXTENSIONS: readonly string[] = Object.keys(
   LANGUAGE_BY_EXTENSION,
 ).filter((extension) => !PREVIEW_RENDERED_EXTENSIONS.has(extension));
 
+export const CLAIMED_NAMES: readonly string[] = ["Dockerfile", "dockerfile"];
+
 export function languageForPath(path: string): string {
   const name = path.split("/").at(-1) ?? path;
   const dotIndex = name.lastIndexOf(".");
-  if (dotIndex <= 0 || dotIndex === name.length - 1) return "plaintext";
+  if (dotIndex === -1) {
+    return LANGUAGE_BY_EXTENSION[name.toLowerCase()] ?? "plaintext";
+  }
+  if (dotIndex === 0 || dotIndex === name.length - 1) return "plaintext";
   const extension = name.slice(dotIndex + 1).toLowerCase();
   return LANGUAGE_BY_EXTENSION[extension] ?? "plaintext";
 }
