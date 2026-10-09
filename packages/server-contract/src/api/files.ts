@@ -47,6 +47,55 @@ export const hostFileListRequestSchema = z
   .strict();
 export type HostFileListRequest = z.infer<typeof hostFileListRequestSchema>;
 
+export const hostPathListRequestSchema = z
+  .object({
+    hostId: z.string().min(1).optional(),
+    path: z.string().min(1),
+    query: z.string().optional(),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(domain.FILE_LIST_LIMIT_MAX)
+      .optional(),
+    includeFiles: z.boolean(),
+    includeDirectories: z.boolean(),
+    includeHidden: z.boolean().optional(),
+    excludeNames: fileListExcludeNamesRequestSchema,
+  })
+  .strict();
+export type HostPathListRequest = z.infer<typeof hostPathListRequestSchema>;
+
+export const hostMkdirRequestSchema = z
+  .object({
+    hostId: z.string().min(1).optional(),
+    path: z.string().min(1),
+    rootPath: z.string().min(1).optional(),
+    recursive: z.boolean().optional(),
+  })
+  .strict();
+export type HostMkdirRequest = z.infer<typeof hostMkdirRequestSchema>;
+
+export const hostMovePathRequestSchema = z
+  .object({
+    hostId: z.string().min(1).optional(),
+    sourcePath: z.string().min(1),
+    destinationPath: z.string().min(1),
+    rootPath: z.string().min(1).optional(),
+  })
+  .strict();
+export type HostMovePathRequest = z.infer<typeof hostMovePathRequestSchema>;
+
+export const hostRemovePathRequestSchema = z
+  .object({
+    hostId: z.string().min(1).optional(),
+    path: z.string().min(1),
+    rootPath: z.string().min(1).optional(),
+    recursive: z.boolean().optional(),
+  })
+  .strict();
+export type HostRemovePathRequest = z.infer<typeof hostRemovePathRequestSchema>;
+
 export interface HostFileReadResponse {
   path: string;
   content: string;

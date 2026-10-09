@@ -541,6 +541,39 @@ Options:
   --no-hidden             Skip dot-prefixed files and directories
   --exclude <name>        Entry names or root-relative paths to skip (repeatable)
 
+Usage: bb file paths <path> [options]
+List matching files and directories on a machine
+Options:
+  --machine <id-or-name>  Machine holding the directory (default: the server's) (alias --host)
+  --query <query>         Fuzzy path filter
+  --limit <count>         Maximum entries
+  --files                 Include files
+  --directories           Include directories
+  --no-hidden             Skip dot-prefixed files and directories
+  --exclude <name>        Entry names or root-relative paths to skip (repeatable)
+JSON (--json): {paths: [{kind, path, name}], truncated}
+
+Usage: bb file mkdir <path> [options]
+Create a directory on a machine
+Options:
+  --machine <id-or-name>  Machine holding the directory (default: the server's) (alias --host)
+  --root <path>           Refuse paths outside this directory
+  --recursive             Create missing parent directories
+
+Usage: bb file move <source> <destination> [options]
+Move a file or directory on a machine
+Options:
+  --machine <id-or-name>  Machine holding the path (default: the server's) (alias --host)
+  --root <path>           Refuse paths outside this directory
+
+Usage: bb file remove <path> [options]
+Remove a file or directory on a machine
+Options:
+  --machine <id-or-name>  Machine holding the path (default: the server's) (alias --host)
+  --root <path>           Refuse paths outside this directory
+  --recursive             Remove a directory and everything in it
+  --yes                   Skip the confirmation prompt
+
 Usage: bb settings show [options]
 Print every setting as key = value
 

@@ -180,3 +180,30 @@ it("answers with outcomes when git, a machine or a folder is missing", async () 
   const down = [502, { code: "host_unavailable" }];
   expect([bytes.status, await bytes.json()]).toMatchObject(down);
 });
+
+it("lists, creates, moves and removes machine paths inside a root", async () => {
+  const { repo, send } = await helpers.createDemo();
+  const op = async (route: string, body: object) => {
+    const response = await send(`/machines/files/${route}`, body);
+    return { status: response.status, body: await response.json() };
+  };
+  const rootPath = join(repo, "src");
+  const made = await op("mkdir", { path: "a/b", rootPath, recursive: true });
+  expect(made).toEqual({ status: 200, body: { ok: true } });
+  helpers.write(repo, { "src/a/b/c.txt": "c\n" });
+  const moved = { sourcePath: "a/b/c.txt", destinationPath: "d.txt" };
+  expect((await op("move", { ...moved, rootPath })).status).toBe(200);
+  const kinds = { includeFiles: true, includeDirectories: true };
+  const listed = await op("paths", { path: rootPath, ...kinds, query: "d" });
+  expect(listed.body.paths).toContainEqual(
+    expect.objectContaining({ kind: "file", path: "d.txt" }),
+  );
+  const outside = { path: join(repo, "x"), rootPath };
+  expect((await op("mkdir", outside)).status).toBe(409);
+  const escape = { sourcePath: "d.txt", destinationPath: "../d.txt" };
+  expect((await op("move", { ...escape, rootPath })).status).toBe(409);
+  expect((await op("remove", { path: "a", rootPath })).status).toBe(409);
+  const all = { path: "a", rootPath, recursive: true };
+  expect((await op("remove", all)).body).toEqual({ ok: true });
+  expect((await op("remove", { path: ".", rootPath })).status).toBe(409);
+});

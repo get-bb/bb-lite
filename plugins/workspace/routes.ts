@@ -102,4 +102,21 @@ export function implementMachineFiles(bb: PluginServerApi): void {
       return { files: listed, truncated };
     },
   );
+
+  bb.implement(machines.listPaths, ({ hostId, path: rootPath, ...query }) => {
+    const search = { ...LIST_DEFAULTS, ...query, rootPath };
+    return runnerOf(hostId).call(machineFiles.list, search);
+  });
+
+  bb.implement(machines.mkdir, ({ hostId, ...location }) =>
+    runnerOf(hostId).call(machineFiles.mutate, { op: "mkdir", ...location }),
+  );
+
+  bb.implement(machines.movePath, ({ hostId, ...move }) =>
+    runnerOf(hostId).call(machineFiles.mutate, { op: "move", ...move }),
+  );
+
+  bb.implement(machines.removePath, ({ hostId, ...location }) =>
+    runnerOf(hostId).call(machineFiles.mutate, { op: "remove", ...location }),
+  );
 }

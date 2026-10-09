@@ -470,6 +470,37 @@ file list <path>  List files under a directory on a machine
   --limit <count>  Maximum entries
   --no-hidden  Skip dot-prefixed files and directories
   --exclude <name>...  Entry names or root-relative paths to skip
+file paths <path>  List matching files and directories on a machine
+"#,
+    machine!(),
+    r#"  Machine holding the directory (default: the server's)
+  --query <query>  Fuzzy path filter
+  --limit <count>  Maximum entries
+  --files  Include files
+  --directories  Include directories
+  --no-hidden  Skip dot-prefixed files and directories
+  --exclude <name>...  Entry names or root-relative paths to skip
+  > {paths: [{kind, path, name}], truncated}
+file mkdir <path>  Create a directory on a machine
+"#,
+    machine!(),
+    r#"  Machine holding the directory (default: the server's)
+  --root <path>  Refuse paths outside this directory
+  --recursive  Create missing parent directories
+file move <source> <destination>  Move a file or directory on a machine
+"#,
+    machine!(),
+    r#"  Machine holding the path (default: the server's)
+  --root <path>  Refuse paths outside this directory
+file remove <path>  Remove a file or directory on a machine
+"#,
+    machine!(),
+    r#"  Machine holding the path (default: the server's)
+  --root <path>  Refuse paths outside this directory
+  --recursive  Remove a directory and everything in it
+"#,
+    yes!(),
+    r#"
 
 settings show  Print every setting as key = value
 settings get <key>  Print one setting

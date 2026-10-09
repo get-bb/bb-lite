@@ -194,6 +194,53 @@ export const fileList: Run = async (c) => {
   c.out(result, paths);
 };
 
+export const filePaths: Run = async (c) => {
+  const files = c.on("files");
+  const directories = c.on("directories");
+  const result = await c.op(c.ops.machines.listPaths, {
+    ...(await hostPath(c)),
+    query: c.flag("query"),
+    limit: integer(c.flag("limit"), "--limit"),
+    includeFiles: files || !directories,
+    includeDirectories: directories || !files,
+    includeHidden: c.on("no-hidden") ? false : undefined,
+    excludeNames: c.on("exclude") ? c.list("exclude") : undefined,
+  });
+  c.out(
+    result,
+    result.paths.map((entry) => `${entry.kind}\t${entry.path}`),
+  );
+};
+
+export const fileMkdir: Run = async (c) => {
+  const result = await c.op(c.ops.machines.mkdir, {
+    ...(await hostPath(c)),
+    rootPath: c.flag("root"),
+    recursive: c.on("recursive") || undefined,
+  });
+  c.out(result, `Created directory ${c.arg("path")}`);
+};
+
+export const fileMove: Run = async (c) => {
+  const result = await c.op(c.ops.machines.movePath, {
+    hostId: await machineFlag(c),
+    sourcePath: c.arg("source"),
+    destinationPath: c.arg("destination"),
+    rootPath: c.flag("root"),
+  });
+  c.out(result, `Moved ${c.arg("source")} to ${c.arg("destination")}`);
+};
+
+export const fileRemove: Run = async (c) => {
+  await confirm(c, `Remove ${c.arg("path")}?`);
+  const result = await c.op(c.ops.machines.removePath, {
+    ...(await hostPath(c)),
+    rootPath: c.flag("root"),
+    recursive: c.on("recursive") || undefined,
+  });
+  c.out(result, `Removed ${c.arg("path")}`);
+};
+
 async function readSettings(c: Call): Promise<Record<string, unknown>> {
   const [config, ui] = await Promise.all([
     c.op(c.ops.server.config, {}),

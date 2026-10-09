@@ -29,6 +29,10 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("fileRead", file_read),
         ("fileWrite", file_write),
         ("fileList", file_list),
+        ("filePaths", file_paths),
+        ("fileMkdir", file_mkdir),
+        ("fileMove", file_move),
+        ("fileRemove", file_remove),
         ("settingsShow", settings_show),
         ("pluginList", plugin_list),
         ("pluginReload", plugin_reload),
@@ -257,6 +261,62 @@ fn file_list(call: &mut Call) -> CliResult<Output> {
     let files = result.get("files").and_then(Value::as_array);
     let paths: Vec<String> = files.into_iter().flatten().map(|f| text(f, "path")).collect();
     Ok(Output::lines(result, &paths))
+}
+
+fn file_paths(call: &mut Call) -> CliResult<Output> {
+    let mut body = host_path(call)?;
+    let files = call.on("files")?;
+    let directories = call.on("directories")?;
+    let limit = integer(call.flag("limit")?.as_deref(), "--limit", 1)?;
+    put_some(&mut body, "limit", limit.map(Value::from));
+    put_some(&mut body, "query", call.flag("query")?.map(Value::String));
+    body.insert("includeFiles".into(), json!(files || !directories));
+    body.insert("includeDirectories".into(), json!(directories || !files));
+    if call.on("no-hidden")? {
+        body.insert("includeHidden".to_owned(), Value::Bool(false));
+    }
+    if call.on("exclude")? {
+        body.insert("excludeNames".to_owned(), json!(call.list("exclude")?));
+    }
+    let result = call.http.post("/machines/files/paths", &Value::Object(body))?;
+    let paths = result.get("paths").and_then(Value::as_array);
+    let lines: Vec<String> = paths
+        .into_iter()
+        .flatten()
+        .map(|entry| format!("{}\t{}", text(entry, "kind"), text(entry, "path")))
+        .collect();
+    Ok(Output::lines(result, &lines))
+}
+
+fn file_mkdir(call: &mut Call) -> CliResult<Output> {
+    let mut body = host_path(call)?;
+    put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
+    put_some(&mut body, "recursive", call.on("recursive")?.then_some(json!(true)));
+    let result = call.http.post("/machines/files/mkdir", &Value::Object(body))?;
+    let path = call.arg("path")?;
+    Ok(Output::text(result, format!("Created directory {path}")))
+}
+
+fn file_move(call: &mut Call) -> CliResult<Output> {
+    let source = call.arg("source")?;
+    let destination = call.arg("destination")?;
+    let mut body = Map::new();
+    put_some(&mut body, "hostId", machine_flag(call)?.map(Value::String));
+    body.insert("sourcePath".into(), json!(source));
+    body.insert("destinationPath".into(), json!(destination));
+    put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
+    let result = call.http.post("/machines/files/move", &Value::Object(body))?;
+    Ok(Output::text(result, format!("Moved {source} to {destination}")))
+}
+
+fn file_remove(call: &mut Call) -> CliResult<Output> {
+    let path = call.arg("path")?;
+    confirm(call, &format!("Remove {path}?"))?;
+    let mut body = host_path(call)?;
+    put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
+    put_some(&mut body, "recursive", call.on("recursive")?.then_some(json!(true)));
+    let result = call.http.post("/machines/files/remove", &Value::Object(body))?;
+    Ok(Output::text(result, format!("Removed {path}")))
 }
 
 fn read_settings(call: &Call) -> CliResult<Map<String, Value>> {

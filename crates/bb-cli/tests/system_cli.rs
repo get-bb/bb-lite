@@ -153,6 +153,47 @@ fn file_commands_post_to_the_files_routes() {
 }
 
 #[test]
+fn file_paths_mkdir_move_and_remove_call_the_machine_file_doors() {
+    let ok = json!({ "ok": true });
+    let server = FakeServer::start(vec![
+        route(
+            "POST",
+            "/machines/files/paths",
+            json!({ "paths": [{ "kind": "directory", "path": "src" }], "truncated": false }),
+        ),
+        route("POST", "/machines/files/mkdir", ok.clone()),
+        route("POST", "/machines/files/move", ok.clone()),
+        route("POST", "/machines/files/remove", ok),
+    ]);
+    let env = CliEnv::default;
+    let (result, printed) = run(&server, &["file", "paths", "/r", "--directories"], env());
+    result.unwrap();
+    assert_eq!(printed, "directory\tsrc\n");
+    let (result, printed) =
+        run(&server, &["file", "mkdir", "a", "--root", "/r", "--recursive"], env());
+    result.unwrap();
+    assert_eq!(printed, "Created directory a\n");
+    let (result, printed) = run(&server, &["file", "move", "a", "b", "--machine", "host_1"], env());
+    result.unwrap();
+    assert_eq!(printed, "Moved a to b\n");
+    let (result, printed) = run(&server, &["file", "remove", "/b", "--yes"], env());
+    result.unwrap();
+    assert_eq!(printed, "Removed /b\n");
+    let paths = json!({ "path": "/r", "includeFiles": false, "includeDirectories": true });
+    let mkdir = json!({ "path": "a", "rootPath": "/r", "recursive": true });
+    let moved = json!({ "hostId": "host_1", "sourcePath": "a", "destinationPath": "b" });
+    assert_eq!(
+        server.requests(),
+        [
+            request("POST", "/machines/files/paths", Some(paths)),
+            request("POST", "/machines/files/mkdir", Some(mkdir)),
+            request("POST", "/machines/files/move", Some(moved)),
+            request("POST", "/machines/files/remove", Some(json!({ "path": "/b" }))),
+        ]
+    );
+}
+
+#[test]
 fn server_status_reports_the_data_directory() {
     let server = FakeServer::start(vec![route("GET", "/server/config", config("/data"))]);
     let (result, printed) = run(&server, &["server", "status"], CliEnv::default());

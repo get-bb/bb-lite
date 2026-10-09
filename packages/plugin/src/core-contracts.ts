@@ -1213,6 +1213,29 @@ export const machines = contract("machines", {
     output: z.custom<Contract.HostFileListResponse>(),
     doors: { http: { method: "POST", path: "/machines/files/list" } },
   }),
+  listPaths: op({
+    input: Contract.hostPathListRequestSchema,
+    output: typed(Contract.workspacePathListResponseSchema),
+    doors: { http: { method: "POST", path: "/machines/files/paths" } },
+  }),
+  mkdir: op({
+    input: Contract.hostMkdirRequestSchema,
+    output: typed(z.object({ ok: z.literal(true) })),
+    kind: "write",
+    doors: { http: { method: "POST", path: "/machines/files/mkdir" } },
+  }),
+  movePath: op({
+    input: Contract.hostMovePathRequestSchema,
+    output: typed(z.object({ ok: z.literal(true) })),
+    kind: "write",
+    doors: { http: { method: "POST", path: "/machines/files/move" } },
+  }),
+  removePath: op({
+    input: Contract.hostRemovePathRequestSchema,
+    output: typed(z.object({ ok: z.literal(true) })),
+    kind: "write",
+    doors: { http: { method: "POST", path: "/machines/files/remove" } },
+  }),
   create: op({
     input: Contract.createMachineRequestSchema,
     output: typed(Domain.hostSchema),
