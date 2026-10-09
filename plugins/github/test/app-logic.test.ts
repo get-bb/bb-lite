@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterItems,
   parseSubPath,
+  pullStateLabel,
   relativeTime,
   routeToSubPath,
   toggle,
@@ -80,5 +81,18 @@ describe("github app logic", () => {
     expect(relativeTime("2026-10-09T11:59:30Z", now)).toBe("just now");
     expect(relativeTime("2026-10-09T09:00:00Z", now)).toBe("3h ago");
     expect(relativeTime("2026-10-01T12:00:00Z", now)).toBe("8d ago");
+  });
+});
+
+describe("pullStateLabel", () => {
+  it("names draft, open, merged and closed pull requests", () => {
+    const label = (state: string, isDraft = false) =>
+      pullStateLabel({ state, isDraft });
+    expect([label("open", true), label("open"), label("merged")]).toEqual([
+      "Draft",
+      "Open",
+      "Merged",
+    ]);
+    expect(label("closed")).toBe("Closed");
   });
 });

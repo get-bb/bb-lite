@@ -1,4 +1,4 @@
-import type { Item, ThreadLink } from "../contract.js";
+import type { Item, PullRequest, ThreadLink } from "../contract.js";
 
 export type Route =
   | { view: "issues" | "pulls" | "new" }
@@ -141,4 +141,16 @@ export function relativeTime(iso: string, now = Date.now()): string {
 
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+const STATE_LABEL: Record<string, string> = {
+  merged: "Merged",
+  closed: "Closed",
+};
+
+export function pullStateLabel(
+  pull: Pick<PullRequest, "state" | "isDraft">,
+): string {
+  if (pull.state === "open") return pull.isDraft ? "Draft" : "Open";
+  return STATE_LABEL[pull.state] ?? pull.state;
 }
