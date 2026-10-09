@@ -1,3 +1,4 @@
+import { callOp, interactions, threads } from "@bb/plugin/app";
 import { prependOlderTimelineRows, type FilePreview } from "@bb/client-core";
 import {
   useInfiniteQuery,
@@ -17,7 +18,6 @@ import { COMPACT_VIEWPORT_QUERY } from "@bb/shared-ui/hooks/use-compact-viewport
 import { getMediaQuerySnapshot } from "@bb/shared-ui/hooks/use-media-query";
 import { loadFilePreview } from "../../lib/api";
 import { buildThreadHostFileContentUrl } from "../../lib/file-content-urls";
-import { sdk } from "../../lib/sdk";
 import { useThreadDetailRealtimeSubscription } from "../useRealtimeSubscription";
 import { useDebouncedValue } from "../useDebouncedValue";
 import { qk } from "./query-keys";
@@ -114,12 +114,11 @@ export function useArchivedThreads(options?: QueryOptions) {
   return useInfiniteQuery({
     queryKey: qk.archivedThreads(),
     queryFn: ({ pageParam, signal }) =>
-      sdk.threads.list({
-        archived: true,
-        limit: ARCHIVED_PAGE_SIZE,
-        offset: pageParam,
-        signal,
-      }),
+      callOp(
+        threads.list,
+        { archived: true, limit: ARCHIVED_PAGE_SIZE, offset: pageParam },
+        { signal },
+      ),
     initialPageParam: 0,
     getNextPageParam: (lastPage, pages) =>
       lastPage.length < ARCHIVED_PAGE_SIZE ? undefined : pages.flat().length,
@@ -145,11 +144,11 @@ export function useThreadSearch(args: {
   const search = useQuery({
     queryKey: qk.threadSearch({ limitPerGroup, query: debouncedQuery }),
     queryFn: ({ signal }) =>
-      sdk.threads.search({
-        limitPerGroup: String(limitPerGroup),
-        query: debouncedQuery,
-        signal,
-      }),
+      callOp(
+        threads.search,
+        { limitPerGroup, query: debouncedQuery },
+        { signal },
+      ),
     enabled: searchable && hasSearchableQuery,
     staleTime: 10_000,
   });
@@ -170,7 +169,7 @@ export function useThread(id: string, options?: QueryOptions) {
   useThreadDetailRealtimeSubscription(id, { enabled });
   return useQuery<ThreadResponse>({
     queryKey: qk.threadDetail(id),
-    queryFn: ({ signal }) => sdk.threads.get({ threadId: id, signal }),
+    queryFn: ({ signal }) => callOp(threads.get, { threadId: id }, { signal }),
     enabled,
     staleTime: THREAD_DETAIL_STALE_TIME_MS,
     refetchOnMount: options?.refetchOnMount ?? true,
@@ -214,18 +213,19 @@ async function fetchTimeline(
   );
   const page = {
     threadId,
-    signal,
     ...(getMediaQuerySnapshot(COMPACT_VIEWPORT_QUERY)
-      ? { segmentLimit: String(COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT) }
+      ? { segmentLimit: COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT }
       : {}),
   };
-  if (previous === undefined) return sdk.threads.timeline(page);
-  const afterSequence = String(previous.maxSeq);
-  const response = await sdk.threads.timeline({ ...page, afterSequence });
+  const aborting = { signal };
+  if (previous === undefined) return callOp(threads.timeline, page, aborting);
+  const afterSequence = previous.maxSeq;
+  const delta = { ...page, afterSequence };
+  const response = await callOp(threads.timeline, delta, aborting);
   if (response.delta === undefined) return response;
   const rows = applyTimelineDelta(previous.rows, response.delta);
   return rows === null
-    ? sdk.threads.timeline(page)
+    ? callOp(threads.timeline, page, aborting)
     : { ...response, rows, delta: undefined };
 }
 
@@ -245,8 +245,12 @@ export function useThreadDetailBootstrap(
           queryFn: (context) => fetchTimeline(client, id, context.signal),
         });
       }
-      const args = { include: "environment,host", threadId: id, signal };
-      const thread: ThreadWithIncludesResponse = await sdk.threads.get(args);
+      const args = { include: "environment,host", threadId: id };
+      const thread: ThreadWithIncludesResponse = await callOp(
+        threads.get,
+        args,
+        { signal },
+      );
       const { environment, host: _host, ...detail } = thread;
       client.setQueryData(qk.threadDetail(id), detail);
       if (environment) {
@@ -287,17 +291,15 @@ export function useThreadTimelineTurnSummaryDetails(
       const input = {
         threadId,
         turnId,
-        sourceSeqEnd: String(identity.sourceSeqEnd),
-        sourceSeqStart: String(identity.sourceSeqStart),
-        signal,
+        sourceSeqEnd: identity.sourceSeqEnd,
+        sourceSeqStart: identity.sourceSeqStart,
       };
-      const response = await sdk.threads.timelineTurnSummaryDetails(input);
+      const details = threads.timelineTurnSummaryDetails;
+      const response = await callOp(details, input, { signal });
       let { olderCursor: beforeCursor, rows } = response;
       while (beforeCursor) {
-        const older = await sdk.threads.timelineTurnSummaryDetails({
-          ...input,
-          beforeCursor,
-        });
+        const page = { ...input, beforeCursor };
+        const older = await callOp(details, page, { signal });
         rows = prependOlderTimelineRows({
           olderRows: older.rows,
           loadedRows: rows,
@@ -319,7 +321,7 @@ export function useThreadQueuedMessages(id: string, options?: QueryOptions) {
   return useQuery({
     queryKey: qk.queue(id),
     queryFn: ({ signal }) =>
-      sdk.threads.queuedMessages.list({ threadId: id, signal }),
+      callOp(threads.listQueuedMessages, { threadId: id }, { signal }),
     enabled,
   });
 }
@@ -328,7 +330,7 @@ export function useThreadPromptHistory(id: string) {
   return useQuery({
     queryKey: qk.threadPromptHistory(id),
     queryFn: ({ signal }) =>
-      sdk.threads.promptHistory({ threadId: id, signal }),
+      callOp(threads.promptHistory, { threadId: id }, { signal }),
     enabled: Boolean(id),
     staleTime: 10_000,
   });
@@ -343,7 +345,7 @@ export function useThreadPendingInteractions(
   return useQuery({
     queryKey: qk.interactions(id),
     queryFn: ({ signal }) =>
-      sdk.threads.interactions.list({ threadId: id, signal }),
+      callOp(interactions.list, { threadId: id }, { signal }),
     enabled,
     refetchOnMount: (query) =>
       query.getObserversCount() === 1 ? "always" : true,

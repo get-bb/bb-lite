@@ -1,3 +1,5 @@
+import { CallError } from "@bb/plugin/app";
+import { callOp, threads } from "@bb/plugin/app";
 import {
   useMutation,
   useQueryClient,
@@ -26,7 +28,6 @@ import {
   type AppCreateThreadRequest,
 } from "@bb/client-core";
 import { collectPromptAttachments } from "../../lib/prompt-attachments";
-import { BbHttpError, sdk } from "../../lib/sdk";
 import type { SendThreadMessageMutationRequest } from "./mutation-request-types";
 import { qk } from "../queries/query-keys";
 import { refresh, STREAM } from "../queries/refresh";
@@ -320,7 +321,7 @@ export function useCreateThread() {
       lifecycleOperation: "create_thread",
     },
     mutationFn: (request: AppCreateThreadRequest) =>
-      sdk.threads.spawn({
+      callOp(threads.create, {
         ...request,
         origin: "app",
         startedOnBehalfOf: request.startedOnBehalfOf ?? null,
@@ -347,7 +348,7 @@ export function useSendThreadMessage() {
       showErrorToast: false,
     },
     mutationFn: ({ id, ...request }: SendThreadMessageMutationRequest) =>
-      sdk.threads.send({ threadId: id, ...request }),
+      callOp(threads.send, { threadId: id, ...request }),
     onMutate: async (request) => {
       const { id, input, mode } = request;
       await cancelRuntimeQueries(client, id);
@@ -386,7 +387,7 @@ export function useCreateThreadQueuedMessage() {
       id,
       ...request
     }: CreateQueuedMessageRequest & { id: string }) =>
-      sdk.threads.queuedMessages.create({ threadId: id, ...request }),
+      callOp(threads.createQueuedMessage, { threadId: id, ...request }),
     onMutate: async (request) => {
       await client.cancelQueries({ queryKey: qk.queue(request.id) });
       return insertOptimisticQueued(client, request);
@@ -412,7 +413,7 @@ export function useUpdateThreadQueuedMessage() {
       id,
       ...request
     }: UpdateQueuedMessageRequest & QueuedMessageRequest) =>
-      sdk.threads.queuedMessages.update({ threadId: id, ...request }),
+      callOp(threads.updateQueuedMessage, { threadId: id, ...request }),
     onMutate: async ({ id, input, queuedMessageId }) => {
       const queryKey = qk.queue(id);
       await client.cancelQueries({ queryKey });
@@ -449,7 +450,11 @@ export function useSendThreadQueuedMessage() {
     }: QueuedMessageRequest & {
       mode: SendQueuedMessageMode;
     }): Promise<SendQueuedMessageResponse> =>
-      sdk.threads.queuedMessages.send({ threadId: id, queuedMessageId, mode }),
+      callOp(threads.sendQueuedMessage, {
+        threadId: id,
+        queuedMessageId,
+        mode,
+      }),
     onMutate: async ({ id, mode, queuedMessageId }) => {
       await cancelRuntimeQueries(client, id);
       const queue = client.getQueryData<Queue>(qk.queue(id));
@@ -483,8 +488,8 @@ export function useDeleteThreadQueuedMessage() {
     },
     mutationFn: async ({ id, queuedMessageId }: QueuedMessageRequest) => {
       const request = { threadId: id, queuedMessageId };
-      await sdk.threads.queuedMessages.delete(request).catch((error) => {
-        if (!(error instanceof BbHttpError) || error.status !== 404) {
+      await callOp(threads.deleteQueuedMessage, request).catch((error) => {
+        if (!(error instanceof CallError) || error.status !== 404) {
           throw error;
         }
       });
@@ -511,7 +516,7 @@ export function useStopThread() {
       lifecycleOperation: "stop_thread",
     },
     mutationFn: async (threadId: string) => {
-      await sdk.threads.stop({ threadId });
+      await callOp(threads.stop, { threadId });
     },
     onMutate: async (threadId) => {
       const snapshot = await snapshotThreadCaches(client, [threadId]);

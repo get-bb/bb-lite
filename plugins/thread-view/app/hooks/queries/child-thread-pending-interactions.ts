@@ -1,6 +1,6 @@
+import { callOp, interactions } from "@bb/plugin/app";
 import { useQueries } from "@tanstack/react-query";
 import type { PendingInteraction } from "@bb/domain";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { qk } from "@bb/app-kit/hooks/queries/query-keys";
 import { getLatestPendingInteraction } from "@bb/app-kit/hooks/queries/thread-queries";
 
@@ -28,7 +28,7 @@ export function useChildThreadPendingAttention(
     queries: pending.map((child) => ({
       queryKey: qk.interactions(child.id),
       queryFn: ({ signal }: { signal: AbortSignal }) =>
-        sdk.threads.interactions.list({ threadId: child.id, signal }),
+        callOp(interactions.list, { threadId: child.id }, { signal }),
     })),
     combine: (results) => {
       const items = results.flatMap((result, index) => {

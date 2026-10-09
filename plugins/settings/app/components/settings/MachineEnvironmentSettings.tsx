@@ -1,3 +1,4 @@
+import { callOp, projects, settings } from "@bb/plugin/app";
 import { nanoid } from "nanoid";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -18,7 +19,6 @@ import {
 } from "../../hooks/mutations/settings-mutations";
 import { machineEnvironmentQueryKey } from "@bb/app-kit/hooks/queries/query-keys";
 import { useSidebarNavigation } from "@bb/app-kit/hooks/queries/sidebar-navigation-query";
-import { sdk } from "@bb/app-kit/lib/sdk";
 
 const GLOBAL_SCOPE = "global";
 const ROW_GRID_CLASS_NAME =
@@ -96,8 +96,11 @@ export function ScopedMachineEnvironmentSettings({
     queryKey: machineEnvironmentQueryKey(projectId),
     queryFn: async () =>
       projectId === null
-        ? { ...(await sdk.system.machineEnvironment()), inheritedVariables: [] }
-        : sdk.projects.machineEnvironment({ projectId }),
+        ? {
+            ...(await callOp(settings.machineEnvironment, {})),
+            inheritedVariables: [],
+          }
+        : callOp(projects.machineEnvironment, { projectId }),
   });
   const environment = query.data ?? null;
   const [draft, setDraft] = useState<DraftRow[] | null>(null);
@@ -129,9 +132,13 @@ export function ScopedMachineEnvironmentSettings({
       const input = {
         variables: rows.map(({ name, value, note }) => ({ name, value, note })),
       };
-      if (projectId === null) await sdk.system.replaceMachineEnvironment(input);
+      if (projectId === null)
+        await callOp(settings.updateMachineEnvironment, input);
       else
-        await sdk.projects.replaceMachineEnvironment({ ...input, projectId });
+        await callOp(projects.updateMachineEnvironment, {
+          ...input,
+          projectId,
+        });
     },
     onSuccess: () => {
       invalidateMachineEnvironment({ queryClient });

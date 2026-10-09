@@ -1,5 +1,6 @@
 import type { EnvironmentFilePreviewSource } from "@bb/client-core";
-import { apiClient, toRelativeUrl } from "./api-server";
+
+const API = "/api/v1";
 
 function encodePathSegments(path: string): string {
   return path.split("/").map(encodeURIComponent).join("/");
@@ -15,12 +16,9 @@ export function buildProjectAttachmentContentUrl(
   projectId: string,
   path: string,
 ): string {
-  return toRelativeUrl(
-    apiClient.projects[":id"].attachments.content.$url({
-      param: { id: projectId },
-      query: { path },
-    }),
-  );
+  const query = new URLSearchParams({ path }).toString();
+  const project = encodeURIComponent(projectId);
+  return `${API}/projects/${project}/attachments/content?${query}`;
 }
 
 export function buildEnvironmentFileContentUrl(
@@ -29,33 +27,16 @@ export function buildEnvironmentFileContentUrl(
   path: string,
 ): string {
   const filePath = encodePathSegments(path);
-  if (source.kind === "working-tree") {
-    return toRelativeUrl(
-      apiClient.environments[":id"].files[":filePath{.+}"].$url({
-        param: { id: environmentId, filePath },
-      }),
-    );
-  }
-  return toRelativeUrl(
-    apiClient.environments[":id"].revisions[":ref"].files[":filePath{.+}"].$url(
-      {
-        param: {
-          id: environmentId,
-          ref: source.kind === "head" ? "HEAD" : source.ref,
-          filePath,
-        },
-      },
-    ),
-  );
+  const environment = `${API}/environments/${encodeURIComponent(environmentId)}`;
+  if (source.kind === "working-tree") return `${environment}/files/${filePath}`;
+  const ref = source.kind === "head" ? "HEAD" : source.ref;
+  return `${environment}/revisions/${encodeURIComponent(ref)}/files/${filePath}`;
 }
 
 export function buildThreadHostFileContentUrl(
   threadId: string,
   absolutePath: string,
 ): string {
-  return toRelativeUrl(
-    apiClient.threads[":id"]["host-files"][":filePath{.+}"].$url({
-      param: { id: threadId, filePath: encodeHostFilePath(absolutePath) },
-    }),
-  );
+  const thread = encodeURIComponent(threadId);
+  return `${API}/threads/${thread}/host-files/${encodeHostFilePath(absolutePath)}`;
 }

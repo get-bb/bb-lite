@@ -1,7 +1,7 @@
+import { callOp, threads } from "@bb/plugin/app";
 import { useQuery } from "@tanstack/react-query";
 import { resolvedThreadExecutionOptionsSchema } from "@bb/domain";
 import { createLastKnownCache } from "@bb/app-kit/lib/last-known-cache";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { useThreadDetailRealtimeSubscription } from "@bb/app-kit/hooks/useRealtimeSubscription";
 import { qk } from "@bb/app-kit/hooks/queries/query-keys";
 
@@ -21,8 +21,10 @@ export function useThreadDefaultExecutionOptions(
   return useQuery({
     queryKey: qk.threadExecution(id),
     queryFn: async ({ signal }) => {
-      const args = { threadId: id, signal };
-      const execution = await sdk.threads.defaultExecutionOptions(args);
+      const args = { threadId: id };
+      const execution = await callOp(threads.defaultExecutionOptions, args, {
+        signal,
+      });
       if (execution !== null) lastKnown.write(lastKnown.key(id), execution);
       return execution;
     },

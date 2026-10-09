@@ -1,7 +1,8 @@
+import { auth } from "../../lib/client";
+import { callOp, users } from "@bb/plugin/app";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@bb/domain";
-import { sdk } from "../../lib/sdk";
 import type { QueryOptions } from "./query-helpers";
 import { qk } from "./query-keys";
 
@@ -10,7 +11,7 @@ const NO_USERS: readonly User[] = [];
 export function useAuthSession() {
   return useQuery({
     queryKey: qk.authSession(),
-    queryFn: ({ signal }) => sdk.auth.session({ signal }),
+    queryFn: ({ signal }) => auth.session(signal),
     staleTime: 60_000,
     retry: false,
   });
@@ -23,7 +24,7 @@ export function useCurrentUser(): User | null {
 export function useUsers(options?: QueryOptions) {
   return useQuery({
     queryKey: qk.users(),
-    queryFn: ({ signal }) => sdk.users.list({ signal }),
+    queryFn: ({ signal }) => callOp(users.list, {}, { signal }),
     enabled: options?.enabled ?? true,
     staleTime: 60_000,
   });
@@ -42,7 +43,7 @@ export function useIsMultiUser(): boolean {
 export function useUserInvites(options?: QueryOptions) {
   return useQuery({
     queryKey: qk.userInvites(),
-    queryFn: ({ signal }) => sdk.users.invites({ signal }),
+    queryFn: ({ signal }) => callOp(users.listInvites, {}, { signal }),
     enabled: options?.enabled ?? true,
     staleTime: 30_000,
   });

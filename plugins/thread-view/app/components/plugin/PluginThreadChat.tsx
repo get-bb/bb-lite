@@ -1,3 +1,4 @@
+import { CallError } from "@bb/plugin/app";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { appendQuoteAndAttachmentsToDraft } from "@bb/client-core";
@@ -38,7 +39,6 @@ import {
   getProjectComposeRoutePath,
   getThreadRoutePath,
 } from "@bb/app-kit/lib/route-paths";
-import { BbHttpError } from "@bb/app-kit/lib/sdk";
 import { formatWorkspaceCheckoutDisplay } from "@bb/app-kit/lib/workspace-checkout-display";
 import { ThreadDetailPromptArea } from "../../views/thread-detail/ThreadDetailPromptArea";
 
@@ -107,7 +107,7 @@ export function PluginThreadChat({
         className,
       )}
     >
-      {threadQuery.error instanceof BbHttpError &&
+      {threadQuery.error instanceof CallError &&
       threadQuery.error.status === 404 ? (
         <EmptyStatePanel className="m-2 rounded-lg">
           This thread is no longer available.

@@ -1,3 +1,4 @@
+import { CallError } from "@bb/plugin/app";
 import type { MachineRemovalStatus } from "@bb/app-kit/lib/machine-removal-display";
 import { useState } from "react";
 import type { IconName } from "@bb/shared-ui/icon";
@@ -71,7 +72,6 @@ import {
 } from "@bb/app-kit/hooks/queries/thread-queries";
 import { useThreadDefaultExecutionOptions } from "../../hooks/queries/thread-default-execution-options-query";
 import { showMutationErrorToast } from "@bb/app-kit/lib/mutation-errors";
-import { BbHttpError } from "@bb/app-kit/lib/sdk";
 import { promptHistoryEntriesToDrafts } from "bb-plugin-composer/contract";
 import {
   FollowUpPromptBox,
@@ -391,7 +391,7 @@ export function ThreadDetailPromptArea({
       .then(
         () => setInlineEdit(null),
         (error: unknown) => {
-          if (error instanceof BbHttpError && error.status === 404) {
+          if (error instanceof CallError && error.status === 404) {
             setInlineEdit(null);
           }
           showMutationErrorToast({

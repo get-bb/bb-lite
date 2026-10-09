@@ -748,7 +748,7 @@ export const projects = contract("projects", {
     doors: { http: { method: "DELETE", path: "/projects/:projectId" } },
   }),
   defaultExecutionOptions: op({
-    input: at(Contract.projectDefaultExecutionOptionsQuerySchema, "projectId"),
+    input: ref("projectId"),
     output: z.custom<Domain.ProjectExecutionDefaults | null>(),
     doors: {
       http: {
@@ -1120,11 +1120,48 @@ export const plugins = contract("plugins", {
     kind: "write",
     allow: "owner",
   }),
+  list: op({
+    input: none,
+    output: z.custom<Contract.PluginListResponse>(),
+    doors: { http: { method: "GET", path: "/plugins" } },
+  }),
+  contributions: op({
+    input: none,
+    output: z.custom<Contract.PluginContributionsResponse>(),
+    doors: { http: { method: "GET", path: "/plugins/contributions" } },
+  }),
   reload: op({
     input: z.object({ id: z.string().optional() }),
-    output: nothing,
+    output: z.custom<Contract.PluginListResponse>(),
     kind: "write",
     allow: "owner",
+    doors: { http: { method: "POST", path: "/plugins/reload" } },
+  }),
+  enable: op({
+    input: ref("pluginId"),
+    output: z.custom<{ ok: true; plugin: Contract.InstalledPlugin }>(),
+    kind: "write",
+    allow: "owner",
+    doors: { http: { method: "POST", path: "/plugins/:pluginId/enable" } },
+  }),
+  disable: op({
+    input: ref("pluginId"),
+    output: z.custom<{ ok: true; plugin: Contract.InstalledPlugin }>(),
+    kind: "write",
+    allow: "owner",
+    doors: { http: { method: "POST", path: "/plugins/:pluginId/disable" } },
+  }),
+  settings: op({
+    input: ref("pluginId"),
+    output: z.custom<Contract.PluginSettingsResponse>(),
+    doors: { http: { method: "GET", path: "/plugins/:pluginId/settings" } },
+  }),
+  updateSettings: op({
+    input: at(Contract.pluginSettingsUpdateRequestSchema, "pluginId"),
+    output: z.custom<Contract.PluginSettingsResponse>(),
+    kind: "write",
+    secret: ["values"],
+    doors: { http: { method: "PUT", path: "/plugins/:pluginId/settings" } },
   }),
   agentInstructions: op({
     input: threadContextSchema,
@@ -1343,7 +1380,7 @@ export const settings = contract("settings", {
     doors: { http: { method: "PUT", path: "/settings/machine-environment" } },
   }),
   updateGeneral: op({
-    input: at(z.object({ settings: Domain.appSettingsUpdateSchema })),
+    input: z.object({ settings: Domain.appSettingsUpdateSchema }),
     output: z.custom<Domain.AppSettings>(),
     kind: "write",
     doors: {
@@ -1351,7 +1388,7 @@ export const settings = contract("settings", {
     },
   }),
   updateKeyboard: op({
-    input: at(z.object({ overrides: Domain.appKeybindingOverridesSchema })),
+    input: z.object({ overrides: Domain.appKeybindingOverridesSchema }),
     output: z.custom<Domain.AppKeybindingOverrides>(),
     kind: "write",
     doors: {

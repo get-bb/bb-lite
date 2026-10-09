@@ -1,3 +1,4 @@
+import { callOp, server, sessions, settings } from "@bb/plugin/app";
 import {
   useQuery,
   useQueryClient,
@@ -17,7 +18,6 @@ import type {
 } from "@bb/server-contract";
 import { z } from "zod";
 import { createLastKnownCache } from "../../lib/last-known-cache";
-import { sdk } from "../../lib/sdk";
 import type { QueryOptions } from "./query-helpers";
 import { qk } from "./query-keys";
 
@@ -29,7 +29,7 @@ type ProviderRouting =
 export function useSystemConfig(options?: QueryOptions) {
   return useQuery({
     queryKey: qk.systemConfig(),
-    queryFn: ({ signal }) => sdk.system.config({ signal }),
+    queryFn: ({ signal }) => callOp(server.config, {}, { signal }),
     enabled: options?.enabled ?? true,
     staleTime: 60_000,
   });
@@ -38,7 +38,7 @@ export function useSystemConfig(options?: QueryOptions) {
 export function useUiPreferences(options?: QueryOptions) {
   return useQuery({
     queryKey: qk.uiPreferences(),
-    queryFn: ({ signal }) => sdk.system.uiPreferences.list({ signal }),
+    queryFn: ({ signal }) => callOp(settings.uiPreferences, {}, { signal }),
     enabled: options?.enabled ?? true,
     staleTime: 60_000,
   });
@@ -64,7 +64,7 @@ export function invalidateCachedUiPreferences(client: QueryClient): void {
 export function useSystemProviderCatalog() {
   return useQuery({
     queryKey: qk.providerCatalog(),
-    queryFn: () => sdk.providers.catalog(),
+    queryFn: () => callOp(sessions.providerCatalog, {}),
   });
 }
 
@@ -97,11 +97,11 @@ export function useSystemProviders(
   return useQuery({
     queryKey: qk.systemProviders({ capability, ...routing }),
     queryFn: async ({ signal }) => {
-      const providers = await sdk.providers.list({
-        ...routing,
-        ...(capability ? { capability } : {}),
-        signal,
-      });
+      const providers = await callOp(
+        sessions.providers,
+        { ...routing, ...(capability ? { capability } : {}) },
+        { signal },
+      );
       if (!capability) lastKnownProviders.write(cacheKey, providers);
       return providers;
     },
@@ -152,8 +152,10 @@ export function useSystemExecutionOptions(
   return useQuery({
     queryKey: qk.executionOptions(route, providerId),
     queryFn: async ({ signal }) => {
-      const request = { ...route, providerId, signal };
-      const response = await sdk.system.executionOptions(request);
+      const request = { ...route, providerId };
+      const response = await callOp(sessions.executionOptions, request, {
+        signal,
+      });
       const { models, modelLoadError, providers, selectedOnlyModels } =
         response;
       lastKnownProviders.write(providersKey, providers);

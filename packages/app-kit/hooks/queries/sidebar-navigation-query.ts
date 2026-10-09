@@ -3,18 +3,14 @@ import {
   readCachedSidebarBootstrap,
   writeCachedSidebarBootstrap,
 } from "../../lib/sidebar-bootstrap-cache";
-import type { SidebarBootstrapResponse } from "@bb/server-contract";
-import { request, requestOptions } from "../../lib/api";
-import { apiClient } from "../../lib/api-server";
+import { callOp, projects } from "@bb/plugin/app";
 import type { QueryOptions } from "./query-helpers";
 import { qk } from "./query-keys";
 
-const bootstrap = apiClient["sidebar-bootstrap"];
 const sidebarNavigationQueryOptions = queryOptions({
   queryKey: qk.sidebar(),
   queryFn: async ({ signal }) => {
-    const pending = bootstrap.$get(undefined, requestOptions(signal));
-    const response = await request<SidebarBootstrapResponse>(pending);
+    const response = await callOp(projects.sidebar, {}, { signal });
     writeCachedSidebarBootstrap(response);
     return response;
   },

@@ -1,3 +1,4 @@
+import { callOp, projects as projectOps } from "@bb/plugin/app";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtom } from "jotai";
@@ -75,7 +76,6 @@ import {
   getThreadRoutePath,
   isProjectlessProjectId,
 } from "@bb/app-kit/lib/route-paths";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { useOptionalPaneContext } from "@bb/app-kit/views/thread-detail/PaneContext";
 import {
   buildReuseThreadOptions,
@@ -377,7 +377,7 @@ export function useNewThreadComposer({
     await (
       paths.length === 0
         ? Promise.resolve()
-        : sdk.projects.attachments.copy({
+        : callOp(projectOps.copyAttachments, {
             projectId: nextValue,
             sourceProjectId: projectId,
             paths,

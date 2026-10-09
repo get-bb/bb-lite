@@ -1,4 +1,4 @@
-import { BbHttpError } from "@bb/sdk/browser";
+import { CallError } from "@bb/plugin/app";
 import {
   lifecycleApiErrorSchema,
   type LifecycleApiError,
@@ -121,7 +121,7 @@ function entryFor(error: LifecycleApiError): Entry | undefined {
 }
 
 export function parseLifecycleError(error: unknown): LifecycleApiError | null {
-  if (!(error instanceof BbHttpError)) return null;
+  if (!(error instanceof CallError)) return null;
   const result = lifecycleApiErrorSchema.safeParse(error.body);
   return result.success ? result.data : null;
 }

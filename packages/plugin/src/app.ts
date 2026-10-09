@@ -1,21 +1,24 @@
 import type { ComponentType, ReactElement } from "react";
-import type { BbSdkAreas } from "@bb/sdk";
 import type { z } from "zod";
 import { shell } from "./app-contracts.js";
 import type * as T from "./app-types.js";
 import { composer } from "./app/composer.js";
 import { threadView } from "./app/thread-view.js";
 import type { PluginBase } from "./base.js";
+import type { RemoteCallOptions } from "./client.js";
 import type { Live, Op, Slot } from "./contract.js";
 import type { SlotEntryView } from "./kernel.js";
 
 export type * from "./app-types.js";
 export type * from "./base.js";
 export * from "./app-contracts.js";
+export { settings } from "./app-contracts.js";
+export * from "./client.js";
 export * from "./app/composer.js";
 export * from "./app/side-panel.js";
 export * from "./app/thread-view.js";
 export * from "./contract.js";
+export * from "./core-contracts.js";
 export { createKernel, deny, OpError } from "./kernel.js";
 export type * from "./kernel.js";
 export * from "./shared-modules.js";
@@ -42,7 +45,6 @@ export interface PluginAppHost {
   use<Item>(slot: Slot<Item>): Item;
   useRealtimeConnectionState(): T.RealtimeConnectionState;
   useSettings(): T.SettingsState;
-  useSdk(): BbSdkAreas;
   usePluginId(): string;
   useBbContext(): T.BbContext;
   useBbNavigate(): T.BbNavigate;
@@ -60,7 +62,11 @@ export interface PluginAppHost {
   useCall<O extends Op>(op: O): (input: OpInput<O>) => Promise<OpOutput<O>>;
   useLive<L extends Live>(live: L): z.output<L["value"]> | undefined;
   useChanged(member: Op | Live, handler: () => void): void;
-  callOp<O extends Op>(op: O, input: OpInput<O>): Promise<OpOutput<O>>;
+  callOp<O extends Op>(
+    op: O,
+    input: OpInput<O>,
+    options?: RemoteCallOptions,
+  ): Promise<OpOutput<O>>;
   SlotMount: ComponentType<T.SlotMountProps>;
   Icon: ComponentType<T.IconProps>;
   ProviderIcon: ComponentType<T.ProviderIconProps>;
@@ -99,7 +105,6 @@ function component<Props extends object>(
 
 export const useRealtimeConnectionState = hook("useRealtimeConnectionState");
 export const useSettings = hook("useSettings");
-export const useSdk = hook("useSdk");
 export const usePluginId = hook("usePluginId");
 export const useBbContext = hook("useBbContext");
 export const useBbNavigate = hook("useBbNavigate");

@@ -1,3 +1,4 @@
+import { callOp, environments } from "@bb/plugin/app";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { WorkspaceDiffTarget } from "@bb/domain";
@@ -5,7 +6,7 @@ import type {
   DiffFileEntry,
   EnvironmentDiffFilesResponse,
 } from "@bb/server-contract";
-import type { EnvironmentDiffFileArgs } from "@bb/sdk/browser";
+import type { EnvironmentDiffFileQuery } from "@bb/server-contract";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Skeleton } from "@bb/shared-ui/skeleton";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
@@ -23,7 +24,6 @@ import {
   useGitDiffDisplayModePreference,
   useGitDiffLineOverflowModePreference,
 } from "../../../lib/git-diff-view-preferences";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { GitDiffToolbar, type GitDiffDisplayMode } from "../GitDiffToolbar";
 import { DiffFileCard } from "./DiffFileCard";
 import {
@@ -81,16 +81,17 @@ function useDiffFileContentsRequester(
           path,
           side,
         ),
-        queryFn: ({ signal }) =>
-          sdk.environments.diffFile({
+        queryFn: ({ signal }) => {
+          const file = {
             environmentId,
             path,
             side,
-            signal,
             target: target.type,
             ...(target.type === "commit" ? { sha: target.sha } : {}),
             ...(usesMergeBase ? { mergeBaseRef } : {}),
-          } as EnvironmentDiffFileArgs),
+          } as EnvironmentDiffFileQuery & { environmentId: string };
+          return callOp(environments.diffFile, file, { signal });
+        },
         staleTime: 5_000,
       });
       return response.contentEncoding === "utf8"

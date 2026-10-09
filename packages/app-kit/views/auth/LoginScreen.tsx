@@ -1,9 +1,9 @@
+import { auth } from "../../lib/client";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@bb/shared-ui/button";
 import { asHttpError } from "../../lib/http-error";
 import { getMutationErrorMessage } from "../../lib/mutation-errors";
-import { sdk } from "../../lib/sdk";
 import { AuthCard, AuthError, AuthField, AuthLayout } from "./AuthLayout";
 import { useCompleteSignIn } from "./useCompleteSignIn";
 
@@ -24,7 +24,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const login = useMutation({
     meta: { showErrorToast: false },
-    mutationFn: () => sdk.auth.login({ email: email.trim(), password }),
+    mutationFn: () => auth.login({ email: email.trim(), password }),
     onSuccess: completeSignIn,
   });
   return (

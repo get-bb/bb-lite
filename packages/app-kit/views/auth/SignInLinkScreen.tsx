@@ -1,9 +1,9 @@
+import { auth } from "../../lib/client";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Button } from "@bb/shared-ui/button";
 import { APP_ROOT_ROUTE_PATH } from "../../lib/route-paths";
-import { sdk } from "../../lib/sdk";
 import { AuthLayout, AuthSpinner } from "./AuthLayout";
 import { useCompleteSignIn } from "./useCompleteSignIn";
 
@@ -37,7 +37,7 @@ export function SignInLinkScreen({
   const completeSignIn = useCompleteSignIn();
   const exchange = useQuery({
     queryKey: ["auth-sign-in-link", token],
-    queryFn: () => sdk.auth.acceptInvite({ token }),
+    queryFn: () => auth.acceptInvite({ token }),
     retry: false,
     staleTime: Infinity,
     gcTime: Infinity,

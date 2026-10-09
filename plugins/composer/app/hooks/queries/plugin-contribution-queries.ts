@@ -1,3 +1,4 @@
+import { callOp, plugins } from "@bb/plugin/app";
 import { useQuery } from "@tanstack/react-query";
 import {
   pluginMentionGroupSchema,
@@ -5,7 +6,6 @@ import {
   type PluginMentionTrigger,
 } from "@bb/server-contract";
 import { z } from "zod";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { qk } from "@bb/app-kit/hooks/queries/query-keys";
 
 export type PluginMentionSearchGroup = PluginMentionGroup;
@@ -24,7 +24,7 @@ const mentionSearchSchema = z.object({
 export function usePluginContributions() {
   return useQuery({
     queryKey: qk.pluginContributions(),
-    queryFn: ({ signal }) => sdk.plugins.contributions({ signal }),
+    queryFn: ({ signal }) => callOp(plugins.contributions, {}, { signal }),
     staleTime: 30_000,
   });
 }

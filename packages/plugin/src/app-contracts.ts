@@ -1,6 +1,7 @@
 import type { KeyboardCommandId, Thread } from "@bb/domain";
 import type { ComponentType } from "react";
 import { contract, service, slot } from "./contract.js";
+import { settings as serverSettings } from "./core-contracts.js";
 import type * as T from "./app-types.js";
 
 const ID = /^[a-zA-Z0-9_-]+$/u;
@@ -158,6 +159,7 @@ export interface SettingsPage {
 }
 
 export const settings = contract("settings", {
+  ...serverSettings,
   page: slot<SettingsPage>({ key: "id" }),
   section: slot<T.SettingsPageSection>({ check: identified("view") }),
 });

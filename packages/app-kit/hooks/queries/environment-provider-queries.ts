@@ -1,3 +1,4 @@
+import { callOp, environments } from "@bb/plugin/app";
 import { useQuery } from "@tanstack/react-query";
 import type {
   SystemEnvironmentProvider,
@@ -6,7 +7,6 @@ import type {
 import { systemEnvironmentProviderSchema } from "@bb/server-contract";
 import { z } from "zod";
 import { createLastKnownCache } from "../../lib/last-known-cache";
-import { sdk } from "../../lib/sdk";
 import { qk } from "./query-keys";
 
 const NO_ENVIRONMENT_PROVIDERS: readonly SystemEnvironmentProvider[] = [];
@@ -24,7 +24,8 @@ export function useSystemEnvironmentProviders(
   const result = useQuery({
     queryKey: qk.environmentProviders(query),
     queryFn: async () => {
-      const providers = await sdk.environments.listProviders(query);
+      const listed = await callOp(environments.providers, query);
+      const { providers } = listed;
       lastKnown.write(cacheKey, providers);
       return providers;
     },

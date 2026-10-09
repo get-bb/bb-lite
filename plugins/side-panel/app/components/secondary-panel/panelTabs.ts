@@ -1,3 +1,5 @@
+import { CallError } from "@bb/plugin/app";
+import { callOp, threads } from "@bb/plugin/app";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import {
   useQuery,
@@ -6,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import {
   threadTabSchema,
+  threadTabsResponseSchema,
   type TerminalSession,
   type ThreadTab,
   type ThreadTabsResponse,
@@ -13,7 +16,6 @@ import {
 import type { HostFileTabState, WorkspaceFileTabState } from "@bb/client-core";
 import { appToast } from "@bb/app-kit/components/ui/app-toast";
 import { threadTabsQueryKey } from "@bb/app-kit/hooks/queries/query-keys";
-import { BbHttpError, sdk } from "@bb/app-kit/lib/sdk";
 import { isVisibleTerminalSession } from "@bb/app-kit/lib/terminal-session-visibility";
 
 type PanelTabKind =
@@ -236,6 +238,14 @@ function settlePanelState(
   return { ...state, activeTabId, isOpen: activeTabId !== null };
 }
 
+async function readThreadTabs(
+  threadId: string,
+  signal?: AbortSignal,
+): Promise<ThreadTabsResponse> {
+  const stored = await callOp(threads.tabs, { threadId }, { signal });
+  return threadTabsResponseSchema.parse(stored);
+}
+
 function pushThreadTabs(queryClient: QueryClient, threadId: string): void {
   const queryKey = threadTabsQueryKey(threadId);
   const run = async () => {
@@ -243,7 +253,7 @@ function pushThreadTabs(queryClient: QueryClient, threadId: string): void {
       await queryClient.cancelQueries({ queryKey });
       const current =
         queryClient.getQueryData<ThreadTabsResponse>(queryKey) ??
-        (await sdk.threads.tabs.get({ threadId }));
+        (await readThreadTabs(threadId));
       const tabs = syncedTabs(states.get(threadId)?.tabs ?? []);
       if (tabsKey(syncedTabs(parseTabs(current.tabs))) === tabsKey(tabs)) {
         return;
@@ -251,20 +261,19 @@ function pushThreadTabs(queryClient: QueryClient, threadId: string): void {
       try {
         queryClient.setQueryData(
           queryKey,
-          await sdk.threads.tabs.update({
-            expectedRevision: current.revision,
-            tabs,
-            threadId,
-          }),
+          threadTabsResponseSchema.parse(
+            await callOp(threads.updateTabs, {
+              expectedRevision: current.revision,
+              tabs,
+              threadId,
+            }),
+          ),
         );
         return;
       } catch (error) {
-        const isConflict = error instanceof BbHttpError && error.status === 409;
+        const isConflict = error instanceof CallError && error.status === 409;
         if (attempt > 0 || !isConflict) throw error;
-        queryClient.setQueryData(
-          queryKey,
-          await sdk.threads.tabs.get({ threadId }),
-        );
+        queryClient.setQueryData(queryKey, await readThreadTabs(threadId));
       }
     }
   };
@@ -356,8 +365,7 @@ export function usePanelTabs({
 
   const serverTabs = useQuery<ThreadTabsResponse>({
     queryKey: threadTabsQueryKey(syncThreadId ?? ""),
-    queryFn: ({ signal }) =>
-      sdk.threads.tabs.get({ threadId: syncThreadId ?? "", signal }),
+    queryFn: ({ signal }) => readThreadTabs(syncThreadId ?? "", signal),
     enabled: syncThreadId !== null,
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,

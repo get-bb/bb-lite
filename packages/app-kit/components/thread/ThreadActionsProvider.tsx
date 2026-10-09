@@ -1,3 +1,4 @@
+import { callOp, threads } from "@bb/plugin/app";
 import {
   createContext,
   useContext,
@@ -25,7 +26,6 @@ import {
   useUnpinThread,
   useUpdateThread,
 } from "../../hooks/mutations/thread-state-mutations";
-import { sdk } from "../../lib/sdk";
 import { useSystemConfig } from "../../hooks/queries/system-queries";
 import { useRouteState } from "../../hooks/useRouteState";
 import { useDialogState } from "../../hooks/useDialogState";
@@ -213,24 +213,26 @@ export function ThreadActionsProvider({
       childSummaryAbortRef.current?.abort();
       const controller = new AbortController();
       childSummaryAbortRef.current = controller;
-      sdk.threads
-        .childSummary({ signal: controller.signal, threadId: thread.id })
-        .then(
-          (summary) => {
-            if (controller.signal.aborted) return;
-            const childThreadCount = summary?.nonDeletedChildCount ?? 0;
-            deleteDialog.onOpen(
-              childThreadCount > 0 ? { thread, childThreadCount } : { thread },
-            );
-          },
-          (error: unknown) => {
-            if (controller.signal.aborted) return;
-            showMutationErrorToast({
-              error,
-              fallbackMessage: "Failed to check thread state",
-            });
-          },
-        );
+      callOp(
+        threads.childSummary,
+        { threadId: thread.id },
+        { signal: controller.signal },
+      ).then(
+        (summary) => {
+          if (controller.signal.aborted) return;
+          const childThreadCount = summary?.nonDeletedChildCount ?? 0;
+          deleteDialog.onOpen(
+            childThreadCount > 0 ? { thread, childThreadCount } : { thread },
+          );
+        },
+        (error: unknown) => {
+          if (controller.signal.aborted) return;
+          showMutationErrorToast({
+            error,
+            fallbackMessage: "Failed to check thread state",
+          });
+        },
+      );
     },
     unarchiveThread: (thread) => unarchive({ id: thread.id }),
     togglePin: (thread) =>

@@ -1,3 +1,4 @@
+import { callOp, machines } from "@bb/plugin/app";
 import { nanoid } from "nanoid";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -21,7 +22,6 @@ import { useSystemConfig } from "@bb/app-kit/hooks/queries/system-queries";
 import { useClipboardCopy } from "@bb/app-kit/lib/clipboard";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
 import { getSettingsMachineRoutePath } from "@bb/app-kit/lib/route-paths";
-import { sdk } from "@bb/app-kit/lib/sdk";
 
 export function AddMachineDialog({
   open,
@@ -127,20 +127,23 @@ function MachineSetup({
     setCommand(null);
     setErrorMessage(null);
     const run = async () => {
-      let host = await sdk.hosts.experimental_create({
-        key: nanoid(),
-        machineProviderId: "manual",
-        inputs: null,
-        wait: false,
-        signal,
-      });
+      let host = await callOp(
+        machines.create,
+        {
+          key: nanoid(),
+          machineProviderId: "manual",
+          inputs: null,
+        },
+        { signal },
+      );
       pendingHostId = host.id;
       while (host.lifecycle.phase === "creating") {
         const hostId = host.id;
-        const enrollment = await sdk.hosts.experimental_getEnrollmentCommand({
-          hostId,
-          signal,
-        });
+        const enrollment = await callOp(
+          machines.enrollmentCommand,
+          { hostId },
+          { signal },
+        );
         setCommand((previous) =>
           enrollment === null
             ? previous && { ...previous, unavailable: true }
@@ -152,7 +155,7 @@ function MachineSetup({
         );
         await new Promise((resolve) => setTimeout(resolve, 1_000));
         signal.throwIfAborted();
-        host = await sdk.hosts.get({ hostId, signal });
+        host = await callOp(machines.get, { hostId }, { signal });
       }
       pendingHostId = null;
       if (host.lifecycle.phase !== "active") {
@@ -172,7 +175,7 @@ function MachineSetup({
     return () => {
       controller.abort();
       if (pendingHostId !== null) {
-        void sdk.hosts.delete({ hostId: pendingHostId }).catch(() => {});
+        void callOp(machines.delete, { hostId: pendingHostId }).catch(() => {});
       }
     };
   }, [attempt]);

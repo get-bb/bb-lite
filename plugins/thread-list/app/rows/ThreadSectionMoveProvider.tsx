@@ -1,3 +1,4 @@
+import { callOp, threads } from "@bb/plugin/app";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useAtomValue } from "jotai";
 import { toast } from "sonner";
@@ -6,7 +7,7 @@ import {
   normalizeSidebarSectionOrder,
   type SidebarSectionDefinition,
 } from "@bb/client-core";
-import { useSdk } from "@bb/plugin/app";
+import {} from "@bb/plugin/app";
 import type { SidebarThread } from "../model/thread-tree.js";
 import { sidebarManualSectionOrderAtom } from "../preferences.js";
 
@@ -34,7 +35,6 @@ export function ThreadSectionMoveProvider({
   children: ReactNode;
   sections: readonly SidebarSectionDefinition[];
 }) {
-  const sdk = useSdk();
   const storedOrder = useAtomValue(sidebarManualSectionOrderAtom);
   const destinations = useMemo<ThreadSectionMoveDestination[]>(() => {
     const byId = new Map(
@@ -61,26 +61,25 @@ export function ThreadSectionMoveProvider({
         const threadId = thread.id;
         if (thread.pinnedAt !== null) {
           if (thread.sectionId === sectionId) {
-            void sdk.threads.unpin({ threadId }).catch(() => {
+            void callOp(threads.unpin, { threadId }).catch(() => {
               toast.error("Failed to unpin thread.");
             });
             return;
           }
-          void sdk.threads
-            .unpin({ threadId })
-            .then(() => sdk.threads.update({ threadId, sectionId }))
+          void callOp(threads.unpin, { threadId })
+            .then(() => callOp(threads.update, { threadId, sectionId }))
             .catch(() => {
               toast.error("Failed to unpin and move thread.");
             });
           return;
         }
         if (thread.sectionId === sectionId) return;
-        void sdk.threads.update({ threadId, sectionId }).catch(() => {
+        void callOp(threads.update, { threadId, sectionId }).catch(() => {
           toast.error("Failed to move thread.");
         });
       },
     }),
-    [destinations, sdk],
+    [destinations],
   );
 
   return (

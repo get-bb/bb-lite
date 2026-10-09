@@ -1,3 +1,4 @@
+import { callOp, settings } from "@bb/plugin/app";
 import {
   useMutation,
   useQueryClient,
@@ -10,7 +11,6 @@ import {
   type AppTheme,
 } from "@bb/domain";
 import type { SystemConfigResponse } from "@bb/server-contract";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { qk } from "@bb/app-kit/hooks/queries/query-keys";
 import { ANY, filterFor } from "@bb/app-kit/hooks/queries/refresh";
 
@@ -38,8 +38,8 @@ export function useUpdateGeneralSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     meta: { errorMessage: "Failed to update general settings." },
-    mutationFn: (settings: AppSettings) =>
-      sdk.system.updateGeneralSettings(settings),
+    mutationFn: (changes: AppSettings) =>
+      callOp(settings.updateGeneral, { settings: changes }),
     onSuccess: () => invalidateSystemConfig({ queryClient }),
   });
 }
@@ -50,7 +50,7 @@ export function useUpdateKeyboardSettings() {
   return useMutation({
     meta: { errorMessage: "Failed to update keyboard shortcuts." },
     mutationFn: (overrides: AppKeybindingOverrides) =>
-      sdk.system.updateKeyboardSettings(overrides),
+      callOp(settings.updateKeyboard, { overrides }),
     onMutate: async (keybindingOverrides) => {
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<SystemConfigResponse>(queryKey);
@@ -79,7 +79,8 @@ export function useUpdateAppearance() {
   const queryClient = useQueryClient();
   return useMutation({
     meta: { errorMessage: "Failed to update appearance." },
-    mutationFn: (selection: AppTheme) => sdk.theme.set(selection),
+    mutationFn: (selection: AppTheme) =>
+      callOp(settings.updateAppearance, selection),
     onSuccess: () => invalidateSystemConfig({ queryClient }),
   });
 }

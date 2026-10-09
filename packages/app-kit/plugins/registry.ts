@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import { registerIcons } from "@bb/shared-ui/icon";
 import { useSyncExternalStore } from "react";
 import {
@@ -13,6 +14,7 @@ import {
   type PluginVerbs,
   type Slot,
   type SlotEntryView,
+  type RemoteCallOptions,
   type Stop,
   type Tier,
 } from "@bb/plugin/app";
@@ -50,9 +52,13 @@ function hasLocalOwner(op: Op): boolean {
     .some((entry) => entry.op.name === op.name && entry.owner !== null);
 }
 
-export function callOp(op: Op, input: unknown): Promise<unknown> {
-  if (hasLocalOwner(op)) return kernel.call(op, input);
-  return callRemoteOp(op.name, input);
+export function callOp<O extends Op>(
+  op: O,
+  input: z.input<O["input"]>,
+  options?: RemoteCallOptions,
+): Promise<z.output<O["output"]>> {
+  if (hasLocalOwner(op)) return kernel.call(op, input, options);
+  return callRemoteOp(op, input, options) as Promise<z.output<O["output"]>>;
 }
 
 interface Running {
@@ -192,8 +198,10 @@ export function registerPluginApp(
   const scope = kernel.scope(pluginId, tier);
   const { dispose: _, ...verbs } = scope;
   const entry: Running = { scope, stops: [], starters: [] };
-  const call = (op: Op, input: unknown) =>
-    hasLocalOwner(op) ? verbs.call(op, input) : callRemoteOp(op.name, input);
+  const call = (op: Op, input: unknown, options?: RemoteCallOptions) =>
+    hasLocalOwner(op)
+      ? verbs.call(op, input, options)
+      : callRemoteOp(op, input, options);
   const bb: PluginAppApi = {
     ...verbs,
     call: call as PluginVerbs["call"],

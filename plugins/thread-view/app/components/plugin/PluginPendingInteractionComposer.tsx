@@ -1,3 +1,4 @@
+import { callOp, interactions } from "@bb/plugin/app";
 import { threadView } from "@bb/plugin/app";
 import { useOwned } from "@bb/app-kit/plugins/slots";
 import { useState } from "react";
@@ -10,7 +11,6 @@ import {
 } from "../thread/pending-interactions/PendingInteractionShell";
 import { useStopThread } from "@bb/app-kit/hooks/mutations/thread-runtime-mutations";
 import { usePluginDisplayName } from "@bb/app-kit/lib/plugin-logos";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
 import { usePluginsSettled } from "@bb/app-kit/plugins/registry";
 
@@ -62,7 +62,7 @@ export function PluginPendingInteractionComposer({
     run(() =>
       origin === "provider"
         ? stopThread.mutateAsync(threadId)
-        : sdk.threads.interactions.cancel({ interactionId, threadId }),
+        : callOp(interactions.cancel, { interactionId, threadId }),
     );
   const dismiss = (problem: string) => (
     <div className="space-y-3">
@@ -115,7 +115,7 @@ export function PluginPendingInteractionComposer({
                   }}
                   submit={(value) =>
                     run(() =>
-                      sdk.threads.interactions.respond({
+                      callOp(interactions.respond, {
                         interactionId,
                         threadId,
                         value,

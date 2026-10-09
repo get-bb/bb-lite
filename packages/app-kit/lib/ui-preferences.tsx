@@ -1,3 +1,4 @@
+import { callOp, settings } from "@bb/plugin/app";
 import { useEffect } from "react";
 import { atom, getDefaultStore, type PrimitiveAtom } from "jotai";
 import {
@@ -14,7 +15,6 @@ import {
   useUiPreferences,
 } from "../hooks/queries/system-queries";
 import { appQueryClient } from "./app-query-client";
-import { sdk } from "./sdk";
 
 const valueAtoms = new Map<UiPreferenceKey, PrimitiveAtom<unknown>>();
 const pendingWrites = new Map<UiPreferenceKey, number>();
@@ -41,8 +41,8 @@ async function write<Key extends UiPreferenceKey>(
   try {
     const current =
       getCachedUiPreferences(appQueryClient) ??
-      (await sdk.system.uiPreferences.list());
-    const { revision } = await sdk.system.uiPreferences.set({
+      (await callOp(settings.uiPreferences, {}));
+    const { revision } = await callOp(settings.updateUiPreference, {
       expectedRevision: current.preferences[key].revision,
       key,
       value,

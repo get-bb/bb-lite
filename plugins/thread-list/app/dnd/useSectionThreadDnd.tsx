@@ -1,3 +1,4 @@
+import { callOp, threads } from "@bb/plugin/app";
 import {
   createContext,
   useCallback,
@@ -27,7 +28,7 @@ import {
   type SidebarSectionDefinition,
   type SidebarSectionId,
 } from "@bb/client-core";
-import { useSidebarThreadActions, useSdk } from "@bb/plugin/app";
+import { useSidebarThreadActions } from "@bb/plugin/app";
 import type { ConsumeDragClickSuppression } from "@bb/shared-ui/hooks/use-drag-click-suppression";
 import {
   SIDEBAR_SECTION_DROP_TARGET_CLASS,
@@ -367,7 +368,6 @@ export function useSectionThreadDnd({
       topLevelSectionIds,
     ],
   );
-  const sdk = useSdk();
   const sidebarActions = useSidebarThreadActions();
   const setCollapsedSections = useSetAtom(sidebarCollapsedThreadSectionsAtom);
   const [activeThread, setActiveThread] = useState<SidebarThread | null>(null);
@@ -562,7 +562,7 @@ export function useSectionThreadDnd({
       )
         .then(() =>
           Promise.allSettled(
-            decision.updates.map((update) => sdk.threads.update(update)),
+            decision.updates.map((update) => callOp(threads.update, update)),
           ),
         )
         .then((results) => {
@@ -579,7 +579,7 @@ export function useSectionThreadDnd({
             ),
           );
         }),
-    [sdk, sidebarActions],
+    [sidebarActions],
   );
 
   const handleDragEnd = useCallback(

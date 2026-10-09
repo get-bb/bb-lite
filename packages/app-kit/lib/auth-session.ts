@@ -1,7 +1,7 @@
 import type { AuthSessionResponse } from "@bb/server-contract";
 import { qk } from "../hooks/queries/query-keys";
 import { appQueryClient } from "./app-query-client";
-import { sdk, setUnauthenticatedHandler } from "./sdk";
+import { auth, setUnauthenticatedHandler } from "./client";
 
 const SIGNED_OUT: AuthSessionResponse = { user: null };
 
@@ -20,8 +20,8 @@ export function setAuthSession(session: AuthSessionResponse): void {
 }
 
 export async function signOut(): Promise<AuthSessionResponse> {
-  await sdk.auth.logout();
-  const session = await sdk.auth.session().catch(() => SIGNED_OUT);
+  await auth.logout();
+  const session = await auth.session().catch(() => SIGNED_OUT);
   setAuthSession(session);
   return session;
 }

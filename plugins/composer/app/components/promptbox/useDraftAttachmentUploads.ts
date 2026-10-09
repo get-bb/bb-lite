@@ -1,10 +1,10 @@
+import { CallError } from "@bb/plugin/app";
 import { useState } from "react";
 import { nanoid } from "nanoid";
 import type { PromptDraftAttachment } from "@bb/client-core";
 import { useUploadPromptAttachment } from "@bb/app-kit/hooks/mutations/project-mutations";
 import { useLatestRef } from "@bb/app-kit/hooks/useLatestRef";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
-import { BbHttpError } from "@bb/app-kit/lib/sdk";
 
 export interface PendingAttachmentUpload {
   id: string;
@@ -60,7 +60,7 @@ export function useDraftAttachmentUploads(
           },
           (error: unknown) => {
             failure.files.push(upload.file.name);
-            if (error instanceof BbHttpError && failure.reason === null) {
+            if (error instanceof CallError && failure.reason === null) {
               failure.reason = getMutationErrorMessage({
                 error,
                 fallbackMessage: "Request failed",

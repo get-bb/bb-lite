@@ -1,3 +1,4 @@
+import { CallError } from "@bb/plugin/app";
 import { extractErrorMessage, toRecord } from "@bb/core-ui";
 import {
   FILE_PREVIEW_SAMPLE_BYTES,
@@ -7,13 +8,12 @@ import {
   type FilePreview,
   type FilePreviewTarget,
 } from "@bb/client-core";
-import { BbHttpError } from "@bb/sdk/browser";
 
 export function requestOptions(signal?: AbortSignal) {
   return signal ? { init: { signal } } : undefined;
 }
 
-async function httpError(response: Response): Promise<BbHttpError> {
+async function httpError(response: Response): Promise<CallError> {
   const text = await response.text().catch(() => "");
   let body: unknown;
   try {
@@ -22,7 +22,7 @@ async function httpError(response: Response): Promise<BbHttpError> {
     body = undefined;
   }
   const code = toRecord(body)?.code;
-  return new BbHttpError({
+  return new CallError({
     body,
     code: typeof code === "string" ? code : null,
     message:

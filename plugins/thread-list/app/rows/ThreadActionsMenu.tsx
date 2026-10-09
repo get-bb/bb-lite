@@ -1,3 +1,4 @@
+import { callOp, threads } from "@bb/plugin/app";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -28,7 +29,7 @@ import { COARSE_POINTER_ICON_SIZE_CLASS } from "@bb/shared-ui/coarse-pointer-siz
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { copyTextToClipboard } from "@bb/shared-ui/lib/clipboard";
 import { cn } from "@bb/shared-ui/lib/utils";
-import { useSidebarThreadActions, useSdk } from "@bb/plugin/app";
+import { useSidebarThreadActions } from "@bb/plugin/app";
 import {
   ActionMenuItem,
   ActionMenuSeparator,
@@ -60,19 +61,15 @@ interface ThreadActionsContextMenuProps extends ThreadActionsMenuBaseProps {
 }
 
 function useUnarchiveThread(): (threadId: string) => Promise<boolean> {
-  const sdk = useSdk();
-  return useCallback(
-    async (threadId: string) => {
-      try {
-        await sdk.threads.unarchive({ threadId });
-        return true;
-      } catch {
-        toast.error("Failed to unarchive thread.");
-        return false;
-      }
-    },
-    [sdk],
-  );
+  return useCallback(async (threadId: string) => {
+    try {
+      await callOp(threads.unarchive, { threadId });
+      return true;
+    } catch {
+      toast.error("Failed to unarchive thread.");
+      return false;
+    }
+  }, []);
 }
 
 function canMoveThreadToSection(

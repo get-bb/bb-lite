@@ -2,13 +2,11 @@ import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import {
   pluginCliRequestSchema,
-  pluginSettingsUpdateRequestSchema,
   pluginTokenRequestSchema,
 } from "@bb/server-contract";
 import type { Context } from "hono";
 import { contentType } from "mime-types";
 import type { z } from "zod";
-import { actorUserId } from "@bb/server-kit/auth/actor";
 import type { HostContext } from "../../host-context.js";
 import { asPlugin } from "@bb/server-kit/kernel/caller";
 import { resolveInside } from "../../plugins/manifest.js";
@@ -70,45 +68,11 @@ function keepAliveJson(result: Promise<unknown>) {
 export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
   const ctx = shared as HostContext;
   const { plugins } = ctx;
-  const requireManager = (c: RouteContext) =>
+  const requireManager = () =>
     requireOwner("Only the owner can manage plugins");
 
-  app.get("/plugins", (c) => c.json({ plugins: plugins.list() }));
-
-  app.get("/plugins/contributions", (c) => c.json(plugins.contributions()));
-
-  app.post("/plugins/reload", async (c) => {
-    requireManager(c);
-    await plugins.reload(c.req.query("id"));
-    return c.json({ ok: true, plugins: plugins.list() });
-  });
-
-  for (const action of ["enable", "disable"] as const) {
-    app.post(`/plugins/:id/${action}`, async (c) => {
-      requireManager(c);
-      const enabled = action === "enable";
-      const plugin = await plugins.setEnabled(c.req.param("id"), enabled);
-      return c.json({ ok: true, plugin });
-    });
-  }
-
-  app.get("/plugins/:id/settings", async (c) => {
-    const id = c.req.param("id");
-    const view = await plugins.settings(id, undefined, actorUserId());
-    return c.json({ ok: true, ...view });
-  });
-
-  app.put("/plugins/:id/settings", async (c) => {
-    const id = c.req.param("id");
-    const { values } = await jsonBody(c, pluginSettingsUpdateRequestSchema);
-    const personal = plugins.hasPersonalSettings(id, Object.keys(values));
-    if (!personal) requireManager(c);
-    const view = await plugins.settings(id, values, actorUserId());
-    return c.json({ ok: true, ...view });
-  });
-
   app.post("/plugins/:id/token", async (c) => {
-    requireManager(c);
+    requireManager();
     const { rotate } = await jsonBody(c, pluginTokenRequestSchema);
     const token = plugins.token(c.req.param("id"), rotate);
     return c.json({ ok: true, token });

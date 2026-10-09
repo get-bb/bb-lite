@@ -1,3 +1,4 @@
+import { updateThread } from "@bb/app-kit/lib/thread-updates";
 import { ShellRoot } from "./app/ShellRoot";
 import * as sidebar from "./app/lib/plugin-sidebar-hooks";
 import {
@@ -18,6 +19,7 @@ import {
   type ThreadAction,
   type ThreadActionContext,
   type PluginAppApi,
+  threads,
 } from "@bb/plugin/app";
 import { RouteLoadingSkeleton } from "@bb/app-kit/components/ui/route-loading-skeleton";
 import { copyToClipboardWithToast } from "@bb/app-kit/lib/clipboard";
@@ -190,6 +192,7 @@ export default function shellApp(bb: PluginAppApi): void {
   bb.add(app.parts, { plugin: "shell", parts });
   bb.add(app.root, ShellRoot);
   bb.add(shell.api, api);
+  bb.implement(threads.update, updateThread);
   for (const route of ROUTES) bb.add(shell.route, route);
   for (const item of NAV_ITEMS) bb.add(shell.navItem, item);
   for (const action of THREAD_ACTIONS) bb.add(shell.threadAction, action);

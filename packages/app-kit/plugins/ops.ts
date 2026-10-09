@@ -1,27 +1,17 @@
-interface OpReply {
-  ok?: unknown;
-  result?: unknown;
-  code?: unknown;
-  message?: unknown;
-  details?: unknown;
+import type { Live, Op, RemoteCallOptions } from "@bb/plugin/app";
+import { client } from "../lib/client";
+
+export function callRemoteOp(
+  op: Op,
+  input: unknown,
+  options?: RemoteCallOptions,
+): Promise<unknown> {
+  return client.call(op, input as never, options);
 }
 
-export async function callRemoteOp(
-  name: string,
-  input: unknown,
-): Promise<unknown> {
-  const response = await fetch(`/api/v1/ops/${encodeURIComponent(name)}`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-bb-door": "app" },
-    body: JSON.stringify(input ?? {}),
-  });
-  const body = (await response.json().catch(() => null)) as OpReply | null;
-  if (response.ok && body?.ok === true) return body.result;
-  const { message, code, details } = body ?? {};
-  const fallback = `operation "${name}" failed (HTTP ${response.status})`;
-  throw Object.assign(
-    new Error(typeof message === "string" ? message : fallback),
-    typeof code === "string" ? { code } : {},
-    details === undefined ? {} : { details },
-  );
+export async function readLive(live: Live): Promise<unknown> {
+  const path = `/api/v1/ops/${encodeURIComponent(live.name)}`;
+  const response = await client.request(path, { method: "POST", body: "{}" });
+  const body = (await response.json()) as { result?: unknown };
+  return body.result ?? null;
 }

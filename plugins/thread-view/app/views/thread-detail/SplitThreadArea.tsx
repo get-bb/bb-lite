@@ -1,3 +1,4 @@
+import { CallError } from "@bb/plugin/app";
 import { focusPaneComposer } from "bb-plugin-composer/contract";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
@@ -22,7 +23,6 @@ import {
   type ThreadRoutePathArgs,
 } from "@bb/app-kit/lib/route-paths";
 import { useIsMutating } from "@tanstack/react-query";
-import { BbHttpError } from "@bb/app-kit/lib/sdk";
 import { useThread } from "@bb/app-kit/hooks/queries/thread-queries";
 import {
   dimInactiveSplitsAtom,
@@ -922,7 +922,7 @@ function PaneStaleWatcher({
       mutation.options.meta?.lifecycleOperation === "archive_thread",
   });
   const isGone =
-    (isError && error instanceof BbHttpError && error.status === 404) ||
+    (isError && error instanceof CallError && error.status === 404) ||
     (thread !== undefined && thread.deletedAt !== null);
   const isArchived = thread !== undefined && thread.archivedAt !== null;
   const isUnarchived = thread !== undefined && thread.archivedAt === null;

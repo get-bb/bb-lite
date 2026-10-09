@@ -1,8 +1,7 @@
+import { callOp, projects } from "@bb/plugin/app";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 import type { ProjectWithThreadsResponse } from "@bb/server-contract";
-import { readProjectBranchOptions } from "../../lib/project-branch-options";
-import { sdk } from "../../lib/sdk";
 import { useDebouncedValue } from "../useDebouncedValue";
 import type { QueryOptions } from "./query-helpers";
 import { qk } from "./query-keys";
@@ -42,17 +41,17 @@ export function useProjectSourceBranches(
     queryKey: qk.projectBranches(projectId, { ...stable, query }),
     queryFn: ({ signal }) => {
       const read = fromRemote.current
-        ? sdk.projects.branches
-        : readProjectBranchOptions;
+        ? projects.branches
+        : projects.branchOptions;
       fromRemote.current = false;
-      return read({
+      const search = {
         projectId: projectId ?? "",
         hostId: hostId ?? "",
         ...(query ? { query } : {}),
         ...(selectedBranch ? { selectedBranch } : {}),
-        limit: String(limit),
-        signal,
-      });
+        limit,
+      };
+      return callOp(read, search, { signal });
     },
     enabled: (options?.enabled ?? true) && Boolean(projectId && hostId),
     staleTime: 30_000,
@@ -82,7 +81,11 @@ export function useProjectPromptHistory(
   return useQuery({
     queryKey: qk.projectPromptHistory(projectId),
     queryFn: ({ signal }) =>
-      sdk.projects.promptHistory({ projectId: projectId ?? "", signal }),
+      callOp(
+        projects.promptHistory,
+        { projectId: projectId ?? "" },
+        { signal },
+      ),
     enabled: (options?.enabled ?? true) && Boolean(projectId),
     staleTime: 10_000,
   });
@@ -104,15 +107,18 @@ export function useProjectPathSuggestions(
   return useQuery({
     queryKey: qk.projectPaths(projectId, filter),
     queryFn: ({ signal }) =>
-      sdk.projects.paths({
-        projectId: projectId ?? "",
-        query,
-        limit: String(limit),
-        includeFiles: includeFiles ? "true" : "false",
-        includeDirectories: includeDirectories ? "true" : "false",
-        signal,
-        ...route,
-      }),
+      callOp(
+        projects.paths,
+        {
+          projectId: projectId ?? "",
+          query,
+          limit,
+          includeFiles,
+          includeDirectories,
+          ...route,
+        },
+        { signal },
+      ),
     enabled: Boolean(projectId) && query.length > 0,
     retry: false,
     staleTime: 15_000,
@@ -132,12 +138,11 @@ export function useProjectCommands(
   return useQuery({
     queryKey: qk.projectCommands(projectId, { ...route, providerId }),
     queryFn: ({ signal }) =>
-      sdk.projects.commands({
-        projectId: projectId ?? "",
-        provider: providerId ?? "",
-        signal,
-        ...route,
-      }),
+      callOp(
+        projects.commands,
+        { projectId: projectId ?? "", provider: providerId ?? "", ...route },
+        { signal },
+      ),
     enabled: (options?.enabled ?? true) && Boolean(projectId && providerId),
     retry: false,
     staleTime: 0,

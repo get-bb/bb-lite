@@ -1,3 +1,5 @@
+import { CallError } from "@bb/plugin/app";
+import { callOp, threads } from "@bb/plugin/app";
 import { useCallback, useState } from "react";
 import {
   useQueryClient,
@@ -15,7 +17,6 @@ import {
 } from "@bb/client-core";
 import { threadTimelineQueryKey } from "@bb/app-kit/hooks/queries/query-keys";
 import { useThreadTimeline } from "@bb/app-kit/hooks/queries/thread-queries";
-import { BbHttpError, sdk } from "@bb/app-kit/lib/sdk";
 
 type TimelineQueryResultProp =
   keyof QueryObserverResult<ThreadTimelineResponse>;
@@ -148,9 +149,9 @@ export function useThreadTimelineController({
 
     setIsLoadingOlderTimelineRows(true);
     try {
-      const response = await sdk.threads.timeline({
+      const response = await callOp(threads.timeline, {
         beforeAnchorId: nextOlderCursor.anchorId,
-        beforeAnchorSeq: String(nextOlderCursor.anchorSeq),
+        beforeAnchorSeq: nextOlderCursor.anchorSeq,
         threadId,
       });
       const olderRows = [...response.rows];
@@ -175,7 +176,7 @@ export function useThreadTimelineController({
       });
     } catch (error) {
       if (
-        !(error instanceof BbHttpError) ||
+        !(error instanceof CallError) ||
         error.status !== 400 ||
         error.code !== "invalid_request"
       ) {

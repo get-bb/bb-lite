@@ -1,3 +1,4 @@
+import { callOp, environments } from "@bb/plugin/app";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { WorkspaceDiffTarget } from "@bb/domain";
@@ -6,7 +7,6 @@ import {
   type DiffPatchEntry,
   type EnvironmentDiffPatchResponse,
 } from "@bb/server-contract";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { extractErrorMessage } from "@bb/core-ui";
 import {
   type PatchQueryIdentity,
@@ -198,12 +198,11 @@ export function useEnvironmentDiffPatches(
       const controller = new AbortController();
       abortControllersRef.current.add(controller);
       try {
-        const response = await sdk.environments.diffPatch({
-          environmentId,
-          target,
-          paths,
-          signal: controller.signal,
-        });
+        const response = await callOp(
+          environments.diffPatch,
+          { environmentId, target, paths },
+          { signal: controller.signal },
+        );
         if (controller.signal.aborted) {
           return;
         }

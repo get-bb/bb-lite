@@ -1,5 +1,6 @@
+import { threads } from "@bb/plugin/app";
 import { createElement, useCallback, useEffect, useMemo, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type {
   BbContext,
@@ -26,18 +27,16 @@ import { useSystemProviders } from "@bb/app-kit/hooks/queries/system-queries";
 import { useRouteState } from "@bb/app-kit/hooks/useRouteState";
 import { useServerConnectionState } from "@bb/app-kit/hooks/useServerConnectionState";
 import { useAppNavigationHost } from "@bb/app-kit/lib/url-open-routing";
-import { getPluginBoundSdk } from "@bb/app-kit/lib/plugin-bound-sdk";
 import {
   getPluginPanelRoutePath,
   getProjectComposeRoutePath,
   getRootComposeRoutePath,
   getThreadRoutePath,
 } from "@bb/app-kit/lib/route-paths";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { wsManager } from "@bb/app-kit/lib/ws";
 import { requestFileOpen } from "@bb/app-kit/lib/file-open-requests";
 import { usePluginId } from "@bb/app-kit/plugins/context";
-import { callRemoteOp } from "@bb/app-kit/plugins/ops";
+import { readLive } from "@bb/app-kit/plugins/ops";
 import { appKernel, callOp } from "@bb/app-kit/plugins/registry";
 import {
   SlotMount,
@@ -55,7 +54,7 @@ function useOp<O extends Op>(
 ): OpState<never> {
   const query = useQuery({
     queryKey: [OP_QUERY_KEY, op.name, input],
-    queryFn: () => callOp(op, input),
+    queryFn: () => callOp(op, input as never),
     enabled: options.enabled ?? true,
   });
   const { data, error, status, refetch } = query;
@@ -77,7 +76,7 @@ function useOp<O extends Op>(
 
 function useCall<O extends Op>(op: O) {
   return useCallback(
-    (input: unknown) => callOp(op, input) as Promise<never>,
+    (input: unknown) => callOp(op, input as never) as Promise<never>,
     [op],
   );
 }
@@ -85,7 +84,7 @@ function useCall<O extends Op>(op: O) {
 function useLive<L extends Live>(live: L) {
   const query = useQuery({
     queryKey: [OP_QUERY_KEY, live.name],
-    queryFn: () => callRemoteOp(live.name, {}),
+    queryFn: () => readLive(live),
   });
   return query.data as never;
 }
@@ -138,12 +137,6 @@ function useProviders(): ProvidersState {
   );
 }
 
-function useSdk() {
-  const pluginId = usePluginId();
-  const queryClient = useQueryClient();
-  return getPluginBoundSdk(pluginId, queryClient);
-}
-
 function useEnvironmentProviders(): EnvironmentProvidersState {
   const { providers } = useSystemEnvironmentProviders();
   return useMemo<EnvironmentProvidersState>(
@@ -171,8 +164,7 @@ function useBbNavigate(): BbNavigate {
   return useMemo<BbNavigate>(
     () => ({
       toThread(threadId) {
-        void sdk.threads
-          .get({ threadId })
+        void callOp(threads.get, { threadId })
           .then((thread) =>
             navigate(
               getThreadRoutePath({ projectId: thread.projectId, threadId }),
@@ -212,7 +204,6 @@ export const pluginAppHost: PluginAppHost = {
   use: (slot) => appKernel().use(slot),
   useRealtimeConnectionState: useServerConnectionState,
   useSettings,
-  useSdk,
   usePluginId,
   useBbContext,
   useBbNavigate,
@@ -226,7 +217,7 @@ export const pluginAppHost: PluginAppHost = {
   useCall,
   useLive,
   useChanged,
-  callOp: (op, input) => callOp(op, input) as Promise<never>,
+  callOp,
   SlotMount,
   Icon,
   ProviderIcon,

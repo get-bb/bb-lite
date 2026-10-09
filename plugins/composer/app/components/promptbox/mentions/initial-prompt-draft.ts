@@ -1,3 +1,5 @@
+import type { ResolveThreadMentionsResponse } from "@bb/server-contract";
+import { callOp, threads } from "@bb/plugin/app";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { isRawThreadId } from "@bb/domain";
@@ -7,12 +9,14 @@ import {
   resolveSerializedPromptMentions,
   useSidebarThreadTitleMentionResources,
 } from "@bb/app-kit/components/thread/ThreadTitleMentions";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { useSidebarNavigation } from "@bb/app-kit/hooks/queries/sidebar-navigation-query";
 
 export async function resolveInitialPromptDraft(
   draft: PromptDraftState,
-  resolveMentions: typeof sdk.threads.resolveMentions,
+  resolveMentions: (
+    threadIds: string[],
+    signal: AbortSignal,
+  ) => Promise<ResolveThreadMentionsResponse>,
   signal: AbortSignal,
 ): Promise<PromptDraftState> {
   const threadIds = [
@@ -38,7 +42,7 @@ export async function resolveInitialPromptDraft(
       offset + THREAD_MENTION_RESOLVE_MAX_IDS,
     );
     try {
-      const resolutions = await resolveMentions({ threadIds: batch, signal });
+      const resolutions = await resolveMentions(batch, signal);
       for (const resolution of resolutions)
         resolvedById.set(resolution.threadId, resolution);
       for (const id of batch) if (!resolvedById.has(id)) unavailableIds.add(id);
@@ -87,7 +91,8 @@ export function useInitialPromptDraft(
     queryFn: ({ signal }) =>
       resolveInitialPromptDraft(
         draft,
-        (args) => sdk.threads.resolveMentions(args),
+        (threadIds, aborted) =>
+          callOp(threads.resolveMentions, { threadIds }, { signal: aborted }),
         signal,
       ),
     enabled: text !== null && !navigation.isPending,

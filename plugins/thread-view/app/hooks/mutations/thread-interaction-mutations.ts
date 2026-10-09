@@ -1,7 +1,7 @@
+import { callOp, interactions } from "@bb/plugin/app";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { PendingInteraction } from "@bb/domain";
 import type { ResolvePendingInteractionRequest } from "@bb/server-contract";
-import { sdk } from "@bb/app-kit/lib/sdk";
 import { isHostDisconnectedError } from "@bb/app-kit/lib/lifecycle-errors";
 import { useEnvironment } from "@bb/app-kit/hooks/queries/environment-queries";
 import { useHosts } from "@bb/app-kit/hooks/queries/host-queries";
@@ -31,7 +31,7 @@ export function useResolveThreadPendingInteraction(threadId: string) {
       threadId: string;
       interactionId: string;
       resolution: ResolvePendingInteractionRequest;
-    }): Promise<PendingInteraction> => sdk.threads.interactions.resolve(args),
+    }): Promise<PendingInteraction> => callOp(interactions.resolve, args),
     onSuccess: (interaction, { threadId }) => {
       const open =
         interaction.status === "pending" || interaction.status === "resolving";

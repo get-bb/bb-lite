@@ -1,3 +1,4 @@
+import { CallError } from "@bb/plugin/app";
 import type { ReactNode } from "react";
 import { isRunningThreadRuntimeDisplayStatus } from "@bb/client-core";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
@@ -5,7 +6,6 @@ import { Skeleton } from "@bb/shared-ui/skeleton";
 import type { PromptMentionLinkResolver } from "@bb/app-kit/components/promptbox/editor/prompt-mention-link";
 import { ConversationTimeline } from "../../ui/conversation";
 import { useThread } from "@bb/app-kit/hooks/queries/thread-queries";
-import { BbHttpError } from "@bb/app-kit/lib/sdk";
 import {
   ThreadTimelineSurface,
   type ThreadTimelineSurfaceProps,
@@ -65,8 +65,7 @@ export function ThreadTimelinePanelContent({
           backgroundOnlyIndicatorLabel !== undefined)));
   const timelineRows = resolvedTimeline.timelineRows;
   const isChildThreadMissing =
-    threadQuery.error instanceof BbHttpError &&
-    threadQuery.error.status === 404;
+    threadQuery.error instanceof CallError && threadQuery.error.status === 404;
 
   if (isChildThreadMissing) {
     return (

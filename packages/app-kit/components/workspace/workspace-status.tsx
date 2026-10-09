@@ -1,6 +1,6 @@
+import { CallError } from "@bb/plugin/app";
 import { assertNever } from "@bb/core-ui";
 import type { WorkspaceResolutionFailure, WorkspaceStatus } from "@bb/domain";
-import { BbHttpError } from "@bb/sdk/browser";
 import { describeLifecycleError } from "../../lib/lifecycle-errors";
 
 export interface ThreadGitStatusDisplay {
@@ -103,7 +103,7 @@ export function getGitStatusDisplay(
     }
 
     const isPathNotFound =
-      options?.error instanceof BbHttpError &&
+      options?.error instanceof CallError &&
       options.error.code === "path_not_found";
     if (options?.workspaceDeleted || isPathNotFound) {
       return plainDisplay("Unknown", "Workspace not found.");

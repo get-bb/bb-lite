@@ -1,3 +1,4 @@
+import { callOp, machines } from "@bb/plugin/app";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
@@ -7,7 +8,6 @@ import { appToast } from "../components/ui/app-toast";
 import { useSystemConfig } from "./queries/system-queries";
 import { rawStringLocalStorage } from "../lib/browser-storage";
 import { isLoopbackHostname } from "../lib/loopback-hostname";
-import { sdk } from "../lib/sdk";
 
 interface OpenPathRequest {
   lineNumber: number | null;
@@ -32,7 +32,7 @@ async function openOnHost(
 ): Promise<void> {
   const line = target.capabilities.openFileAtLine ? request.lineNumber : null;
   try {
-    await sdk.hosts.open({
+    await callOp(machines.open, {
       hostId,
       targetId: target.id,
       path: request.path,
@@ -58,7 +58,8 @@ export function useOpenTargets(hostId: string | null) {
     queryFn:
       openHostId === null
         ? skipToken
-        : ({ signal }) => sdk.hosts.openTargets({ hostId: openHostId, signal }),
+        : ({ signal }) =>
+            callOp(machines.openTargets, { hostId: openHostId }, { signal }),
     staleTime: 60_000,
   });
   const targets = data?.targets ?? NO_OPEN_TARGETS;

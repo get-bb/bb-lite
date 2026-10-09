@@ -1,13 +1,13 @@
+import type { EnvironmentDiffQuery } from "@bb/server-contract";
+import { callOp, environments } from "@bb/plugin/app";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { WorkspaceDiffTarget } from "@bb/domain";
-import type { EnvironmentDiffArgs } from "@bb/sdk/browser";
 import type {
   EnvironmentFilePreviewSource,
   FilePreview,
 } from "@bb/client-core";
 import { loadFilePreview } from "../../lib/api";
 import { buildEnvironmentFileContentUrl } from "../../lib/file-content-urls";
-import { sdk } from "../../lib/sdk";
 import { useEnvironmentDetailRealtimeSubscription } from "../useRealtimeSubscription";
 import { useDebouncedValue } from "../useDebouncedValue";
 import type { QueryOptions } from "./query-helpers";
@@ -26,7 +26,11 @@ export function useEnvironment(
   return useQuery({
     queryKey: qk.environmentRecord(environmentId),
     queryFn: ({ signal }) =>
-      sdk.environments.get({ environmentId: environmentId ?? "", signal }),
+      callOp(
+        environments.get,
+        { environmentId: environmentId ?? "" },
+        { signal },
+      ),
     enabled,
     staleTime: options?.staleTime,
   });
@@ -42,11 +46,11 @@ export function useEnvironmentWorkStatus(
   return useQuery({
     queryKey: qk.environmentStatus(environmentId, mergeBaseBranch),
     queryFn: ({ signal }) =>
-      sdk.environments.status({
-        environmentId: environmentId ?? "",
-        mergeBaseBranch,
-        signal,
-      }),
+      callOp(
+        environments.status,
+        { environmentId: environmentId ?? "", mergeBaseBranch },
+        { signal },
+      ),
     enabled,
     refetchOnMount: "always",
     staleTime: 0,
@@ -70,13 +74,16 @@ export function useEnvironmentMergeBaseBranches(
   return useQuery({
     queryKey: qk.environmentBranches(environmentId, { ...stable, query }),
     queryFn: ({ signal }) =>
-      sdk.environments.diffBranches({
-        environmentId,
-        ...(query ? { query } : {}),
-        ...(selectedBranch ? { selectedBranch } : {}),
-        limit: String(limit),
-        signal,
-      }),
+      callOp(
+        environments.diffBranches,
+        {
+          environmentId,
+          ...(query ? { query } : {}),
+          ...(selectedBranch ? { selectedBranch } : {}),
+          limit,
+        },
+        { signal },
+      ),
     enabled: (options?.enabled ?? true) && Boolean(environmentId),
     staleTime: 30_000,
     placeholderData: (previous, previousQuery) => {
@@ -128,14 +135,17 @@ export function useEnvironmentPathSuggestions(args: {
   return useQuery({
     queryKey: qk.environmentPaths(environmentId, filter),
     queryFn: ({ signal }) =>
-      sdk.environments.paths({
-        environmentId: environmentId ?? "",
-        query,
-        limit: String(limit),
-        includeFiles: includeFiles ? "true" : "false",
-        includeDirectories: includeDirectories ? "true" : "false",
-        signal,
-      }),
+      callOp(
+        environments.paths,
+        {
+          environmentId: environmentId ?? "",
+          query,
+          limit,
+          includeFiles,
+          includeDirectories,
+        },
+        { signal },
+      ),
     enabled: Boolean(environmentId) && query.length > 0,
     retry: false,
     staleTime: 15_000,
@@ -146,7 +156,7 @@ export function useEnvironmentPathSuggestions(args: {
 function diffArgs(
   environmentId: string,
   target: WorkspaceDiffTarget,
-): EnvironmentDiffArgs {
+): EnvironmentDiffQuery & { environmentId: string } {
   switch (target.type) {
     case "uncommitted":
       return { environmentId, target: target.type };
@@ -174,10 +184,11 @@ export function useEnvironmentDiffFiles(
     queryKey: qk.environmentDiffFiles(environmentId, target),
     queryFn: ({ signal }) => {
       if (target === undefined) throw new Error("Diff files need a target");
-      return sdk.environments.diffFiles({
-        ...diffArgs(environmentId, target),
-        signal,
-      });
+      return callOp(
+        environments.diffFiles,
+        { ...diffArgs(environmentId, target) },
+        { signal },
+      );
     },
     enabled,
     refetchOnMount: "always",

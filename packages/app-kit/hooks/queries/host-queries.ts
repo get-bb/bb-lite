@@ -1,6 +1,6 @@
+import { callOp, machines } from "@bb/plugin/app";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import type { Host } from "@bb/domain";
-import { sdk } from "../../lib/sdk";
 import { useSystemConfig } from "./system-queries";
 import { isHostUsable } from "../../lib/machine-access";
 import type { QueryOptions } from "./query-helpers";
@@ -12,7 +12,8 @@ export function useHosts(
   const includeCreating = options?.includeCreating ?? false;
   return useQuery({
     queryKey: qk.hosts(includeCreating),
-    queryFn: ({ signal }) => sdk.hosts.list({ signal, includeCreating }),
+    queryFn: ({ signal }) =>
+      callOp(machines.list, { includeCreating }, { signal }),
     enabled: options?.enabled ?? true,
     staleTime: 60_000,
   });
@@ -54,7 +55,11 @@ export function useHostDirectory(hostId: string | null, path: string | null) {
     queryKey: qk.hostDirectory(hostId, path),
     queryFn: hostId
       ? ({ signal }) =>
-          sdk.hosts.directory({ hostId, ...(path ? { path } : {}), signal })
+          callOp(
+            machines.directory,
+            { hostId, ...(path ? { path } : {}) },
+            { signal },
+          )
       : skipToken,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
@@ -73,8 +78,11 @@ export function useHostPathExistence(
     queryFn:
       hostId !== null && sortedPaths.length > 0
         ? async ({ signal }) => {
-            const request = { hostId, paths: sortedPaths, signal };
-            return (await sdk.hosts.pathsExist(request)).existence;
+            const request = { hostId, paths: sortedPaths };
+            const found = await callOp(machines.pathsExist, request, {
+              signal,
+            });
+            return found.existence;
           }
         : skipToken,
     staleTime: 10_000,

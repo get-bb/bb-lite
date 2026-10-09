@@ -1,3 +1,4 @@
+import { callOp, terminals } from "@bb/plugin/app";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CloseTerminalRequest,
@@ -6,7 +7,6 @@ import type {
   TerminalSession,
   UpdateTerminalRequest,
 } from "@bb/server-contract";
-import { sdk } from "../../lib/sdk";
 import {
   applyTerminalSessionClose,
   applyTerminalSessionUpsert,
@@ -24,6 +24,15 @@ interface CloseTerminalMutationRequest {
   terminalId: string;
 }
 
+function terminalListQuery(scope: TerminalQueryScope) {
+  if (scope.kind === "thread") return { threadId: scope.threadId };
+  if (scope.kind === "environment") {
+    return { environmentId: scope.environmentId };
+  }
+  const { hostId, cwd } = scope;
+  return { hostId, ...(cwd === undefined ? {} : { cwd }) };
+}
+
 export function useTerminals(
   scope: TerminalQueryScope | null | undefined,
   options?: QueryOptions,
@@ -33,14 +42,17 @@ export function useTerminals(
       scope ?? { kind: "host_path", hostId: "__disabled__" },
     ),
     queryFn: ({ signal }) =>
-      sdk.terminals.list({
-        scope: requireEnabledQueryArg({
-          value: scope,
-          hookName: "useTerminals",
-          argName: "terminal scope",
-        }),
-        signal,
-      }),
+      callOp(
+        terminals.list,
+        terminalListQuery(
+          requireEnabledQueryArg({
+            value: scope,
+            hookName: "useTerminals",
+            argName: "terminal scope",
+          }),
+        ),
+        { signal },
+      ),
     enabled:
       (options?.enabled ?? true) && scope !== null && scope !== undefined,
     ...REALTIME_OWNED_NO_FOCUS_QUERY_POLICY,
@@ -56,7 +68,7 @@ export function useCreateTerminal() {
       lifecycleOperation: "open_terminal",
     },
     mutationFn: ({ target, ...request }: CreateTerminalRequest) =>
-      sdk.terminals.create({ ...request, scope: target }),
+      callOp(terminals.create, { ...request, target }),
     onSuccess: (session: TerminalSession) => {
       applyTerminalSessionUpsert({ queryClient, session });
     },
@@ -71,7 +83,7 @@ export function useRenameTerminal() {
       errorMessage: "Failed to rename terminal.",
     },
     mutationFn: ({ terminalId, ...request }: RenameTerminalMutationRequest) =>
-      sdk.terminals.rename({ terminalId, ...request }),
+      callOp(terminals.update, { terminalId, ...request }),
     onSuccess: (session: TerminalSession) => {
       applyTerminalSessionUpsert({ queryClient, session });
     },
@@ -86,7 +98,7 @@ export function useCloseTerminal() {
       errorMessage: "Failed to close terminal.",
     },
     mutationFn: ({ mode, terminalId }: CloseTerminalMutationRequest) =>
-      sdk.terminals.close({ mode, terminalId }),
+      callOp(terminals.close, { mode, terminalId, reason: "user" }),
     onSuccess: (session: TerminalSession, variables) => {
       applyTerminalSessionClose({
         queryClient,

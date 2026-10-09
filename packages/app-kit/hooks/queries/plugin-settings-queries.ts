@@ -1,3 +1,4 @@
+import { callOp, plugins } from "@bb/plugin/app";
 import type {
   InstalledPlugin,
   PluginSettingDescriptor,
@@ -9,7 +10,6 @@ import {
   useQuery,
   type QueryClient,
 } from "@tanstack/react-query";
-import { sdk } from "../../lib/sdk";
 import { qk } from "./query-keys";
 
 export interface PluginListItem {
@@ -54,14 +54,14 @@ export async function updatePluginSettings(
   values: Record<string, unknown>,
 ): Promise<PluginSettingsView> {
   const request = pluginSettingsUpdateRequestSchema.parse({ values });
-  return sdk.plugins.updateSettings({ pluginId, values: request.values });
+  return callOp(plugins.updateSettings, { pluginId, values: request.values });
 }
 
 export async function setPluginEnabled(
   pluginId: string,
   enabled: boolean,
 ): Promise<void> {
-  await (enabled ? sdk.plugins.enable : sdk.plugins.disable)({ pluginId });
+  await callOp(enabled ? plugins.enable : plugins.disable, { pluginId });
 }
 
 export function applyPluginSettingsView(args: {
@@ -82,7 +82,8 @@ export function invalidatePluginList(args: {
 export function pluginListQueryOptions(args: { enabled: boolean }) {
   return queryOptions({
     queryKey: qk.pluginList(),
-    queryFn: async ({ signal }) => (await sdk.plugins.list({ signal })).plugins,
+    queryFn: async ({ signal }) =>
+      (await callOp(plugins.list, {}, { signal })).plugins,
     enabled: args.enabled,
     staleTime: 30_000,
   });
@@ -102,7 +103,7 @@ export function usePluginSettingsView(
   return useQuery({
     queryKey: qk.pluginSettings(pluginId),
     queryFn: (): Promise<PluginSettingsView | null> =>
-      sdk.plugins.getSettings({ pluginId }).catch(() => null),
+      callOp(plugins.settings, { pluginId }).catch(() => null),
     enabled: options.enabled,
     staleTime: 30_000,
   });

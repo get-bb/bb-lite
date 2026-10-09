@@ -1,10 +1,10 @@
+import { callOp, environments } from "@bb/plugin/app";
 import {
   useMutation,
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
 import type { EnvironmentActionResponse } from "@bb/server-contract";
-import { sdk } from "../../lib/sdk";
 import type { RequestEnvironmentActionMutationRequest } from "./mutation-request-types";
 import { bumpDiffPatchEvictionGeneration } from "../cache-owners/environment-diff-patch-cache-owner";
 import { environmentDiffPatchQueryKeyPrefix, qk } from "../queries/query-keys";
@@ -28,7 +28,7 @@ export function useRequestEnvironmentAction() {
     mutationFn: ({
       id,
     }: RequestEnvironmentActionMutationRequest): Promise<EnvironmentActionResponse> =>
-      sdk.environments.commit({ environmentId: id }),
+      callOp(environments.runAction, { environmentId: id, action: "commit" }),
     onSuccess: (_response, { id }) => refreshEnvironment(client, id),
   });
 }
@@ -41,7 +41,7 @@ export function useUpdateEnvironment() {
       showErrorToast: false,
     },
     mutationFn: (request: { id: string; mergeBaseBranch: string | null }) =>
-      sdk.environments.update({
+      callOp(environments.update, {
         environmentId: request.id,
         mergeBaseBranch: request.mergeBaseBranch,
       }),

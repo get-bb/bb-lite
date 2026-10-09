@@ -1,3 +1,5 @@
+import { client as remote } from "../../lib/client";
+import { callOp, threads } from "@bb/plugin/app";
 import {
   useMutation,
   useQueryClient,
@@ -9,7 +11,6 @@ import type {
   ThreadResponse,
   UpdateThreadRequest,
 } from "@bb/server-contract";
-import { sdk } from "../../lib/sdk";
 import type { LifecycleErrorOperation } from "../../lib/lifecycle-errors";
 import { qk } from "../queries/query-keys";
 import {
@@ -136,7 +137,7 @@ export function useUpdateThread(options?: {
       return () => patch;
     },
     mutationFn: ({ id, ...request }): Promise<ThreadResponse> =>
-      sdk.threads.update({ threadId: id, ...request }),
+      remote.call(threads.update, { threadId: id, ...request }),
   });
 }
 
@@ -148,7 +149,7 @@ export function usePinThread() {
       const pinned = { pinnedAt: Date.now(), pinSortKey: null };
       return () => pinned;
     },
-    mutationFn: ({ id }) => sdk.threads.pin({ threadId: id }),
+    mutationFn: ({ id }) => callOp(threads.pin, { threadId: id }),
   });
 }
 
@@ -157,7 +158,7 @@ export function useUnpinThread() {
     errorMessage: "Failed to unpin thread.",
     threadId: ({ id }: ThreadMutationRequest) => id,
     patch: () => () => UNPINNED,
-    mutationFn: ({ id }) => sdk.threads.unpin({ threadId: id }),
+    mutationFn: ({ id }) => callOp(threads.unpin, { threadId: id }),
   });
 }
 
@@ -172,8 +173,8 @@ export function useMoveThreadToSection() {
       ({ sectionId }) =>
       () => ({ ...UNPINNED, sectionId }),
     mutationFn: async ({ id, sectionId }) => {
-      await sdk.threads.unpin({ threadId: id });
-      return sdk.threads.update({ sectionId, threadId: id });
+      await callOp(threads.unpin, { threadId: id });
+      return remote.call(threads.update, { sectionId, threadId: id });
     },
   });
   return ({
@@ -203,7 +204,7 @@ export function useMarkThreadRead() {
     meta: { showErrorToast: false },
     threadId: ({ threadId }: ThreadReadMutationInput) => threadId,
     patch: () => readStatePatch(true),
-    mutationFn: (input) => sdk.threads.markRead(input),
+    mutationFn: (input) => callOp(threads.markRead, input),
   });
 }
 
@@ -213,7 +214,7 @@ export function useMarkThreadUnread() {
     meta: { showErrorToast: false },
     threadId: ({ threadId }: ThreadReadMutationInput) => threadId,
     patch: () => readStatePatch(false),
-    mutationFn: (input) => sdk.threads.markUnread(input),
+    mutationFn: (input) => callOp(threads.markUnread, input),
   });
 }
 
@@ -243,14 +244,14 @@ export function useArchiveThreadAndChildren() {
       childThreadsConfirmed: boolean;
     }): Promise<ThreadArchiveAllResponse> => {
       if (!childThreadsConfirmed) {
-        const summary = await sdk.threads.childSummary({ threadId: id });
+        const summary = await callOp(threads.childSummary, { threadId: id });
         if (summary.unarchivedDescendantCount > 0) {
           throw new ArchiveThreadConfirmationRequired(
             summary.unarchivedDescendantCount,
           );
         }
       }
-      return sdk.threads.archiveAll({ threadId: id });
+      return callOp(threads.archive, { threadId: id });
     },
     onMutate: async ({ id }) => {
       const family = cachedThreads(client).filter(
@@ -289,7 +290,7 @@ export function useUnarchiveThread() {
     mutationKey: ["unarchive-thread"],
     meta: { errorMessage: "Failed to unarchive thread." },
     mutationFn: async ({ id }: ThreadMutationRequest) => {
-      await sdk.threads.unarchive({ threadId: id });
+      await callOp(threads.unarchive, { threadId: id });
     },
     onMutate: async ({ id }) => {
       const snapshot = await snapshotThreadCaches(client, [id]);
@@ -331,7 +332,7 @@ export function useDeleteThread() {
       childThreadsConfirmed,
       id,
     }: ThreadMutationRequest & { childThreadsConfirmed: boolean }) => {
-      await sdk.threads.delete({ childThreadsConfirmed, threadId: id });
+      await callOp(threads.delete, { childThreadsConfirmed, threadId: id });
     },
     onSuccess: (_data, { id }) => {
       dropCachedThread(client, id);

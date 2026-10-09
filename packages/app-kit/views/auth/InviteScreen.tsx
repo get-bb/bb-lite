@@ -1,10 +1,10 @@
+import { auth } from "../../lib/client";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { AuthIdentity, InvitePreviewResponse } from "@bb/server-contract";
 import { Button } from "@bb/shared-ui/button";
 import { asHttpError } from "../../lib/http-error";
 import { getMutationErrorMessage } from "../../lib/mutation-errors";
-import { sdk } from "../../lib/sdk";
 import {
   AuthCard,
   AuthError,
@@ -45,7 +45,7 @@ function IdentityInvite({
   const completeSignIn = useCompleteSignIn();
   const accept = useMutation({
     meta: { showErrorToast: false },
-    mutationFn: () => sdk.auth.acceptInvite({ token }),
+    mutationFn: () => auth.acceptInvite({ token }),
     onSuccess: completeSignIn,
   });
   const who = identity.name ?? identity.email ?? "your account";
@@ -88,7 +88,7 @@ function InviteForm({
   const accept = useMutation({
     meta: { showErrorToast: false },
     mutationFn: () =>
-      sdk.auth.acceptInvite({
+      auth.acceptInvite({
         token,
         name: name.trim(),
         email: email.trim(),
@@ -168,7 +168,7 @@ export function InviteScreen({
 }) {
   const preview = useQuery({
     queryKey: ["auth-invite-preview", token],
-    queryFn: () => sdk.auth.invite({ token }),
+    queryFn: () => auth.invite(token),
     retry: false,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
