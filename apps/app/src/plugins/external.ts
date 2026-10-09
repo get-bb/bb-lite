@@ -75,6 +75,17 @@ const HOST_LOADERS: Record<
   "react-router-dom": () => import("react-router-dom"),
 };
 
+const ZOD_LOADERS: Record<
+  (typeof pluginApp.PLUGIN_ZOD_MODULES)[number],
+  Loader
+> = {
+  zod: () => import("zod"),
+  "zod/mini": () => import("zod/mini"),
+  "zod/v4": () => import("zod/v4"),
+  "zod/v4/core": () => import("zod/v4/core"),
+  "zod/v4/mini": () => import("zod/v4/mini"),
+};
+
 const APP_KIT_ROOT = "../../../../packages/app-kit";
 const APP_KIT_PREFIX = "@bb/app-kit/";
 const APP_KIT_SUFFIXES = [".ts", ".tsx", "/index.ts", "/index.tsx"];
@@ -93,7 +104,10 @@ function appKitLoader(specifier: string): Loader | undefined {
 }
 
 function hostLoader(specifier: string): Loader | undefined {
-  const named: Record<string, Loader | undefined> = HOST_LOADERS;
+  const named: Record<string, Loader | undefined> = {
+    ...HOST_LOADERS,
+    ...ZOD_LOADERS,
+  };
   const prefix = "@bb/shared-ui/";
   if (specifier.startsWith(APP_KIT_PREFIX)) return appKitLoader(specifier);
   if (!specifier.startsWith(prefix)) return named[specifier];

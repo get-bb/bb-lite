@@ -27,6 +27,14 @@ export const PLUGIN_HOST_MODULES = [
   "react-router-dom",
 ] as const;
 
+export const PLUGIN_ZOD_MODULES = [
+  "zod",
+  "zod/mini",
+  "zod/v4",
+  "zod/v4/core",
+  "zod/v4/mini",
+] as const;
+
 export const PLUGIN_HOST_MODULE_PREFIXES = [
   "@bb/shared-ui/",
   "@bb/app-kit/",

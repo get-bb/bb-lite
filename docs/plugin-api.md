@@ -812,6 +812,12 @@ core server plugins and the core app plugins (`shell`, `thread-view`, `composer`
 - A fork's app part may import what the in-repo plugins import: `@bb/shared-ui/*`, `@bb/app-kit/*`,
   `@bb/client-core`, `@bb/core-ui`, `@tanstack/react-query`, `jotai` and `react-router-dom` resolve
   to the app's own copies, loaded on demand.
+- `zod` and its subpaths `zod/v4`, `zod/v4/core`, `zod/mini` and `zod/v4/mini` resolve to the host's
+  zod in an external app part and server part (a runner part bundles its own), so zod is not bundled
+  again (an app part with a zod contract is a few KB, not about 760 KB) and `instanceof` checks agree
+  with the host. A plugin whose own `node_modules` holds a zod the host's version does not satisfy as
+  `^<its version>` (another major, or a newer minor) bundles that copy instead. Other subpaths
+  (`zod/v3`, locales) are bundled.
 - Tailwind classes in an external app part work. Classes the app does not already ship are compiled
   by the server into one utilities sheet for the app and every external plugin together, so the
   order of responsive and state variants is the same as in a single build. A plugin's own imported

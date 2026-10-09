@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { PLUGIN_ZOD_MODULES } from "@bb/plugin";
 import { profiles } from "@bb/profile-default/profiles";
 import { corePlugins, profilePlugins } from "@bb/profile-default/server";
 import { expect, it } from "vitest";
@@ -91,6 +92,6 @@ it("shares every module of the server kit with forked plugins", () => {
     .filter((file) => file.endsWith(".ts"))
     .map((file) => `@bb/server-kit/${file.slice(0, -3).replaceAll(sep, "/")}`);
   const shared = Object.keys(SERVER_RUNTIME_MODULES);
-  const host = ["@bb/plugin", "@bb/runner", "zod"];
+  const host = ["@bb/plugin", "@bb/runner", ...PLUGIN_ZOD_MODULES];
   expect(shared.sort()).toEqual([...host, ...modules].sort());
 });

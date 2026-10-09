@@ -50,6 +50,10 @@ import * as threadsSerial from "@bb/server-kit/threads/serial";
 import * as threadsThreadDisplay from "@bb/server-kit/threads/thread-display";
 import * as wsHub from "@bb/server-kit/ws/hub";
 import * as zod from "zod";
+import * as zodMini from "zod/mini";
+import * as zodV4 from "zod/v4";
+import * as zodV4Core from "zod/v4/core";
+import * as zodV4Mini from "zod/v4/mini";
 
 export const SERVER_RUNTIME_GLOBAL = "__bbServerRuntime";
 
@@ -106,4 +110,8 @@ export const SERVER_RUNTIME_MODULES: Record<string, object> = {
   "@bb/server-kit/threads/thread-display": threadsThreadDisplay,
   "@bb/server-kit/ws/hub": wsHub,
   zod,
+  "zod/mini": zodMini,
+  "zod/v4": zodV4,
+  "zod/v4/core": zodV4Core,
+  "zod/v4/mini": zodV4Mini,
 };

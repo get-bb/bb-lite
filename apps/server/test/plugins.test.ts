@@ -8,11 +8,12 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 import {
   API_VERSION,
   contract,
+  PLUGIN_RUNTIME_GLOBAL,
   event,
   files,
   live,
@@ -293,6 +294,7 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
       "react/jsx-runtime": { jsx },
       clsx: { default: clsx, clsx },
       "@bb/plugin/app": { contract, op, shell: { navPanel }, callOp },
+      zod: { z },
     },
   };
   vm.runInNewContext(code, sandbox);
@@ -982,3 +984,72 @@ it("shares the host's SDK and zod with a server entry", async () => {
   const [file = ""] = readdirSync(cacheDir);
   expect(statSync(join(cacheDir, file)).size).toBeLessThan(10_000);
 });
+
+function fakeZod(directory: string, version: string) {
+  const root = join(directory, "node_modules", "zod");
+  mkdirSync(root, { recursive: true });
+  const exports = { ".": "./index.js", "./v4": "./index.js" };
+  const manifest = { name: "zod", version, type: "module", exports };
+  writeFileSync(join(root, "package.json"), JSON.stringify(manifest));
+  const source = `export const z = { copy: "own zod ${version}" };`;
+  writeFileSync(join(root, "index.js"), source);
+}
+
+const ZOD_APP = [
+  'import { z } from "zod";',
+  'import * as core from "zod/v4/core";',
+  "const note = z.object({ title: z.string().min(1) });",
+  "export const valid = (value: unknown) => note.safeParse(value).success;",
+  "export const fromCore = note instanceof core.$ZodType;",
+].join("\n");
+
+it("shares the host's zod and its subpaths with an app part", async () => {
+  const directory = scratch();
+  writeFileSync(join(directory, "app.ts"), ZOD_APP);
+  const { js, shared } = await bundleApp(join(directory, "app.ts"), directory);
+  expect(shared).toEqual(["zod", "zod/v4/core"]);
+  expect(js).not.toContain("$constructor(");
+  expect(js.length).toBeLessThan(5_000);
+  const file = join(directory, "app.mjs");
+  writeFileSync(file, js);
+  const runtime = {
+    zod: await import("zod"),
+    "zod/v4/core": await import("zod/v4/core"),
+  };
+  Object.assign(globalThis, { [PLUGIN_RUNTIME_GLOBAL]: runtime });
+  const app = (await import(pathToFileURL(file).href)) as {
+    valid(value: unknown): boolean;
+    fromCore: boolean;
+  };
+  expect(app.valid({ title: "Groceries" })).toBe(true);
+  expect(app.valid({ title: "" })).toBe(false);
+  expect(app.fromCore).toBe(true);
+});
+
+it("shares a plugin's own zod of the host's major version", async () => {
+  const directory = scratch();
+  fakeZod(directory, "4.0.0");
+  writeFileSync(join(directory, "app.ts"), 'export { z } from "zod";');
+  const { js, shared } = await bundleApp(join(directory, "app.ts"), directory);
+  expect(shared).toEqual(["zod"]);
+  expect(js).not.toContain("own zod");
+});
+
+it("bundles a plugin's own zod of another major version", async () => {
+  const directory = scratch();
+  fakeZod(directory, "3.25.76");
+  writeFileSync(join(directory, "app.ts"), 'export { z } from "zod/v4";');
+  writeFileSync(join(directory, "server.ts"), ZOD_COPY_SERVER);
+  const { js, shared } = await bundleApp(join(directory, "app.ts"), directory);
+  expect(shared).toEqual([]);
+  expect(js).toContain("own zod 3.25.76");
+  const cacheDir = join(directory, ".cache");
+  const entry = await importServerEntry(join(directory, "server.ts"), cacheDir);
+  const server = entry as unknown as () => unknown;
+  expect(server()).toEqual({ copy: "own zod 3.25.76" });
+});
+
+const ZOD_COPY_SERVER = [
+  'import { z } from "zod";',
+  "export default () => z;",
+].join("\n");

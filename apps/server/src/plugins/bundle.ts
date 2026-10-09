@@ -7,6 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   isHostModule,
   PLUGIN_RUNTIME_GLOBAL,
+  PLUGIN_ZOD_MODULES,
+  satisfies,
   type PluginServerEntry,
 } from "@bb/plugin";
 import {
@@ -14,7 +16,13 @@ import {
   RUNNER_SHARED_MODULES,
   type RunnerPartBundle,
 } from "@bb/runner";
-import { build, type BuildOptions, type Loader, type Plugin } from "esbuild";
+import {
+  build,
+  type BuildOptions,
+  type Loader,
+  type Plugin,
+  type PluginBuild,
+} from "esbuild";
 import { SERVER_RUNTIME_GLOBAL, SERVER_RUNTIME_MODULES } from "./runtime.js";
 
 export interface AppBundle {
@@ -64,6 +72,53 @@ const hostNativeModules: Plugin = {
   },
 };
 
+const ZOD_LOOKUP = "bb-zod-lookup";
+const ZOD_SPECIFIER = /^zod(?:\/.*)?$/;
+const HOST_ZOD = packageRoot(hostRequire.resolve("zod"), "zod");
+const HOST_ZOD_VERSION = versionAt(HOST_ZOD);
+
+function packageRoot(file: string, name: string): string {
+  const marker = `${sep}node_modules${sep}${name}${sep}`;
+  const at = file.lastIndexOf(marker);
+  return at < 0 ? "" : file.slice(0, at + marker.length);
+}
+
+function versionAt(root: string): string | null {
+  try {
+    const manifest: unknown = hostRequire(join(root, "package.json"));
+    const { version } = manifest as { version?: unknown };
+    return typeof version === "string" ? version : null;
+  } catch {
+    return null;
+  }
+}
+
+function sharesHostZod(root: string): boolean {
+  if (root === "" || HOST_ZOD_VERSION === null) return false;
+  if (root === HOST_ZOD) return true;
+  const own = versionAt(root);
+  return own !== null && satisfies(HOST_ZOD_VERSION, `^${own}`);
+}
+
+function hostZod(esbuild: PluginBuild, namespace: string, used?: Set<string>) {
+  const shared: readonly string[] = PLUGIN_ZOD_MODULES;
+  esbuild.onResolve({ filter: ZOD_SPECIFIER }, async (args) => {
+    if (args.pluginData === ZOD_LOOKUP || !shared.includes(args.path)) {
+      return null;
+    }
+    const found = await esbuild.resolve(args.path, {
+      kind: args.kind,
+      resolveDir: args.resolveDir,
+      importer: args.importer,
+      pluginData: ZOD_LOOKUP,
+    });
+    const own = found.errors.length > 0 ? "" : found.path;
+    if (!sharesHostZod(packageRoot(own, "zod"))) return null;
+    used?.add(args.path);
+    return { path: args.path, namespace };
+  });
+}
+
 function sharedModuleSource(specifier: string) {
   return [
     `const shared = globalThis.${PLUGIN_RUNTIME_GLOBAL}[${JSON.stringify(specifier)}];`,
@@ -81,6 +136,7 @@ function hostModules(used: Set<string>): Plugin {
         used.add(APP_PLUGIN_MODULE);
         return { path: APP_PLUGIN_MODULE, namespace: SHARED_NAMESPACE };
       });
+      hostZod(esbuild, SHARED_NAMESPACE, used);
       esbuild.onResolve({ filter: /^[^./]/ }, ({ path }) => {
         if (!isHostModule(path)) return null;
         used.add(path);
@@ -224,29 +280,10 @@ const ownLocation: Plugin = {
 
 const SERVER_NAMESPACE = "bb-server-shared";
 
-const HOST_ZOD = packageRoot(hostRequire.resolve("zod"), "zod");
-
-function packageRoot(file: string, name: string): string {
-  const marker = `${sep}node_modules${sep}${name}${sep}`;
-  return file.slice(0, file.lastIndexOf(marker) + marker.length);
-}
-
 const hostServerModules: Plugin = {
   name: "bb-host-server-modules",
   setup(esbuild) {
-    esbuild.onResolve({ filter: /^zod$/ }, async (args) => {
-      if (args.pluginData === SERVER_NAMESPACE) return null;
-      const found = await esbuild.resolve(args.path, {
-        kind: args.kind,
-        resolveDir: args.resolveDir,
-        importer: args.importer,
-        pluginData: SERVER_NAMESPACE,
-      });
-      const own = found.errors.length > 0 ? "" : found.path;
-      return packageRoot(own, "zod") === HOST_ZOD
-        ? { path: args.path, namespace: SERVER_NAMESPACE }
-        : null;
-    });
+    hostZod(esbuild, SERVER_NAMESPACE);
     esbuild.onResolve({ filter: /^@bb\// }, ({ path }) =>
       path in SERVER_RUNTIME_MODULES
         ? { path, namespace: SERVER_NAMESPACE }
