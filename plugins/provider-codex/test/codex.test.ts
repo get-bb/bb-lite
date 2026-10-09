@@ -71,4 +71,13 @@ describe("codex checkpoint fork", () => {
     expect(await until(closed)).toMatchObject({ providerCheckpointId: "t9" });
     await session.close();
   });
+
+  it("refuses to fork on a Codex too old to cut at a turn", async () => {
+    const fake = createCodexFake();
+    const checkpoint = { providerThreadId: "src", checkpointId: "turn-2" };
+    const opening = fake.open({ forkFrom: checkpoint });
+    const refused = expect(opening).rejects.toThrow("0.143.0 or newer");
+    await fake.reply("initialize", { userAgent: "codex_cli_rs/0.142.9 (x)" });
+    await refused;
+  });
 });

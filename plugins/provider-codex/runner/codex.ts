@@ -113,7 +113,17 @@ class CodexSession implements ProviderSession {
   async start(options: ExecutionOptions) {
     const { spec, host, rpc } = this;
     try {
-      await rpc.request("initialize", INITIALIZE);
+      const greeting = await rpc.request("initialize", INITIALIZE);
+      const version = versionOf(greeting);
+      const forking = spec.providerThreadId === null && spec.forkFrom;
+      if (forking && version !== null && older(version, FORK_MINIMUM)) {
+        const found = version.join(".");
+        const wanted = FORK_MINIMUM.join(".");
+        throw new RunnerError(
+          "failed",
+          `Codex ${wanted} or newer is needed to continue from an earlier point in a conversation; this machine has ${found}. Update Codex.`,
+        );
+      }
       const extraRoots = spec.skillDirs;
       if (extraRoots.length > 0) {
         await rpc.request("skills/extraRoots/set", { extraRoots });
@@ -327,6 +337,21 @@ async function findExecutable(command: string, path: string) {
     if (await runnable.catch(() => false)) return file;
   }
   return null;
+}
+
+const FORK_MINIMUM = [0, 143, 0];
+
+function versionOf(greeting: unknown): number[] | null {
+  const agent = z.object({ userAgent: z.string() }).safeParse(greeting);
+  const found = agent.success
+    ? /(\d+)\.(\d+)\.(\d+)/u.exec(agent.data.userAgent)
+    : null;
+  return found === null ? null : found.slice(1).map(Number);
+}
+
+function older(version: number[], minimum: number[]): boolean {
+  const index = version.findIndex((part, at) => part !== minimum[at]);
+  return index !== -1 && (version[index] ?? 0) < (minimum[index] ?? 0);
 }
 
 export function createCodexAdapter(
