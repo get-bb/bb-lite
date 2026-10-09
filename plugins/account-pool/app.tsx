@@ -33,6 +33,7 @@ import {
   type PoolProvider,
   type PoolStatus,
 } from "./src/contract.js";
+import { parseSwitchThreshold } from "./src/threshold.js";
 
 type DialogState =
   | { kind: "account"; id: string }
@@ -317,6 +318,7 @@ function AccountPoolSettings() {
   const [connected, setConnected] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [threshold, setThreshold] = useState("");
+  const [thresholdError, setThresholdError] = useState<string | null>(null);
   const fail = (failure: unknown) =>
     setError(failure instanceof Error ? failure.message : String(failure));
   const refresh = useCallback(async () => {
@@ -360,9 +362,12 @@ function AccountPoolSettings() {
     setLogin(null);
   };
   const saveThreshold = () => {
-    const switchThreshold = Number(threshold);
-    if (switchThreshold === limit) return;
-    void run(() => callOp(pool.configSet, { switchThreshold }));
+    const parsed = parseSwitchThreshold(threshold);
+    if ("error" in parsed) return setThresholdError(parsed.error);
+    setThresholdError(null);
+    if (parsed.value === limit) return;
+    const input = { switchThreshold: parsed.value };
+    void run(() => callOp(pool.configSet, input));
   };
   const limit = status?.config.switchThreshold ?? 0.98;
   const accounts = status?.accounts ?? [];
@@ -470,6 +475,11 @@ function AccountPoolSettings() {
           <div className="mt-0.5 text-xs text-muted-foreground">
             Stop selecting an account at this quota fraction.
           </div>
+          {thresholdError === null ? null : (
+            <div role="alert" className="mt-1 text-xs text-destructive-text">
+              {thresholdError}
+            </div>
+          )}
         </div>
         <Input
           type="number"
@@ -478,10 +488,14 @@ function AccountPoolSettings() {
           step="0.01"
           className="w-28 shrink-0"
           aria-label="Quota switch threshold"
+          aria-invalid={thresholdError === null ? undefined : true}
           disabled={status === null || pending}
           value={threshold}
           onChange={(event) => setThreshold(event.target.value)}
           onBlur={saveThreshold}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
         />
       </div>
       <Dialog open={dialog !== null} onOpenChange={closeDialog}>
