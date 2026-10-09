@@ -168,19 +168,21 @@ it("builds the image and runs, execs in and stops a debug sandbox", async () => 
   const { dockerfile } = await scope.call(modal.image, {});
   expect(images).toEqual([{ appName: "bb-sandboxes", dockerfile }]);
   writeFileSync(join(home, "Dockerfile"), "FROM broken:1\nRUN true\n");
-  await server.send(`/plugins/${PLUGIN}/cli`, {
+  const set = await server.send(`/plugins/${PLUGIN}/cli`, {
     argv: ["image", "set", "--file", "Dockerfile"],
     cwd: home,
   });
+  expect(await set.json()).toMatchObject({ exitCode: 0 });
   await expect(scope.call(modal.createImage, {})).rejects.toThrow(
     "Step 1/1 : RUN true\nbuild failed",
   );
   expect(images.at(-1)?.dockerfile).toBe("FROM broken:1\nRUN true\n");
   writeFileSync(join(home, "Dockerfile"), dockerfile);
-  await server.send(`/plugins/${PLUGIN}/cli`, {
+  const reset = await server.send(`/plugins/${PLUGIN}/cli`, {
     argv: ["image", "set", "--file", "Dockerfile"],
     cwd: home,
   });
+  expect(await reset.json()).toMatchObject({ exitCode: 0 });
   const run = await scope.call(modal.createSandbox, {});
   expect(run).toMatchObject({ sandboxId: "sb-1", imageId: "im-standard" });
   expect(created[0]?.tags).toMatchObject({ bbDebug: "true" });
