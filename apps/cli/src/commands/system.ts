@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
@@ -106,9 +107,54 @@ async function hostPath(c: Call) {
   return { hostId: await machineFlag(c), path: c.arg("path") };
 }
 
+function tooLarge(error: unknown): boolean {
+  const { CallError } = loaded().plugin;
+  return error instanceof CallError && error.code === "file_too_large";
+}
+
+async function readWhole(c: Call, target: Record<string, unknown>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(target)) {
+    if (typeof value === "string") query.set(key, value);
+  }
+  const response = await c.request(`/api/v1/machines/files/raw?${query}`);
+  if (!response.ok || response.body === null) {
+    const failure = `Could not read ${c.arg("path")} (${response.status})`;
+    throw new CliError(failure, { code: "read_failed" });
+  }
+  return response;
+}
+
+async function streamFile(c: Call, target: Record<string, unknown>) {
+  const response = await readWhole(c, target);
+  if (!c.json) {
+    for await (const chunk of response.body ?? []) process.stdout.write(chunk);
+    return;
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const text = new TextDecoder("utf-8", { fatal: true });
+  let content: string;
+  let contentEncoding: "utf8" | "base64" = "utf8";
+  try {
+    content = text.decode(bytes);
+  } catch {
+    content = bytes.toString("base64");
+    contentEncoding = "base64";
+  }
+  const mimeType = response.headers.get("content-type") ?? undefined;
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const path = c.arg("path");
+  const sizeBytes = bytes.byteLength;
+  c.out({ path, content, contentEncoding, mimeType, sizeBytes, sha256 });
+}
+
 export const fileRead: Run = async (c) => {
   const target = { ...(await hostPath(c)), rootPath: c.flag("root") };
-  const file = await c.op(c.ops.machines.readFile, target);
+  const file = await c.op(c.ops.machines.readFile, target).catch((error) => {
+    if (tooLarge(error)) return null;
+    throw error;
+  });
+  if (file === null) return streamFile(c, target);
   if (c.json) return c.out(file);
   const trailing = file.contentEncoding === "utf8" ? "" : "\n";
   process.stdout.write(`${file.content}${trailing}`);
@@ -126,9 +172,14 @@ export const fileWrite: Run = async (c) => {
     createParents: c.on("create-parents") || undefined,
     expectedSha256: c.flag("expected-sha256"),
   });
-  const written = result.outcome === "written";
-  const outcome = written ? "Wrote" : "Write conflict for";
-  c.out(result, `${outcome} ${c.arg("path")}`);
+  if (result.outcome === "written") {
+    return c.out(result, `Wrote ${c.arg("path")}`);
+  }
+  const current = result.currentSha256 ?? "none (the file does not exist)";
+  throw new CliError(`Write conflict for ${c.arg("path")}`, {
+    code: "conflict",
+    hint: `The file's current SHA-256 is ${current}.`,
+  });
 };
 
 export const fileList: Run = async (c) => {

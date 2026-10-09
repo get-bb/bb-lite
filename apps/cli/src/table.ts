@@ -297,7 +297,7 @@ ${MACHINE}  Machine holding the file (default: the server's)
   --stdin  Read the content from stdin
   --root <path>  Refuse paths outside this directory
   --create-parents  Create missing parent directories
-  --expected-sha256 <hash>  Only write when the current hash matches
+  --expected-sha256 <hash>  Only write when the current hash matches (else exit 1, code conflict)
 file list <path>  List files under a directory on a machine
 ${MACHINE}  Machine holding the directory (default: the server's)
   --query <query>  Fuzzy path filter

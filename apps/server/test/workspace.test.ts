@@ -97,6 +97,15 @@ it("serves file bytes with ranges, validators and confinement", async () => {
   server.ctx.db.run(attach, "env_demo");
   const viaThread = `/threads/thr_demo/host-files${repo}/README.md`;
   expect(await (await request(viaThread)).text()).toBe("# demo\n");
+  const raw = (query: Record<string, string>) =>
+    request(`/machines/files/raw?${new URLSearchParams(query)}`);
+  const whole = await raw({ path: join(repo, "big.bin") });
+  expect((await bytes(whole)).equals(big)).toBe(true);
+  const rooted = await raw({ path: "src/a.ts", rootPath: repo });
+  expect(await rooted.text()).toBe("changed\n");
+  const escaped = await raw({ path: "../x", rootPath: join(repo, "src") });
+  expect(escaped.status).toBe(400);
+  expect((await raw({})).status).toBe(400);
 });
 
 it("resolves a project to its checkout for paths and branches", async () => {

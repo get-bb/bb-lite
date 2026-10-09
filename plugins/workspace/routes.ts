@@ -1,4 +1,6 @@
+import { posix } from "node:path";
 import { machineFiles } from "@bb/runner";
+import { hostFileReadRequestSchema } from "@bb/server-contract";
 import { machines, type PluginServerApi } from "@bb/plugin";
 import {
   PATH_LIST_EXCLUDED_NAMES,
@@ -7,7 +9,7 @@ import {
   requireThreadEnvironment,
 } from "@bb/server-kit/environments/workspace";
 import { requireHost } from "@bb/server-kit/runners/hosts";
-import type { ApiApp } from "@bb/server-kit/http/api";
+import { requireValid, type ApiApp } from "@bb/server-kit/http/api";
 import {
   relativeFileSegments,
   revisionRef,
@@ -49,6 +51,16 @@ export function registerFileRoutes(app: ApiApp, bb: PluginServerApi): void {
       return serve(c, requireReadyEnvironment(bb, environmentId), gitRef);
     },
   );
+
+  app.get("/machines/files/raw", (c) => {
+    const query = requireValid(hostFileReadRequestSchema, c.req.query());
+    const hostId = requireHost(bb, query.hostId ?? bb.server.hostId).id;
+    const root = posix.resolve(HOST_ROOT, query.rootPath ?? HOST_ROOT);
+    const within = posix.relative(root, posix.resolve(root, query.path));
+    const segments = relativeFileSegments(within);
+    const target = { hostId, rootPath: root, segments };
+    return serveFileBytes(bb, c.req.raw, target);
+  });
 
   app.get("/threads/:threadId/host-files/:filePath{.+}", (c) => {
     const threadId = c.req.param("threadId");
