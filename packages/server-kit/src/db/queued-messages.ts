@@ -1,6 +1,6 @@
 import * as domain from "@bb/domain";
 import { z } from "zod";
-import { ApiError } from "../http/errors.js";
+import { ApiError, conflict } from "../http/errors.js";
 import { decodeJson, insertRow, newId, type Db } from "./index.js";
 import { orderKeyBetween } from "./order-keys.js";
 
@@ -14,6 +14,7 @@ export interface QueuedMessageRow extends Omit<
   content: string;
   systemNotice: string | null;
   waitingOn: string | null;
+  groupWithNext: number;
   sortKey: string;
 }
 
@@ -96,6 +97,89 @@ export function reorderQueuedMessages(
       "UPDATE queued_thread_messages SET sort_key = ? WHERE id = ?",
       previous,
       id,
+    );
+  }
+}
+
+function groupable(lead: QueuedMessageRow, row: QueuedMessageRow) {
+  return (
+    row.senderThreadId === lead.senderThreadId &&
+    row.model === lead.model &&
+    row.reasoningLevel === lead.reasoningLevel &&
+    row.permissionMode === lead.permissionMode &&
+    row.serviceTier === lead.serviceTier
+  );
+}
+
+export function queuedGroups(
+  rows: readonly QueuedMessageRow[],
+): QueuedMessageRow[][] {
+  const groups: QueuedMessageRow[][] = [];
+  for (const row of rows) {
+    const group = groups.at(-1);
+    const lead = group?.[0];
+    const tail = group?.at(-1);
+    if (group && lead && tail?.groupWithNext && groupable(lead, row)) {
+      group.push(row);
+    } else {
+      groups.push([row]);
+    }
+  }
+  return groups;
+}
+
+export function setQueuedMessageBoundary(
+  db: Db,
+  threadId: string,
+  queuedMessageId: string,
+  expectedGroupedPrefixQueuedMessageIds?: readonly string[],
+): void {
+  const rows = listQueuedMessages(db, threadId);
+  const boundary = rows.findIndex(({ id }) => id === queuedMessageId);
+  if (boundary === -1) throw queuedMessageNotFound();
+  const prefix = rows.slice(0, boundary + 1);
+  const expected = expectedGroupedPrefixQueuedMessageIds;
+  if (
+    expected !== undefined &&
+    expected.join("\n") !== prefix.map(({ id }) => id).join("\n")
+  ) {
+    throw conflict("The queue changed since grouping");
+  }
+  const lead = prefix[0];
+  if (lead && prefix.some((row) => !groupable(lead, row))) {
+    throw new ApiError(
+      400,
+      "invalid_request",
+      "Grouped messages must share a sender and execution options",
+    );
+  }
+  for (const [index, row] of rows.entries()) {
+    const groupWithNext = index < boundary ? 1 : 0;
+    if (row.groupWithNext === groupWithNext) continue;
+    db.run(
+      `UPDATE queued_thread_messages SET group_with_next = ?, updated_at = ?
+       WHERE id = ?`,
+      groupWithNext,
+      Math.max(db.now(), row.updatedAt + 1),
+      row.id,
+    );
+  }
+}
+
+export function clearQueuedGroupEdges(
+  db: Db,
+  threadId: string,
+  ids?: readonly string[],
+): void {
+  const rows = listQueuedMessages(db, threadId);
+  for (const [index, row] of rows.entries()) {
+    const next = rows[index + 1]?.id;
+    if (ids !== undefined && (next === undefined || !ids.includes(next))) {
+      continue;
+    }
+    db.run(
+      "UPDATE queued_thread_messages SET group_with_next = 0 WHERE id = ?",
+      row.id,
     );
   }
 }
@@ -202,7 +286,7 @@ export function toThreadQueuedMessage(
     reasoningLevel: row.reasoningLevel,
     permissionMode: row.permissionMode,
     serviceTier: row.serviceTier,
-    groupWithNext: false,
+    groupWithNext: row.groupWithNext === 1,
     sendAt: row.sendAt,
     waitingOn: parseQueuedWait(row),
     failureReason: row.failureReason,

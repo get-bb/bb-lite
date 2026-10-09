@@ -428,26 +428,40 @@ function nextEligible(engine: Engine, thread: ThreadRow) {
         return idle;
     }
   };
-  return rows.find(eligible) ?? null;
+  const groups = queue.queuedGroups(rows);
+  return groups.find((group) => group.every(eligible)) ?? null;
+}
+
+function groupOf(engine: Engine, row: QueuedMessageRow) {
+  const rows = queue.listQueuedMessages(engine.bb.db, row.threadId);
+  const groups = queue.queuedGroups(rows);
+  return groups.find((group) => group.some(({ id }) => id === row.id)) ?? [];
 }
 
 function dispatchRow(
   engine: Engine,
   threadId: string,
-  row: QueuedMessageRow,
+  rows: QueuedMessageRow[],
   mode: SendMode,
   sendNow: boolean,
 ) {
+  const [row] = rows;
+  if (row === undefined) throw queue.queuedMessageNotFound();
   const { model, reasoningLevel, permissionMode, serviceTier, sendAt } = row;
   const message: OutboundMessage = {
-    input: queue.parseQueuedContent(row),
+    input: rows.flatMap((member, index) => [
+      ...(index === 0
+        ? []
+        : [{ type: "text" as const, text: "\n\n", mentions: [] }]),
+      ...queue.parseQueuedContent(member),
+    ]),
     execution: { model, reasoningLevel, permissionMode, serviceTier },
     senderThreadId: row.senderThreadId,
     actorUserId: row.requestedByUserId,
     initiator: queue.queuedInitiator(row),
     systemNotice: queue.parseQueuedNotice(row),
   };
-  const args = { message, mode, sendAt, rows: [row], sendNow };
+  const args = { message, mode, sendAt, rows, sendNow };
   return dispatchMessage(engine, threadId, args);
 }
 
@@ -475,13 +489,13 @@ export async function drainQueue(
     const thread = getThread(engine.bb.db, threadId);
     if (thread === undefined || thread.status === "stopping") return;
     if (thread.archivedAt !== null || thread.deletedAt !== null) return;
-    const row = nextEligible(engine, thread);
-    if (row === null) return;
+    const group = nextEligible(engine, thread);
+    if (group === null) return;
     try {
-      const outcome = await dispatchRow(engine, threadId, row, "auto", false);
+      const outcome = await dispatchRow(engine, threadId, group, "auto", false);
       if (outcome.delivery === "queued") return;
     } catch (error) {
-      recordDrainFailure(engine, row, error);
+      for (const row of group) recordDrainFailure(engine, row, error);
       return;
     }
   }
@@ -496,11 +510,14 @@ export async function sendQueuedMessageNow(
   const { db } = engine.bb;
   const row = queue.getQueuedMessage(db, threadId, queuedMessageId);
   if (row === undefined) throw queue.queuedMessageNotFound();
-  db.run(
-    "UPDATE queued_thread_messages SET failure_reason = NULL WHERE id = ?",
-    queuedMessageId,
-  );
-  const outcome = await dispatchRow(engine, threadId, row, mode, true);
+  const group = groupOf(engine, row);
+  for (const member of group) {
+    db.run(
+      "UPDATE queued_thread_messages SET failure_reason = NULL WHERE id = ?",
+      member.id,
+    );
+  }
+  const outcome = await dispatchRow(engine, threadId, group, mode, true);
   if (outcome.delivery === "sent" || mode === "steer") return outcome;
   const kind = queue.parseQueuedWait(outcome.row)?.kind ?? "thread-busy";
   if (kind === "stopping") return outcome;

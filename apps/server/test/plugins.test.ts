@@ -28,6 +28,7 @@ import type { InstalledPlugin, ThreadResponse } from "@bb/server-contract";
 import { transform } from "esbuild";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
+import { bundleApp } from "../src/plugins/bundle.js";
 import { cronMatches, parseCron } from "../src/plugins/cron.js";
 import { insertRow } from "@bb/server-kit/db/index";
 import { runAs } from "@bb/server-kit/auth/actor";
@@ -857,4 +858,29 @@ it("lets a plugin decide who a request is from", async () => {
   expect(await session()).toBe(owner);
   badges.dispose();
   expect(await session({ "x-badge": "bo" })).toBe(owner);
+});
+
+it("bundles a worker an app part starts from a relative URL", async () => {
+  const directory = scratch();
+  writeFileSync(
+    join(directory, "worker.ts"),
+    'import { shout } from "./shout";\nself.postMessage(shout("worker-ready"));',
+  );
+  writeFileSync(
+    join(directory, "shout.ts"),
+    "export const shout = (text: string) => text.toUpperCase();",
+  );
+  writeFileSync(
+    join(directory, "app.ts"),
+    [
+      'export const module = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });',
+      'export const classic = new Worker(new URL("./worker.ts", import.meta.url));',
+    ].join("\n"),
+  );
+  const { js } = await bundleApp(join(directory, "app.ts"), directory);
+  expect(js).toContain("WORKER-READY".toLowerCase());
+  expect(js).toContain("toUpperCase");
+  expect(js).toContain("URL.createObjectURL(new Blob(");
+  expect(js).not.toContain("import.meta.url");
+  expect(js).not.toContain("new URL(");
 });

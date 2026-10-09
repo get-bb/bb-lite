@@ -229,6 +229,7 @@ export function deleteQueuedMessage(
   queuedMessageId: string,
 ): void {
   requireQueuedMessage(engine, threadId, queuedMessageId);
+  queue.clearQueuedGroupEdges(engine.bb.db, threadId, [queuedMessageId]);
   queue.deleteQueuedMessages(engine.bb.db, [queuedMessageId]);
   queueChanged(engine, threadId);
   engine.announceMessage(threads.messageDeleted, threadId, queuedMessageId);
@@ -240,7 +241,28 @@ export function reorderQueuedMessages(
   queuedMessageIds: readonly string[],
 ) {
   const { db } = engine.bb;
+  queue.clearQueuedGroupEdges(db, threadId);
   queue.reorderQueuedMessages(db, threadId, queuedMessageIds);
+  queueChanged(engine, threadId);
+  return queue
+    .listQueuedMessages(db, threadId)
+    .map(queue.toThreadQueuedMessage);
+}
+
+export function setQueuedMessageBoundary(
+  engine: Engine,
+  threadId: string,
+  queuedMessageId: string,
+  expectedGroupedPrefixQueuedMessageIds?: readonly string[],
+) {
+  const { db } = engine.bb;
+  engine.requireUnarchived(threadId);
+  queue.setQueuedMessageBoundary(
+    db,
+    threadId,
+    queuedMessageId,
+    expectedGroupedPrefixQueuedMessageIds,
+  );
   queueChanged(engine, threadId);
   return queue
     .listQueuedMessages(db, threadId)

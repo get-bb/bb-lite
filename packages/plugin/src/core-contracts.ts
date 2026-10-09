@@ -589,6 +589,21 @@ export const threads = contract("threads", {
       },
     },
   }),
+  setQueuedMessageBoundary: op({
+    input: z.object({
+      threadId: z.string(),
+      queuedMessageId: z.string(),
+      expectedGroupedPrefixQueuedMessageIds: z.array(z.string()).optional(),
+    }),
+    output: typed(Contract.threadQueuedMessageListResponseSchema),
+    kind: "write",
+    doors: {
+      http: {
+        method: "PUT",
+        path: "/threads/:threadId/queued-messages/:queuedMessageId/boundary",
+      },
+    },
+  }),
   sendQueuedMessage: op({
     input: at(
       Contract.sendQueuedMessageRequestSchema,

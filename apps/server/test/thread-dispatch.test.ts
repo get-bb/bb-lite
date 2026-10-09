@@ -161,3 +161,34 @@ it("sends queued messages in the order a client set", async () => {
   await ingest(id, events.completed("t1"));
   expect(lastSubmit()).toEqual(["three", "start"]);
 });
+
+it("sends queued messages up to a group boundary as one turn", async () => {
+  const server = await createThreadServer();
+  const { http, ingest, submitted } = server;
+  const id = await server.spawn();
+  await server.send(id, "steer-if-active", "one");
+  await ingest(id, events.identity(), events.started("t1"));
+  for (const message of ["two", "three", "four"]) {
+    await server.send(id, "queue-if-active", message);
+  }
+  const path = `/threads/${id}/queued-messages`;
+  type Queued = { id: string; groupWithNext: boolean }[];
+  const ids = (await http<Queued>("GET", path)).body.map((row) => row.id);
+  const boundary = `${path}/${ids[1]}/boundary`;
+  const stale = { expectedGroupedPrefixQueuedMessageIds: [ids[1]] };
+  expect((await http("PUT", boundary, stale)).status).toBe(409);
+  const grouped = await http<Queued>("PUT", boundary, {
+    expectedGroupedPrefixQueuedMessageIds: ids.slice(0, 2),
+  });
+  const flags = grouped.body.map((row) => row.groupWithNext);
+  expect(flags).toEqual([true, false, false]);
+  const listed = (await http<Queued>("GET", path)).body;
+  expect(listed.map((row) => row.groupWithNext)).toEqual(flags);
+  await ingest(id, events.completed("t1"));
+  const sent = submitted[submitted.length - 1].input.map((part) =>
+    part.type === "text" ? part.text : part.type,
+  );
+  expect(sent).toEqual(["two", "\n\n", "three"]);
+  const left = (await http<Queued>("GET", path)).body.map((row) => row.id);
+  expect(left).toEqual([ids[2]]);
+});

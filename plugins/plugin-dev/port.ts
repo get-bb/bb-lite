@@ -148,7 +148,10 @@ const SDK_PATHS: Record<string, Path> = {
     "bb.call(terminals.close), then bb.call(terminals.create)",
   ],
   "threads.queuedMessages.reorder": QUEUE_ORDER,
-  "threads.queuedMessages.setGroupBoundary": QUEUE_ORDER,
+  "threads.queuedMessages.setGroupBoundary": [
+    "renamed",
+    "bb.call(threads.setQueuedMessageBoundary)",
+  ],
   "projects.reorder": ["feature", "projects have no stored order"],
   "hosts.providerCliStatus": [
     "feature",

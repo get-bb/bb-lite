@@ -241,6 +241,9 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
     if (listed?.app?.kind === "external") {
       const script = await server.request(`/plugins/${id}/app.js`);
       expect([id, script.status]).toEqual([id, 200]);
+      if (id === "monaco-editor") {
+        expect(await script.text()).toContain("URL.createObjectURL(new Blob(");
+      }
       facts[id] = listed.app.shared.filter((name) => name.startsWith("@bb/"));
     }
   }

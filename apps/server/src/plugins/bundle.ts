@@ -271,15 +271,57 @@ export async function importServerEntry(
   return module.default as PluginServerEntry;
 }
 
+const WORKER_URL =
+  /new\s+(?:Shared)?Worker\(\s*new\s+URL\(\s*(["'])(\.{1,2}\/[^"'\n]+)\1\s*,\s*import\.meta\.url\s*\)([^)]*)/g;
+const MODULE_WORKER = /type\s*:\s*["']module["']/;
+
+function workerUrls(nodePaths: string[]): Plugin {
+  return {
+    name: "bb-worker-urls",
+    setup(esbuild) {
+      esbuild.onLoad({ filter: SOURCE_FILE }, async ({ path }) => {
+        if (path.includes(`${sep}node_modules${sep}`)) return undefined;
+        const source = await readFile(path, "utf8");
+        const calls = [...source.matchAll(WORKER_URL)];
+        if (calls.length === 0) return undefined;
+        let contents = source;
+        for (const [call, quote, file, rest] of calls) {
+          const module = MODULE_WORKER.test(rest ?? "");
+          const worker = await build({
+            ...COMMON,
+            nodePaths,
+            entryPoints: [join(dirname(path), file ?? "")],
+            platform: "browser",
+            format: module ? "esm" : "iife",
+            target: "es2022",
+            define: { "process.env.NODE_ENV": '"production"' },
+            plugins: [workerUrls(nodePaths)],
+          });
+          const code = JSON.stringify(worker.outputFiles?.[0]?.text ?? "");
+          const blob = `URL.createObjectURL(new Blob([${code}], { type: "text/javascript" }))`;
+          const url = `new URL(${quote}${file}${quote}`;
+          const start = call.indexOf(url);
+          const end = call.indexOf(")", call.indexOf("import.meta.url")) + 1;
+          const replaced = call.slice(0, start) + blob + call.slice(end);
+          contents = contents.replace(call, () => replaced);
+        }
+        const loader = extname(path).replace(/^\.[cm]?/u, "") as Loader;
+        return { contents, loader, resolveDir: dirname(path) };
+      });
+    },
+  };
+}
+
 export async function bundleApp(
   entry: string,
   directory: string,
   fallbacks: readonly string[] = [],
 ): Promise<AppBundle> {
   const used = new Set<string>();
+  const nodePaths = [...fallbacks, APP_NODE_MODULES, HOST_NODE_MODULES];
   const result = await build({
     ...COMMON,
-    nodePaths: [...fallbacks, APP_NODE_MODULES, HOST_NODE_MODULES],
+    nodePaths,
     entryPoints: [entry],
     outdir: "/",
     entryNames: "app",
@@ -288,7 +330,7 @@ export async function bundleApp(
     target: "es2022",
     jsx: "automatic",
     define: { "process.env.NODE_ENV": '"production"' },
-    plugins: [hostModules(used)],
+    plugins: [hostModules(used), workerUrls(nodePaths)],
   });
   const output = (extension: string) =>
     result.outputFiles?.find((file) => file.path.endsWith(extension))?.text ??
