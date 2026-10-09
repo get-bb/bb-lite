@@ -35,6 +35,7 @@ export function registerDocsExtras(
         reason: "document_changed",
         hint: "Reload the file and reapply your change",
       });
+    bb.changed(docs.openFile);
     return { sha256: result.sha256 };
   });
 
@@ -95,6 +96,17 @@ export function registerDocsExtras(
     if (taken)
       fail("conflict", `${to} already exists`, { reason: "path_taken" });
     await bb.call(docs.move, { vault, from: file.path, to });
+    const vaultId = file.vaultId;
+    for (const key of await bb.storage.kv.list(recentKey(""))) {
+      const refs = (await bb.storage.kv.get<Ref[]>(key)) ?? [];
+      if (!refs.some((r) => r.vault === vaultId && r.path === file.path))
+        continue;
+      const moved = refs.map((r) =>
+        r.vault === vaultId && r.path === file.path ? { ...r, path: to } : r,
+      );
+      await bb.storage.kv.set(key, moved);
+      bb.changed(docs.recent);
+    }
     return { path: to };
   });
 
