@@ -3,19 +3,21 @@ import { expect, it } from "vitest";
 import * as machine from "@bb/runner";
 import * as app from "../src/app.js";
 import * as server from "../src/index.js";
+import { describeTypes } from "../scripts/type-shapes.js";
 
 const { API_VERSION, compareApi, describeApi, satisfies, unpackApi } = server;
 
 it("matches the locked description of every contract", () => {
   const file = new URL("../api.lock.json", import.meta.url);
   const locked = JSON.parse(readFileSync(file, "utf8")) as server.ApiLock;
-  const current = describeApi({ ...server, ...app, ...machine });
+  const described = describeApi({ ...server, ...app, ...machine });
+  const current = server.withTypes(described, describeTypes());
   const changes = compareApi(unpackApi(locked), current);
   const hint = "run `pnpm api:lock` after raising API_VERSION";
   expect({ ...changes, hint }).toEqual({ breaking: [], additive: [], hint });
   expect(current).toEqual(unpackApi(locked));
   expect(locked.version).toBe(API_VERSION);
-});
+}, 240_000);
 
 it("tells an added field from a removed one and a moved door", () => {
   const op = (extra: object) => ({
@@ -120,6 +122,45 @@ it("counts more output, and more for a hook to read, as additions", () => {
   expect(compareApi(op(false, held, {}), op(false, told, {})).breaking).toEqual(
     ["notes.list: the input changed"],
   );
+});
+
+it("judges a slot entry by who writes each part of it", () => {
+  const entry = (properties: object, required: string[]) => ({
+    type: "object",
+    properties,
+    required,
+  });
+  const view = (props: object) => ({
+    component: entry(props, Object.keys(props)),
+  });
+  const panel = (item: object) => ({
+    shell: { panel: { type: "slot", key: "id", pick: "many", item } },
+  });
+  const id = { type: "string" };
+  const base = entry({ id, view: view({ threadId: id }) }, ["id", "view"]);
+  const compare = (after: object) =>
+    compareApi(panel(base), panel(after)).breaking.length === 0;
+  const optional = entry({ id, title: id, view: view({ threadId: id }) }, [
+    "id",
+    "view",
+  ]);
+  expect(compare(optional)).toBe(true);
+  const demanded = entry({ id, title: id, view: view({ threadId: id }) }, [
+    "id",
+    "title",
+    "view",
+  ]);
+  expect(compare(demanded)).toBe(false);
+  const moreProps = entry({ id, view: view({ threadId: id, projectId: id }) }, [
+    "id",
+    "view",
+  ]);
+  expect(compare(moreProps)).toBe(true);
+  const fewerProps = entry({ id, view: view({}) }, ["id", "view"]);
+  expect(compare(fewerProps)).toBe(false);
+  expect(compareApi(panel(base), panel(optional)).additive).toEqual([
+    "shell.panel: the entry takes more",
+  ]);
 });
 
 it("reads version ranges the way package managers do", () => {

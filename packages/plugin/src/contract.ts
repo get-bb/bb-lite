@@ -85,12 +85,14 @@ export interface Op<
   readonly audit: boolean;
   readonly deprecated: string | null;
   readonly doors: Doors;
+  readonly description?: string;
 }
 
 export interface EventDef<Payload extends z.ZodType = z.ZodType> {
   readonly type: "event";
   readonly name: string;
   readonly payload: Payload;
+  readonly description?: string;
 }
 
 export type SlotCheck<Item> = (
@@ -105,12 +107,14 @@ export interface Slot<Item = unknown> {
   readonly pick: "one" | "many";
   readonly check: SlotCheck<Item> | null;
   readonly item?: Item;
+  readonly description?: string;
 }
 
 export interface Live<Value extends z.ZodType = z.ZodType> {
   readonly type: "live";
   readonly name: string;
   readonly value: Value;
+  readonly description?: string;
 }
 
 export interface SlotShape {
@@ -119,6 +123,15 @@ export interface SlotShape {
   readonly key: string | null;
   readonly pick: "one" | "many";
   readonly check: SlotCheck<never> | null;
+  readonly description?: string;
+}
+
+export interface Described {
+  description?: string;
+}
+
+function told({ description }: Described): Described {
+  return description === undefined ? {} : { description };
 }
 
 export type ContractMember = Op | EventDef | SlotShape | Live;
@@ -133,6 +146,7 @@ export interface OpOptions<Input extends z.ZodType, Output extends z.ZodType> {
   internal?: boolean;
   audit?: boolean;
   deprecated?: string;
+  description?: string;
   doors?: Doors<z.output<Input>, z.output<Output>>;
 }
 
@@ -145,7 +159,15 @@ export function op<Input extends z.ZodType, Output extends z.ZodType>(
   const doors = (options.doors ?? {}) as Doors;
   const deprecated = options.deprecated ?? null;
   const access = { kind, hooks, allow, secret, internal, audit, deprecated };
-  return { type: "op", name: "", input, output, ...access, doors };
+  return {
+    type: "op",
+    name: "",
+    input,
+    output,
+    ...access,
+    doors,
+    ...told(options),
+  };
 }
 
 const shapes = new WeakMap<z.ZodType, z.ZodType>();
@@ -164,8 +186,9 @@ export function shapeBehind(schema: z.ZodType): z.ZodType {
 
 export function event<Payload extends z.ZodType>(
   payload: Payload,
+  about: Described = {},
 ): EventDef<Payload> {
-  return { type: "event", name: "", payload };
+  return { type: "event", name: "", payload, ...told(about) };
 }
 
 export function slot<Item>(
@@ -173,14 +196,16 @@ export function slot<Item>(
     key?: keyof Item & string;
     pick?: "one" | "many";
     check?: SlotCheck<Item>;
+    description?: string;
   } = {},
 ): Slot<Item> {
   const { key = null, pick = "many", check = null } = options;
-  return { type: "slot", name: "", key, pick, check };
+  return { type: "slot", name: "", key, pick, check, ...told(options) };
 }
 
-export function service<Interface>(): Slot<Interface> {
-  return { type: "slot", name: "", key: null, pick: "one", check: null };
+export function service<Interface>(about: Described = {}): Slot<Interface> {
+  const one = { key: null, pick: "one", check: null } as const;
+  return { type: "slot", name: "", ...one, ...told(about) };
 }
 
 export interface TableRef<Row = unknown> {
@@ -192,8 +217,11 @@ export function table<Row>(): Slot<TableRef<Row>> {
   return { type: "slot", name: "", key: null, pick: "one", check: null };
 }
 
-export function live<Value extends z.ZodType>(value: Value): Live<Value> {
-  return { type: "live", name: "", value };
+export function live<Value extends z.ZodType>(
+  value: Value,
+  about: Described = {},
+): Live<Value> {
+  return { type: "live", name: "", value, ...told(about) };
 }
 
 export function contract<const Members extends Record<string, ContractMember>>(

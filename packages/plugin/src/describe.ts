@@ -73,7 +73,11 @@ function memberOf(member: ContractMember): Json {
 }
 
 export function explainMember(member: ContractMember): Json {
-  const described = memberOf(member) as { [key: string]: Json };
+  const { description } = member;
+  const described = {
+    ...(memberOf(member) as { [key: string]: Json }),
+    ...(description === undefined ? {} : { description }),
+  };
   if (member.type !== "op") return described;
   const { agent, cli, http } = member.doors;
   const doors: { [key: string]: Json } = {};
@@ -82,11 +86,18 @@ export function explainMember(member: ContractMember): Json {
     doors.agent = { name, description };
   }
   if (cli !== undefined) {
+    const plain = (value: unknown) => JSON.parse(JSON.stringify(value)) as Json;
     doors.cli = {
       path: cli.path,
       summary: cli.summary,
+      ...(cli.description === undefined
+        ? {}
+        : { description: cli.description }),
       positionals: [...(cli.positionals ?? [])],
       aliases: [...(cli.aliases ?? [])],
+      flags: plain(cli.flags ?? {}),
+      from: plain(cli.from ?? {}),
+      constraints: plain(cli.constraints ?? []),
     };
   }
   if (http !== undefined) {
@@ -157,7 +168,33 @@ export function describeApi(exported: Record<string, unknown>): ApiDescription {
   return described;
 }
 
-const SHAPED = ["input", "output", "payload", "value"];
+const SHAPED = ["input", "output", "payload", "value", "item"];
+
+export interface TypeShapes {
+  [contract: string]: { [member: string]: { [field: string]: Json } };
+}
+
+export function withTypes(
+  described: ApiDescription,
+  types: TypeShapes,
+): ApiDescription {
+  const merged: ApiDescription = {};
+  for (const [contract, members] of Object.entries(described)) {
+    merged[contract] = {};
+    for (const [key, member] of Object.entries(members)) {
+      const known = types[contract]?.[key] ?? {};
+      const filled = Object.entries(known).filter(([name]) => {
+        const shape = field(member, name);
+        return shape === undefined || same(shape, {});
+      });
+      merged[contract][key] = {
+        ...(member as { [key: string]: Json }),
+        ...Object.fromEntries(filled),
+      };
+    }
+  }
+  return merged;
+}
 const SHARED_FROM = 200;
 
 function digest(text: string): string {
@@ -260,6 +297,81 @@ function onlyAdds(
   return kept && same(field(before, "type"), field(after, "type"));
 }
 
+type Change = "same" | "adds" | "breaks";
+type JsonObject = { [key: string]: Json };
+
+function worst(changes: Change[]): Change {
+  if (changes.includes("breaks")) return "breaks";
+  return changes.includes("adds") ? "adds" : "same";
+}
+
+function plain(value: Json | undefined): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function objectChange(before: JsonObject, after: JsonObject, given: boolean) {
+  const [was, now] = [field(before, "properties"), field(after, "properties")];
+  if (!plain(was) || !plain(now)) return "breaks";
+  const needed = (source: Json, key: string) =>
+    listOf(field(source, "required")).includes(key);
+  const kept = Object.keys(was).map((key): Change => {
+    if (!(key in now)) return "breaks";
+    const firmer = !needed(before, key) && needed(after, key);
+    const looser = needed(before, key) && !needed(after, key);
+    const moved = (given ? looser : firmer) ? "breaks" : "same";
+    const relaxed = firmer || looser ? "adds" : "same";
+    return worst([moved, relaxed, entryChange(was[key], now[key], given)]);
+  });
+  const added = Object.keys(now)
+    .filter((key) => !(key in was))
+    .map((key): Change => (given || !needed(after, key) ? "adds" : "breaks"));
+  return worst([...kept, ...added]);
+}
+
+function entryChange(
+  before: Json | undefined,
+  after: Json | undefined,
+  given: boolean,
+): Change {
+  if (same(before, after)) return "same";
+  if (before === undefined) return "adds";
+  if (!plain(before) || !plain(after)) return "breaks";
+  const [was, now] = [before.anyOf, after.anyOf];
+  if (Array.isArray(was) || Array.isArray(now)) {
+    const old = Array.isArray(was) ? was : [before];
+    const next = Array.isArray(now) ? now : [after];
+    const kept = old.every((each) =>
+      next.some((other) => entryChange(each, other, given) !== "breaks"),
+    );
+    return kept ? "adds" : "breaks";
+  }
+  const [call, nextCall] = [before.fn, after.fn];
+  if (plain(call) && plain(nextCall)) {
+    const [params, nextParams] = [call.params, nextCall.params];
+    if (!Array.isArray(params) || !Array.isArray(nextParams)) return "breaks";
+    if (nextParams.length < params.length) return "breaks";
+    const more = nextParams.length > params.length ? "adds" : "same";
+    const passed = params.map((param, index) =>
+      entryChange(param, nextParams[index], !given),
+    );
+    const returned = entryChange(call.returns, nextCall.returns, given);
+    return worst([more, returned, ...passed]);
+  }
+  for (const [wrapper, flips] of [
+    ["component", true],
+    ["promise", false],
+    ["items", false],
+  ] as const) {
+    if (!(wrapper in before) || !(wrapper in after)) continue;
+    const side = flips ? !given : given;
+    return entryChange(before[wrapper], after[wrapper], side);
+  }
+  if (before.type === "object" && after.type === "object") {
+    return objectChange(before, after, given);
+  }
+  return "breaks";
+}
+
 function inputChange(before: Json, after: Json): "same" | "adds" | "breaks" {
   if (same(before, after)) return "same";
   if (!onlyAdds(before, after)) return "breaks";
@@ -352,7 +464,19 @@ export function compareApi(
         out.breaking.push(`${name}: is now a ${String(field(next, "type"))}`);
       } else if (field(old, "type") === "op") opChanges(name, old, next, out);
       else if (field(old, "type") === "slot") {
-        out.breaking.push(`${name}: the slot's key or pick changed`);
+        const placed = ["key", "pick"].every((part) =>
+          same(field(old, part), field(next, part)),
+        );
+        const entry = entryChange(
+          field(old, "item"),
+          field(next, "item"),
+          false,
+        );
+        if (!placed)
+          out.breaking.push(`${name}: the slot's key or pick changed`);
+        if (entry === "breaks") out.breaking.push(`${name}: the entry changed`);
+        if (entry === "adds")
+          out.additive.push(`${name}: the entry takes more`);
       } else {
         const part = field(old, "type") === "event" ? "payload" : "value";
         const grew = onlyAdds(field(old, part), field(next, part), true);

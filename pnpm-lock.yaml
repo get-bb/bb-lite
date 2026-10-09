@@ -737,6 +737,9 @@ importers:
       hono:
         specifier: ^4.7.0
         version: 4.11.9
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
       ws:
         specifier: ^8.19.0
         version: 8.21.0
