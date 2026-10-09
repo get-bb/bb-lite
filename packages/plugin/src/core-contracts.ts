@@ -286,6 +286,32 @@ export const sessions = contract("sessions", {
     output: typed(z.array(Domain.providerInfoSchema)),
     doors: { http: { method: "GET", path: "/sessions/providers" } },
   }),
+  providerStatus: op({
+    input: z.object({ hostId: z.string().min(1).optional() }),
+    output: z.array(
+      z.object({
+        providerId: z.string(),
+        state: z.enum([
+          "ready",
+          "needs_login",
+          "not_installed",
+          "update_required",
+          "unknown",
+        ]),
+        message: z.string().nullable(),
+        version: z.string().optional(),
+        minimumVersion: z.string().optional(),
+        versionUnsupported: z.boolean().optional(),
+        installAction: z
+          .object({
+            kind: z.enum(["install", "update"]),
+            command: z.string(),
+          })
+          .optional(),
+      }),
+    ),
+    doors: { http: { method: "GET", path: "/sessions/provider-status" } },
+  }),
   providerCatalog: op({
     input: none,
     output: typed(z.array(Contract.systemProviderCatalogEntrySchema)),
@@ -372,6 +398,18 @@ export const threads = contract("threads", {
   ),
   appended: event(
     z.object({ threadId: z.string(), types: z.array(z.string()) }),
+  ),
+  paneAction: event(
+    z.object({
+      threadId: z.string().min(1),
+      action: z.enum([
+        "maximize",
+        "restore",
+        "toggle",
+        "spotlight",
+        "clear-spotlight",
+      ]),
+    }),
   ),
   messageQueued: event(queuedRef),
   messageDispatched: event(queuedRef),

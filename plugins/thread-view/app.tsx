@@ -1,4 +1,5 @@
-import { app, threadView, type PluginAppApi } from "@bb/plugin/app";
+import { app, threads, threadView, type PluginAppApi } from "@bb/plugin/app";
+import { performPaneAction } from "./app/lib/pane-actions";
 import {
   ConversationTimelineRow,
   DelegationWorkRowDetail,
@@ -24,6 +25,7 @@ import { PluginThreadTitle } from "./app/components/plugin/PluginThreadTitle";
 
 export default function threadViewApp(bb: PluginAppApi): void {
   bb.add(app.parts, { plugin: "thread-view", parts });
+  bb.on(threads.paneAction, performPaneAction);
   bb.add(threadView.api, {
     ThreadChat: PluginThreadChat,
     ThreadTitle: PluginThreadTitle,

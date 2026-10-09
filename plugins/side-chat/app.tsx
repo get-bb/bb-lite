@@ -8,6 +8,7 @@ import {
   ThreadChat,
   threads,
   threadView,
+  type MessageAction,
   type PanelOpenOptions,
   type PluginAppApi,
   type SidePanelPanelProps,
@@ -33,37 +34,28 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function openAsTab(sourceThreadId: string, params: PanelParams) {
-  const { revision, tabs } = await callOp(threads.tabs, {
-    threadId: sourceThreadId,
-  });
-  const tab = {
-    id: `${PLUGIN_ID}:${params.threadId}`,
-    kind: "plugin-panel" as const,
-    pluginId: PLUGIN_ID,
-    actionId: PANEL_ID,
-    title: PANEL_TITLE,
-    paramsJson: JSON.stringify(params),
-  };
-  await callOp(threads.updateTabs, {
-    threadId: sourceThreadId,
-    expectedRevision: revision,
-    tabs: [...tabs, tab],
-  });
-}
-
 function openSideChat(
   sourceThreadId: string,
   anchorText: string,
-  open: (params: PanelParams) => Promise<unknown> | unknown,
+  sourceSeqEnd: number | null,
+  open: (options: PanelOpenOptions) => unknown,
 ): Promise<void> {
-  const key = `${sourceThreadId}|${anchorText}`;
+  const key = `${sourceThreadId}|${sourceSeqEnd ?? "tip"}|${anchorText}`;
   const pending = inFlight.get(key);
   if (pending !== undefined) return pending;
-  const run = callOp(sideChat.create, { sourceThreadId, anchorText })
+  const run = callOp(sideChat.create, {
+    sourceThreadId,
+    anchorText,
+    ...(sourceSeqEnd === null ? {} : { sourceSeqEnd }),
+  })
     .then(async ({ threadId }) => {
       sourceOf.set(threadId, sourceThreadId);
-      await open({ threadId, sourceThreadId, sourceMessageText: anchorText });
+      const params: PanelParams = {
+        threadId,
+        sourceThreadId,
+        sourceMessageText: anchorText,
+      };
+      open({ title: PANEL_TITLE, params });
     })
     .catch((error: unknown) => {
       appToast.error(`Failed to start side chat: ${errorText(error)}`);
@@ -128,11 +120,27 @@ function SideChatPanel({ params }: SidePanelPanelProps) {
         variant="compact"
         layout="contained"
         className="min-h-0 flex-1"
+        permissionPolicy="editable"
         leadingContent={<ReplyingTo anchorText={data.sourceMessageText} />}
+        messageActions={sendToMainActions}
       />
     </div>
   );
 }
+
+const sendToMainActions: readonly MessageAction[] = [
+  {
+    id: "send-to-main",
+    label: "Send to main thread",
+    icon: "ArrowTurnBackward",
+    isAvailable: (message) => message.role === "assistant",
+    run(message) {
+      if (message.threadId !== null) {
+        void sendToMain(message.threadId, message.text);
+      }
+    },
+  },
+];
 
 async function sendToMain(threadId: string, text: string) {
   const sourceThreadId = sourceOf.get(threadId);
@@ -154,41 +162,27 @@ export default function sideChatApp(bb: PluginAppApi) {
   bb.add(threadView.messageAction, {
     id: "reply-in-side-chat",
     label: "Reply in side chat",
-    icon: "MessageSquarePlus",
+    icon: "SideChat",
     isAvailable: (message) =>
       message.threadId !== null && !sourceOf.has(message.threadId),
-    run(message) {
-      const source = message.threadId;
+    run(context) {
+      const source = context.threadId;
       if (source === null) return;
-      void openSideChat(source, message.text, (params) =>
-        openAsTab(source, params),
+      void openSideChat(
+        source,
+        context.selectedText ?? context.text,
+        context.seq,
+        (options) => context.openPanel({ actionId: PANEL_ID, ...options }),
       );
-    },
-  });
-  bb.add(threadView.messageAction, {
-    id: "send-to-main",
-    label: "Send to main thread",
-    icon: "CornerDownLeft",
-    isAvailable: (message) =>
-      message.role === "assistant" &&
-      message.threadId !== null &&
-      sourceOf.has(message.threadId),
-    run(message) {
-      if (message.threadId !== null) {
-        void sendToMain(message.threadId, message.text);
-      }
     },
   });
   bb.add(sidePanel.panel, {
     id: PANEL_ID,
     title: "Start side chat",
-    icon: "MessageSquarePlus",
+    icon: "SideChat",
     layout: "flush",
     view: SideChatPanel,
     run: ({ threadId, openPanel }) =>
-      openSideChat(threadId, "", (params) => {
-        const options: PanelOpenOptions = { title: PANEL_TITLE, params };
-        openPanel(options);
-      }),
+      openSideChat(threadId, "", null, openPanel),
   });
 }

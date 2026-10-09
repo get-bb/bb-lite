@@ -16,8 +16,10 @@ import {
   SettingsSection,
 } from "../ui/settings-section";
 import { ProviderIcon } from "@bb/app-kit/components/plugin/ProviderIcon";
+import { CopyButton } from "@bb/app-kit/components/ui/copy-button";
 import { useSetProviderEnabled } from "../../hooks/mutations/provider-mutations";
 import {
+  useProviderStatus,
   useSystemProviderCatalog,
   useSystemProviders,
 } from "@bb/app-kit/hooks/queries/system-queries";
@@ -89,16 +91,52 @@ function ProviderActionsMenu({
   );
 }
 
+type ProviderStatus = NonNullable<
+  ReturnType<typeof useProviderStatus>["data"]
+>[number];
+
+const STATUS_LABELS: Record<ProviderStatus["state"], string | null> = {
+  ready: "Ready",
+  needs_login: "Needs login",
+  not_installed: "Not installed",
+  update_required: "Update needed",
+  unknown: null,
+};
+
+function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
+  const label = STATUS_LABELS[status.state];
+  const command = status.installAction?.command;
+  return (
+    <>
+      {label === null ? null : (
+        <span title={status.message ?? undefined}>
+          <SettingsBadge>{label}</SettingsBadge>
+        </span>
+      )}
+      {command === undefined || status.state === "ready" ? null : (
+        <span className="flex min-w-0 items-center gap-1">
+          <code className="truncate text-xs text-muted-foreground">
+            {command}
+          </code>
+          <CopyButton text={command} label="Copy command" />
+        </span>
+      )}
+    </>
+  );
+}
+
 function ProviderRow({
   disabled,
   isDefault,
   provider,
+  status,
   onDisable,
   onMakeDefault,
 }: {
   disabled: boolean;
   isDefault: boolean;
   provider: ProviderInfo;
+  status: ProviderStatus | undefined;
   onDisable: () => void;
   onMakeDefault: () => void;
 }) {
@@ -108,6 +146,7 @@ function ProviderRow({
       <span className="min-w-0 flex-1 truncate font-medium">
         {provider.displayName}
       </span>
+      {status === undefined ? null : <ProviderStatusBadge status={status} />}
       {!provider.available ? (
         <SettingsBadge>Unavailable</SettingsBadge>
       ) : isDefault ? (
@@ -135,6 +174,7 @@ export function ProvidersSettingsSection({
   update: (patch: Partial<AppSettings>) => void;
 }) {
   const providersQuery = useSystemProviders();
+  const statuses = useProviderStatus().data ?? [];
   const setEnabled = useSetProviderEnabled();
   const disabledProviders = (useSystemProviderCatalog().data ?? []).filter(
     (provider) => !provider.enabled || !provider.pluginEnabled,
@@ -164,6 +204,9 @@ export function ProvidersSettingsSection({
                 (settings.defaultProviderId === null && index === 0)
               }
               provider={provider}
+              status={statuses.find(
+                ({ providerId }) => providerId === provider.id,
+              )}
               onDisable={() =>
                 setEnabled.mutate({ providerId: provider.id, enabled: false })
               }

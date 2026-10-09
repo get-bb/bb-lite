@@ -41,6 +41,7 @@ import {
 } from "@bb/app-kit/lib/route-paths";
 import { formatWorkspaceCheckoutDisplay } from "@bb/app-kit/lib/workspace-checkout-display";
 import { ThreadDetailPromptArea } from "../../views/thread-detail/ThreadDetailPromptArea";
+import { ExtraMessageActionsContext } from "../thread/timeline/MessageActionBar";
 
 const NOTHING: never[] = [];
 
@@ -51,6 +52,8 @@ export function PluginThreadChat({
   focusRequest,
   className,
   leadingContent,
+  messageActions = NOTHING,
+  permissionPolicy = "editable",
 }: ThreadChatProps) {
   const navigate = useNavigate();
   const threadQuery = useThread(threadId, { enabled: threadId.length > 0 });
@@ -101,44 +104,47 @@ export function PluginThreadChat({
       />
     );
   return (
-    <div
-      className={cn(
-        contained ? "flex h-full min-h-0 flex-col" : "flex flex-col",
-        className,
-      )}
-    >
-      {threadQuery.error instanceof CallError &&
-      threadQuery.error.status === 404 ? (
-        <EmptyStatePanel className="m-2 rounded-lg">
-          This thread is no longer available.
-        </EmptyStatePanel>
-      ) : thread === undefined ? (
-        <div className="space-y-2 px-4 pt-4">
-          <Skeleton className="h-4 w-3/4 rounded-sm" />
-          <Skeleton className="h-4 w-2/3 rounded-sm" />
-          <Skeleton className="h-4 w-1/2 rounded-sm" />
-        </div>
-      ) : variant === "timeline" ? (
-        <div
-          className={cn(
-            "bg-background px-2 pb-3 pt-3",
-            contained && "min-h-0 flex-1 overflow-y-auto",
-          )}
-        >
-          {timeline()}
-        </div>
-      ) : (
-        <ThreadChatWithComposer
-          key={threadId}
-          thread={thread}
-          contained={contained}
-          page={variant === "full"}
-          focusRequest={focusRequest ?? 0}
-          resolveMentionLink={resolveMentionLink}
-          timeline={timeline}
-        />
-      )}
-    </div>
+    <ExtraMessageActionsContext.Provider value={messageActions}>
+      <div
+        className={cn(
+          contained ? "flex h-full min-h-0 flex-col" : "flex flex-col",
+          className,
+        )}
+      >
+        {threadQuery.error instanceof CallError &&
+        threadQuery.error.status === 404 ? (
+          <EmptyStatePanel className="m-2 rounded-lg">
+            This thread is no longer available.
+          </EmptyStatePanel>
+        ) : thread === undefined ? (
+          <div className="space-y-2 px-4 pt-4">
+            <Skeleton className="h-4 w-3/4 rounded-sm" />
+            <Skeleton className="h-4 w-2/3 rounded-sm" />
+            <Skeleton className="h-4 w-1/2 rounded-sm" />
+          </div>
+        ) : variant === "timeline" ? (
+          <div
+            className={cn(
+              "bg-background px-2 pb-3 pt-3",
+              contained && "min-h-0 flex-1 overflow-y-auto",
+            )}
+          >
+            {timeline()}
+          </div>
+        ) : (
+          <ThreadChatWithComposer
+            key={threadId}
+            thread={thread}
+            contained={contained}
+            page={variant === "full"}
+            focusRequest={focusRequest ?? 0}
+            permissionReadOnly={permissionPolicy === "inherit"}
+            resolveMentionLink={resolveMentionLink}
+            timeline={timeline}
+          />
+        )}
+      </div>
+    </ExtraMessageActionsContext.Provider>
   );
 }
 
@@ -147,6 +153,7 @@ function ThreadChatWithComposer({
   contained,
   page,
   focusRequest,
+  permissionReadOnly,
   resolveMentionLink,
   timeline,
 }: {
@@ -154,6 +161,7 @@ function ThreadChatWithComposer({
   contained: boolean;
   page: boolean;
   focusRequest: number;
+  permissionReadOnly: boolean;
   resolveMentionLink: PromptMentionLinkResolver;
   timeline: (
     onAddToChat: ThreadTimelineAddToChatHandler,
@@ -240,6 +248,7 @@ function ThreadChatWithComposer({
           }
           {...chrome}
           canUseGitUi={false}
+          permissionReadOnly={permissionReadOnly}
           onChangedFileClick={() => {}}
           workspaceChangedFilesSection={null}
           workspaceStatusPending={false}

@@ -460,6 +460,7 @@ export const ConversationTimelineRow = memo(function ConversationTimelineRow({
     <AssistantConversationMessage
       attachments={row.attachments}
       id={row.id}
+      seq={row.sourceSeqEnd}
       showActions={showAssistantMessageActions}
       streaming={row.id === streamingMessageId}
       text={row.text}

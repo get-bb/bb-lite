@@ -75,9 +75,15 @@ import {
   onComposerSubmitted,
   showComposer,
 } from "../../lib/composers";
+import {
+  closeComposerPopup,
+  openComposerPopup,
+  useOpenComposerPopupId,
+} from "../../lib/composer-popups";
 import { AttachmentPreview } from "./AttachmentPreview";
 import {
   ComposerBanners,
+  ComposerPopupHost,
   composerKeyOf,
   type ComposerFooterHost,
   type ComposerMenuHost,
@@ -1528,6 +1534,7 @@ export function PromptBoxInternal({
   const attachmentCount = attachments.length;
   const { surface, threadId: composerThreadId, projectId } = composerScope;
   const composerKey = composerKeyOf(composerScope);
+  const openPopupId = useOpenComposerPopupId(composerKey);
   const composerHandle = useMemo<ComposerHandle>(() => {
     const now = () => composerLatest.current;
     const setText = (text: string) => now().onChange(text, []);
@@ -1586,8 +1593,12 @@ export function PromptBoxInternal({
       setInputLock: (locked) => void now().editor?.setEditable(!locked),
       submit: (options) => now().submitPrompt(options),
       onSubmitted: (listener) => onComposerSubmitted(composerKey, listener),
+      openPopupId,
+      openPopup: (id) => openComposerPopup(composerKey, id),
+      closePopup: () => closeComposerPopup(composerKey),
     };
   }, [
+    openPopupId,
     composerKey,
     surface,
     composerThreadId,
@@ -1629,261 +1640,269 @@ export function PromptBoxInternal({
 
   return (
     <BoundComposer.Provider value={composerHandle}>
-      <form
-        ref={formRef}
-        data-promptbox=""
-        onFocusCapture={() => markComposerActive(composerKey)}
-        data-promptbox-compact={showCompactLayout ? "" : undefined}
-        onSubmit={(event) => {
-          event.preventDefault();
-          submitPrompt();
-        }}
-        onMouseDown={handleFormMouseDown}
-        onDragOver={(event) => {
-          if (onAttachFiles) event.preventDefault();
-        }}
-        onDrop={(event) => {
-          if (!onAttachFiles) return;
-          event.preventDefault();
-          attachFiles(event.dataTransfer?.files);
-        }}
-        className={cn(
-          "group/promptbox relative w-full rounded-xl border border-border bg-background shadow-lift",
-          showCompactLayout && "overflow-hidden",
-        )}
-      >
-        <ComposerBanners composer={composerHandle} />
-        <input
-          ref={attachmentInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(event) => {
-            attachFiles(event.target.files);
-            event.target.value = "";
+      <div className="relative w-full">
+        <ComposerPopupHost composer={composerHandle} />
+        <form
+          ref={formRef}
+          data-promptbox=""
+          onFocusCapture={() => markComposerActive(composerKey)}
+          data-promptbox-compact={showCompactLayout ? "" : undefined}
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitPrompt();
           }}
-        />
-        <div
-          data-promptbox-layout=""
+          onMouseDown={handleFormMouseDown}
+          onDragOver={(event) => {
+            if (onAttachFiles) event.preventDefault();
+          }}
+          onDrop={(event) => {
+            if (!onAttachFiles) return;
+            event.preventDefault();
+            attachFiles(event.dataTransfer?.files);
+          }}
           className={cn(
-            "grid transition-[grid-template-rows] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
-            showCompactLayout && "relative",
+            "group/promptbox relative w-full rounded-xl border border-border bg-background shadow-lift",
+            showCompactLayout && "overflow-hidden",
           )}
-          style={{ gridTemplateRows: "1fr" }}
         >
+          <ComposerBanners composer={composerHandle} />
+          <input
+            ref={attachmentInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              attachFiles(event.target.files);
+              event.target.value = "";
+            }}
+          />
           <div
-            data-promptbox-main=""
+            data-promptbox-layout=""
             className={cn(
-              "min-h-0 overflow-hidden transition-opacity duration-[180ms] motion-reduce:transition-none",
-              showCompactLayout && "relative flex h-12 items-center",
+              "grid transition-[grid-template-rows] duration-[180ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
+              showCompactLayout && "relative",
             )}
+            style={{ gridTemplateRows: "1fr" }}
           >
-            {showCompactLayout ? (
-              <AttachmentPreview
-                compact
-                attachments={attachments}
-                pendingUploads={pendingUploads}
-                attachmentProjectId={attachmentProjectId}
-                onRemoveAttachment={onRemoveAttachment}
-              />
-            ) : null}
             <div
-              data-promptbox-input-region=""
-              className={cn("relative", showCompactLayout && "min-w-0 flex-1")}
-            >
-              {showCompactLayout ? null : (
-                <div data-promptbox-expanded-only="">
-                  <AppCommandShortcutHint
-                    shortcut={focusComposerShortcut}
-                    className="absolute right-2 top-2 z-20 group-focus-within/promptbox:hidden"
-                  />
-                </div>
+              data-promptbox-main=""
+              className={cn(
+                "min-h-0 overflow-hidden transition-opacity duration-[180ms] motion-reduce:transition-none",
+                showCompactLayout && "relative flex h-12 items-center",
               )}
-              <div
-                ref={scrollRef}
-                data-promptbox-editor-scroll=""
-                className={cn(
-                  "w-full overflow-y-auto bg-transparent px-4 pb-1 pr-14 pt-3 outline-none",
-                  COARSE_POINTER_TEXT_BASE_CLASS,
-                  "leading-relaxed",
-                  showCompactLayout && "h-12 overflow-hidden pb-0 pr-14 pt-0",
-                )}
-                style={
-                  showCompactLayout
-                    ? { minHeight: "48px", height: "48px", maxHeight: "48px" }
-                    : {
-                        minHeight: `${minHeight}px`,
-                        maxHeight: EDITOR_MAX_HEIGHT[editorLayout],
-                      }
-                }
-              >
-                <PromptMentionLinkContext.Provider
-                  value={mention.resolveLink ?? null}
-                >
-                  <EditorContent
-                    editor={editor}
-                    data-promptbox-editor-content=""
-                    data-promptbox-compact-content={
-                      showCompactLayout ? "" : undefined
-                    }
-                    className={cn(
-                      "h-full min-h-full",
-                      textEffect,
-                      showCompactLayout && "flex items-center",
-                      EDITOR_CONTENT_CLASS,
-                    )}
-                  />
-                </PromptMentionLinkContext.Provider>
-              </div>
-            </div>
-
-            {showTypeaheadMenu ? (
-              <div
-                ref={typeaheadMenuRef}
-                data-promptbox-typeahead-menu=""
-                className={cn(
-                  "absolute -left-px -right-px z-20",
-                  mentionMenuPlacement === "top"
-                    ? "bottom-full mb-2"
-                    : "top-full mt-2",
-                )}
-              >
-                <MentionMenu
-                  state={typeaheadMenuState}
-                  selectedIndex={selectedIndex}
-                  onApply={(item) => {
-                    if (editor) applySuggestion(editor, item);
-                  }}
-                  onDismiss={isPointerCoarse ? dismissActiveTrigger : undefined}
-                />
-              </div>
-            ) : null}
-
-            {showCompactLayout ? null : (
-              <div data-promptbox-expanded-only="">
+            >
+              {showCompactLayout ? (
                 <AttachmentPreview
+                  compact
                   attachments={attachments}
                   pendingUploads={pendingUploads}
                   attachmentProjectId={attachmentProjectId}
                   onRemoveAttachment={onRemoveAttachment}
                 />
-                {attachmentError ? (
-                  <div className="mx-3 mb-1 mt-1 text-xs text-destructive">
-                    {attachmentError}
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            <div
-              data-promptbox-action-row=""
-              className={cn(
-                "relative flex shrink-0 select-none flex-row items-center gap-3 pb-2 pl-3.5 pr-[13px] pt-1.5",
-                showCompactLayout && "absolute inset-y-0 right-2 gap-0 p-0",
-              )}
-            >
-              {showCompactLayout ? null : (
-                <div
-                  data-promptbox-expanded-only=""
-                  data-promptbox-standard-actions=""
-                  className={cn(
-                    "flex min-w-0 flex-1 flex-row items-center gap-1",
-                    ACTIONS_TRANSITION_CLASS,
-                  )}
-                  aria-live="polite"
-                >
-                  <PromptBoxActionsMenu context={menuContext} />
-                  {footerStart}
-                </div>
-              )}
+              ) : null}
               <div
-                data-promptbox-standard-actions=""
+                data-promptbox-input-region=""
                 className={cn(
-                  "flex shrink-0 flex-row items-center gap-1",
-                  ACTIONS_TRANSITION_CLASS,
+                  "relative",
+                  showCompactLayout && "min-w-0 flex-1",
                 )}
               >
+                {showCompactLayout ? null : (
+                  <div data-promptbox-expanded-only="">
+                    <AppCommandShortcutHint
+                      shortcut={focusComposerShortcut}
+                      className="absolute right-2 top-2 z-20 group-focus-within/promptbox:hidden"
+                    />
+                  </div>
+                )}
                 <div
-                  data-promptbox-submit-group=""
-                  className="flex shrink-0 flex-row items-center"
-                >
-                  {showStop ? (
-                    <Button
-                      data-promptbox-submit-action=""
-                      type="button"
-                      size="icon"
-                      variant="secondary"
-                      aria-label="Stop run"
-                      onPointerDown={(event) => {
-                        if (event.button === 0) {
-                          stopGestureButtonRef.current = event.currentTarget;
-                        }
-                      }}
-                      onClick={(event) => {
-                        const gestureButton = stopGestureButtonRef.current;
-                        stopGestureButtonRef.current = null;
-                        if (
-                          event.detail === 0 ||
-                          gestureButton === event.currentTarget
-                        ) {
-                          onStop?.();
-                        }
-                      }}
-                      className={
-                        showCompactLayout
-                          ? COMPACT_PROMPT_ACTION_BUTTON_CLASS
-                          : COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS
-                      }
-                    >
-                      <Icon
-                        name="Square"
-                        className="size-3.5 fill-current [&_*]:stroke-0"
-                      />
-                    </Button>
-                  ) : (
-                    <ComposerSendMenu
-                      isPointerCoarse={isPointerCoarse}
-                      context={sendContext}
-                      hasInput={hasSubmittableInput}
-                      canSubmit={canSubmit}
-                    >
-                      <PromptSubmitButton
-                        canSubmit={canSubmit}
-                        disabledReason={
-                          canSubmit
-                            ? undefined
-                            : isAttaching
-                              ? attachmentUploadTitle
-                              : submitDisabledReason
-                        }
-                        isBusy={isSubmitting || isAttaching}
-                        isCompact={showCompactLayout}
-                        onPointerDown={handleSubmitPointerDown}
-                        onClick={(event) => {
-                          blurAfterPointerSubmitRef.current =
-                            blurOnPointerSubmit && event.detail > 0;
-                        }}
-                        onTouchSubmit={() => {
-                          blurAfterPointerSubmitRef.current =
-                            blurOnPointerSubmit;
-                          submitPrompt();
-                        }}
-                        title={
-                          isAttaching
-                            ? attachmentUploadTitle
-                            : !canSubmit && submitDisabledReason
-                              ? submitDisabledReason
-                              : submitTitle
-                        }
-                      />
-                    </ComposerSendMenu>
+                  ref={scrollRef}
+                  data-promptbox-editor-scroll=""
+                  className={cn(
+                    "w-full overflow-y-auto bg-transparent px-4 pb-1 pr-14 pt-3 outline-none",
+                    COARSE_POINTER_TEXT_BASE_CLASS,
+                    "leading-relaxed",
+                    showCompactLayout && "h-12 overflow-hidden pb-0 pr-14 pt-0",
                   )}
+                  style={
+                    showCompactLayout
+                      ? { minHeight: "48px", height: "48px", maxHeight: "48px" }
+                      : {
+                          minHeight: `${minHeight}px`,
+                          maxHeight: EDITOR_MAX_HEIGHT[editorLayout],
+                        }
+                  }
+                >
+                  <PromptMentionLinkContext.Provider
+                    value={mention.resolveLink ?? null}
+                  >
+                    <EditorContent
+                      editor={editor}
+                      data-promptbox-editor-content=""
+                      data-promptbox-compact-content={
+                        showCompactLayout ? "" : undefined
+                      }
+                      className={cn(
+                        "h-full min-h-full",
+                        textEffect,
+                        showCompactLayout && "flex items-center",
+                        EDITOR_CONTENT_CLASS,
+                      )}
+                    />
+                  </PromptMentionLinkContext.Provider>
+                </div>
+              </div>
+
+              {showTypeaheadMenu ? (
+                <div
+                  ref={typeaheadMenuRef}
+                  data-promptbox-typeahead-menu=""
+                  className={cn(
+                    "absolute -left-px -right-px z-20",
+                    mentionMenuPlacement === "top"
+                      ? "bottom-full mb-2"
+                      : "top-full mt-2",
+                  )}
+                >
+                  <MentionMenu
+                    state={typeaheadMenuState}
+                    selectedIndex={selectedIndex}
+                    onApply={(item) => {
+                      if (editor) applySuggestion(editor, item);
+                    }}
+                    onDismiss={
+                      isPointerCoarse ? dismissActiveTrigger : undefined
+                    }
+                  />
+                </div>
+              ) : null}
+
+              {showCompactLayout ? null : (
+                <div data-promptbox-expanded-only="">
+                  <AttachmentPreview
+                    attachments={attachments}
+                    pendingUploads={pendingUploads}
+                    attachmentProjectId={attachmentProjectId}
+                    onRemoveAttachment={onRemoveAttachment}
+                  />
+                  {attachmentError ? (
+                    <div className="mx-3 mb-1 mt-1 text-xs text-destructive">
+                      {attachmentError}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              <div
+                data-promptbox-action-row=""
+                className={cn(
+                  "relative flex shrink-0 select-none flex-row items-center gap-3 pb-2 pl-3.5 pr-[13px] pt-1.5",
+                  showCompactLayout && "absolute inset-y-0 right-2 gap-0 p-0",
+                )}
+              >
+                {showCompactLayout ? null : (
+                  <div
+                    data-promptbox-expanded-only=""
+                    data-promptbox-standard-actions=""
+                    className={cn(
+                      "flex min-w-0 flex-1 flex-row items-center gap-1",
+                      ACTIONS_TRANSITION_CLASS,
+                    )}
+                    aria-live="polite"
+                  >
+                    <PromptBoxActionsMenu context={menuContext} />
+                    {footerStart}
+                  </div>
+                )}
+                <div
+                  data-promptbox-standard-actions=""
+                  className={cn(
+                    "flex shrink-0 flex-row items-center gap-1",
+                    ACTIONS_TRANSITION_CLASS,
+                  )}
+                >
+                  <div
+                    data-promptbox-submit-group=""
+                    className="flex shrink-0 flex-row items-center"
+                  >
+                    {showStop ? (
+                      <Button
+                        data-promptbox-submit-action=""
+                        type="button"
+                        size="icon"
+                        variant="secondary"
+                        aria-label="Stop run"
+                        onPointerDown={(event) => {
+                          if (event.button === 0) {
+                            stopGestureButtonRef.current = event.currentTarget;
+                          }
+                        }}
+                        onClick={(event) => {
+                          const gestureButton = stopGestureButtonRef.current;
+                          stopGestureButtonRef.current = null;
+                          if (
+                            event.detail === 0 ||
+                            gestureButton === event.currentTarget
+                          ) {
+                            onStop?.();
+                          }
+                        }}
+                        className={
+                          showCompactLayout
+                            ? COMPACT_PROMPT_ACTION_BUTTON_CLASS
+                            : COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS
+                        }
+                      >
+                        <Icon
+                          name="Square"
+                          className="size-3.5 fill-current [&_*]:stroke-0"
+                        />
+                      </Button>
+                    ) : (
+                      <ComposerSendMenu
+                        isPointerCoarse={isPointerCoarse}
+                        context={sendContext}
+                        hasInput={hasSubmittableInput}
+                        canSubmit={canSubmit}
+                      >
+                        <PromptSubmitButton
+                          canSubmit={canSubmit}
+                          disabledReason={
+                            canSubmit
+                              ? undefined
+                              : isAttaching
+                                ? attachmentUploadTitle
+                                : submitDisabledReason
+                          }
+                          isBusy={isSubmitting || isAttaching}
+                          isCompact={showCompactLayout}
+                          onPointerDown={handleSubmitPointerDown}
+                          onClick={(event) => {
+                            blurAfterPointerSubmitRef.current =
+                              blurOnPointerSubmit && event.detail > 0;
+                          }}
+                          onTouchSubmit={() => {
+                            blurAfterPointerSubmitRef.current =
+                              blurOnPointerSubmit;
+                            submitPrompt();
+                          }}
+                          title={
+                            isAttaching
+                              ? attachmentUploadTitle
+                              : !canSubmit && submitDisabledReason
+                                ? submitDisabledReason
+                                : submitTitle
+                          }
+                        />
+                      </ComposerSendMenu>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </BoundComposer.Provider>
   );
 }

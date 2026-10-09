@@ -65,6 +65,9 @@ export interface ComposerHandle {
   setInputLock(locked: boolean): void;
   submit(options?: ComposerSubmitOptions): void;
   onSubmitted(listener: () => void): () => void;
+  readonly openPopupId: string | null;
+  openPopup(id: string): void;
+  closePopup(): void;
 }
 
 export interface ComposerContext {
@@ -79,6 +82,17 @@ export interface ComposerBanner {
   order?: number;
   isAvailable?(composer: ComposerHandle): boolean;
   view: ComponentType<{ composer: ComposerHandle }>;
+}
+
+export interface ComposerPopupProps {
+  composer: ComposerHandle;
+  close(): void;
+}
+
+export interface ComposerPopup {
+  id: string;
+  label: string;
+  view: ComponentType<ComposerPopupProps>;
 }
 
 export interface ComposerMenuItem {
@@ -151,4 +165,5 @@ export const composer = contract("composer", {
   banner: slot<ComposerBanner>(),
   textEffect: slot<ComposerTextEffect>({ key: "id" }),
   homeSection: slot<HomeSection>(),
+  popup: slot<ComposerPopup>({ key: "id" }),
 });

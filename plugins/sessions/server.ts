@@ -9,6 +9,7 @@ import {
 } from "@bb/server-kit/providers/catalog";
 import { resolveExecutionOptions } from "@bb/server-kit/providers/models";
 import { ApiError } from "@bb/server-kit/http/errors";
+import { resolveLookupHostId } from "@bb/server-kit/runners/hosts";
 import { pickTranscriber } from "@bb/server-kit/providers/inference";
 import { resolveMention, searchMentions } from "./mentions.js";
 import { registerProviderRoutes } from "./routes.js";
@@ -60,6 +61,38 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
     return providers.filter(
       ({ maintenance }) => !usageOnly || maintenance.usage,
     );
+  });
+  bb.implement(sessions.providerStatus, async ({ hostId }) => {
+    const enabled = new Set(
+      listEnabledProviders(db).map(({ info }) => info.id),
+    );
+    const runner = bb.runners.get(resolveLookupHostId(bb, { hostId }));
+    const statuses = await runner.listProviders();
+    return statuses
+      .filter(({ providerId }) => enabled.has(providerId))
+      .map((status) => ({
+        providerId: status.providerId,
+        state: !status.installed
+          ? ("not_installed" as const)
+          : status.versionUnsupported === true
+            ? ("update_required" as const)
+            : status.auth === "unauthenticated"
+              ? ("needs_login" as const)
+              : status.auth === "ready"
+                ? ("ready" as const)
+                : ("unknown" as const),
+        message: status.message,
+        ...(status.version === null ? {} : { version: status.version }),
+        ...(status.minimumVersion === undefined
+          ? {}
+          : { minimumVersion: status.minimumVersion }),
+        ...(status.versionUnsupported === undefined
+          ? {}
+          : { versionUnsupported: status.versionUnsupported }),
+        ...(status.installAction === undefined
+          ? {}
+          : { installAction: status.installAction }),
+      }));
   });
   bb.implement(sessions.providerCatalog, () => listProviderCatalog(db));
   bb.implement(sessions.updateProvider, ({ providerId, enabled }) => {

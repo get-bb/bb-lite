@@ -1,4 +1,5 @@
 import {
+  createContext,
   useContext,
   useEffect,
   useRef,
@@ -7,8 +8,15 @@ import {
 } from "react";
 import { CopyButton } from "@bb/app-kit/components/ui/copy-button";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
-import { threadView, type TimelineMessage } from "@bb/plugin/app";
-import { useSlot } from "@bb/app-kit/plugins/slots";
+import {
+  sidePanel,
+  threadView,
+  type MessageAction,
+  type MessageActionContext,
+  type TimelineMessage,
+} from "@bb/plugin/app";
+import { useOwned } from "@bb/app-kit/plugins/slots";
+import { usePluginThreadPanelOpenHandler } from "@bb/app-kit/components/plugin/plugin-thread-panel-navigation";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { copyToClipboardWithToast } from "@bb/app-kit/lib/clipboard";
@@ -33,7 +41,22 @@ interface MessageActionBarProps {
   mobileActionDisplay: MobileActionDisplay;
   addToChatAttachments: readonly PromptDraftAttachment[];
   copyImageUrl?: string;
+  seq?: number | null;
   onAddToChat?: ThreadTimelineAddToChatHandler;
+}
+
+export const ExtraMessageActionsContext = createContext<
+  readonly MessageAction[]
+>([]);
+
+function selectionInside(element: HTMLElement | null): string | null {
+  const selection = window.getSelection();
+  const text = selection?.toString().trim() ?? "";
+  if (element === null || selection === null || text === "") return null;
+  return element.contains(selection.anchorNode) &&
+    element.contains(selection.focusNode)
+    ? text
+    : null;
 }
 
 const TOUCH_ACTION_WIDTH_PX = 28;
@@ -90,20 +113,51 @@ export function MessageActionBar({
   mobileActionDisplay,
   addToChatAttachments,
   copyImageUrl,
+  seq = null,
   onAddToChat,
 }: MessageActionBarProps) {
   const isCompactViewport = useIsCompactViewport();
   const isPointerCoarse = usePointerCoarse();
   const useMobileActions = isCompactViewport && isPointerCoarse;
-  const threadId = useContext(TimelineContext)?.threadId ?? null;
+  const timeline = useContext(TimelineContext);
+  const threadId = timeline?.threadId ?? null;
   const message: TimelineMessage = {
     threadId,
     role: alignment === "end" ? "user" : "assistant",
     text: messageText,
   };
-  const pluginActions = useSlot(threadView.messageAction)
+  const panels = useOwned(sidePanel.panel);
+  const hostOpener = usePluginThreadPanelOpenHandler();
+  const extraActions = useContext(ExtraMessageActionsContext);
+  const pluginActions = [
+    ...useOwned(threadView.messageAction),
+    ...extraActions.map((action) => ({ ...action, pluginId: null })),
+  ]
     .filter((action) => action.isAvailable?.(message) ?? true)
     .sort((left, right) => (left.order ?? 1_000) - (right.order ?? 1_000));
+  const runAction = (action: MessageAction & { pluginId: string | null }) => {
+    const context: MessageActionContext = {
+      ...message,
+      selectedText: selectionInside(
+        slotRef.current?.closest<HTMLElement>('[class~="group/message"]') ??
+          null,
+      ),
+      seq,
+      openPanel: (options) => {
+        const pluginId =
+          panels.find(
+            (panel) =>
+              panel.id === options.actionId &&
+              (action.pluginId === null || panel.pluginId === action.pluginId),
+          )?.pluginId ?? null;
+        const open = timeline?.onOpenPluginPanel ?? hostOpener ?? undefined;
+        return pluginId !== null && open !== undefined
+          ? open({ ...options, pluginId })
+          : false;
+      },
+    };
+    action.run(context);
+  };
   const hasCopy = messageText.length > 0 || copyImageUrl !== undefined;
   const hasAddToChat =
     (hasCopy || addToChatAttachments.length > 0) && onAddToChat !== undefined;
@@ -227,7 +281,7 @@ export function MessageActionBar({
             key={`plugin-${action.id}`}
             type="button"
             className={mobileActionClass}
-            onClick={() => action.run(message)}
+            onClick={() => runAction(action)}
             aria-label={action.label}
           >
             <Icon name={action.icon as IconName} className="size-3" />
@@ -331,7 +385,7 @@ export function MessageActionBar({
                 <button
                   type="button"
                   className={cn(ACTION_BUTTON_CLASS, HOVER_REVEAL_CLASS)}
-                  onClick={() => action.run(message)}
+                  onClick={() => runAction(action)}
                   aria-label={action.label}
                 >
                   <Icon name={action.icon as IconName} className="size-3" />

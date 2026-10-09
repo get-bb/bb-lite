@@ -136,10 +136,12 @@ interface ThreadDetailPromptAreaProps {
   steerActiveThreadOnEnter: boolean;
   composerFocusRequestNonce: number;
   thread: ThreadWithRuntime;
+  permissionReadOnly?: boolean;
 }
 
 export function ThreadDetailPromptArea({
   canUseGitUi,
+  permissionReadOnly = false,
   contextWindowUsage,
   environmentCheckout,
   environmentCompactLabel,
@@ -806,6 +808,7 @@ export function ThreadDetailPromptArea({
       contextWindowUsage={contextWindowUsage ?? null}
       execution={execution}
       permission={permission}
+      permissionReadOnly={permissionReadOnly}
       typeahead={typeahead}
       promptActions={promptActions}
     />

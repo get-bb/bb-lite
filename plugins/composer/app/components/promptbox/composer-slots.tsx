@@ -1,6 +1,7 @@
 import { BoundComposer } from "../../lib/composers";
 import {
   useContext,
+  useEffect,
   useMemo,
   type ComponentProps,
   type ReactNode,
@@ -166,6 +167,43 @@ export function ComposerBanners({
           <item.view composer={handle} />
         </SlotMount>
       ))}
+    </div>
+  );
+}
+
+export function ComposerPopupHost({
+  composer: handle,
+}: {
+  composer: ComposerHandle;
+}) {
+  const entry = useSlotEntries(composer.popup).find(
+    ({ item }) => item.id === handle.openPopupId,
+  );
+  useEffect(() => {
+    if (entry === undefined) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === "Escape") handle.closePopup();
+    };
+    document.addEventListener("keydown", dismiss);
+    return () => document.removeEventListener("keydown", dismiss);
+  }, [entry, handle]);
+  if (entry === undefined) return null;
+  const { plugin, item } = entry;
+  return (
+    <div
+      role="dialog"
+      aria-label={item.label}
+      data-composer-popup={item.id}
+      className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-80 overflow-y-auto rounded-xl border border-border bg-popover shadow-lift"
+    >
+      <SlotMount
+        pluginId={plugin}
+        slot={composer.popup.name}
+        id={item.id}
+        fallback={null}
+      >
+        <item.view composer={handle} close={() => handle.closePopup()} />
+      </SlotMount>
     </div>
   );
 }

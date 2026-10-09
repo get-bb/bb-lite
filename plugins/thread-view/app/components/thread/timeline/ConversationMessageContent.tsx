@@ -268,6 +268,7 @@ export function UserConversationMessage({
             }
             addToChatAttachments={attachmentItems.draftAttachments}
             copyImageUrl={attachmentItems.imageItems[0]?.src}
+            seq={row.sourceSeqEnd}
             onAddToChat={onMessageAddToChat}
           />
         </div>
@@ -279,6 +280,7 @@ export function UserConversationMessage({
 export function AssistantConversationMessage({
   attachments,
   id,
+  seq = null,
   showActions,
   streaming,
   text,
@@ -286,6 +288,7 @@ export function AssistantConversationMessage({
   turnId,
 }: Pick<TimelineRowBase, "id" | "threadId" | "turnId"> & {
   attachments: TimelineConversationAttachments | null;
+  seq?: number | null;
   showActions: boolean;
   streaming: boolean;
   text: string;
@@ -404,6 +407,7 @@ export function AssistantConversationMessage({
           }
           addToChatAttachments={attachmentItems.draftAttachments}
           copyImageUrl={attachmentItems.imageItems[0]?.src}
+          seq={seq}
           onAddToChat={onMessageAddToChat}
         />
       ) : null}

@@ -9,6 +9,7 @@ export { default as ArchiveRestore } from "@hugeicons/core-free-icons/Unarchive0
 export { default as ArrowDown } from "@hugeicons/core-free-icons/ArrowDown02Icon";
 export { default as ArrowLeft } from "@hugeicons/core-free-icons/ArrowLeft02Icon";
 export { default as ArrowRight } from "@hugeicons/core-free-icons/ArrowRight02Icon";
+export { default as ArrowTurnBackward } from "@hugeicons/core-free-icons/ArrowTurnBackwardIcon";
 export { default as ArrowTurnForward } from "@hugeicons/core-free-icons/ArrowTurnForwardIcon";
 export { default as ArrowUp } from "@hugeicons/core-free-icons/ArrowUp02Icon";
 export { default as ArrowUpDown } from "@hugeicons/core-free-icons/ArrowUpDownIcon";
@@ -98,6 +99,7 @@ export { default as Search } from "@hugeicons/core-free-icons/Search01Icon";
 export { default as SecurityCheck } from "@hugeicons/core-free-icons/SecurityCheckIcon";
 export { default as Sent } from "@hugeicons/core-free-icons/SentIcon";
 export { default as Settings } from "@hugeicons/core-free-icons/Settings01Icon";
+export { default as SideChat } from "@hugeicons/core-free-icons/MessageAdd02Icon";
 export { default as SlidersHorizontal } from "@hugeicons/core-free-icons/SlidersHorizontalIcon";
 export { default as Sort } from "@hugeicons/core-free-icons/Sorting01Icon";
 export { default as Spinner } from "@hugeicons/core-free-icons/DashedLineCircleIcon";

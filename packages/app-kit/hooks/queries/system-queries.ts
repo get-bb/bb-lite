@@ -61,6 +61,14 @@ export function invalidateCachedUiPreferences(client: QueryClient): void {
   void client.invalidateQueries({ queryKey: qk.uiPreferences() });
 }
 
+export function useProviderStatus() {
+  return useQuery({
+    queryKey: ["sessions", "provider-status"],
+    queryFn: () => callOp(sessions.providerStatus, {}),
+    staleTime: 60_000,
+  });
+}
+
 export function useSystemProviderCatalog() {
   return useQuery({
     queryKey: qk.providerCatalog(),

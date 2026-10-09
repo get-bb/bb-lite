@@ -3,6 +3,7 @@ import { identified } from "../app-contracts.js";
 import type {
   InteractionRenderer,
   MessageDirective,
+  TargetedPanelOpenOptions,
   ThreadChatProps,
 } from "../app-types.js";
 import { contract, service, slot } from "../contract.js";
@@ -55,13 +56,19 @@ export interface TimelineMessage {
   text: string;
 }
 
+export interface MessageActionContext extends TimelineMessage {
+  selectedText: string | null;
+  seq: number | null;
+  openPanel(options: TargetedPanelOpenOptions): boolean;
+}
+
 export interface MessageAction {
   id: string;
   label: string;
   icon: string;
   order?: number;
   isAvailable?(message: TimelineMessage): boolean;
-  run(message: TimelineMessage): void;
+  run(context: MessageActionContext): void;
 }
 
 export interface ThreadHeaderItem {

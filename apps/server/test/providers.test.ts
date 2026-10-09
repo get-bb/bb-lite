@@ -109,3 +109,33 @@ it("keeps environment variable values encrypted and write-only", async () => {
   const resolved = [everywhereEnv.API_KEY, projectEnv.API_KEY].join();
   expect(resolved).toBe("s3cret-global,s3cret-own");
 });
+
+it("reports each enabled provider's install and login state", async () => {
+  const { api, runner } = await createTestServer();
+  const base = { executablePath: null, message: null, version: "1.0.0" };
+  runner.script.listProviders = async () => [
+    { ...base, providerId: "echo", installed: true, auth: "ready" },
+    {
+      ...base,
+      providerId: "codex",
+      installed: true,
+      auth: "ready",
+      minimumVersion: "2.0.0",
+      versionUnsupported: true,
+      installAction: { kind: "update", command: "npm i -g codex" },
+    },
+    { ...base, providerId: "claude-code", installed: false, auth: "unknown" },
+    { ...base, providerId: "nope", installed: true, auth: "ready" },
+  ];
+  const response = await api.sessions["provider-status"].$get({ query: {} });
+  const statuses = await response.json();
+  expect(statuses.map(({ providerId, state }) => [providerId, state])).toEqual([
+    ["echo", "ready"],
+    ["codex", "update_required"],
+    ["claude-code", "not_installed"],
+  ]);
+  expect(statuses[1]).toMatchObject({
+    minimumVersion: "2.0.0",
+    installAction: { kind: "update", command: "npm i -g codex" },
+  });
+});

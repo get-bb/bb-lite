@@ -4,6 +4,7 @@ import type {
   CSSProperties,
   ReactNode,
 } from "react";
+import type { MessageAction } from "./app/thread-view.js";
 import type {
   EnvironmentWorkspaceDisplayKind,
   JsonValue,
@@ -496,6 +497,8 @@ export interface UrlLinkProps extends Omit<
   href: string;
 }
 
+export type ThreadChatPermissionPolicy = "inherit" | "editable";
+
 export interface ThreadChatProps {
   threadId: string;
   variant?: "full" | "compact" | "timeline";
@@ -503,4 +506,6 @@ export interface ThreadChatProps {
   focusRequest?: number;
   className?: string;
   leadingContent?: ReactNode;
+  messageActions?: readonly MessageAction[];
+  permissionPolicy?: ThreadChatPermissionPolicy;
 }
