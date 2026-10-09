@@ -21,6 +21,7 @@ export const pluginSettingDescriptorSchema = z.discriminatedUnion("type", [
       type: z.literal("string"),
       secret: z.literal(true).optional(),
       multiline: z.boolean().optional(),
+      maxLength: z.number().int().positive().optional(),
       default: z.string().optional(),
     })
     .strict(),

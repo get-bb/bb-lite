@@ -86,6 +86,7 @@ function PluginSetting({
   const text = draft ?? (secret || typeof stored !== "string" ? "" : stored);
   const textProps = {
     ...aria,
+    maxLength: descriptor.type === "string" ? descriptor.maxLength : undefined,
     value: text,
     onChange: (event: { target: { value: string } }) => {
       setDraft(event.target.value);

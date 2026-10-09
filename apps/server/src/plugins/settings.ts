@@ -39,6 +39,11 @@ function accepted(
     const whole = !integer || Number.isInteger(value);
     return whole && value >= min && value <= max ? value : undefined;
   }
+  if (descriptor.type === "string") {
+    if (typeof value !== "string") return undefined;
+    const { maxLength = Infinity } = descriptor;
+    return value.length <= maxLength ? value : undefined;
+  }
   return typeof value === descriptor.type ? (value as SettingValue) : undefined;
 }
 
@@ -55,6 +60,9 @@ function expected(descriptor: SettingDescriptor): string {
     return `${kind}${low}${low && high ? " and" : ""}${high}`;
   }
   if (descriptor.type === "project") return "a project id";
+  if (descriptor.type === "string" && descriptor.maxLength !== undefined) {
+    return `a string of at most ${descriptor.maxLength} characters`;
+  }
   return `a ${descriptor.type}`;
 }
 

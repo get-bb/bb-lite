@@ -32,6 +32,16 @@ const splitSubPath = (subPath: string): DocRef | null => {
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
+export const failureStatus = (error: unknown): number | null =>
+  error instanceof Error &&
+  "status" in error &&
+  typeof error.status === "number"
+    ? error.status
+    : null;
+
+export const NOT_FOUND_TEXT =
+  "Document not found. It may have been renamed or deleted.";
+
 function Diff({ before, after }: { before: string; after: string }) {
   return (
     <pre className="max-h-96 overflow-auto rounded border p-2 text-xs whitespace-pre-wrap">
@@ -150,18 +160,38 @@ function DocEditor({
   const [draft, setDraft] = useState<string | null>(null);
   const [preview, setPreview] = useState(compact);
   const [status, setStatus] = useState("");
+  const [conflict, setConflict] = useState(false);
   const saved = file.data?.contentEncoding === "utf8" ? file.data.content : "";
   useEffect(() => setDraft(null), [saved]);
   if (file.status === "loading") return <p className="p-2 text-sm">Loading…</p>;
-  if (!file.data) return <p className="p-2 text-sm">{message(file.error)}</p>;
+  if (!file.data) {
+    const missing = failureStatus(file.error) === 404;
+    return (
+      <p className="p-2 text-sm text-muted-foreground">
+        {missing ? NOT_FOUND_TEXT : message(file.error)}
+      </p>
+    );
+  }
   const { sha256 } = file.data;
   const text = draft ?? saved;
-  const save = () => {
+  const save = (overwrite = false) => {
     setStatus("Saving…");
-    write({ ...at, content: text, expectedSha256: sha256 }).then(
+    setConflict(false);
+    const expectedSha256 = overwrite ? undefined : sha256;
+    write({ ...at, content: text, expectedSha256 }).then(
       () => setStatus("Saved"),
-      (failure: unknown) => setStatus(message(failure)),
+      (failure: unknown) => {
+        const changed = failureStatus(failure) === 409;
+        setConflict(changed);
+        setStatus(changed ? "Changed on disk." : message(failure));
+      },
     );
+  };
+  const reload = () => {
+    setConflict(false);
+    setStatus("");
+    setDraft(null);
+    void file.refetch();
   };
   const attach = async (picked: File) => {
     const contentBase64 = await fileBase64(picked);
@@ -181,6 +211,16 @@ function DocEditor({
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex items-center gap-2 text-xs">
         <span className="text-muted-foreground flex-1 truncate">{status}</span>
+        {conflict && (
+          <>
+            <Button size="sm" variant="ghost" onClick={reload}>
+              Reload
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => save(true)}>
+              Overwrite
+            </Button>
+          </>
+        )}
         <label className="hover:bg-muted cursor-pointer rounded px-2 py-1">
           Attach
           <input
@@ -214,7 +254,7 @@ function DocEditor({
         <Button size="sm" variant="ghost" onClick={() => setPreview(!preview)}>
           {preview ? "Edit" : "Preview"}
         </Button>
-        <Button size="sm" disabled={draft === null} onClick={save}>
+        <Button size="sm" disabled={draft === null} onClick={() => save()}>
           Save
         </Button>
       </div>
@@ -263,7 +303,7 @@ function Folder({
   const sorted = [...children].sort(
     (a, b) =>
       rank(a) - rank(b) ||
-      a.kind.localeCompare(b.kind) * -1 ||
+      a.kind.localeCompare(b.kind) ||
       a.path.localeCompare(b.path),
   );
   const names = sorted.map((e) => e.path.slice(prefix.length));

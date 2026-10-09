@@ -20,6 +20,7 @@ export default function plugin(bb: PluginServerApi): void {
       description:
         "Give agents extra instructions and context for tasks on this bb host.",
       multiline: true,
+      maxLength: MAX_LENGTH,
       default: "",
     },
   });

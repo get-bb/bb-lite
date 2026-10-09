@@ -39,6 +39,16 @@ it("sets, prints and clears instructions with --json and a length cap", async ()
   const long = await cli(["set", "x".repeat(4097)]);
   expect(long.exitCode).not.toBe(0);
   expect(long.stderr).toContain("at most 4096 characters");
+  const page = await fetch(`${server.url}/api/v1/ops/plugins.updateSettings`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      pluginId: "custom-instructions",
+      values: { instructions: "x".repeat(4097) },
+    }),
+  });
+  expect(page.status).toBe(400);
+  expect(await page.text()).toContain("at most 4096 characters");
   expect((await cli(["get"])).stdout).toBe("use tabs");
   expect(JSON.parse((await cli(["clear", "--json"])).stdout)).toEqual({
     instructions: "",
