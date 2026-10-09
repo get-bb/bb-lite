@@ -31,13 +31,26 @@ return { a, b, topic: args.topic, budget: budget() };`,
   });
 
   test("blocks nondeterminism and dynamic code", async () => {
-    for (const code of [
-      "return Date.now()",
-      "return Math.random()",
-      "return eval('1')",
-      "return (() => {}).constructor('return 1')()",
-    ]) {
-      await expect(runScript(code, globals())).rejects.toThrow();
+    expect(
+      await runScript("return [1 + 1, Math.max(2, 3)]", globals()),
+    ).toEqual([2, 3]);
+    const blocked: [string, RegExp][] = [
+      ["return Date.now()", /property 'now' of undefined/],
+      ["return Math.random()", /Math.random is unavailable/],
+      ["return eval('1')", /not a function/],
+      ["return Function('return 1')()", /not a function/],
+      [
+        "return (() => {}).constructor('return 1')()",
+        /dynamic code generation is unavailable/,
+      ],
+      [
+        "return (async () => {}).constructor('return 1')()",
+        /dynamic code generation is unavailable/,
+      ],
+      ["Math.max = () => 4; return Math.max(1, 2)", /read-only/],
+    ];
+    for (const [code, error] of blocked) {
+      await expect(runScript(code, globals()), code).rejects.toThrow(error);
     }
   });
 
