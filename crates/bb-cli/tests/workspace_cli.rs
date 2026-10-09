@@ -171,3 +171,75 @@ fn env_commands_build_queries_and_bodies() {
         ]
     );
 }
+
+#[test]
+fn env_diff_commands_print_what_the_original_printed() {
+    let files = json!({
+        "outcome": "available",
+        "files": [{
+            "path": "b.txt", "previousPath": "a.txt", "changeKind": "renamed",
+            "additions": 1, "deletions": 0, "binary": false, "origin": "tracked",
+            "loadMode": "auto"
+        }],
+        "truncated": true, "shortstat": " 1 file changed\n", "mergeBaseRef": null,
+        "initialPatches": []
+    });
+    let server = FakeServer::start(vec![
+        route("GET", "/environments/env_1/diff/files", files),
+        route(
+            "POST",
+            "/environments/env_1/diff/patch",
+            json!({ "outcome": "not_applicable", "reason": "non_git_environment",
+                    "message": "Not git" }),
+        ),
+        route(
+            "GET",
+            "/environments/env_1/diff/branches",
+            json!({ "branches": ["main"], "branchesTruncated": false,
+                    "remoteBranches": [], "remoteBranchesTruncated": true }),
+        ),
+        route(
+            "POST",
+            "/environments/env_1/archive-threads",
+            json!({
+            "ok": true, "archivedThreadIds": ["thr_1", "thr_2"] }),
+        ),
+    ]);
+    let env = CliEnv::default;
+    let words = ["env", "diff-files", "env_1", "--target", "all", "--merge-base-branch", "main"];
+    let (result, printed) = run(&server, &words, env());
+    result.unwrap();
+    let expected = "renamed\t+1 -0\ttracked\tauto\ta.txt -> b.txt\n1 file changed\n\
+                    (additional changed files omitted)\n";
+    assert_eq!(printed, expected);
+    let words =
+        ["env", "diff-patch", "env_1", "--target", "commit", "--sha", "abcd", "--path", "x"];
+    let (result, printed) = run(&server, &words, env());
+    result.unwrap();
+    assert_eq!(printed, "Diff patches unavailable: Not git\n");
+    let (result, printed) = run(&server, &["env", "branches", "env_1", "--limit", "0"], env());
+    result.unwrap();
+    assert_eq!(printed, "Local branches:\n  main\nRemote branches:\n  (none)\n  (truncated)\n");
+    let (result, printed) = run(&server, &["env", "archive-threads", "env_1"], env());
+    result.unwrap();
+    assert_eq!(printed, "Archived 2 thread(s) in environment env_1\n");
+    let words = ["env", "diff-files", "env_1", "--target", "commit"];
+    let (result, _) = run(&server, &words, env());
+    assert_eq!(result.unwrap_err().message, "--sha is required when --target commit is used.");
+    let words = ["env", "diff-patch", "env_1", "--target", "uncommitted"];
+    let (result, _) = run(&server, &words, env());
+    assert_eq!(result.unwrap_err().message, "Provide at least one --path.");
+    assert_eq!(
+        server.requests(),
+        [
+            request("GET", "/environments/env_1/diff/files?target=all&mergeBaseBranch=main", None),
+            request(
+                "POST",
+                "/environments/env_1/diff/patch",
+                Some(json!({ "target": { "type": "commit", "sha": "abcd" }, "paths": ["x"] })),
+            ),
+            request("GET", "/environments/env_1/diff/branches?limit=0", None),
+            request("POST", "/environments/env_1/archive-threads", Some(json!({}))),
+        ]
+    );
+}

@@ -302,6 +302,58 @@ Delete an environment that has no live threads
 Options:
   --yes  Skip the confirmation prompt
 
+Usage: bb env branches <id> [options]
+List the local and remote branches of an environment
+Options:
+  --query <query>  Branch-name filter
+  --limit <count>  Maximum local and remote branches
+JSON (--json): {branches, branchesTruncated, remoteBranches, remoteBranchesTruncated}
+
+Usage: bb env paths <id> [options]
+Search an environment's files and directories
+Options:
+  --query <query>  Fuzzy path query
+  --limit <count>  Maximum paths
+  --files          Include files
+  --directories    Include directories
+JSON (--json): {paths: [{kind, path}], truncated}
+
+Usage: bb env diff-files <id> [options]
+List the changed files of an environment
+Options:
+  --target <target>             uncommitted, branch_committed, all or commit (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>                   Commit, with --target commit
+JSON (--json): {outcome, files: [{path, changeKind, additions, deletions, …}], shortstat}
+
+Usage: bb env diff-file <id> [options]
+Print one side of a changed file
+Options:
+  --target <target>       uncommitted, branch_committed, all or commit (required)
+  --path <path>           Repository-relative file path (required)
+  --side <side>           old or new (required)
+  --merge-base-ref <sha>  Resolved merge-base SHA, with branch_committed or all
+  --sha <sha>             Commit, with --target commit
+
+Usage: bb env diff-patch <id> [options]
+Print the patches of chosen changed files
+Options:
+  --target <target>             uncommitted, branch_committed, all or commit (required)
+  --path <path>                 Changed file path (required) (repeatable)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>                   Commit, with --target commit
+JSON (--json): {outcome, patches: [{path, patch, truncated}]}
+
+Usage: bb env providers [options]
+List environment providers
+Options:
+  --project <id>          Only providers this project can use
+  --machine <id-or-name>  Availability on this machine (needs --project) (alias --host)
+
+Usage: bb env archive-threads <id> [options]
+Archive every active thread in an environment
+JSON (--json): {ok, archivedThreadIds}
+
 Usage: bb machine list [options]
 List machines, their owners and who may use them
 JSON (--json): [{id, name, type, status, lifecycle, ownerUserId, sharing, usable, lastSeenAt}] (bare array)
@@ -480,6 +532,8 @@ Options:
   --machine <id-or-name>  Machine holding the directory (default: the server's) (alias --host)
   --query <query>         Fuzzy path filter
   --limit <count>         Maximum entries
+  --no-hidden             Skip dot-prefixed files and directories
+  --exclude <name>        Entry names or root-relative paths to skip (repeatable)
 
 Usage: bb settings show [options]
 Print every setting as key = value

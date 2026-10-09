@@ -144,7 +144,7 @@ fn host_path(call: &Call) -> CliResult<Map<String, Value>> {
     Ok(body)
 }
 
-fn put_some(body: &mut Map<String, Value>, key: &str, value: Option<Value>) {
+pub(crate) fn put_some(body: &mut Map<String, Value>, key: &str, value: Option<Value>) {
     if let Some(value) = value {
         body.insert(key.into(), value);
     }
@@ -197,6 +197,12 @@ fn file_list(call: &mut Call) -> CliResult<Output> {
     put_some(&mut body, "limit", limit.map(Value::from));
     put_some(&mut body, "path", located.get("path").cloned());
     put_some(&mut body, "query", query.map(Value::String));
+    if call.on("no-hidden")? {
+        body.insert("includeHidden".to_owned(), Value::Bool(false));
+    }
+    if call.on("exclude")? {
+        body.insert("excludeNames".to_owned(), json!(call.list("exclude")?));
+    }
     let result = call.http.post("/machines/files/list", &Value::Object(body))?;
     let files = result.get("files").and_then(Value::as_array);
     let paths: Vec<String> = files.into_iter().flatten().map(|f| text(f, "path")).collect();

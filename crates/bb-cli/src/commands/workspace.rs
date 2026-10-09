@@ -7,8 +7,11 @@ use crate::call::{
     Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, machine_id,
     machine_or_this, read_stdin, usage_error, valid_id,
 };
+use crate::commands::system::put_some;
 use crate::http::encode;
 
+const DIFF_SIDES: &[&str] = &["old", "new"];
+const DIFF_TARGETS: &str = "uncommitted, branch_committed, all, or commit";
 const ENVIRONMENT_STATUSES: &[&str] = &["ready", "destroyed"];
 const MANUAL_MACHINE_PROVIDER: &str = "manual";
 const LOCAL_PATH: &str = "local_path";
@@ -31,6 +34,13 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("envCommit", env_commit),
         ("envUpdate", env_update),
         ("envDelete", env_delete),
+        ("envBranches", env_branches),
+        ("envPaths", env_paths),
+        ("envDiffFiles", env_diff_files),
+        ("envDiffFile", env_diff_file),
+        ("envDiffPatch", env_diff_patch),
+        ("envProviders", env_providers),
+        ("envArchiveThreads", env_archive_threads),
         ("machineList", machine_list),
         ("machineShow", machine_show),
         ("machineAdd", machine_add),
@@ -532,4 +542,263 @@ fn provider_enable(call: &mut Call) -> CliResult<Output> {
 
 fn provider_disable(call: &mut Call) -> CliResult<Output> {
     set_provider_enabled(call, false)
+}
+
+/// The `--target` of a diff command with its base (`--<base_flag>`) or `--sha`, checked
+/// as `diffTarget` in workspace.ts does.
+fn diff_target(
+    call: &Call,
+    base_flag: &str,
+) -> CliResult<(String, Option<String>, Option<String>)> {
+    let target = required(call, "target")?;
+    let base = call.flag(base_flag)?;
+    let sha = call.flag("sha")?;
+    match target.as_str() {
+        "uncommitted" => {
+            if base.is_some() || sha.is_some() {
+                let message =
+                    format!("--target uncommitted cannot be combined with --{base_flag} or --sha.");
+                return Err(usage_error(message));
+            }
+        }
+        "branch_committed" | "all" => {
+            if base.as_deref().unwrap_or("").is_empty() {
+                let message = format!("--{base_flag} is required when --target {target} is used.");
+                return Err(usage_error(message));
+            }
+            if sha.is_some() {
+                let message = format!("--target {target} cannot be combined with --sha.");
+                return Err(usage_error(message));
+            }
+        }
+        "commit" => {
+            if sha.as_deref().unwrap_or("").is_empty() {
+                return Err(usage_error("--sha is required when --target commit is used."));
+            }
+            if base.is_some() {
+                let message = format!("--target commit cannot be combined with --{base_flag}.");
+                return Err(usage_error(message));
+            }
+        }
+        _ => return Err(usage_error(format!("--target must be {DIFF_TARGETS}."))),
+    }
+    Ok((target, base, sha))
+}
+
+fn unavailable(label: &str, result: &Value) -> Option<String> {
+    match result.get("outcome").and_then(Value::as_str) {
+        Some("not_applicable") => Some(format!("{label} unavailable: {}", text(result, "message"))),
+        Some("unavailable") => {
+            let failure = result.get("failure").cloned().unwrap_or(Value::Null);
+            Some(format!("{label} unavailable: {}", text(&failure, "message")))
+        }
+        _ => None,
+    }
+}
+
+fn strings(value: &Value, key: &str) -> Vec<String> {
+    let items = value.get(key).and_then(Value::as_array);
+    items.into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect()
+}
+
+fn truthy(value: &Value, key: &str) -> bool {
+    value.get(key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+fn env_branches(call: &mut Call) -> CliResult<Output> {
+    let path = environment_path(&id(call, "id")?, "/diff/branches");
+    let search = call.flag("query")?;
+    let limit = integer(call.flag("limit")?.as_deref(), "--limit", 0)?.map(|n| n.to_string());
+    let pairs = [("query", search.as_deref()), ("limit", limit.as_deref())];
+    let query: Vec<(&str, &str)> = pairs.iter().filter_map(|(k, v)| v.map(|v| (*k, v))).collect();
+    let result = call.http.get(&path, &query)?;
+    let mut lines = Vec::new();
+    for (title, key) in [("Local branches:", "branches"), ("Remote branches:", "remoteBranches")] {
+        lines.push(title.to_owned());
+        let names = strings(&result, key);
+        if names.is_empty() {
+            lines.push("  (none)".to_owned());
+        }
+        lines.extend(names.iter().map(|name| format!("  {name}")));
+        if truthy(&result, &format!("{key}Truncated")) {
+            lines.push("  (truncated)".to_owned());
+        }
+    }
+    Ok(Output::lines(result, &lines))
+}
+
+fn env_paths(call: &mut Call) -> CliResult<Output> {
+    let path = environment_path(&id(call, "id")?, "/paths");
+    let files = call.on("files")?;
+    let directories = call.on("directories")?;
+    let include_files = if files || !directories { "true" } else { "false" };
+    let include_directories = if directories || !files { "true" } else { "false" };
+    let search = call.flag("query")?;
+    let limit = integer(call.flag("limit")?.as_deref(), "--limit", 0)?.map(|n| n.to_string());
+    let mut query =
+        vec![("includeFiles", include_files), ("includeDirectories", include_directories)];
+    let pairs = [("query", search.as_deref()), ("limit", limit.as_deref())];
+    query.extend(pairs.iter().filter_map(|(k, v)| v.map(|v| (*k, v))));
+    let result = call.http.get(&path, &query)?;
+    let entries = result.get("paths").and_then(Value::as_array);
+    let mut lines: Vec<String> = entries
+        .into_iter()
+        .flatten()
+        .map(|entry| format!("{}\t{}", text(entry, "kind"), text(entry, "path")))
+        .collect();
+    if truthy(&result, "truncated") {
+        lines.push("(results truncated)".to_owned());
+    }
+    Ok(Output::lines(result, &lines))
+}
+
+fn env_diff_files(call: &mut Call) -> CliResult<Output> {
+    let path = environment_path(&id(call, "id")?, "/diff/files");
+    let (target, base, sha) = diff_target(call, "merge-base-branch")?;
+    let mut query = vec![("target", target.as_str())];
+    base.iter().for_each(|base| query.push(("mergeBaseBranch", base)));
+    sha.iter().for_each(|sha| query.push(("sha", sha)));
+    let result = call.http.get(&path, &query)?;
+    if let Some(message) = unavailable("Diff files", &result) {
+        return Ok(Output::text(result, message));
+    }
+    let files = result.get("files").and_then(Value::as_array);
+    let mut lines: Vec<String> = files
+        .into_iter()
+        .flatten()
+        .map(|file| {
+            let previous = text(file, "previousPath");
+            let path = if previous.is_empty() {
+                text(file, "path")
+            } else {
+                format!("{previous} -> {}", text(file, "path"))
+            };
+            let stats = if truthy(file, "binary") {
+                "binary".to_owned()
+            } else {
+                format!("+{} -{}", text(file, "additions"), text(file, "deletions"))
+            };
+            let kind = text(file, "changeKind");
+            let origin = text(file, "origin");
+            format!("{kind}\t{stats}\t{origin}\t{}\t{path}", text(file, "loadMode"))
+        })
+        .collect();
+    let shortstat = text(&result, "shortstat").trim().to_owned();
+    if !shortstat.is_empty() {
+        lines.push(shortstat);
+    }
+    if truthy(&result, "truncated") {
+        lines.push("(additional changed files omitted)".to_owned());
+    }
+    Ok(Output::lines(result, &lines))
+}
+
+fn env_diff_file(call: &mut Call) -> CliResult<Output> {
+    let path = environment_path(&id(call, "id")?, "/diff/file");
+    let (target, base, sha) = diff_target(call, "merge-base-ref")?;
+    let side = call
+        .choice("side", DIFF_SIDES)?
+        .ok_or_else(|| usage_error("Missing required option --side."))?;
+    let file = required(call, "path")?;
+    let mut query = vec![("target", target.as_str()), ("path", file.as_str()), ("side", side)];
+    base.iter().for_each(|base| query.push(("mergeBaseRef", base)));
+    sha.iter().for_each(|sha| query.push(("sha", sha)));
+    let result = call.http.get(&path, &query)?;
+    if text(&result, "contentEncoding") != "base64" {
+        let content = text(&result, "content");
+        return Ok(Output::text(result, content));
+    }
+    let mut lines = vec![
+        format!("Binary file: {}", text(&result, "path")),
+        format!("Encoding: {}", text(&result, "contentEncoding")),
+        format!("Size: {} bytes", text(&result, "sizeBytes")),
+    ];
+    let mime = text(&result, "mimeType");
+    if !mime.is_empty() {
+        lines.push(format!("MIME type: {mime}"));
+    }
+    lines.push(text(&result, "content"));
+    Ok(Output::lines(result, &lines))
+}
+
+fn env_diff_patch(call: &mut Call) -> CliResult<Output> {
+    let paths = call.list("path")?;
+    if paths.is_empty() {
+        return Err(usage_error("Provide at least one --path."));
+    }
+    let path = environment_path(&id(call, "id")?, "/diff/patch");
+    let (target, base, sha) = diff_target(call, "merge-base-branch")?;
+    let mut chosen = Map::new();
+    chosen.insert("type".to_owned(), Value::String(target));
+    put_some(&mut chosen, "mergeBaseBranch", base.map(Value::String));
+    put_some(&mut chosen, "sha", sha.map(Value::String));
+    let body = json!({ "target": chosen, "paths": paths });
+    let result = call.http.post(&path, &body)?;
+    if let Some(message) = unavailable("Diff patches", &result) {
+        return Ok(Output::text(result, message));
+    }
+    let patches = result.get("patches").and_then(Value::as_array);
+    let mut lines = Vec::new();
+    for patch in patches.into_iter().flatten() {
+        lines.push(format!("File: {}", text(patch, "path")));
+        lines.push(text(patch, "patch"));
+        if truthy(patch, "truncated") {
+            lines.push("(patch truncated)".to_owned());
+        }
+    }
+    Ok(Output::lines(result, &lines))
+}
+
+fn env_providers(call: &mut Call) -> CliResult<Output> {
+    let host_id = machine_flag(call)?;
+    let project_id = call.id("project")?;
+    if host_id.is_some() && project_id.is_none() {
+        return Err(usage_error("--machine or --host requires --project <id>."));
+    }
+    let pairs = [("projectId", project_id.as_deref()), ("hostId", host_id.as_deref())];
+    let query: Vec<(&str, &str)> = pairs.iter().filter_map(|(k, v)| v.map(|v| (*k, v))).collect();
+    let result = call.http.get("/environments/providers", &query)?;
+    let providers = result.get("providers").cloned().unwrap_or(Value::Array(Vec::new()));
+    let listed = providers.as_array().cloned().unwrap_or_default();
+    if listed.is_empty() {
+        return Ok(Output::text(providers, "No environment providers available"));
+    }
+    let lines: Vec<String> = listed
+        .iter()
+        .map(|provider| {
+            let requires = provider.get("requires").and_then(Value::as_object);
+            let needed: Vec<&str> = requires
+                .into_iter()
+                .flatten()
+                .filter(|(_, required)| required.as_bool() == Some(true))
+                .map(|(name, _)| name.as_str())
+                .collect();
+            let needed = if needed.is_empty() { "-".to_owned() } else { needed.join(", ") };
+            let inputs = match provider.get("inputs") {
+                None | Some(Value::Null) => "",
+                Some(_) => "  takes --environment-inputs",
+            };
+            let availability = match (&host_id, provider.get("availability")) {
+                (None, _) => String::new(),
+                (Some(_), None | Some(Value::Null)) => "  availability: unknown".to_owned(),
+                (Some(_), Some(status)) => match text(status, "status").as_str() {
+                    "available" => "  availability: available".to_owned(),
+                    other => format!("  availability: {other} ({})", text(status, "message")),
+                },
+            };
+            let about =
+                format!("{}  {}  {needed}", text(provider, "id"), text(provider, "displayName"));
+            format!("{about}{inputs}{availability}")
+        })
+        .collect();
+    Ok(Output::lines(providers, &lines))
+}
+
+fn env_archive_threads(call: &mut Call) -> CliResult<Output> {
+    let environment_id = id(call, "id")?;
+    let path = environment_path(&environment_id, "/archive-threads");
+    let result = call.http.post(&path, &json!({}))?;
+    let count = result.get("archivedThreadIds").and_then(Value::as_array).map_or(0, Vec::len);
+    let message = format!("Archived {count} thread(s) in environment {environment_id}");
+    Ok(Output::text(result, message))
 }

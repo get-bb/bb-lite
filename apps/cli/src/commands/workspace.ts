@@ -340,7 +340,6 @@ export const providerEnable = setProviderEnabled(true);
 export const providerDisable = setProviderEnabled(false);
 
 const DIFF_SIDES = ["old", "new"] as const;
-const DIFF_TARGETS = ["uncommitted", "branch_committed", "all", "commit"];
 
 type DiffTarget =
   | { target: "uncommitted" }
@@ -381,7 +380,9 @@ function diffTarget(c: Call, baseFlag: string): DiffTarget {
     }
     return { target, sha };
   }
-  throw usageError(`--target must be ${DIFF_TARGETS.join(", ")}.`);
+  throw usageError(
+    "--target must be uncommitted, branch_committed, all, or commit.",
+  );
 }
 
 function diffQuery(c: Call) {
