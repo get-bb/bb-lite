@@ -474,7 +474,43 @@ it("accepts a project setting only when it names a project", async () => {
   await expect(settings.write({ target: "proj_missing" })).rejects.toThrow(
     "names no project",
   );
-  await expect(settings.write({ target: 4 })).rejects.toThrow("Invalid value");
+  await expect(settings.write({ target: 4 })).rejects.toThrow(
+    'Setting "target" must be a project id',
+  );
+});
+
+it("says what a refused setting value must be", async () => {
+  const server = await createTestServer();
+  const settings = new PluginSettings(server.ctx.db, "v", join(scratch(), "s"));
+  settings.define(
+    {
+      limit: { type: "number", label: "Limit", min: 1, max: 10 },
+      count: { type: "number", label: "Count", integer: true, min: 0 },
+      mode: {
+        type: "select",
+        label: "Mode",
+        options: [
+          { value: "a", label: "A" },
+          { value: "b", label: "B" },
+        ],
+      },
+      flag: { type: "boolean", label: "Flag" },
+    },
+    "workspace",
+  );
+  const refused = (values: Record<string, unknown>) => settings.write(values);
+  await expect(refused({ limit: 50 })).rejects.toThrow(
+    'Setting "limit" must be a number at least 1 and at most 10',
+  );
+  await expect(refused({ count: 1.5 })).rejects.toThrow(
+    'Setting "count" must be a whole number at least 0',
+  );
+  await expect(refused({ mode: "z" })).rejects.toThrow(
+    'Setting "mode" must be one of a, b',
+  );
+  await expect(refused({ flag: "yes" })).rejects.toThrow(
+    'Setting "flag" must be a boolean',
+  );
 });
 
 it("stores project-scoped settings per project", async () => {
@@ -525,7 +561,7 @@ it("accepts select and number settings and refuses values outside them", async (
   await settings.write({ mode: "careful", retries: 3 });
   expect(await settings.read()).toEqual({ mode: "careful", retries: 3 });
   for (const bad of [{ mode: "reckless" }, { retries: 9 }, { retries: 1.5 }]) {
-    await expect(settings.write(bad)).rejects.toThrow("Invalid value");
+    await expect(settings.write(bad)).rejects.toThrow("must be");
   }
 });
 

@@ -42,6 +42,22 @@ function accepted(
   return typeof value === descriptor.type ? (value as SettingValue) : undefined;
 }
 
+function expected(descriptor: SettingDescriptor): string {
+  if (descriptor.type === "select") {
+    const values = descriptor.options.map((option) => option.value);
+    return `one of ${values.join(", ")}`;
+  }
+  if (descriptor.type === "number") {
+    const { min, max, integer } = descriptor;
+    const kind = integer === true ? "a whole number" : "a number";
+    const low = min === undefined ? "" : ` at least ${min}`;
+    const high = max === undefined ? "" : ` at most ${max}`;
+    return `${kind}${low}${low && high ? " and" : ""}${high}`;
+  }
+  if (descriptor.type === "project") return "a project id";
+  return `a ${descriptor.type}`;
+}
+
 export class PluginSettings {
   descriptors: SettingDescriptors = {};
   readonly listeners: SettingsListener[] = [];
@@ -117,7 +133,8 @@ export class PluginSettings {
         throw invalidRequest(`Unknown setting "${key}"`);
       }
       if (value !== null && accepted(descriptor, value) === undefined) {
-        throw invalidRequest(`Invalid value for setting "${key}"`);
+        const want = expected(descriptor);
+        throw invalidRequest(`Setting "${key}" must be ${want}`);
       }
       if (
         descriptor.type === "project" &&
