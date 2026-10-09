@@ -10,6 +10,8 @@ export const appLoaders: Record<string, Load> = {
   "concurrency-limit": () => import("../../plugins/concurrency-limit/app"),
   connect: () => import("../../plugins/connect/app"),
   drafts: () => import("../../plugins/drafts/app"),
+  "environment-modal-sandbox": () =>
+    import("../../plugins/environment-modal-sandbox/app"),
   "inline-vis": () => import("../../plugins/inline-vis/app"),
   "keep-awake": () => import("../../plugins/keep-awake/app"),
   memory: () => import("../../plugins/memory/app"),

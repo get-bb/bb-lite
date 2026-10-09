@@ -42,6 +42,7 @@ const PRODUCT = [
   "push-notifications",
   "github",
   "storage-retention",
+  "environment-modal-sandbox",
 ];
 
 export const profiles: Record<string, Profile> = {

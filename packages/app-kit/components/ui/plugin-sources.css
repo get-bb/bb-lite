@@ -5,6 +5,7 @@
 @source "../../../../plugins/concurrency-limit";
 @source "../../../../plugins/connect";
 @source "../../../../plugins/drafts";
+@source "../../../../plugins/environment-modal-sandbox";
 @source "../../../../plugins/inline-vis";
 @source "../../../../plugins/keep-awake";
 @source "../../../../plugins/memory";
