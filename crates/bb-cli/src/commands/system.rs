@@ -519,8 +519,22 @@ fn plugin_reload(call: &mut Call) -> CliResult<Output> {
     Ok(Output::text(result, format!("Reloaded {what}")))
 }
 
+fn loaded_directory(call: &mut Call, given: &str) -> CliResult<String> {
+    let path = resolve_path(given);
+    if given.contains('/') || Path::new(&path).exists() {
+        return Ok(path);
+    }
+    let found = call.http.post("/ops/plugins.describe", &json!({ "id": given }))?;
+    let plugin = &found["result"];
+    if plugin.is_null() || plugin["builtin"].as_bool().unwrap_or(true) {
+        return Ok(path);
+    }
+    Ok(text(plugin, "directory"))
+}
+
 fn edit_plugin_config(call: &mut Call, add: bool) -> CliResult<Output> {
-    let path = resolve_path(call.arg("path")?);
+    let given = call.arg("path")?.to_string();
+    let path = if add { resolve_path(&given) } else { loaded_directory(call, &given)? };
     let config = call.http.get("/server/config", &[])?;
     let file = Path::new(&text(&config, "dataDir")).join("config.json");
     let file = file.to_string_lossy().into_owned();

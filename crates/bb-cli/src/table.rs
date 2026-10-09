@@ -539,7 +539,7 @@ plugin enable <id>  Enable a plugin
 plugin disable <id>  Disable a plugin
 plugin reload [id]  Reload one plugin, or rediscover and reload all of them
 plugin add <path>  Load a plugin directory (adds it to <dataDir>/config.json)
-plugin remove <path>  Stop loading a plugin directory
+plugin remove <path>  Stop loading a plugin directory (or the one a plugin id runs from)
 "#,
     yes!(),
     r#"

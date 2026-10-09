@@ -646,7 +646,7 @@ Usage: bb plugin add <path> [options]
 Load a plugin directory (adds it to <dataDir>/config.json)
 
 Usage: bb plugin remove <path> [options]
-Stop loading a plugin directory
+Stop loading a plugin directory (or the one a plugin id runs from)
 Options:
   --yes  Skip the confirmation prompt
 
