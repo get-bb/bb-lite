@@ -1,4 +1,6 @@
+import { execFile } from "node:child_process";
 import { readFile, rm } from "node:fs/promises";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import {
   API_VERSION,
@@ -14,6 +16,7 @@ import {
   catalogFileSchema,
   marketplace,
   type CatalogEntry,
+  type CatalogSource,
   type Installed,
   type Offered,
 } from "./contract.js";
@@ -22,6 +25,28 @@ export const OFFICIAL_CATALOG =
   "https://getbb.app/marketplace/v2/marketplace.json";
 const FETCH_TIMEOUT_MS = 10_000;
 const CACHE_MS = 2 * 60 * 60_000;
+const REFRESH_CRON = "0 */6 * * *";
+const NEEDS_BB = /needs bb API (\S+?)(?:;|$)/u;
+const run = promisify(execFile);
+
+async function tagCommit(source: string, ref: string) {
+  const url = source.slice("git:".length).split("#")[0] ?? "";
+  const tag = `refs/tags/${ref}`;
+  const listed = await run("git", ["ls-remote", url, tag, `${tag}^{}`], {
+    timeout: FETCH_TIMEOUT_MS,
+  });
+  const rows = listed.stdout
+    .trim()
+    .split("\n")
+    .map((line) => line.split("\t"));
+  const named = (name: string) => rows.find((row) => row[1] === name)?.[0];
+  return named(`${tag}^{}`) ?? named(tag) ?? null;
+}
+
+function needsBb(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : "";
+  return NEEDS_BB.exec(message)?.[1] ?? null;
+}
 
 type Loaded = { entries: CatalogEntry[]; at: number };
 
@@ -125,6 +150,35 @@ export default function plugin(bb: PluginServerApi): void {
     },
   });
   const cache = new Map<string, Loaded>();
+  const failures = new Map<string, string>();
+  const available = bb.provide(marketplace.available, 0);
+  const sources = async () =>
+    (await settings.get()).catalogs
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+  const read = async (catalog: string) => {
+    try {
+      const loaded = { entries: await readCatalog(catalog), at: Date.now() };
+      cache.set(catalog, loaded);
+      failures.delete(catalog);
+      return loaded;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.set(catalog, message);
+      return message;
+    }
+  };
+  const listCatalogs = async (): Promise<CatalogSource[]> =>
+    (await sources()).map((url) => {
+      const loaded = cache.get(url);
+      return {
+        url,
+        entries: loaded?.entries.length ?? null,
+        refreshedAt: loaded?.at ?? null,
+        error: failures.get(url) ?? null,
+      };
+    });
   const key = (id: string) => `installed:${id}`;
   const record = (id: string) => bb.storage.kv.get<Installed>(key(id));
   const records = async () => {
@@ -136,28 +190,21 @@ export default function plugin(bb: PluginServerApi): void {
   };
 
   const load = async (refresh: boolean) => {
-    const { catalogs } = await settings.get();
-    const sources = catalogs
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line !== "");
     const errors: { catalog: string; message: string }[] = [];
     const offered = new Map<string, { entry: CatalogEntry; catalog: string }>();
-    for (const catalog of sources) {
+    for (const catalog of await sources()) {
       let loaded = cache.get(catalog);
       if (
         refresh ||
         loaded === undefined ||
         Date.now() - loaded.at > CACHE_MS
       ) {
-        try {
-          loaded = { entries: await readCatalog(catalog), at: Date.now() };
-          cache.set(catalog, loaded);
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          errors.push({ catalog, message });
+        const fresh = await read(catalog);
+        if (typeof fresh === "string") {
+          errors.push({ catalog, message: fresh });
           if (loaded === undefined) continue;
+        } else {
+          loaded = fresh;
         }
       }
       for (const entry of loaded.entries) {
@@ -178,6 +225,7 @@ export default function plugin(bb: PluginServerApi): void {
     offered: Offered,
     version: string | null,
     replace: boolean,
+    range = version ?? offered.range,
   ): Promise<Installed> => {
     if (!offered.installable) {
       fail("invalid", `${offered.id} is built into bb; enable it in Settings`);
@@ -195,32 +243,100 @@ export default function plugin(bb: PluginServerApi): void {
       catalog: offered.catalog,
       source: input.source,
       ref: done.ref ?? null,
-      range: version ?? offered.range,
+      range,
       tagPrefix: offered.tagPrefix,
       version: done.version ?? null,
       path: done.path,
       installedAt: Date.now(),
+      commit: done.commit ?? null,
     };
     await bb.storage.kv.set(key(offered.id), row);
     bb.changed(marketplace.list);
     return row;
   };
 
-  const latest = async (row: Installed) => {
-    if (row.range === null) return null;
+  const candidates = async (row: Installed) => {
+    const { range } = row;
+    if (range === null) return [];
     const versions = await bb.call(pluginDev.versions, {
       source: row.source,
       tagPrefix: row.tagPrefix ?? undefined,
     });
-    let best: string | null = null;
-    for (const version of versions) {
-      if (!satisfies(version, row.range)) continue;
-      if (best === null || isNewer(version, best)) best = version;
-    }
-    const newer =
-      best !== null && (row.version === null || isNewer(best, row.version));
-    return newer ? best : null;
+    const current = row.version;
+    return versions
+      .filter((version) => satisfies(version, range))
+      .filter((version) => current === null || isNewer(version, current))
+      .sort((a, b) => (isNewer(a, b) ? -1 : 1));
   };
+
+  const outdated = async () => {
+    const rows = await records();
+    const found = await Promise.all(
+      rows.map(async (row) => ({ row, newer: await candidates(row) })),
+    );
+    const updates = found.flatMap(({ row, newer: [next] }) =>
+      next === undefined
+        ? []
+        : [{ id: row.id, version: row.version, latest: next }],
+    );
+    available.set(updates.length);
+    return updates;
+  };
+
+  const checkTag = async (row: Installed) => {
+    const { ref, commit } = row;
+    if (ref === null || !commit || !row.source.startsWith("git:")) return;
+    const now = await tagCommit(row.source, ref);
+    if (now === null || now === commit) return;
+    fail("conflict", `${row.id}: tag ${ref} now points at another commit`, {
+      reason: "tag_moved",
+      hint: `Check the source, then: bb marketplace update ${row.id} --force`,
+    });
+  };
+
+  const refreshAll = async () => {
+    for (const url of await sources()) await read(url);
+    await outdated();
+    return listCatalogs();
+  };
+  bb.background.schedule("refresh", REFRESH_CRON, async () => {
+    await refreshAll();
+  });
+
+  bb.implement(marketplace.catalogs, listCatalogs);
+
+  bb.implement(marketplace.addCatalog, async ({ url }) => {
+    const known = await sources();
+    const loaded = await read(url);
+    if (typeof loaded === "string") {
+      failures.delete(url);
+      fail("invalid", `Could not read the catalog ${url}: ${loaded}`);
+    }
+    if (!known.includes(url)) {
+      await settings.set({ catalogs: [...known, url].join("\n") });
+    }
+    bb.changed(marketplace.catalogs);
+    return listCatalogs();
+  });
+
+  bb.implement(marketplace.removeCatalog, async ({ url }) => {
+    const known = await sources();
+    if (!known.includes(url)) fail("not_found", `No catalog ${url}`);
+    const catalogs = known.filter((source) => source !== url).join("\n");
+    await settings.set({ catalogs });
+    cache.delete(url);
+    failures.delete(url);
+    bb.changed(marketplace.catalogs);
+    return listCatalogs();
+  });
+
+  bb.implement(marketplace.refresh, async ({ url }) => {
+    if (url === undefined) return refreshAll();
+    if (!(await sources()).includes(url))
+      fail("not_found", `No catalog ${url}`);
+    await read(url);
+    return listCatalogs();
+  });
 
   bb.implement(marketplace.catalog, async ({ query, refresh }) => {
     const { offered, errors } = await load(refresh === true);
@@ -249,22 +365,28 @@ export default function plugin(bb: PluginServerApi): void {
     return install(await find(id), version ?? null, false);
   });
 
-  bb.implement(marketplace.updates, async () => {
-    const rows = await records();
-    const found = await Promise.all(
-      rows.map(async (row) => ({ row, latest: await latest(row) })),
-    );
-    return found.flatMap(({ row, latest: next }) =>
-      next === null ? [] : [{ id: row.id, version: row.version, latest: next }],
-    );
-  });
+  bb.implement(marketplace.updates, outdated);
 
-  bb.implement(marketplace.update, async ({ id }) => {
+  bb.implement(marketplace.update, async ({ id, force }) => {
     const row = await record(id);
     if (row === undefined) fail("not_found", `${id} is not installed`);
-    if ((await latest(row)) === null) return row;
-    const offered = await find(id);
-    return install({ ...offered, catalog: row.catalog }, row.range, true);
+    const newer = await candidates(row);
+    if (newer.length === 0) return { ...row, newer: null };
+    if (force !== true) await checkTag(row);
+    const offered = { ...(await find(id)), catalog: row.catalog };
+    let skipped: { version: string; needsBb: string } | null = null;
+    for (const version of newer) {
+      try {
+        const done = await install(offered, version, true, row.range);
+        await outdated();
+        return { ...done, newer: skipped };
+      } catch (error) {
+        const needs = needsBb(error);
+        if (needs === null) throw error;
+        skipped ??= { version, needsBb: needs };
+      }
+    }
+    return { ...row, newer: skipped };
   });
 
   bb.implement(marketplace.uninstall, async ({ id }) => {

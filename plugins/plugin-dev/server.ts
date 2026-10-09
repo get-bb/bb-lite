@@ -226,7 +226,12 @@ async function exists(path: string): Promise<boolean> {
   return (await stat(path).catch(() => null)) !== null;
 }
 
-type Fetched = { path: string; version: string | null; ref: string | null };
+type Fetched = {
+  path: string;
+  version: string | null;
+  ref: string | null;
+  commit?: string;
+};
 type Wanted = { version?: string; tagPrefix?: string; replace?: boolean };
 
 async function packageOf(path: string): Promise<{
@@ -328,6 +333,7 @@ async function fetchGit(
     const branch = ref === null ? [] : ["--branch", ref];
     const clone = ["clone", "--depth", "1", ...branch, url, scratch];
     await run("git", clone, options);
+    const head = await run("git", ["-C", scratch, "rev-parse", "HEAD"]);
     const inside = resolve(scratch, subdir);
     if (relative(scratch, inside).startsWith("..")) {
       fail("invalid", `${subdir} is outside the repository`);
@@ -346,6 +352,7 @@ async function fetchGit(
       path: target,
       version: found?.version ?? manifest.version ?? null,
       ref,
+      commit: head.stdout.trim(),
     };
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -495,6 +502,7 @@ export default function plugin(bb: PluginServerApi): void {
       path: fetched.path,
       watch: false,
     });
-    return { ...installed, version: fetched.version, ref: fetched.ref };
+    const { version, ref, commit } = fetched;
+    return { ...installed, version, ref, ...(commit ? { commit } : {}) };
   });
 }

@@ -79,8 +79,15 @@ export const bbAccount = contract("bb-account", {
         .boolean()
         .default(false)
         .describe("Wait here until that sign-in finishes"),
+      code: z
+        .string()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe("Pair with a one-time code from the getbb dashboard"),
     }),
     ...write,
+    secret: ["code"],
     doors: {
       cli: {
         path: "account login",

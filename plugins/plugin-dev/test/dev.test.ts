@@ -163,6 +163,7 @@ it("installs a version range from tagged subdirectories of a repository", async 
     path: target,
     version: "1.2.0",
     ref: "greeter/v1.2.0",
+    commit: expect.stringMatching(/^[0-9a-f]{40}$/u),
   });
   expect(existsSync(join(target, ".git"))).toBe(false);
   expect((await op("greeter.greet", { name: "Bo" })).result).toBe("Hello, Bo!");

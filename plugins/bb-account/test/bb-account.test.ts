@@ -33,6 +33,12 @@ async function setup(withCredential = true) {
     paired = true;
     return connectStatus(paired);
   });
+  const codes: string[] = [];
+  harness.stub(connect.redeem, ({ code }) => {
+    codes.push(code);
+    paired = true;
+    return connectStatus(paired);
+  });
   harness.stub(connect.logout, () => {
     paired = false;
     return connectStatus(paired);
@@ -48,7 +54,7 @@ async function setup(withCredential = true) {
   };
   const plugin = createBbAccount({ fetch, refreshMs: 60_000, waitMs: 1 });
   const { api } = await harness.load("bb-account", plugin);
-  return { api, requests, harness };
+  return { api, requests, harness, codes };
 }
 
 it("reports the account bb connect signed in to and signs in and out", async () => {
@@ -97,4 +103,11 @@ it("is signed in but not hosted while no plugin shares the credential", async ()
   const { api } = await setup(false);
   const status = await api.call(bbAccount.login, {});
   expect(status).toMatchObject({ signedIn: true, hosted: false });
+});
+
+it("signs in with a one-time code through connect.redeem", async () => {
+  const { api, codes } = await setup();
+  const after = await api.call(bbAccount.login, { code: "PAIR-1" });
+  expect(codes).toEqual(["PAIR-1"]);
+  expect(after).toMatchObject({ signedIn: true, handle: "ada" });
 });

@@ -31,6 +31,7 @@ export interface AccountOptions {
   onChange(): void;
   pollMarginMs?: number;
   slowDownStepMs?: number;
+  fetch?: typeof fetch;
 }
 
 export function shareUrl(link: Link, port: number): string {
@@ -92,7 +93,11 @@ export class ConnectAccount {
   async startLogin(): Promise<LoginView> {
     if (this.login?.state === "pending") return this.login;
     const { baseUrl, clientName } = this.options;
-    const started = await hosted.startLink(baseUrl, clientName);
+    const started = await hosted.startLink(
+      baseUrl,
+      clientName,
+      this.options.fetch,
+    );
     const attempt = ++this.attempt;
     const { userCode, verificationUrl } = started;
     this.login = { state: "pending", userCode, verificationUrl, message: null };
@@ -100,6 +105,22 @@ export class ConnectAccount {
     const failed = (error: unknown) => this.settle(attempt, String(error));
     this.poll(started, attempt).catch(failed);
     return this.login;
+  }
+
+  async redeem(code: string): Promise<string | null> {
+    const { baseUrl, fetch: send } = this.options;
+    const redeemed = await hosted.redeemCode(baseUrl, code, send);
+    if (redeemed.status === "refused") return redeemed.message;
+    const { credential } = redeemed;
+    const profile = await hosted
+      .fetchProfile(baseUrl, credential, send)
+      .catch(() => null);
+    if (profile === null || profile === "unauthorized") return UNCONFIRMED;
+    this.attempt += 1;
+    this.login = null;
+    const serverUrl = profile.serverUrl.replace(/\/+$/u, "");
+    this.adopt({ ...profile, baseUrl, serverUrl, credential });
+    return null;
   }
 
   stop(): void {
@@ -158,7 +179,7 @@ export class ConnectAccount {
         return this.settle(attempt, "The sign-in code expired.");
       }
       const result = await hosted
-        .pollLink(baseUrl, started.deviceCode)
+        .pollLink(baseUrl, started.deviceCode, this.options.fetch)
         .catch((error: unknown) => {
           this.options.warn(`waiting for sign-in approval: ${String(error)}`);
           return { status: "pending" } as const;
@@ -172,7 +193,7 @@ export class ConnectAccount {
       if (result.status !== "approved") continue;
       const { credential } = result;
       const profile = await hosted
-        .fetchProfile(baseUrl, credential)
+        .fetchProfile(baseUrl, credential, this.options.fetch)
         .catch(() => null);
       if (profile === null || profile === "unauthorized") {
         return this.settle(attempt, UNCONFIRMED);

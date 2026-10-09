@@ -261,6 +261,7 @@ export const pluginDev = contract("plugin-dev", {
       path: z.string(),
       version: z.string().nullable().optional(),
       ref: z.string().nullable().optional(),
+      commit: z.string().optional(),
     }),
     kind: "write",
     allow: "owner",

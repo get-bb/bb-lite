@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import {
   cliCommand,
   defineCli,
+  fail,
   machines,
   PluginCliError,
   server,
@@ -302,6 +303,11 @@ export default async function connectPlugin(
   bb.implement(connect.status, status);
   bb.implement(connect.login, async () => {
     await account.startLogin();
+    return status();
+  });
+  bb.implement(connect.redeem, async ({ code }) => {
+    const refused = await account.redeem(code);
+    if (refused !== null) fail("invalid", refused);
     return status();
   });
   bb.implement(connect.logout, async () => {

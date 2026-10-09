@@ -38,6 +38,19 @@ export async function findPluginCommand(
   return cliCommands.find((command) => command.name === name)?.pluginId ?? null;
 }
 
+export async function findPluginSpelling(
+  env: CliEnv,
+  spelling: string,
+): Promise<string | null> {
+  const { plugin } = await loadModules();
+  const remote = plugin.createOpClient({ baseUrl: env.serverUrl, door: "cli" });
+  const { cliCommands } = await remote.call(plugin.plugins.contributions, {});
+  const found = cliCommands.find(({ commands = [] }) =>
+    commands.some((command) => command.name === spelling),
+  );
+  return found?.pluginId ?? null;
+}
+
 export async function runPluginCommand(
   env: CliEnv,
   pluginId: string,

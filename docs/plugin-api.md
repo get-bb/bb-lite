@@ -177,7 +177,9 @@ enabledFor?(context) }`. The implementation sees `caller.thread` (the calling th
 - `doors.cli` makes `bb <path>`: `{ path, summary, positionals?, print?(output, input) }`. Flags come
   from the input schema (`projectKey` is `--project-key`; booleans are switches; arrays repeat;
   `.describe()` is the help text). `--json` prints the output. All of a plugin's CLI doors share their
-  first word.
+  first word. `aliases` are other spellings; one under another first word (`"plugin search"` on a
+  `marketplace` door) is listed among the plugin's commands under that full name, and `bb` runs it
+  when its own `bb <group>` has no such command.
   `from: { field: "cwd" | "projectId" | "threadId" | "hostId" }` fills an input field from the
   caller's context (`CliContext` of a `bb.cli.register` command has the same fields). `hostId` is
   the machine `bb` runs on (`BB_HOST_ID`, set in agent sessions; otherwise the machine of the

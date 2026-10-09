@@ -70,7 +70,11 @@ export function createBbAccount(options: BbAccountOptions) {
     };
 
     bb.implement(bbAccount.status, refresh);
-    bb.implement(bbAccount.login, async ({ wait }, { signal }) => {
+    bb.implement(bbAccount.login, async ({ wait, code }, { signal }) => {
+      if (code !== undefined) {
+        await bb.call(connect.redeem, { code });
+        return refresh();
+      }
       await bb.call(connect.login, {});
       if (!wait) return refresh();
       const current = await settle(signal);

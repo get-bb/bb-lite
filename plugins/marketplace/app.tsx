@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { settings, useCall, useOp, type PluginAppApi } from "@bb/plugin/app";
+import {
+  settings,
+  useCall,
+  useLive,
+  useOp,
+  type PluginAppApi,
+} from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { Input } from "@bb/shared-ui/input";
 import { marketplace, type Offered } from "./contract";
@@ -45,6 +51,7 @@ function MarketplacePage() {
   const [error, setError] = useState<string | null>(null);
   const catalog = useOp(marketplace.catalog, { query });
   const updates = useOp(marketplace.updates, {});
+  const available = useLive(marketplace.available) ?? 0;
   const install = useCall(marketplace.install);
   const update = useCall(marketplace.update);
   const remove = useCall(marketplace.uninstall);
@@ -68,6 +75,11 @@ function MarketplacePage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {available > 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {available === 1 ? "1 update" : `${available} updates`} available
+        </p>
+      ) : null}
       <Input
         placeholder="Search plugins"
         value={query}

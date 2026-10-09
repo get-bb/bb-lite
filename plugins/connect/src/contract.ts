@@ -62,6 +62,12 @@ const write = { output: statusSchema, kind: "write" } as const;
 export const connect = contract("connect", {
   status: op({ input: noInput, output: statusSchema }),
   login: op({ input: noInput, ...write }),
+  redeem: op({
+    input: z.object({ code: z.string().min(1).max(200) }).strict(),
+    ...write,
+    allow: "owner",
+    secret: ["code"],
+  }),
   logout: op({ input: noInput, ...write }),
   setEnabled: op({ input: enabledInput, ...write }),
   expose: op({ input: portInput, ...write }),

@@ -259,6 +259,7 @@ export function doorCli(
   const commands: Record<string, CliCommand> = {};
   let root: CliCommand | undefined;
   let name: string | undefined;
+  const elsewhere: { name: string; summary: string }[] = [];
   for (const { op, owner } of kernel.ops()) {
     const door = op.doors.cli;
     if (door === undefined || owner !== pluginId) continue;
@@ -266,8 +267,12 @@ export function doorCli(
     name ??= first;
     if (first !== name) continue;
     const spelled = (door.aliases ?? []).flatMap((alias) => {
-      const [head, ...tail] = alias.trim().split(/\s+/u);
-      return head === name && tail.length > 0 ? [tail.join(" ")] : [];
+      const [head = "", ...tail] = alias.trim().split(/\s+/u);
+      if (tail.length === 0) return [];
+      if (head === name) return [tail.join(" ")];
+      const spelling = [head, ...tail].join(" ");
+      elsewhere.push({ name: spelling, summary: door.summary });
+      return [spelling];
     });
     const aliases = spelled.length === 0 ? {} : { aliases: spelled };
     const command = { ...doorCommand(kernel, op, door), ...aliases };
@@ -275,5 +280,6 @@ export function doorCli(
     else commands[rest.join(" ")] = command;
   }
   if (name === undefined) return null;
-  return defineCli({ name, summary, commands, ...(root ? { root } : {}) });
+  const cli = defineCli({ name, summary, commands, ...(root ? { root } : {}) });
+  return { ...cli, commands: [...(cli.commands ?? []), ...elsewhere] };
 }
