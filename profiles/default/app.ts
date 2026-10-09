@@ -43,6 +43,10 @@ export const appPlugins: readonly BuiltinAppPlugin[] = [
     load: () => import("../../plugins/plugin-api-tester/app"),
   },
   {
+    id: "provider-usage",
+    load: () => import("../../plugins/provider-usage/app"),
+  },
+  {
     id: "connect",
     load: () => import("../../plugins/connect/app"),
   },

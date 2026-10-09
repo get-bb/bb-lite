@@ -19,6 +19,7 @@ import codex from "../../plugins/provider-codex/server.js";
 import memory from "../../plugins/memory/server.js";
 import echo from "../../plugins/provider-echo/server.js";
 import inlineVis from "../../plugins/inline-vis/server.js";
+import providerUsage from "../../plugins/provider-usage/server.js";
 import secrets from "../../plugins/secrets/src/server.js";
 import tasks from "../../plugins/tasks/server.js";
 import threadList from "../../plugins/thread-list/server.js";
@@ -93,6 +94,7 @@ export const serverPlugins: BuiltinPlugin[] = [
   },
   { directory: pluginDirectory("keep-awake"), server: keepAwake },
   { directory: pluginDirectory("prompt-library"), server: promptLibrary },
+  { directory: pluginDirectory("provider-usage"), server: providerUsage },
 ];
 
 export function profilePlugins(name: string): BuiltinPlugin[] {
