@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  shell,
-  useCall,
-  useLive,
-  type PluginAppApi,
-} from "@bb/plugin/app";
+import { shell, useCall, useLive, type PluginAppApi } from "@bb/plugin/app";
 import { sweepname } from "./contract";
 
 function Panel() {

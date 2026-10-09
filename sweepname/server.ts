@@ -6,7 +6,9 @@ export default function plugin(bb: PluginServerApi): void {
 
   bb.implement(sweepname.greet, ({ name }, { caller }) => {
     if (name.trim() === "") {
-      fail("invalid", "Say who to greet", { hint: "bb sweepname greet <name>" });
+      fail("invalid", "Say who to greet", {
+        hint: "bb sweepname greet <name>",
+      });
     }
     greetings.update((count) => count + 1);
     const through = caller.door === "agent" ? " (asked by an agent)" : "";

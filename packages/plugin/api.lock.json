@@ -1,5 +1,5 @@
 {
-"version": "1.5.0",
+"version": "1.6.0",
 "shapes": {
   "pb22ua": {"type":"object","properties":{"name":{"type":"string"},"view":{"component":{"type":"object","properties":{"className":{"anyOf":[{"type":"string"},{"type":"undefined"}]}},"required":[]}}},"required":["name","view"]},
   "1y3dz63": {"type":"object","properties":{"codeTheme":{"anyOf":[{"ref":"{ dark?: string | undefined; light?: string | undefined; }"},{"type":"null"}]},"cssFile":{"anyOf":[{"type":"string"},{"type":"undefined"}]},"cssUrl":{"type":"string"},"description":{"type":"string"},"id":{"type":"string"},"name":{"type":"string"},"pluginId":{"type":"string"}},"required":["codeTheme","cssUrl","description","id","name","pluginId"]},
@@ -495,6 +495,7 @@
   "childSummary": {"type":"op","kind":"read","hooks":"rewrite","allow":"member","internal":false,"doors":{"http":"GET /threads/:threadId/child-summary"},"input":{"type":"object","properties":{"threadId":{"type":"string"}},"required":["threadId"]},"output":{"$shape":"dzd0p4"}},
   "send": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":false,"doors":{"http":"POST /threads/:threadId/send"},"input":{"$shape":"7flzqp"},"output":{"$shape":"rfm0po"}},
   "updateMessage": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":false,"doors":{"http":"POST /threads/:threadId/messages/update"},"input":{"$shape":"10nvra3"},"output":{"$shape":"rfm0po"}},
+  "retry": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":false,"doors":{"http":"POST /threads/:threadId/retry"},"input":{"type":"object","properties":{"threadId":{"type":"string"},"sendAt":{"anyOf":[{"type":"integer","minimum":0,"maximum":9007199254740991},{"type":"null"}]}},"required":["threadId"]},"output":{"$shape":"rfm0po"}},
   "listQueuedMessages": {"type":"op","kind":"read","hooks":"rewrite","allow":"member","internal":false,"doors":{"http":"GET /threads/:threadId/queued-messages"},"input":{"type":"object","properties":{"threadId":{"type":"string"}},"required":["threadId"]},"output":{"$shape":"19ncgh3"}},
   "createQueuedMessage": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":false,"doors":{"http":"POST /threads/:threadId/queued-messages"},"input":{"$shape":"18brab1"},"output":{"$shape":"161cr66"}},
   "updateQueuedMessage": {"type":"op","kind":"write","hooks":"answer","allow":"member","internal":false,"doors":{"http":"PATCH /threads/:threadId/queued-messages/:queuedMessageId"},"input":{"$shape":"mn3kwo"},"output":{"$shape":"161cr66"}},
