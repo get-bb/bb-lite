@@ -19,7 +19,7 @@ import {
   type PluginAppApi,
 } from "@bb/plugin/app";
 import { contrastRatio } from "./contrast";
-import { themePreview, type ThemeCatalog, type ThemeSwatch } from "./contract";
+import { themePreview, type ThemeSwatch } from "./contract";
 
 type Mode = "light" | "dark";
 type Area = "preview" | "components" | "stylesheet";
