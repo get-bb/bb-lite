@@ -97,6 +97,7 @@ export function parseWorkflow(source: string): ParsedWorkflow {
 export interface ScriptGlobals {
   args: unknown;
   agent(prompt: unknown, options?: unknown): Promise<unknown>;
+  workflow(reference: unknown, args?: unknown): Promise<unknown>;
   phase(title: unknown): void;
   log(message: unknown): void;
   budget(): unknown;
@@ -112,8 +113,10 @@ const PRELUDE = `(() => {
     if (out.error !== undefined) throw new Error(out.error);
     return out.value;
   };
-  const agent = (prompt, options) =>
-    hostAgent(JSON.stringify([prompt, options ?? null])).then(JSON.parse);
+  const host = (name, first, second) =>
+    hostAgent(JSON.stringify([name, first, second ?? null])).then(JSON.parse);
+  const agent = (prompt, options) => host("agent", prompt, options);
+  const workflow = (reference, args) => host("workflow", reference, args);
   const parallel = (thunks) => Promise.all(
     thunks.map((thunk) => Promise.resolve().then(thunk).catch(() => null)),
   );
@@ -130,6 +133,7 @@ const PRELUDE = `(() => {
   );
   Object.assign(globalThis, {
     agent,
+    workflow,
     parallel,
     pipeline,
     phase: (title) => { sync("phase", [title]); },
@@ -236,8 +240,12 @@ export async function runScript(
       const text = vm.getString(json!);
       void Promise.resolve()
         .then(() => {
-          const input = z.array(z.unknown()).parse(JSON.parse(text));
-          return globals.agent(input[0], input[1] ?? undefined);
+          const [name, first, second] = z
+            .tuple([z.enum(["agent", "workflow"]), z.unknown(), z.unknown()])
+            .parse(JSON.parse(text));
+          return name === "agent"
+            ? globals.agent(first, second ?? undefined)
+            : globals.workflow(first, second ?? undefined);
         })
         .then(
           (value) => settle(true, JSON.stringify(value ?? null)),

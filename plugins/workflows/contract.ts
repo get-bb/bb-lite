@@ -1,8 +1,6 @@
 import { contract, op } from "@bb/plugin";
 import { z } from "zod";
 
-export const structuredWorkers = new Set<string>();
-
 export const runStatusSchema = z.enum([
   "queued",
   "running",
@@ -34,6 +32,13 @@ export const runSchema = z.object({
   result: z.unknown(),
   error: z.string().nullable(),
   calls: z.record(z.string(), z.number()),
+  originProviderId: z.string().nullable(),
+  settings: z.record(z.string(), z.number()),
+  notification: z.object({
+    status: z.enum(["pending", "sent", "failed"]).nullable(),
+    attempts: z.number(),
+    error: z.string().nullable(),
+  }),
   createdAt: z.number(),
   startedAt: z.number().nullable(),
   finishedAt: z.number().nullable(),
@@ -48,6 +53,7 @@ export const callSchema = z.object({
   threadId: z.string().nullable(),
   status: callStatusSchema,
   cached: z.boolean(),
+  attempts: z.number(),
   result: z.unknown(),
   error: z.string().nullable(),
   startedAt: z.number(),
@@ -83,7 +89,29 @@ const sourceFields = {
       "Name of a saved workflow from the current workspace's .bb/workflows/ directory.",
     )
     .optional(),
+  threadId: z
+    .string()
+    .min(1)
+    .describe(
+      "Thread the workflow belongs to; the CLI fills it from the agent terminal it runs in",
+    )
+    .optional(),
+  cwd: z
+    .string()
+    .min(1)
+    .describe(
+      "Directory a relative scriptPath starts from; the CLI fills it with its working directory",
+    )
+    .optional(),
 };
+
+const sourceCli = {
+  flags: {
+    scriptPath: { aliases: ["file"] },
+    resumeRunId: { aliases: ["resume"] },
+  },
+  from: { threadId: "threadId", cwd: "cwd" },
+} as const;
 
 export const workflows = contract("workflows", {
   create: op({
@@ -117,6 +145,7 @@ export const workflows = contract("workflows", {
       cli: {
         path: "workflows run",
         summary: "Start a workflow and return immediately",
+        ...sourceCli,
       },
       agent: {
         name: "bb_workflow_run",
@@ -143,6 +172,8 @@ export const workflows = contract("workflows", {
       cli: {
         path: "workflows validate",
         summary: "Check a workflow's source and metadata without running it",
+        flags: sourceCli.flags,
+        from: sourceCli.from,
       },
     },
   }),
@@ -160,6 +191,13 @@ export const workflows = contract("workflows", {
   list: op({
     input: z.object({
       threadId: z.string().optional().describe("Only runs started here"),
+      limit: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(1000)
+        .optional()
+        .describe("Most recent runs to include"),
     }),
     output: z.array(runSchema),
     doors: {
@@ -219,7 +257,6 @@ export const workflows = contract("workflows", {
         name: "bb_workflow_result",
         description:
           "Submit this workflow call's structured result. Call it exactly once at the end of your response with { value } matching the JSON Schema in your prompt.",
-        enabledFor: ({ threadId }) => structuredWorkers.has(threadId),
       },
     },
   }),

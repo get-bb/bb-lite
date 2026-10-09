@@ -74,24 +74,24 @@ The CLI equivalents are:
 
 ```bash
 bb workflows validate --script '<javascript>'
-bb workflows validate --script-path .bb/workflows/review-change.js
+bb workflows validate --file .bb/workflows/review-change.js
 bb workflows validate --name review-change
 bb workflows run --script '<javascript>' --args '<json>'
-bb workflows run --script-path .bb/workflows/review-change.js --resume-run-id <run-id>
+bb workflows run --file .bb/workflows/review-change.js --resume <run-id>
 bb workflows run --name review-change
 bb workflows status <run-id>
 bb workflows history <run-id> --cursor 0 --limit 100
-bb workflows list
+bb workflows list --limit 20
 bb workflows stop <run-id>
 bb provider list --environment "$BB_ENVIRONMENT_ID" --json
 bb provider models <provider-id> --environment "$BB_ENVIRONMENT_ID" --json
 ```
 
-The CLI's `--script-path` is the agent tool's `scriptPath`: a relative path
-starts at the workspace root, and the resolved file must remain inside the
-origin workspace. `--source` remains
+The CLI's `--file` maps to the agent tool's `scriptPath`, but a relative CLI
+path starts at the invoking CLI's current directory. Both that directory and
+the resolved file must remain inside the origin workspace. `--source` remains
 an inline alias for `--script`. Run and validate require exactly one of
-`--script`, `--script-path`, or `--name` (counting `--source` as `--script`).
+`--script`, `--file`, or `--name` (counting `--source` as `--script`).
 
 `bb workflows --help` and `bb workflows <command> --help` print the arguments,
 option limits, and rules for a command and exit 0. Command output is JSON;

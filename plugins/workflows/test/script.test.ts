@@ -1,9 +1,11 @@
 import { describe, expect, test } from "vitest";
+import { clipUtf8, isTransient } from "../policy.js";
 import { runScript, type ScriptGlobals } from "../script.js";
 
 const globals = (overrides: Partial<ScriptGlobals> = {}): ScriptGlobals => ({
   args: { topic: "x" },
   agent: async (prompt) => `answer to ${String(prompt)}`,
+  workflow: async (reference, args) => ({ reference, args }),
   phase: () => {},
   log: () => {},
   budget: () => ({ maxAgentCalls: 1 }),
@@ -52,4 +54,21 @@ return { a, b, topic: args.topic, budget: budget() };`,
     );
     expect(result).toBe("boom");
   });
+});
+
+test("recognizes transient provider failures and clips notifications", () => {
+  expect(isTransient("API Error 529 overloaded")).toBe(true);
+  expect(isTransient("socket hang up")).toBe(true);
+  expect(isTransient("Workflow stopped")).toBe(false);
+  const clipped = clipUtf8("é".repeat(2000), 1024);
+  expect(Buffer.byteLength(clipped)).toBeLessThanOrEqual(1024);
+  expect(clipped.endsWith("[truncated]")).toBe(true);
+});
+
+test("passes workflow() calls through the bridge", async () => {
+  const result = await runScript(
+    `return await workflow("child", { a: 1 });`,
+    globals(),
+  );
+  expect(result).toEqual({ reference: "child", args: { a: 1 } });
 });

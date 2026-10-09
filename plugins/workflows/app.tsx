@@ -116,6 +116,81 @@ function CallRow({ call }: { call: WorkflowCall }) {
   );
 }
 
+function CallDetail({ call }: { call: WorkflowCall }) {
+  return (
+    <li className="text-xs">
+      <details>
+        <summary className="flex cursor-pointer items-center gap-2">
+          <span className="w-6 shrink-0 text-right text-muted-foreground">
+            {call.index + 1}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{call.label}</span>
+          {call.attempts > 0 ? (
+            <span className="text-muted-foreground">
+              retried {call.attempts}x
+            </span>
+          ) : null}
+          {call.cached ? (
+            <span className="text-muted-foreground">cached</span>
+          ) : null}
+          <StatusLabel status={call.status} />
+        </summary>
+        <div className="mt-1 flex flex-col gap-1 pl-8">
+          <span className="text-muted-foreground">Prompt</span>
+          <pre className="max-h-48 overflow-auto rounded bg-muted p-2 whitespace-pre-wrap">
+            {call.prompt}
+          </pre>
+          {call.error ? (
+            <p className="text-destructive">{call.error}</p>
+          ) : call.status === "succeeded" ? (
+            <>
+              <span className="text-muted-foreground">Result</span>
+              <pre className="max-h-48 overflow-auto rounded bg-muted p-2 whitespace-pre-wrap">
+                {preview(call.result)}
+              </pre>
+            </>
+          ) : null}
+        </div>
+      </details>
+    </li>
+  );
+}
+
+function PhaseTimeline({
+  run,
+  calls,
+}: {
+  run: WorkflowRun;
+  calls: WorkflowCall[];
+}) {
+  const phases = new Map<string, { done: number; total: number }>();
+  for (const call of calls) {
+    if (call.phase === null) continue;
+    const entry = phases.get(call.phase) ?? { done: 0, total: 0 };
+    entry.total += 1;
+    if (call.status !== "running") entry.done += 1;
+    phases.set(call.phase, entry);
+  }
+  if (phases.size === 0) return null;
+  return (
+    <ol className="flex flex-wrap gap-1 text-xs">
+      {[...phases].map(([title, { done, total }]) => (
+        <li
+          key={title}
+          className={cn(
+            "rounded border px-2 py-0.5",
+            title === run.phase && ACTIVE.includes(run.status)
+              ? "border-primary text-foreground"
+              : "text-muted-foreground",
+          )}
+        >
+          {title} {done}/{total}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function RunOutcome({ run }: { run: WorkflowRun }) {
   if (run.error) {
     return <p className="text-xs text-destructive">{run.error}</p>;
@@ -128,7 +203,15 @@ function RunOutcome({ run }: { run: WorkflowRun }) {
   );
 }
 
-function RunDetail({ runId, onOpen }: { runId: string; onOpen?(): void }) {
+function RunDetail({
+  runId,
+  onOpen,
+  expanded = false,
+}: {
+  runId: string;
+  onOpen?(): void;
+  expanded?: boolean;
+}) {
   const query = useOp(workflows.history, { runId, limit: 100 });
   if (query.status === "loading") return <Skeleton className="h-16" />;
   if (query.data === undefined) {
@@ -142,11 +225,16 @@ function RunDetail({ runId, onOpen }: { runId: string; onOpen?(): void }) {
   return (
     <div className="flex flex-col gap-2">
       <RunHeader run={run} onOpen={onOpen} />
+      {expanded ? <PhaseTimeline run={run} calls={calls} /> : null}
       {calls.length > 0 ? (
         <ul className="flex flex-col gap-1">
-          {calls.map((call) => (
-            <CallRow key={call.index} call={call} />
-          ))}
+          {calls.map((call) =>
+            expanded ? (
+              <CallDetail key={call.index} call={call} />
+            ) : (
+              <CallRow key={call.index} call={call} />
+            ),
+          )}
         </ul>
       ) : null}
       <RunOutcome run={run} />
@@ -184,7 +272,7 @@ function WorkflowRunPanel({ params }: SidePanelPanelProps) {
       </p>
     );
   }
-  return <RunDetail runId={parsed.data.runId} />;
+  return <RunDetail runId={parsed.data.runId} expanded />;
 }
 
 function ActiveRuns({ threadId }: { threadId: string }) {

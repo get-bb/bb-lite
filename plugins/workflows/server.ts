@@ -1,7 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { posix } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import {
   environments,
+  fail,
   machines,
   threads,
   toolError,
@@ -9,17 +11,28 @@ import {
 } from "@bb/plugin";
 import { z } from "zod";
 import {
-  structuredWorkers,
   workflows,
   type RunStatus,
   type WorkflowCall,
   type WorkflowRun,
 } from "./contract.js";
-import { parseWorkflow, runScript } from "./script.js";
+import { parseWorkflow, runScript, type ScriptGlobals } from "./script.js";
+import {
+  clampLimits,
+  clipUtf8,
+  isTransient,
+  RETRY_DELAYS_MS,
+  SETTINGS,
+  type Limits,
+} from "./policy.js";
 import { compileSchema, type Validator } from "./validation.js";
 
-const MAX_AGENT_CALLS = 200;
-const MAX_CONCURRENCY = 8;
+const NOTIFY_ATTEMPTS = 10;
+const sourceName = z
+  .string()
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+  .max(64);
+const SWEEP_MS = 60 * 60 * 1000;
 
 const MIGRATIONS = [
   `CREATE TABLE runs (
@@ -60,6 +73,11 @@ const MIGRATIONS = [
   )`,
   `ALTER TABLE calls ADD COLUMN schema_json TEXT;
    ALTER TABLE calls ADD COLUMN structured_json TEXT;`,
+  `ALTER TABLE runs ADD COLUMN settings_json TEXT;
+   ALTER TABLE runs ADD COLUMN notification_status TEXT;
+   ALTER TABLE runs ADD COLUMN notification_attempts INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE runs ADD COLUMN notification_error TEXT;
+   ALTER TABLE calls ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 const MAX_REPAIRS = 2;
@@ -71,6 +89,10 @@ interface RunRow {
   originThreadId: string | null;
   environmentId: string | null;
   providerId: string | null;
+  settingsJson: string | null;
+  notificationStatus: "pending" | "sent" | "failed" | null;
+  notificationAttempts: number;
+  notificationError: string | null;
   name: string;
   description: string;
   source: string;
@@ -94,6 +116,7 @@ interface CallRow {
   threadId: string | null;
   status: WorkflowCall["status"];
   cached: number;
+  attempts: number;
   resultJson: string | null;
   error: string | null;
   startedAt: number;
@@ -104,9 +127,13 @@ const RUN_COLUMNS = `id, project_id AS projectId, origin_thread_id AS originThre
   environment_id AS environmentId, provider_id AS providerId, name, description,
   source, args_json AS argsJson, status, phase,
   resumed_from_run_id AS resumedFromRunId, result_json AS resultJson, error,
-  created_at AS createdAt, started_at AS startedAt, finished_at AS finishedAt`;
+  created_at AS createdAt, started_at AS startedAt, finished_at AS finishedAt,
+  settings_json AS settingsJson,
+  notification_status AS notificationStatus,
+  notification_attempts AS notificationAttempts,
+  notification_error AS notificationError`;
 const CALL_COLUMNS = `call_index AS callIndex, key, label, phase, prompt,
-  thread_id AS threadId, status, cached, result_json AS resultJson, error,
+  thread_id AS threadId, status, cached, attempts, result_json AS resultJson, error,
   started_at AS startedAt, finished_at AS finishedAt`;
 
 const agentOptionsSchema = z
@@ -119,6 +146,7 @@ const agentOptionsSchema = z
 
 interface Execution {
   run: RunRow;
+  limits: Limits;
   abort: AbortController;
   next: number;
   diverged: boolean;
@@ -140,6 +168,7 @@ const message = (error: unknown) =>
 
 export default function workflowsServer(bb: PluginServerApi): void {
   const db = bb.storage.database(MIGRATIONS);
+  const settings = bb.settings.define(SETTINGS);
   const executions = new Map<string, Execution>();
   const waiters = new Map<string, Waiter>();
   const early = new Map<string, { text?: string; error?: string }>();
@@ -187,6 +216,13 @@ export default function workflowsServer(bb: PluginServerApi): void {
       result: parseJson(row.resultJson),
       error: row.error,
       calls: Object.fromEntries(counts.map((c) => [c.status, c.n])),
+      originProviderId: row.providerId,
+      settings: limitsOf(row),
+      notification: {
+        status: row.notificationStatus,
+        attempts: row.notificationAttempts,
+        error: row.notificationError,
+      },
       createdAt: row.createdAt,
       startedAt: row.startedAt,
       finishedAt: row.finishedAt,
@@ -201,6 +237,7 @@ export default function workflowsServer(bb: PluginServerApi): void {
     threadId: row.threadId,
     status: row.status,
     cached: row.cached === 1,
+    attempts: row.attempts,
     result: parseJson(row.resultJson),
     error: row.error,
     startedAt: row.startedAt,
@@ -209,8 +246,16 @@ export default function workflowsServer(bb: PluginServerApi): void {
 
   function requireRun(runId: string): RunRow {
     const row = getRun(runId);
-    if (row === undefined) throw new Error(`Unknown workflow run ${runId}`);
+    if (row === undefined) fail("not_found", `Unknown workflow run ${runId}`);
     return row;
+  }
+
+  function limitsOf(row: RunRow): Limits {
+    const saved = row.settingsJson === null ? {} : parseJson(row.settingsJson);
+    const defaults = Object.fromEntries(
+      Object.entries(SETTINGS).map(([key, field]) => [key, field.default]),
+    ) as Limits;
+    return clampLimits({ ...defaults, ...(saved as Partial<Limits>) });
   }
 
   function settleCall(
@@ -278,7 +323,7 @@ export default function workflowsServer(bb: PluginServerApi): void {
   }
 
   async function slot(execution: Execution) {
-    while (execution.active >= MAX_CONCURRENCY) {
+    while (execution.active >= execution.limits.maxConcurrentAgents) {
       await new Promise<void>((resolve) => execution.waiting.push(resolve));
     }
     execution.active += 1;
@@ -302,8 +347,9 @@ export default function workflowsServer(bb: PluginServerApi): void {
         : compileSchema(options.schema, "agent schema");
     const index = execution.next;
     execution.next += 1;
-    if (index >= MAX_AGENT_CALLS) {
-      throw new Error(`A workflow may make at most ${MAX_AGENT_CALLS} calls`);
+    const { maxAgentCalls } = execution.limits;
+    if (index >= maxAgentCalls) {
+      throw new Error(`A workflow may make at most ${maxAgentCalls} calls`);
     }
     const phase = options.phase ?? execution.phase;
     const label = options.label ?? prompt.slice(0, 80);
@@ -338,8 +384,8 @@ export default function workflowsServer(bb: PluginServerApi): void {
     db.prepare(
       `INSERT OR REPLACE INTO calls (run_id, call_index, key, label, phase,
        prompt, thread_id, status, cached, result_json, started_at, finished_at,
-       schema_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       schema_json, attempts)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       run.id,
       index,
@@ -354,52 +400,37 @@ export default function workflowsServer(bb: PluginServerApi): void {
       bb.now(),
       reuse ? bb.now() : null,
       options.schema === undefined ? null : JSON.stringify(options.schema),
+      own?.key === key ? own.attempts : 0,
     );
     touched();
     if (reuse) return parseJson(prior.resultJson);
     const release = await slot(execution);
     try {
-      abort.signal.throwIfAborted();
-      const thread = await bb.call(threads.create, {
-        projectId: run.projectId,
-        origin: "plugin",
-        originPluginId: bb.pluginId,
-        visibility: "hidden",
-        title: label,
-        providerId: run.providerId ?? undefined,
-        input: [
-          {
-            type: "text",
-            text:
-              options.schema === undefined
-                ? prompt
-                : `${prompt}\n\nUse bb_workflow_result to return your final response in the requested structured format. You MUST call this tool exactly once at the end of your response with {"value": ...}. The value must satisfy this JSON Schema:\n${JSON.stringify(options.schema, null, 2)}\nIf the tool is unavailable, return only the JSON value in your final response as a fallback. If the tool reports validation errors, correct the value and retry. You have at most ${MAX_REPAIRS} corrective retries.`,
-            mentions: [],
-          },
-        ],
-        environment: run.environmentId
-          ? { type: "reuse", environmentId: run.environmentId }
-          : { type: "project-default" },
-        startedOnBehalfOf: null,
-      });
-      db.prepare(
-        "UPDATE calls SET thread_id = ? WHERE run_id = ? AND call_index = ?",
-      ).run(thread.id, run.id, index);
-      touched();
-      if (validate) structuredWorkers.add(thread.id);
-      const text = await waitFor(thread.id, abort.signal);
-      const value = validate
-        ? await structured(
-            run.id,
+      for (let attempt = own?.key === key ? own.attempts : 0; ; attempt += 1) {
+        try {
+          return await live(execution, index, prompt, label, options, validate);
+        } catch (error) {
+          const delay = RETRY_DELAYS_MS[attempt];
+          if (
+            abort.signal.aborted ||
+            delay === undefined ||
+            !isTransient(message(error))
+          ) {
+            throw error;
+          }
+          db.prepare(
+            `UPDATE calls SET attempts = ?, thread_id = NULL
+             WHERE run_id = ? AND call_index = ?`,
+          ).run(attempt + 1, run.id, index);
+          touched();
+          bb.log.warn("Retrying workflow agent call", {
+            runId: run.id,
             index,
-            thread.id,
-            text,
-            validate,
-            abort.signal,
-          )
-        : text;
-      settleCall(run.id, index, "succeeded", value, null);
-      return value;
+            error: message(error),
+          });
+          await sleep(delay, undefined, { signal: abort.signal });
+        }
+      }
     } catch (error) {
       if (!abort.signal.aborted) {
         settleCall(run.id, index, "failed", null, message(error));
@@ -408,6 +439,50 @@ export default function workflowsServer(bb: PluginServerApi): void {
     } finally {
       release();
     }
+  }
+
+  async function live(
+    execution: Execution,
+    index: number,
+    prompt: string,
+    label: string,
+    options: z.infer<typeof agentOptionsSchema>,
+    validate: Validator | undefined,
+  ): Promise<unknown> {
+    const { run, abort } = execution;
+    abort.signal.throwIfAborted();
+    const thread = await bb.call(threads.create, {
+      projectId: run.projectId,
+      origin: "plugin",
+      originPluginId: bb.pluginId,
+      visibility: "hidden",
+      title: label,
+      providerId: run.providerId ?? undefined,
+      input: [
+        {
+          type: "text",
+          text:
+            options.schema === undefined
+              ? prompt
+              : `${prompt}\n\nUse bb_workflow_result to return your final response in the requested structured format. You MUST call this tool exactly once at the end of your response with {"value": ...}. The value must satisfy this JSON Schema:\n${JSON.stringify(options.schema, null, 2)}\nIf the tool is unavailable, return only the JSON value in your final response as a fallback. If the tool reports validation errors, correct the value and retry. You have at most ${MAX_REPAIRS} corrective retries.`,
+          mentions: [],
+        },
+      ],
+      environment: run.environmentId
+        ? { type: "reuse", environmentId: run.environmentId }
+        : { type: "project-default" },
+      startedOnBehalfOf: null,
+    });
+    db.prepare(
+      "UPDATE calls SET thread_id = ? WHERE run_id = ? AND call_index = ?",
+    ).run(thread.id, run.id, index);
+    touched();
+    const text = await waitFor(thread.id, abort.signal);
+    const value = validate
+      ? await structured(run.id, index, thread.id, text, validate, abort.signal)
+      : text;
+    settleCall(run.id, index, "succeeded", value, null);
+    return value;
   }
 
   function submitted(runId: string, index: number, text: string) {
@@ -434,37 +509,32 @@ export default function workflowsServer(bb: PluginServerApi): void {
     validate: Validator,
     signal: AbortSignal,
   ): Promise<unknown> {
-    structuredWorkers.add(threadId);
-    try {
-      let text = first;
-      for (let attempt = 1; ; attempt += 1) {
-        const outcome = submitted(runId, index, text);
-        const detail =
-          outcome === undefined
-            ? "no bb_workflow_result call and the final response is not JSON"
-            : validate(outcome.value);
-        if (outcome !== undefined && detail === null) return outcome.value;
-        if (attempt > MAX_REPAIRS) {
-          throw new Error(
-            `Structured output failed after ${MAX_REPAIRS} corrective retries: ${detail}`,
-          );
-        }
-        const waiting = waitFor(threadId, signal);
-        await bb.call(threads.send, {
-          threadId,
-          input: [
-            {
-              type: "text",
-              text: `Structured result missing or invalid (${detail}). Call bb_workflow_result with one value matching the required schema. Corrective turn ${attempt} of ${MAX_REPAIRS}.`,
-              mentions: [],
-            },
-          ],
-          mode: "queue-if-active",
-        });
-        text = await waiting;
+    let text = first;
+    for (let attempt = 1; ; attempt += 1) {
+      const outcome = submitted(runId, index, text);
+      const detail =
+        outcome === undefined
+          ? "no bb_workflow_result call and the final response is not JSON"
+          : validate(outcome.value);
+      if (outcome !== undefined && detail === null) return outcome.value;
+      if (attempt > MAX_REPAIRS) {
+        throw new Error(
+          `Structured output failed after ${MAX_REPAIRS} corrective retries: ${detail}`,
+        );
       }
-    } finally {
-      structuredWorkers.delete(threadId);
+      const waiting = waitFor(threadId, signal);
+      await bb.call(threads.send, {
+        threadId,
+        input: [
+          {
+            type: "text",
+            text: `Structured result missing or invalid (${detail}). Call bb_workflow_result with one value matching the required schema. Corrective turn ${attempt} of ${MAX_REPAIRS}.`,
+            mentions: [],
+          },
+        ],
+        mode: "queue-if-active",
+      });
+      text = await waiting;
     }
   }
 
@@ -475,7 +545,9 @@ export default function workflowsServer(bb: PluginServerApi): void {
     error: string | null,
   ) {
     db.prepare(
-      `UPDATE runs SET status = ?, result_json = ?, error = ?, finished_at = ?
+      `UPDATE runs SET status = ?, result_json = ?, error = ?, finished_at = ?,
+       notification_status = CASE WHEN origin_thread_id IS NULL THEN NULL
+       ELSE 'pending' END
        WHERE id = ?`,
     ).run(
       status,
@@ -485,28 +557,154 @@ export default function workflowsServer(bb: PluginServerApi): void {
       runId,
     );
     touched();
-    const run = getRun(runId);
-    if (run?.originThreadId == null) return;
-    const outcome =
-      status === "succeeded"
-        ? "finished"
-        : `${status}${error ? `: ${error}` : ""}`;
-    const text = `Workflow ${run.name} (${run.id}) ${outcome}. Run \`bb workflows status ${run.id}\` for its result.`;
-    bb.call(threads.send, {
-      threadId: run.originThreadId,
-      input: [{ type: "text", text, mentions: [] }],
-      mode: "queue-if-active",
-    }).catch((failure: unknown) =>
-      bb.log.warn("Workflow notification failed", { error: message(failure) }),
-    );
+    void notify(runId);
   }
 
-  async function execute(runId: string) {
+  const notifyTimers = new Set<ReturnType<typeof setTimeout>>();
+
+  async function notify(runId: string) {
+    const run = getRun(runId);
+    if (run?.originThreadId == null || run.notificationStatus !== "pending") {
+      return;
+    }
+    const outcome =
+      run.status === "succeeded"
+        ? "finished"
+        : `${run.status}${run.error ? `: ${run.error}` : ""}`;
+    const text = clipUtf8(
+      `Workflow ${run.name} (${run.id}) ${outcome}. Run \`bb workflows status ${run.id}\` for its result.`,
+      limitsOf(run).maxNotificationBytes,
+    );
+    const attempts = run.notificationAttempts + 1;
+    try {
+      await bb.call(threads.send, {
+        threadId: run.originThreadId,
+        input: [{ type: "text", text, mentions: [] }],
+        mode: "queue-if-active",
+      });
+      db.prepare(
+        `UPDATE runs SET notification_status = 'sent',
+         notification_attempts = ?, notification_error = NULL WHERE id = ?`,
+      ).run(attempts, runId);
+    } catch (failure) {
+      const final = attempts >= NOTIFY_ATTEMPTS;
+      db.prepare(
+        `UPDATE runs SET notification_status = ?, notification_attempts = ?,
+         notification_error = ? WHERE id = ?`,
+      ).run(final ? "failed" : "pending", attempts, message(failure), runId);
+      if (!final) {
+        const timer = setTimeout(
+          () => {
+            notifyTimers.delete(timer);
+            void notify(runId);
+          },
+          Math.min(1000 * 2 ** (attempts - 1), SWEEP_MS),
+        );
+        notifyTimers.add(timer);
+      }
+    }
+    touched();
+  }
+
+  const queue: string[] = [];
+
+  function execute(runId: string) {
     const run = getRun(runId);
     if (run === undefined || TERMINAL.includes(run.status)) return;
-    if (executions.has(runId)) return;
+    if (executions.has(runId) || queue.includes(runId)) return;
+    if (executions.size >= limitsOf(run).maxActiveRuns) {
+      queue.push(runId);
+      return;
+    }
+    void start(run).finally(() => {
+      const next = queue.shift();
+      if (next !== undefined) execute(next);
+    });
+  }
+
+  function globalsFor(
+    execution: Execution,
+    args: unknown,
+    nested: boolean,
+  ): ScriptGlobals {
+    return {
+      args,
+      agent: (prompt, options) => agent(execution, prompt, options),
+      workflow: (reference, childArgs) =>
+        nested
+          ? Promise.reject(
+              new Error(
+                "Nested workflow depth limit exceeded: workflows may invoke one child level only",
+              ),
+            )
+          : child(execution, reference, childArgs ?? null),
+      phase: (title) => {
+        execution.phase = String(title);
+        db.prepare("UPDATE runs SET phase = ? WHERE id = ?").run(
+          execution.phase,
+          execution.run.id,
+        );
+        touched();
+      },
+      log: (text) => bb.log.info(String(text), { runId: execution.run.id }),
+      budget: () => ({
+        maxAgentCalls: execution.limits.maxAgentCalls,
+        concurrency: execution.limits.maxConcurrentAgents,
+      }),
+    };
+  }
+
+  function checked(source: string, args: unknown) {
+    const { body, meta } = parseWorkflow(source);
+    const invalid =
+      meta.inputSchema === undefined
+        ? null
+        : compileSchema(meta.inputSchema, "meta.inputSchema")(args);
+    if (invalid !== null) throw new Error(`Invalid args: ${invalid}`);
+    const output =
+      meta.outputSchema === undefined
+        ? undefined
+        : compileSchema(meta.outputSchema, "meta.outputSchema");
+    return { body, meta, output };
+  }
+
+  async function child(
+    execution: Execution,
+    referenceInput: unknown,
+    args: unknown,
+  ): Promise<unknown> {
+    const reference = z
+      .union([
+        z
+          .string()
+          .min(1)
+          .transform((name) => ({ name })),
+        z.object({ name: sourceName }).strict(),
+        z.object({ scriptPath: z.string().min(1) }).strict(),
+        z.object({ script: z.string().min(1) }).strict(),
+      ])
+      .parse(referenceInput);
+    const source = await resolveSource(reference, execution.run.originThreadId);
+    const { body, meta, output } = checked(source, args);
+    const result = await runScript(
+      body,
+      globalsFor(execution, args, true),
+      execution.abort.signal,
+    );
+    const invalid = output?.(result) ?? null;
+    if (invalid !== null) {
+      throw new Error(
+        `Workflow ${meta.name} result does not match outputSchema: ${invalid}`,
+      );
+    }
+    return result;
+  }
+
+  async function start(run: RunRow) {
+    const runId = run.id;
     const execution: Execution = {
       run,
+      limits: limitsOf(run),
       abort: new AbortController(),
       next: 0,
       diverged: false,
@@ -519,33 +717,29 @@ export default function workflowsServer(bb: PluginServerApi): void {
       "UPDATE runs SET status = 'running', started_at = COALESCE(started_at, ?) WHERE id = ?",
     ).run(bb.now(), runId);
     touched();
+    const startedAt = getRun(runId)?.startedAt ?? bb.now();
+    const timeout = setTimeout(
+      () => {
+        if (execution.abort.signal.aborted) return;
+        execution.abort.abort();
+        finish(
+          runId,
+          "failed",
+          null,
+          `Workflow run timed out after ${execution.limits.totalRunTimeoutMs} ms`,
+        );
+      },
+      Math.max(0, startedAt + execution.limits.totalRunTimeoutMs - bb.now()),
+    );
     try {
-      const { body, meta } = parseWorkflow(run.source);
+      const args = parseJson(run.argsJson);
+      const { body, output } = checked(run.source, args);
       const result = await runScript(
         body,
-        {
-          args: parseJson(run.argsJson),
-          agent: (prompt, options) => agent(execution, prompt, options),
-          phase: (title) => {
-            execution.phase = String(title);
-            db.prepare("UPDATE runs SET phase = ? WHERE id = ?").run(
-              execution.phase,
-              runId,
-            );
-            touched();
-          },
-          log: (text) => bb.log.info(String(text), { runId }),
-          budget: () => ({
-            maxAgentCalls: MAX_AGENT_CALLS,
-            concurrency: MAX_CONCURRENCY,
-          }),
-        },
+        globalsFor(execution, args, false),
         execution.abort.signal,
       );
-      const invalid =
-        meta.outputSchema === undefined
-          ? null
-          : compileSchema(meta.outputSchema, "meta.outputSchema")(result);
+      const invalid = output?.(result) ?? null;
       if (invalid !== null) {
         throw new Error(
           `Workflow result does not match outputSchema: ${invalid}`,
@@ -559,10 +753,10 @@ export default function workflowsServer(bb: PluginServerApi): void {
         finish(runId, "failed", null, message(error));
       }
     } finally {
+      clearTimeout(timeout);
       executions.delete(runId);
     }
   }
-
   bb.on(threads.idle, ({ thread, lastAssistantText }) => {
     if (thread.originPluginId !== bb.pluginId) return;
     const text = lastAssistantText ?? "";
@@ -578,8 +772,16 @@ export default function workflowsServer(bb: PluginServerApi): void {
     else early.set(thread.id, { error: failure });
   });
 
+  interface SourceInput {
+    script?: string;
+    source?: string;
+    scriptPath?: string;
+    name?: string;
+    cwd?: string;
+  }
+
   async function resolveSource(
-    input: z.infer<typeof workflows.validate.input>,
+    input: SourceInput,
     threadId: string | null,
   ): Promise<string> {
     const given = [
@@ -606,11 +808,20 @@ export default function workflowsServer(bb: PluginServerApi): void {
       throw new Error("Workflow files need a thread with a workspace");
     }
     const root = posix.normalize(environment.path);
+    const inside = (path: string) =>
+      path === root || path.startsWith(`${root}/`);
+    const base =
+      input.cwd === undefined || input.name !== undefined
+        ? root
+        : posix.resolve(root, input.cwd);
+    if (!inside(base)) {
+      throw new Error("Workflow files must stay inside the workspace");
+    }
     const path = posix.resolve(
-      root,
+      base,
       input.name ? `.bb/workflows/${input.name}.js` : (input.scriptPath ?? ""),
     );
-    if (path !== root && !path.startsWith(`${root}/`)) {
+    if (!inside(path)) {
       throw new Error("Workflow files must stay inside the workspace");
     }
     const file = await bb.call(machines.readFile, {
@@ -626,74 +837,79 @@ export default function workflowsServer(bb: PluginServerApi): void {
       : file.content;
   }
 
-  bb.implement(workflows.validate, async (input, { caller }) => {
-    const { meta } = parseWorkflow(await resolveSource(input, caller.thread));
-    if (meta.inputSchema !== undefined) {
-      compileSchema(meta.inputSchema, "meta.inputSchema");
-    }
-    if (meta.outputSchema !== undefined) {
-      compileSchema(meta.outputSchema, "meta.outputSchema");
-    }
-    return {
-      name: meta.name,
-      description: meta.description,
-      phases: (meta.phases ?? []).map((phase) => phase.title),
-    };
-  });
+  const fromDoor = (input: SourceInput, door: string): SourceInput =>
+    door === "cli" ? input : { ...input, cwd: undefined };
 
-  bb.implement(workflows.create, async (input, { caller }) => {
-    if (caller.thread === null) {
-      return toolError("Workflows start from an agent thread");
-    }
-    let source: string;
+  const invalid = (error: unknown): never =>
+    fail("invalid", message(error), {
+      hint: "Run `bb workflows validate` and read the workflows skill",
+    });
+
+  bb.implement(workflows.validate, async (input, { caller }) => {
+    const origin = caller.thread ?? input.threadId ?? null;
     try {
-      source = await resolveSource(input, caller.thread);
-      if (caller.door === "cli" && typeof input.args === "string") {
-        input = { ...input, args: JSON.parse(input.args) as unknown };
+      const { meta } = parseWorkflow(
+        await resolveSource(fromDoor(input, caller.door), origin),
+      );
+      if (meta.inputSchema !== undefined) {
+        compileSchema(meta.inputSchema, "meta.inputSchema");
       }
-    } catch (error) {
-      return toolError(message(error));
-    }
-    const origin = await bb.call(threads.get, { threadId: caller.thread });
-    let meta;
-    try {
-      meta = parseWorkflow(source).meta;
-      const invalid =
-        meta.inputSchema === undefined
-          ? null
-          : compileSchema(
-              meta.inputSchema,
-              "meta.inputSchema",
-            )(input.args ?? null);
-      if (invalid !== null) throw new Error(`Invalid args: ${invalid}`);
       if (meta.outputSchema !== undefined) {
         compileSchema(meta.outputSchema, "meta.outputSchema");
       }
+      return {
+        name: meta.name,
+        description: meta.description,
+        phases: (meta.phases ?? []).map((phase) => phase.title),
+      };
     } catch (error) {
-      return toolError(message(error));
+      return invalid(error);
     }
+  });
+
+  bb.implement(workflows.create, async (input, { caller }) => {
+    const originId = caller.thread ?? input.threadId ?? null;
+    if (originId === null) {
+      return fail("invalid", "Workflows start from an agent thread", {
+        hint: "Run `bb workflows run` from an agent's terminal, or pass --thread-id",
+      });
+    }
+    let source: string;
+    let meta;
+    try {
+      source = await resolveSource(fromDoor(input, caller.door), originId);
+      if (caller.door === "cli" && typeof input.args === "string") {
+        input = { ...input, args: JSON.parse(input.args) as unknown };
+      }
+      meta = checked(source, input.args ?? null).meta;
+    } catch (error) {
+      return invalid(error);
+    }
+    const origin = await bb.call(threads.get, { threadId: originId });
     const resumed = input.resumeRunId ? getRun(input.resumeRunId) : undefined;
     if (input.resumeRunId && resumed === undefined) {
-      return toolError(`Unknown workflow run ${input.resumeRunId}`);
+      return fail("not_found", `Unknown workflow run ${input.resumeRunId}`);
     }
     if (resumed && !TERMINAL.includes(resumed.status)) {
-      return toolError("Only a finished run can be resumed");
+      return fail("conflict", "Only a finished run can be resumed");
     }
     if (resumed && resumed.projectId !== origin.projectId) {
-      return toolError("The resumed run is from another project");
+      return fail("invalid", "The resumed run is from another project");
     }
+    const limits = clampLimits(await settings.get());
     const runId = `wfr_${randomBytes(9).toString("base64url")}`;
     db.prepare(
       `INSERT INTO runs (id, project_id, origin_thread_id, environment_id,
-       provider_id, name, description, source, source_hash, args_json, status,
-       resumed_from_run_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`,
+       provider_id, settings_json, name, description, source,
+       source_hash, args_json, status, resumed_from_run_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`,
     ).run(
       runId,
       origin.projectId,
       origin.id,
       origin.environmentId,
       origin.providerId,
+      JSON.stringify(limits),
       meta.name,
       meta.description,
       source,
@@ -703,7 +919,7 @@ export default function workflowsServer(bb: PluginServerApi): void {
       bb.now(),
     );
     touched();
-    void execute(runId);
+    execute(runId);
     return {
       runId,
       status: "queued" as const,
@@ -712,37 +928,40 @@ export default function workflowsServer(bb: PluginServerApi): void {
     };
   });
 
-  bb.implement(workflows.result, ({ value }, { caller }) => {
-    const row =
-      caller.thread === null
-        ? undefined
-        : (db
-            .prepare(
-              `SELECT run_id, call_index, schema_json FROM calls
-               WHERE thread_id = ? AND status = 'running'
-               AND schema_json IS NOT NULL`,
-            )
-            .get(caller.thread) as
-            | { run_id: string; call_index: number; schema_json: string }
-            | undefined);
-    if (row === undefined) {
-      return toolError("This thread has no workflow call awaiting a result");
-    }
-    const invalid = compileSchema(JSON.parse(row.schema_json))(value);
-    if (invalid !== null) {
-      return toolError(
-        `Value does not match the required schema (${invalid}). Correct it and retry.`,
-      );
-    }
-    db.prepare(
-      "UPDATE calls SET structured_json = ? WHERE run_id = ? AND call_index = ?",
-    ).run(JSON.stringify(value ?? null), row.run_id, row.call_index);
-    return "Structured result recorded.";
-  });
+  const awaiting = (threadId: string) =>
+    db
+      .prepare(
+        `SELECT run_id, call_index, schema_json FROM calls
+         WHERE thread_id = ? AND status = 'running'
+         AND schema_json IS NOT NULL`,
+      )
+      .get(threadId) as
+      | { run_id: string; call_index: number; schema_json: string }
+      | undefined;
 
+  bb.implement(
+    workflows.result,
+    ({ value }, { caller }) => {
+      const row = caller.thread === null ? undefined : awaiting(caller.thread);
+      if (row === undefined) {
+        return toolError("This thread has no workflow call awaiting a result");
+      }
+      const invalid = compileSchema(JSON.parse(row.schema_json))(value);
+      if (invalid !== null) {
+        return toolError(
+          `Value does not match the required schema (${invalid}). Correct it and retry.`,
+        );
+      }
+      db.prepare(
+        "UPDATE calls SET structured_json = ? WHERE run_id = ? AND call_index = ?",
+      ).run(JSON.stringify(value ?? null), row.run_id, row.call_index);
+      return "Structured result recorded.";
+    },
+    { offered: ({ threadId }) => awaiting(threadId) !== undefined },
+  );
   bb.implement(workflows.get, ({ runId }) => view(requireRun(runId)));
 
-  bb.implement(workflows.list, ({ threadId }) => {
+  bb.implement(workflows.list, ({ threadId, limit }) => {
     const rows = (
       threadId === undefined
         ? db
@@ -755,7 +974,7 @@ export default function workflowsServer(bb: PluginServerApi): void {
             )
             .all(threadId)
     ) as RunRow[];
-    return rows.map(view);
+    return rows.slice(0, limit).map(view);
   });
 
   bb.implement(workflows.history, ({ runId, cursor, limit }) => {
@@ -784,12 +1003,56 @@ export default function workflowsServer(bb: PluginServerApi): void {
     return { stopped: true, run: view(requireRun(runId)) };
   });
 
+  async function sweep() {
+    const { retentionDays } = clampLimits(await settings.get());
+    const cutoff = bb.now() - retentionDays * 86_400_000;
+    const expired = db
+      .prepare(
+        `SELECT id FROM runs WHERE finished_at IS NOT NULL AND finished_at <= ?
+         AND (notification_status IS NULL OR notification_status != 'pending')`,
+      )
+      .all(cutoff) as { id: string }[];
+    for (const { id } of expired) {
+      const workers = callsOf(id).flatMap((call) =>
+        call.threadId === null || call.cached === 1 ? [] : [call.threadId],
+      );
+      for (const threadId of new Set(workers)) {
+        await bb.call(threads.archive, { threadId }).catch((error: unknown) =>
+          bb.log.warn("Could not archive workflow worker", {
+            threadId,
+            error: message(error),
+          }),
+        );
+      }
+      db.prepare("DELETE FROM calls WHERE run_id = ?").run(id);
+      db.prepare("DELETE FROM runs WHERE id = ?").run(id);
+    }
+    if (expired.length > 0) touched();
+  }
+
   bb.onStart(() => {
     const pending = db
-      .prepare("SELECT id FROM runs WHERE status IN ('queued', 'running')")
+      .prepare(
+        "SELECT id FROM runs WHERE status IN ('queued', 'running') ORDER BY created_at",
+      )
       .all() as { id: string }[];
-    for (const { id } of pending) void execute(id);
+    for (const { id } of pending) execute(id);
+    const unsent = db
+      .prepare("SELECT id FROM runs WHERE notification_status = 'pending'")
+      .all() as { id: string }[];
+    for (const { id } of unsent) void notify(id);
+    const cleanup = () =>
+      sweep().catch((error: unknown) =>
+        bb.log.warn("Workflow retention sweep failed", {
+          error: message(error),
+        }),
+      );
+    void cleanup();
+    const timer = setInterval(() => void cleanup(), SWEEP_MS);
     return () => {
+      clearInterval(timer);
+      for (const timer of notifyTimers) clearTimeout(timer);
+      queue.length = 0;
       for (const execution of executions.values()) execution.abort.abort();
     };
   });
