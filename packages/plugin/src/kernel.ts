@@ -99,7 +99,14 @@ export type Implementation<Input, Output> = (
   input: Input,
   context: CallContext,
 ) => MaybePromise<Output>;
-export type Listener<Payload> = (payload: Payload) => unknown;
+export interface EventOrigin {
+  hostId: string | null;
+}
+
+export type Listener<Payload> = (
+  payload: Payload,
+  origin: EventOrigin,
+) => unknown;
 export interface Registration {
   failClosed(): Registration;
 }
@@ -189,6 +196,7 @@ export interface Kernel extends OpCalls {
   watch(listener: () => void): () => void;
   version(): number;
   implementations(): number;
+  deliver(name: string, payload: unknown, origin: EventOrigin): void;
   inspect(): KernelInspection;
 }
 
@@ -204,6 +212,7 @@ export interface KernelOptions {
     context: { caller: Caller; signal: AbortSignal },
   ): Promise<unknown>;
   changed?(name: string): void;
+  emitted?(event: EventDef, payload: unknown): void;
   hookBudgetMs?: number;
 }
 
@@ -287,7 +296,7 @@ function matches(matcher: Matcher | null, input: unknown): boolean {
   return Object.entries(matcher).every(([key, value]) => fields[key] === value);
 }
 
-function describeInput(op: Op, input: unknown): string | null {
+export function describeInput(op: Op, input: unknown): string | null {
   if (input === undefined) return null;
   const redact = (key: string, value: unknown) =>
     op.secret.includes(key) ? "[secret]" : value;
@@ -352,6 +361,7 @@ function stopwatch(budgetMs: number) {
 export function createKernel(options: KernelOptions): Kernel {
   const ops = new Map<string, OpState>();
   const listeners = new Map<string, ListenerEntry[]>();
+  const heard = new Map<string, EventDef>();
   const slots = new Map<string, SlotState>();
   const lives = new Map<string, LiveState>();
   const watchers = new Set<() => void>();
@@ -414,6 +424,34 @@ export function createKernel(options: KernelOptions): Kernel {
     });
     state.shown = { views, items: views.map(({ item }) => item) };
     return state.shown;
+  };
+
+  const HERE: EventOrigin = { hostId: null };
+  const announce = (
+    event: EventDef,
+    payload: unknown,
+    origin: EventOrigin,
+  ): boolean => {
+    const parsed = event.payload.safeParse(payload);
+    if (!parsed.success) {
+      const reason = issueMessage(parsed.error);
+      const fields = { event: event.name, reason };
+      options.warn("An event payload is invalid", fields);
+      return false;
+    }
+    for (const { plugin, run: listen } of listeners.get(event.name) ?? []) {
+      const failed = (error: unknown) => {
+        const reason = messageOf(error);
+        const fields = { plugin, event: event.name, reason };
+        options.warn("A plugin listener failed", fields);
+      };
+      try {
+        void Promise.resolve(listen(parsed.data, origin)).catch(failed);
+      } catch (error) {
+        failed(error);
+      }
+    }
+    return true;
   };
 
   const warned = new Set<string>();
@@ -563,25 +601,7 @@ export function createKernel(options: KernelOptions): Kernel {
       return run(op, input, caller(), signal) as Promise<Out<O>>;
     },
     emit(event, payload) {
-      const parsed = event.payload.safeParse(payload);
-      if (!parsed.success) {
-        const reason = issueMessage(parsed.error);
-        const fields = { event: event.name, reason };
-        options.warn("An event payload is invalid", fields);
-        return;
-      }
-      for (const { plugin, run: listen } of listeners.get(event.name) ?? []) {
-        const failed = (error: unknown) => {
-          const reason = messageOf(error);
-          const fields = { plugin, event: event.name, reason };
-          options.warn("A plugin listener failed", fields);
-        };
-        try {
-          void Promise.resolve(listen(parsed.data)).catch(failed);
-        } catch (error) {
-          failed(error);
-        }
-      }
+      if (announce(event, payload, HERE)) options.emitted?.(event, payload);
     },
     read<Item>(slot: Slot<Item>): Item[] {
       return shownOf(slot).items as Item[];
@@ -677,6 +697,7 @@ export function createKernel(options: KernelOptions): Kernel {
       on(target: Op | EventDef, second: unknown, third?: unknown) {
         alive();
         if (target.type === "event") {
+          heard.set(target.name, target);
           const entry = { plugin, run: second as Listener<unknown> };
           const list = listeners.get(target.name) ?? [];
           listeners.set(target.name, list);
@@ -801,6 +822,10 @@ export function createKernel(options: KernelOptions): Kernel {
     },
     version: () => version,
     implementations: () => implemented,
+    deliver(name, payload, origin) {
+      const event = heard.get(name);
+      if (event !== undefined) announce(event, payload, origin);
+    },
     inspect() {
       return {
         api: API_VERSION,

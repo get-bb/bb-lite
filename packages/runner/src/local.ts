@@ -1,5 +1,5 @@
 import { dirname } from "node:path";
-import type { Op } from "@bb/plugin";
+import type { Caller, Op } from "@bb/plugin";
 import type { z } from "zod";
 import { createRunnerPlugins, runner, type RunnerPart } from "./plugins.js";
 import type { ProviderAdapter } from "./providers/provider.js";
@@ -13,7 +13,7 @@ import { workspacePart } from "./workspace/part.js";
 export type MachineCall = <O extends Op>(
   op: O,
   input: z.input<O["input"]>,
-  options?: { timeoutMs?: number },
+  options?: { timeoutMs?: number; caller?: Caller },
 ) => Promise<z.output<O["output"]>>;
 
 export type Runner = SessionApi & { call: MachineCall };
@@ -24,7 +24,10 @@ export function opCaller(callOp: SessionApi["callOp"]): MachineCall {
     const declared = (op as { timeoutMs?: number }).timeoutMs;
     const timeoutMs = options.timeoutMs ?? declared;
     const budget = timeoutMs === undefined ? {} : { timeoutMs };
-    const result = await callOp({ name: op.name, input: parsed, ...budget });
+    const { caller } = options;
+    const from = caller === undefined ? {} : { caller };
+    const sent = { name: op.name, input: parsed, ...budget, ...from };
+    const result = await callOp(sent);
     return (await op.output.parseAsync(result)) as never;
   };
 }
@@ -72,8 +75,8 @@ export function createLocalRunner(options: LocalRunnerOptions): LocalRunner {
     adapters: plugins.adapters,
     terminalIds: workspace.terminalIds,
   });
-  const callOp: SessionApi["callOp"] = ({ name, input }) =>
-    plugins.callOp(name, input);
+  const callOp: SessionApi["callOp"] = ({ name, input, caller }) =>
+    plugins.callOp(name, input, caller);
   return {
     ...sessions,
     loadPlugins: (args) => plugins.sync(args.plugins),

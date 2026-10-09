@@ -10,6 +10,7 @@ export const PING_INTERVAL_MS = 5_000;
 export const LEASE_MS = 30_000;
 export const MAX_FRAME_BYTES = 768 * 1024;
 export const REPLACED_CLOSE_CODE = 4001;
+export const OUTDATED_CLOSE_CODE = 4002;
 const PART_CHARS = 256 * 1024;
 const MAX_ASSEMBLED_CHARS = 64 * 1024 * 1024;
 const MAX_TIMER_MS = 2_147_483_647;
@@ -69,6 +70,7 @@ const helloSchema = z.object({
   t: z.literal("hello"),
   instanceId: z.string().min(1),
   version: z.string(),
+  api: z.string().optional(),
   lastAckedSeq: seqSchema.optional(),
 });
 const frameSchema = z.discriminatedUnion("t", [

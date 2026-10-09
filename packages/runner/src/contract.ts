@@ -25,9 +25,20 @@ function reads<K extends Method>(method: K, timeoutMs: number): MachineOp<K> {
   return { ...declared, method, timeoutMs };
 }
 
-function writes<K extends Method>(method: K, timeoutMs: number): MachineOp<K> {
-  return { ...reads(method, timeoutMs), kind: "write" };
+interface Recording {
+  audit?: boolean;
+  secret?: readonly string[];
 }
+
+function writes<K extends Method>(
+  method: K,
+  timeoutMs: number,
+  { audit = true, secret = [] }: Recording = {},
+): MachineOp<K> {
+  return { ...reads(method, timeoutMs), kind: "write", audit, secret };
+}
+
+const QUIET = { audit: false };
 
 export const git = contract("git", {
   inspect: reads("inspectPath", STANDARD_MS),
@@ -46,8 +57,8 @@ export const git = contract("git", {
 export const machineFiles = contract("machineFiles", {
   read: reads("readFile", STANDARD_MS),
   readChunk: reads("readFileChunk", STANDARD_MS),
-  write: writes("writeFile", STANDARD_MS),
-  writeChunk: writes("writeFileChunk", STANDARD_MS),
+  write: writes("writeFile", STANDARD_MS, { secret: ["content"] }),
+  writeChunk: writes("writeFileChunk", STANDARD_MS, QUIET),
   list: reads("listPaths", STANDARD_MS),
   browse: reads("browseDirectory", STANDARD_MS),
   exist: reads("pathsExist", QUICK_MS),
@@ -55,21 +66,21 @@ export const machineFiles = contract("machineFiles", {
 });
 
 export const machineTerminals = contract("machineTerminals", {
-  open: writes("openTerminal", STANDARD_MS),
+  open: writes("openTerminal", STANDARD_MS, { secret: ["env"] }),
   attach: reads("attachTerminal", QUICK_MS),
-  write: writes("writeTerminal", QUICK_MS),
-  resize: writes("resizeTerminal", QUICK_MS),
+  write: writes("writeTerminal", QUICK_MS, QUIET),
+  resize: writes("resizeTerminal", QUICK_MS, QUIET),
   close: writes("closeTerminal", QUICK_MS),
 });
 
 export const workspaces = contract("workspaces", {
   ensurePersonal: writes("ensurePersonalWorkspace", LONG_MS),
-  runScript: writes("runLifecycleScript", SCRIPT_GRACE_MS),
+  runScript: writes("runLifecycleScript", SCRIPT_GRACE_MS, { secret: ["env"] }),
   cancelScript: writes("cancelOperation", QUICK_MS),
-  watch: writes("setWatchedPaths", STANDARD_MS),
+  watch: writes("setWatchedPaths", STANDARD_MS, QUIET),
   commands: reads("listCommands", STANDARD_MS),
   openTargets: reads("listOpenTargets", QUICK_MS),
-  openIn: writes("openInTarget", QUICK_MS),
+  openIn: writes("openInTarget", QUICK_MS, QUIET),
 });
 
 export const MACHINE_OPS: readonly MachineOp[] = [

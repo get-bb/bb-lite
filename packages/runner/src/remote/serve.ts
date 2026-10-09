@@ -1,3 +1,4 @@
+import { API_VERSION } from "@bb/plugin";
 import type { WebSocket } from "ws";
 import type { LocalRunner } from "../local.js";
 import {
@@ -76,7 +77,7 @@ export function serveRunner(
 
   const { lastAckedSeq } = runner.outbox;
   void runner.describe().then(({ instanceId, version }) => {
-    send({ t: "hello", instanceId, version, lastAckedSeq });
+    send({ t: "hello", instanceId, version, api: API_VERSION, lastAckedSeq });
   });
 
   return {

@@ -1,5 +1,6 @@
-import type { PluginServerApi } from "@bb/plugin";
+import { API_VERSION, majorOf, type PluginServerApi } from "@bb/plugin";
 import {
+  OUTDATED_CLOSE_CODE,
   REPLACED_CLOSE_CODE,
   connectRemoteRunner,
   type Hello,
@@ -60,9 +61,23 @@ export function attachRemoteRunner(
   const connect = async () => {
     const hello = await Promise.race([remote.hello, remote.closed]);
     if (hello === undefined) return;
+    if (majorOf(hello.api ?? "0") !== majorOf(API_VERSION)) {
+      const theirs = hello.api ?? "an older version";
+      const statusMessage =
+        `bb on this machine speaks plugin API ${theirs}; the server ` +
+        `speaks ${API_VERSION}. Update bb there and restart its runner.`;
+      updateHost(db, hostId, { statusMessage });
+      log.warn("Remote runner refused", { hostId, api: theirs });
+      socket.close(OUTDATED_CLOSE_CODE, "plugin API version mismatch");
+      return;
+    }
     const { platform, threadStorageRoot } = await remote.runner.describe();
     const stream = resumeStream(bb, hostId, hello);
-    updateHost(db, hostId, { platform, threadStorageRoot });
+    updateHost(db, hostId, {
+      platform,
+      threadStorageRoot,
+      statusMessage: null,
+    });
     const runner: ServerRunner = {
       ...remote.runner,
       ackEvents: async ({ seq }) => {

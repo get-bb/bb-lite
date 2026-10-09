@@ -7,7 +7,7 @@ import { createLocalRunner } from "../local.js";
 import type { RunnerPart } from "../plugins.js";
 import type { ProviderAdapter } from "../providers/provider.js";
 import { startCliProxy } from "./cli-proxy.js";
-import { REPLACED_CLOSE_CODE } from "./protocol.js";
+import { OUTDATED_CLOSE_CODE, REPLACED_CLOSE_CODE } from "./protocol.js";
 import { serveRunner, type RunnerServing } from "./serve.js";
 
 const CREDENTIALS_FILE = "runner.json";
@@ -172,6 +172,13 @@ export async function runRunner(options: RunOptions): Promise<RunningRunner> {
       if (stopping !== null) return;
       if (code === REPLACED_CLOSE_CODE) {
         log("bb runner: this machine was replaced or removed; stopping");
+        return void stop();
+      }
+      if (code === OUTDATED_CLOSE_CODE) {
+        log(
+          "bb runner: the server speaks a different plugin API version; " +
+            "update bb on this machine and start the runner again",
+        );
         return void stop();
       }
       log(`bb runner: disconnected (${code}); retrying in ${retryMs} ms`);

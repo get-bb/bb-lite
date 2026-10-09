@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -45,7 +46,7 @@ export interface RunnerPlugins {
   load(part: RunnerPart): void;
   sync(bundles: RunnerPartBundle[]): Promise<LoadPluginsResult>;
   adapters(): ProviderAdapter[];
-  callOp(name: string, input: unknown): Promise<unknown>;
+  callOp(name: string, input: unknown, caller?: Caller): Promise<unknown>;
   dispose(): void;
 }
 
@@ -67,21 +68,15 @@ export function createRunnerPlugins(options: {
   sink?: RunnerEventSink;
 }): RunnerPlugins {
   const log = options.log ?? (() => {});
-  let caller = SYSTEM;
+  const callers = new AsyncLocalStorage<Caller>();
   const kernel = createKernel({
-    currentCaller: () => caller,
-    enter(next, work) {
-      const previous = caller;
-      caller = next;
-      try {
-        return work();
-      } finally {
-        caller = previous;
-      }
-    },
+    currentCaller: () => callers.getStore() ?? SYSTEM,
+    enter: (next, work) => callers.run(next, work),
     record: () => {},
     now: Date.now,
     warn: (message, fields) => log(`${message} ${JSON.stringify(fields)}`),
+    emitted: ({ name }, payload) =>
+      options.sink?.({ lane: "live", kind: "plugin.event", name, payload }),
   });
   const scopes = new Map<string, PluginScope>();
   const shipped = new Map<string, string>();
@@ -197,13 +192,13 @@ export function createRunnerPlugins(options: {
       return result;
     },
     adapters: () => kernel.read(runner.provider),
-    async callOp(name, input) {
+    async callOp(name, input, caller = SYSTEM) {
       const op = kernel.op(name);
       if (op === null) {
         const message = `No runner part implements "${name}" on this machine`;
         throw new RunnerError("unavailable", message);
       }
-      return kernel.call(op, input);
+      return callers.run(caller, () => kernel.call(op, input));
     },
     dispose() {
       for (const scope of scopes.values()) scope.dispose();

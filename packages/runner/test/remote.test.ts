@@ -22,7 +22,8 @@ import {
   type RunnerPart,
   type RunnerServing,
 } from "@bb/runner";
-import { deny } from "@bb/plugin";
+import { contract, deny, event, type Caller } from "@bb/plugin";
+import { z } from "zod";
 import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { until } from "./kit.js";
 
@@ -48,7 +49,10 @@ async function socketPair() {
   return { runnerSide: dialed, serverSide: accepted, wireSizes };
 }
 
-function startLocalRunner(parts: RunnerPart[] = []) {
+function startLocalRunner(
+  parts: RunnerPart[] = [],
+  heard: RunnerEventSink = () => {},
+) {
   const dataDir = mkdtempSync(join(tmpdir(), "bb-remote-runner-"));
   let serving: RunnerServing | null = null;
   const runner = createLocalRunner({
@@ -57,7 +61,10 @@ function startLocalRunner(parts: RunnerPart[] = []) {
     bbCliPath: "/opt/bb/bin/bb",
     adapters: [createEchoAdapter()],
     parts,
-    sink: (event) => serving?.deliver(event),
+    sink: (event) => {
+      heard(event);
+      serving?.deliver(event);
+    },
   });
   onTestFinished(async () => {
     await runner.shutdown();
@@ -125,6 +132,41 @@ it("lets another runner part refuse or answer a machine operation", async () => 
   });
   expect(await runner.call(workspaces.openTargets, {})).toEqual({
     targets: [],
+  });
+});
+
+it("runs a machine operation as the caller and sends a part's events on", async () => {
+  const probe = contract("probe", {
+    low: event(z.object({ freeBytes: z.number() })),
+  });
+  const seen: (string | null)[] = [];
+  const watcher: RunnerPart = {
+    id: "watcher",
+    entry(bb) {
+      bb.on(machineFiles.exist, (_input, next) => {
+        seen.push(next.origin.user);
+        bb.emit(probe.low, { freeBytes: 12 });
+        return next();
+      });
+    },
+  };
+  const events: RunnerEvent[] = [];
+  const { runner } = startLocalRunner([watcher], (sent) => events.push(sent));
+  const caller: Caller = {
+    user: "usr_ada",
+    role: "member",
+    door: "app",
+    thread: null,
+    via: ["workspace"],
+  };
+  await runner.call(machineFiles.exist, { paths: ["/"] }, { caller });
+  await runner.call(machineFiles.exist, { paths: ["/"] });
+  expect(seen).toEqual(["usr_ada", null]);
+  const sent = { kind: "plugin.event", name: "probe.low" };
+  expect(events).toContainEqual({
+    lane: "live",
+    ...sent,
+    payload: { freeBytes: 12 },
   });
 });
 

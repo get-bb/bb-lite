@@ -9,7 +9,7 @@ import type { Logger } from "@bb/server-kit/context";
 import type { Db } from "@bb/server-kit/db/index";
 import { readPluginRows, writePluginRow } from "@bb/server-kit/db/plugins";
 import { errorMessage } from "@bb/server-kit/http/errors";
-import { currentCaller } from "@bb/server-kit/kernel/caller";
+import { asPlugin, currentCaller } from "@bb/server-kit/kernel/caller";
 import type { Hub } from "@bb/server-kit/ws/hub";
 import { cronMatches, parseCron, type Cron } from "./cron.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
@@ -136,6 +136,32 @@ function migrate(database: Database.Database, statements: string[]) {
   })();
 }
 
+function runnersFor(runners: plugin.Runners, pluginId: string): plugin.Runners {
+  const acting = <Args extends unknown[], Result>(
+    run: (...args: Args) => Result,
+  ) => {
+    return (...args: Args) => asPlugin(pluginId, () => run(...args));
+  };
+  return new Proxy(runners, {
+    get(target, key) {
+      if (key === "call") return acting(target.call.bind(target));
+      if (key !== "get") {
+        const member: unknown = Reflect.get(target, key, target);
+        return typeof member === "function" ? member.bind(target) : member;
+      }
+      return (hostId: string) => {
+        const runner = target.get(hostId);
+        return new Proxy(runner, {
+          get: (machine, name, receiver) =>
+            name === "call"
+              ? acting(machine.call.bind(machine))
+              : (Reflect.get(machine, name, receiver) as unknown),
+        });
+      };
+    },
+  });
+}
+
 export function createPluginInstance(
   host: PluginApiHost,
   pluginId: string,
@@ -167,7 +193,7 @@ export function createPluginInstance(
     server: host.server,
     db,
     realtime: hub,
-    runners: host.runners,
+    runners: runnersFor(host.runners, pluginId),
     now: host.now,
     settings: {
       define<D extends plugin.SettingDescriptors>(

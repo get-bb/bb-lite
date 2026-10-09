@@ -11,6 +11,7 @@ import type {
   ThreadEvent,
   ToolCallResponse,
 } from "@bb/domain";
+import type { Caller } from "@bb/plugin";
 
 export type ProviderId = string;
 
@@ -205,6 +206,11 @@ export type RunnerEvent =
       change: "status" | "refs" | "files";
     }>
   | Live<{
+      kind: "plugin.event";
+      name: string;
+      payload: unknown;
+    }>
+  | Live<{
       kind: "plugin.signal";
       pluginId: string;
       name: string;
@@ -244,5 +250,6 @@ export interface SessionApi {
     name: string;
     input: unknown;
     timeoutMs?: number;
+    caller?: Caller;
   }): Promise<unknown>;
 }

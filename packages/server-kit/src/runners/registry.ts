@@ -1,9 +1,12 @@
-import type {
-  Op,
-  RunnerEventHandler,
-  RunnerEventKind,
-  RunnerEventOf,
-  RunnerFactory,
+import {
+  describeInput,
+  type AuditRecord,
+  type Caller,
+  type Op,
+  type RunnerEventHandler,
+  type RunnerEventKind,
+  type RunnerEventOf,
+  type RunnerFactory,
 } from "@bb/plugin";
 import type { Runner, RunnerEvent } from "@bb/runner";
 import type { z } from "zod";
@@ -21,6 +24,7 @@ type AnyHandler = (event: RunnerEvent, hostId: string) => void | Promise<void>;
 
 interface Connection<R> {
   runner: R;
+  bound: R;
   acknowledged: Promise<void>;
 }
 
@@ -29,12 +33,20 @@ export interface RunnerRegistryOptions<R> {
   localRunner: RunnerFactory<R>;
   log: Logger;
   authorize?: (hostId: string) => void;
+  currentCaller?: () => Caller;
+  record?: (entry: AuditRecord) => void;
+  now?: () => number;
 }
 
 export class RunnerRegistry<R extends Runner> {
   readonly localHostId: string;
   private readonly log: Logger;
   private readonly authorize: (hostId: string) => void;
+  private readonly observed: Pick<
+    RunnerRegistryOptions<R>,
+    "currentCaller" | "record"
+  >;
+  private readonly now: () => number;
   private readonly connections = new Map<string, Connection<R>>();
   private readonly handlers = new Map<RunnerEventKind, Set<AnyHandler>>();
   private readonly connectListeners = new Set<HostListener>();
@@ -44,6 +56,8 @@ export class RunnerRegistry<R extends Runner> {
     this.localHostId = options.localHostId;
     this.log = options.log;
     this.authorize = options.authorize ?? (() => {});
+    this.observed = options;
+    this.now = options.now ?? Date.now;
     this.connect(options.localHostId, options.localRunner);
   }
 
@@ -51,7 +65,40 @@ export class RunnerRegistry<R extends Runner> {
     this.authorize(hostId);
     const connection = this.connections.get(hostId);
     if (connection === undefined) throw hostUnavailable();
-    return connection.runner;
+    return connection.bound;
+  }
+
+  private bind(hostId: string, runner: R): R {
+    const call: Runner["call"] = async (op, input, options = {}) => {
+      const caller = options.caller ?? this.observed.currentCaller?.();
+      const startedAt = this.now();
+      const finish = (outcome: "ok" | "error", detail: string | null) => {
+        if (op.kind !== "write" || !op.audit || caller === undefined) return;
+        this.observed.record?.({
+          at: startedAt,
+          op: op.name,
+          kind: op.kind,
+          caller,
+          hooks: [],
+          outcome,
+          detail,
+          durationMs: this.now() - startedAt,
+          input: describeInput(op, { hostId, ...(input as object) }),
+        });
+      };
+      try {
+        const result = await runner.call(op, input, { ...options, caller });
+        finish("ok", null);
+        return result;
+      } catch (error) {
+        finish("error", error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    };
+    return new Proxy(runner, {
+      get: (target, key, receiver) =>
+        key === "call" ? call : (Reflect.get(target, key, receiver) as unknown),
+    });
   }
 
   connectedHostIds(): string[] {
@@ -68,7 +115,8 @@ export class RunnerRegistry<R extends Runner> {
     const runner = create((event) => {
       if (connection !== undefined) this.deliver(hostId, connection, event);
     });
-    connection = { runner, acknowledged: Promise.resolve() };
+    const bound = this.bind(hostId, runner);
+    connection = { runner, bound, acknowledged: Promise.resolve() };
     this.connections.set(hostId, connection);
     for (const listener of this.connectListeners) listener(hostId);
     return runner;

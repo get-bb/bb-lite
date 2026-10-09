@@ -13,7 +13,14 @@ import {
   type ServerRunner,
 } from "@bb/server-kit/context";
 import { openDatabase, type OpenDatabase } from "@bb/server-kit/db/index";
-import { machines, type ApiRoutes, type SocketResolver } from "@bb/plugin";
+import {
+  machines,
+  type ApiRoutes,
+  type AuditRecord,
+  type SocketResolver,
+} from "@bb/plugin";
+import { recordAudit } from "@bb/server-kit/db/audit";
+import { currentCaller } from "@bb/server-kit/kernel/caller";
 import {
   RunnerRegistry,
   type RunnerFactory,
@@ -65,10 +72,21 @@ export function createServer(options: CreateServerOptions): BbServer {
   const { hostId: localHostId } = config;
   const { localRunner } = options;
   const authorize = (hostId: string) => kernel.pick(machines.guard)?.(hostId);
+  const record = (entry: AuditRecord) => {
+    try {
+      recordAudit(db, entry);
+    } catch (error) {
+      log.error("An audit record was not written", { err: error });
+    }
+  };
   const access = { localHostId, localRunner, log, authorize };
-  const runners = new RunnerRegistry(access);
+  const observed = { currentCaller, record, now };
+  const runners = new RunnerRegistry({ ...access, ...observed });
   runners.onConnected((hostId) => hub.host(hostId, ["host-connected"]));
   runners.onDisconnected((hostId) => hub.host(hostId, ["host-disconnected"]));
+  runners.onEvent("plugin.event", ({ name, payload }, hostId) =>
+    kernel.deliver(name, payload, { hostId }),
+  );
   const tunnelToken =
     options.tunnelToken ?? randomBytes(24).toString("base64url");
   const kernel = createServerKernel({ db, hub, log, now });

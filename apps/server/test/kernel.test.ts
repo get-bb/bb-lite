@@ -14,6 +14,7 @@ import {
   type PluginServerApi,
   plugins as hostOps,
   majorOf,
+  event,
 } from "@bb/plugin";
 import { createThreadRequestSchema } from "@bb/server-contract";
 import { createRunnerPlugins } from "@bb/runner";
@@ -84,6 +85,48 @@ it("records the app plugin a client names, without giving it authority", async (
     body: "{}",
   });
   expect(refused.status).toBe(403);
+});
+
+it("records a machine write with its caller and hears a machine's events", async () => {
+  const server = await createThreadServer();
+  const { ctx, runner } = server;
+  const written = { outcome: "written", sha256: "abc", sizeBytes: 5 } as const;
+  runner.script.writeFile = async () => written;
+  const file = { path: "/tmp/notes.txt", content: "hello" };
+  const sent = await server.http("POST", "/machines/files/write", file);
+  expect(sent).toMatchObject({ status: 200, body: { outcome: "written" } });
+  const trail = (await auditOf(server)).map((entry) => {
+    const { op, userId, via, input } = entry;
+    return { op, userId, via, input: JSON.parse(input ?? "null") as unknown };
+  });
+  const hostId = ctx.config.hostId;
+  expect(trail).toEqual([
+    {
+      op: "machineFiles.write",
+      userId: "usr_owner",
+      via: ["workspace"],
+      input: { hostId, path: "/tmp/notes.txt", content: "[secret]" },
+    },
+    {
+      op: "machines.writeFile",
+      userId: "usr_owner",
+      via: [],
+      input: { path: "/tmp/notes.txt", content: "hello" },
+    },
+  ]);
+  const probe = contract("probe", {
+    low: event(z.object({ freeBytes: z.number() })),
+  });
+  const heard: unknown[] = [];
+  ctx.kernel
+    .scope("probe", "installed")
+    .on(probe.low, ({ freeBytes }, origin) =>
+      heard.push([freeBytes, origin.hostId]),
+    );
+  const announced = { kind: "plugin.event", name: "probe.low" } as const;
+  runner.emit({ lane: "live", ...announced, payload: { freeBytes: 3 } });
+  runner.emit({ lane: "live", ...announced, payload: { freeBytes: "x" } });
+  await vi.waitFor(() => expect(heard).toEqual([[3, hostId]]));
 });
 
 it("records who changed a thread, through which door and which plugin", async () => {
