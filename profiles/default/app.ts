@@ -37,6 +37,7 @@ export const appPlugins: readonly BuiltinAppPlugin[] = [
   },
   { id: "tasks", load: () => import("../../plugins/tasks/app") },
   { id: "bb-guide", load: () => import("../../plugins/bb-guide/app") },
+  { id: "drafts", load: () => import("../../plugins/drafts/app") },
   {
     id: "connect",
     load: () => import("../../plugins/connect/app"),

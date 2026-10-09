@@ -9,6 +9,7 @@ const AGENT_FEATURES = [
   "ask-user-question",
   "custom-instructions",
   "bb-guide",
+  "drafts",
   "audit",
   "plugin-dev",
 ];

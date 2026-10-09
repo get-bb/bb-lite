@@ -1,0 +1,34 @@
+{
+  "name": "bb-plugin-drafts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Save a composer draft as a manually sent queued message.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Drafts",
+    "description": "Save a composer draft as a manually sent queued message.",
+    "icon": "EditFile",
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/app-kit": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}
