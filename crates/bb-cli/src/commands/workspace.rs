@@ -11,6 +11,7 @@ use crate::commands::system::put_some;
 use crate::http::encode;
 
 const DIFF_PATCH_BATCH: usize = 50;
+const MERGE_METHODS: &[&str] = &["merge", "squash", "rebase"];
 const DIFF_SIDES: &[&str] = &["old", "new"];
 const DIFF_TARGETS: &str = "uncommitted, branch_committed, all, or commit";
 const ENVIRONMENT_STATUSES: &[&str] = &["ready", "destroyed"];
@@ -41,6 +42,10 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("envDiffFile", env_diff_file),
         ("envDiffPatch", env_diff_patch),
         ("envDiff", env_diff),
+        ("envPullRequestShow", env_pull_request_show),
+        ("envPullRequestReady", env_pull_request_ready),
+        ("envPullRequestDraft", env_pull_request_draft),
+        ("envPullRequestMerge", env_pull_request_merge),
         ("envProviders", env_providers),
         ("envArchiveThreads", env_archive_threads),
         ("machineList", machine_list),
@@ -862,4 +867,55 @@ fn env_archive_threads(call: &mut Call) -> CliResult<Output> {
     let count = result.get("archivedThreadIds").and_then(Value::as_array).map_or(0, Vec::len);
     let message = format!("Archived {count} thread(s) in environment {environment_id}");
     Ok(Output::text(result, message))
+}
+
+fn pull_request_op(call: &Call, name: &str, body: Value) -> CliResult<Value> {
+    match call.http.post(&format!("/ops/pullRequests.{name}"), &body) {
+        Ok(answer) => Ok(answer.get("result").cloned().unwrap_or(Value::Null)),
+        Err(error) if error.code == "unimplemented" => {
+            Err(CliError::new("The github plugin is not enabled.")
+                .code("plugin_disabled")
+                .hint("Enable it with: bb plugin enable github"))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn env_pull_request_show(call: &mut Call) -> CliResult<Output> {
+    let pull = pull_request_op(call, "get", json!({ "environmentId": id(call, "id")? }))?;
+    if pull.is_null() {
+        return Ok(Output::text(pull, "No pull request found"));
+    }
+    let number = &pull["number"];
+    let draft = if truthy(&pull, "isDraft") { "yes" } else { "no" };
+    let lines = [
+        format!("Pull request: #{number} {} - {}", text(&pull, "state"), text(&pull, "title")),
+        format!("URL: {}", text(&pull, "url")),
+        format!("Branch: {} -> {}", text(&pull, "headRefName"), text(&pull, "baseRefName")),
+        format!("Draft: {draft}"),
+    ];
+    Ok(Output::lines(pull, &lines))
+}
+
+fn set_draft(call: &mut Call, draft: bool, done: &str) -> CliResult<Output> {
+    let body = json!({ "environmentId": id(call, "id")?, "draft": draft });
+    let pull = pull_request_op(call, "update", body)?;
+    let message = format!("Pull request #{} {done}", pull["number"]);
+    Ok(Output::text(pull, message))
+}
+
+fn env_pull_request_ready(call: &mut Call) -> CliResult<Output> {
+    set_draft(call, false, "is ready for review")
+}
+
+fn env_pull_request_draft(call: &mut Call) -> CliResult<Output> {
+    set_draft(call, true, "is a draft")
+}
+
+fn env_pull_request_merge(call: &mut Call) -> CliResult<Output> {
+    let method = call.choice("method", MERGE_METHODS)?.unwrap_or("merge");
+    let body = json!({ "environmentId": id(call, "id")?, "method": method });
+    let pull = pull_request_op(call, "merge", body)?;
+    let message = format!("Merged pull request #{}", pull["number"]);
+    Ok(Output::text(pull, message))
 }

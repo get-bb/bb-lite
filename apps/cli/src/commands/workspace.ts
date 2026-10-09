@@ -12,7 +12,9 @@ import {
   type Call,
   type Remote,
 } from "../call.js";
-import { usageError, type Run } from "../engine.js";
+import { z } from "zod";
+import { loaded } from "../call.js";
+import { CliError, usageError, type Run } from "../engine.js";
 
 const ENVIRONMENT_STATUSES = ["ready", "destroyed"] as const;
 const MANUAL_MACHINE_PROVIDER = "manual";
@@ -618,4 +620,77 @@ export const envArchiveThreads: Run = async (c) => {
   });
   const count = result.archivedThreadIds.length;
   c.out(result, `Archived ${count} thread(s) in environment ${environmentId}`);
+};
+
+const MERGE_METHODS = ["merge", "squash", "rebase"] as const;
+
+function pullRequestOps() {
+  const { contract, op } = loaded().plugin;
+  const environment = { environmentId: z.string() };
+  const pull = z.object({
+    number: z.number(),
+    title: z.string(),
+    state: z.string(),
+    isDraft: z.boolean(),
+    url: z.string(),
+    headRefName: z.string(),
+    baseRefName: z.string(),
+  });
+  return contract("pullRequests", {
+    get: op({ input: z.object(environment), output: pull.nullable() }),
+    update: op({
+      input: z.object({ ...environment, draft: z.boolean() }),
+      output: pull,
+      kind: "write",
+    }),
+    merge: op({
+      input: z.object({ ...environment, method: z.enum(MERGE_METHODS) }),
+      output: pull,
+      kind: "write",
+    }),
+  });
+}
+
+function githubDisabled(error: unknown): never {
+  const { CallError: Failure } = loaded().plugin;
+  if (error instanceof Failure && error.code === "unimplemented") {
+    throw new CliError("The github plugin is not enabled.", {
+      code: "plugin_disabled",
+      hint: "Enable it with: bb plugin enable github",
+    });
+  }
+  throw error;
+}
+
+async function setDraft(c: Call, draft: boolean, done: string) {
+  const pull = await c
+    .op(pullRequestOps().update, { environmentId: id(c, "id"), draft })
+    .catch(githubDisabled);
+  c.out(pull, `Pull request #${pull.number} ${done}`);
+}
+
+export const envPullRequestShow: Run = async (c) => {
+  const pull = await c
+    .op(pullRequestOps().get, { environmentId: id(c, "id") })
+    .catch(githubDisabled);
+  if (pull === null) return c.out(pull, "No pull request found");
+  c.out(pull, [
+    `Pull request: #${pull.number} ${pull.state} - ${pull.title}`,
+    `URL: ${pull.url}`,
+    `Branch: ${pull.headRefName} -> ${pull.baseRefName}`,
+    `Draft: ${pull.isDraft ? "yes" : "no"}`,
+  ]);
+};
+
+export const envPullRequestReady: Run = (c) =>
+  setDraft(c, false, "is ready for review");
+
+export const envPullRequestDraft: Run = (c) => setDraft(c, true, "is a draft");
+
+export const envPullRequestMerge: Run = async (c) => {
+  const method = c.choice("method", MERGE_METHODS) ?? "merge";
+  const pull = await c
+    .op(pullRequestOps().merge, { environmentId: id(c, "id"), method })
+    .catch(githubDisabled);
+  c.out(pull, `Merged pull request #${pull.number}`);
 };

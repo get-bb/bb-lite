@@ -272,3 +272,24 @@ fn env_diff_composes_the_file_list_stats_and_every_patch() {
         .collect();
     assert_eq!(batches, [50, 1]);
 }
+
+#[test]
+fn env_pull_request_calls_the_github_plugin_operations() {
+    let pull = json!({ "repo": "o/r", "number": 7, "title": "Fix", "state": "OPEN",
+                       "isDraft": true, "url": "u", "headRefName": "h", "baseRefName": "main" });
+    let answer = json!({ "ok": true, "result": pull });
+    let server = FakeServer::start(vec![
+        route("POST", "/ops/pullRequests.get", answer.clone()),
+        route("POST", "/ops/pullRequests.merge", answer),
+    ]);
+    let (result, printed) =
+        run(&server, &["env", "pull-request", "show", "env_1"], CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "Pull request: #7 OPEN - Fix\nURL: u\nBranch: h -> main\nDraft: yes\n");
+    let words = ["env", "pull-request", "merge", "env_1", "--method", "squash"];
+    let (result, printed) = run(&server, &words, CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "Merged pull request #7\n");
+    let merged = server.requests()[1].body.clone();
+    assert_eq!(merged, Some(json!({ "environmentId": "env_1", "method": "squash" })));
+}

@@ -239,6 +239,12 @@ env diff-patch <id>  Print the patches of chosen changed files
   --merge-base-branch <branch>  Base branch, with branch_committed or all
   --sha <sha>  Commit, with --target commit
   > {outcome, patches: [{path, patch, truncated}]}
+env pull-request show <id>  Show an environment's pull request (github plugin)
+  > {repo, number, title, state, isDraft, url, headRefName, baseRefName} or null
+env pull-request ready <id>  Mark the pull request ready for review
+env pull-request draft <id>  Convert the pull request to draft
+env pull-request merge <id>  Merge the pull request
+  --method <method>  merge, squash or rebase (default: merge)
 env providers  List environment providers
   --project <id>  Only providers this project can use
 ${MACHINE}  Availability on this machine (needs --project)
@@ -425,6 +431,7 @@ export const table: Table = {
     project: "Projects and the directories that hold them on each machine",
     "project source": "Where a project lives on a machine",
     "project attachment": "Files attached to prompts",
+    "env pull-request": "The pull request of an environment (github plugin)",
     env: "Environments: the checkouts and worktrees threads run in",
     machine: "Machines that run threads",
     "machine env": "Environment variables given to agents",

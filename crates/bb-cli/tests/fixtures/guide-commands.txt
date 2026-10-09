@@ -358,6 +358,21 @@ Options:
   --sha <sha>                   Commit, with --target commit
 JSON (--json): {outcome, patches: [{path, patch, truncated}]}
 
+Usage: bb env pull-request show <id> [options]
+Show an environment's pull request (github plugin)
+JSON (--json): {repo, number, title, state, isDraft, url, headRefName, baseRefName} or null
+
+Usage: bb env pull-request ready <id> [options]
+Mark the pull request ready for review
+
+Usage: bb env pull-request draft <id> [options]
+Convert the pull request to draft
+
+Usage: bb env pull-request merge <id> [options]
+Merge the pull request
+Options:
+  --method <method>  merge, squash or rebase (default: merge)
+
 Usage: bb env providers [options]
 List environment providers
 Options:
