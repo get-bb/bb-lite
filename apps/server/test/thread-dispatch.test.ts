@@ -208,7 +208,7 @@ it("sends queued messages up to a group boundary as one turn", async () => {
 it("starts a thread with no provider on an enabled one only", async () => {
   const server = await createThreadServer();
   const { ctx, http, runner } = server;
-  const installed = { installed: true, auth: "ready", message: null };
+  const installed = { installed: true, auth: "ready" as const, message: null };
   const status = { ...installed, executablePath: null, version: "1.0.0" };
   runner.script.listProviders = async () => [
     { ...status, providerId: "codex" },

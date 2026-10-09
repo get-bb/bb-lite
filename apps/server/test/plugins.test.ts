@@ -289,7 +289,7 @@ it("serves an external app bundle whose shared imports resolve at runtime", asyn
       react: { default: { useState }, useState },
       "react/jsx-runtime": { jsx },
       clsx: { default: clsx, clsx },
-      "@bb/plugin/app": { shell: { navPanel }, callOp },
+      "@bb/plugin/app": { contract, op, shell: { navPanel }, callOp },
     },
   };
   vm.runInNewContext(code, sandbox);

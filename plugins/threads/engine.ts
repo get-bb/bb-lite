@@ -287,7 +287,9 @@ export class Engine {
 
   assertWritable(thread: ThreadRow): void {
     const hostId = this.hostOf(thread);
-    if (hostId !== null) assertHostUsable(this.bb, hostId);
+    if (hostId === null) return;
+    if (findHost(this.bb.db, "id", hostId) === undefined) return;
+    assertHostUsable(this.bb, hostId);
   }
 
   requireUnarchived(threadId: string): ThreadRow {
