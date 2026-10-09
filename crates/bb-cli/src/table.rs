@@ -311,6 +311,40 @@ env delete <id>  Delete an environment that has no live threads
 "#,
     yes!(),
     r#"
+env branches <id>  List the local and remote branches of an environment
+  --query <query>  Branch-name filter
+  --limit <count>  Maximum local and remote branches
+  > {branches, branchesTruncated, remoteBranches, remoteBranchesTruncated}
+env paths <id>  Search an environment's files and directories
+  --query <query>  Fuzzy path query
+  --limit <count>  Maximum paths
+  --files  Include files
+  --directories  Include directories
+  > {paths: [{kind, path}], truncated}
+env diff-files <id>  List the changed files of an environment
+  --target <target>  uncommitted, branch_committed, all or commit (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>  Commit, with --target commit
+  > {outcome, files: [{path, changeKind, additions, deletions, …}], shortstat}
+env diff-file <id>  Print one side of a changed file
+  --target <target>  uncommitted, branch_committed, all or commit (required)
+  --path <path>  Repository-relative file path (required)
+  --side <side>  old or new (required)
+  --merge-base-ref <sha>  Resolved merge-base SHA, with branch_committed or all
+  --sha <sha>  Commit, with --target commit
+env diff-patch <id>  Print the patches of chosen changed files
+  --target <target>  uncommitted, branch_committed, all or commit (required)
+  --path <path>...  Changed file path (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>  Commit, with --target commit
+  > {outcome, patches: [{path, patch, truncated}]}
+env providers  List environment providers
+  --project <id>  Only providers this project can use
+"#,
+    machine!(),
+    r#"  Availability on this machine (needs --project)
+env archive-threads <id>  Archive every active thread in an environment
+  > {ok, archivedThreadIds}
 
 machine list  List machines, their owners and who may use them
   > [{id, name, type, status, lifecycle, ownerUserId, sharing, usable,
@@ -429,6 +463,8 @@ file list <path>  List files under a directory on a machine
     r#"  Machine holding the directory (default: the server's)
   --query <query>  Fuzzy path filter
   --limit <count>  Maximum entries
+  --no-hidden  Skip dot-prefixed files and directories
+  --exclude <name>...  Entry names or root-relative paths to skip
 
 settings show  Print every setting as key = value
 settings get <key>  Print one setting

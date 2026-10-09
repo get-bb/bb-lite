@@ -187,6 +187,8 @@ export const fileList: Run = async (c) => {
     ...(await hostPath(c)),
     query: c.flag("query"),
     limit: integer(c.flag("limit"), "--limit"),
+    includeHidden: c.on("no-hidden") ? false : undefined,
+    excludeNames: c.on("exclude") ? c.list("exclude") : undefined,
   });
   const paths = result.files.map((file) => file.path);
   c.out(result, paths);

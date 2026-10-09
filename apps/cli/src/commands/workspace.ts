@@ -338,3 +338,238 @@ function setProviderEnabled(enabled: boolean): Run {
 
 export const providerEnable = setProviderEnabled(true);
 export const providerDisable = setProviderEnabled(false);
+
+const DIFF_SIDES = ["old", "new"] as const;
+const DIFF_TARGETS = ["uncommitted", "branch_committed", "all", "commit"];
+
+type DiffTarget =
+  | { target: "uncommitted" }
+  | { target: "branch_committed"; base: string }
+  | { target: "all"; base: string }
+  | { target: "commit"; sha: string };
+
+function diffTarget(c: Call, baseFlag: string): DiffTarget {
+  const target = required(c, "target");
+  const base = c.flag(baseFlag);
+  const sha = c.flag("sha");
+  if (target === "uncommitted") {
+    if (base !== undefined || sha !== undefined) {
+      throw usageError(
+        `--target uncommitted cannot be combined with --${baseFlag} or --sha.`,
+      );
+    }
+    return { target };
+  }
+  if (target === "branch_committed" || target === "all") {
+    if (!base) {
+      throw usageError(
+        `--${baseFlag} is required when --target ${target} is used.`,
+      );
+    }
+    if (sha !== undefined) {
+      throw usageError(`--target ${target} cannot be combined with --sha.`);
+    }
+    return target === "all" ? { target, base } : { target, base };
+  }
+  if (target === "commit") {
+    if (!sha)
+      throw usageError("--sha is required when --target commit is used.");
+    if (base !== undefined) {
+      throw usageError(
+        `--target commit cannot be combined with --${baseFlag}.`,
+      );
+    }
+    return { target, sha };
+  }
+  throw usageError(`--target must be ${DIFF_TARGETS.join(", ")}.`);
+}
+
+function diffQuery(c: Call) {
+  const environmentId = id(c, "id");
+  const chosen = diffTarget(c, "merge-base-branch");
+  if (chosen.target === "all") {
+    return {
+      environmentId,
+      target: chosen.target,
+      mergeBaseBranch: chosen.base,
+    };
+  }
+  if (chosen.target === "branch_committed") {
+    return {
+      environmentId,
+      target: chosen.target,
+      mergeBaseBranch: chosen.base,
+    };
+  }
+  return { environmentId, ...chosen };
+}
+
+function unavailable(
+  label: string,
+  result: { outcome: string; message?: string; failure?: { message: string } },
+): string | undefined {
+  if (result.outcome === "not_applicable") {
+    return `${label} unavailable: ${result.message}`;
+  }
+  if (result.outcome === "unavailable") {
+    return `${label} unavailable: ${result.failure?.message}`;
+  }
+  return undefined;
+}
+
+export const envBranches: Run = async (c) => {
+  const result = await c.op(c.ops.environments.diffBranches, {
+    environmentId: id(c, "id"),
+    query: c.flag("query"),
+    limit: integer(c.flag("limit"), "--limit", 0),
+  });
+  const section = (names: string[], truncated: boolean) => [
+    ...(names.length === 0 ? ["  (none)"] : names.map((name) => `  ${name}`)),
+    ...(truncated ? ["  (truncated)"] : []),
+  ];
+  c.out(result, [
+    "Local branches:",
+    ...section(result.branches, result.branchesTruncated),
+    "Remote branches:",
+    ...section(result.remoteBranches, result.remoteBranchesTruncated),
+  ]);
+};
+
+export const envPaths: Run = async (c) => {
+  const files = c.on("files");
+  const directories = c.on("directories");
+  const result = await c.op(c.ops.environments.paths, {
+    environmentId: id(c, "id"),
+    includeFiles: files || !directories,
+    includeDirectories: directories || !files,
+    query: c.flag("query"),
+    limit: integer(c.flag("limit"), "--limit", 0),
+  });
+  c.out(result, [
+    ...result.paths.map((entry) => `${entry.kind}\t${entry.path}`),
+    ...(result.truncated ? ["(results truncated)"] : []),
+  ]);
+};
+
+export const envDiffFiles: Run = async (c) => {
+  const result = await c.op(c.ops.environments.diffFiles, diffQuery(c));
+  if (result.outcome !== "available") {
+    return c.out(result, unavailable("Diff files", result));
+  }
+  const lines = result.files.map((file) => {
+    const path = file.previousPath
+      ? `${file.previousPath} -> ${file.path}`
+      : file.path;
+    const stats = file.binary
+      ? "binary"
+      : `+${file.additions} -${file.deletions}`;
+    return `${file.changeKind}\t${stats}\t${file.origin}\t${file.loadMode}\t${path}`;
+  });
+  const shortstat = result.shortstat.trim();
+  c.out(result, [
+    ...lines,
+    ...(shortstat.length > 0 ? [shortstat] : []),
+    ...(result.truncated ? ["(additional changed files omitted)"] : []),
+  ]);
+};
+
+export const envDiffFile: Run = async (c) => {
+  const environmentId = id(c, "id");
+  const chosen = diffTarget(c, "merge-base-ref");
+  const side = c.choice("side", DIFF_SIDES);
+  if (side === undefined) throw usageError("Missing required option --side.");
+  const file = { path: required(c, "path"), side };
+  const query =
+    chosen.target === "branch_committed" || chosen.target === "all"
+      ? { target: chosen.target, mergeBaseRef: chosen.base }
+      : chosen;
+  const result = await c.op(c.ops.environments.diffFile, {
+    environmentId,
+    ...file,
+    ...query,
+  });
+  if (result.contentEncoding !== "base64") return c.out(result, result.content);
+  c.out(result, [
+    `Binary file: ${result.path}`,
+    `Encoding: ${result.contentEncoding}`,
+    `Size: ${result.sizeBytes} bytes`,
+    ...(result.mimeType ? [`MIME type: ${result.mimeType}`] : []),
+    result.content,
+  ]);
+};
+
+export const envDiffPatch: Run = async (c) => {
+  const paths = c.list("path");
+  if (paths.length === 0) throw usageError("Provide at least one --path.");
+  const { environmentId, ...chosen } = diffQuery(c);
+  const target =
+    chosen.target === "all"
+      ? { type: chosen.target, mergeBaseBranch: chosen.mergeBaseBranch }
+      : chosen.target === "branch_committed"
+        ? { type: chosen.target, mergeBaseBranch: chosen.mergeBaseBranch }
+        : chosen.target === "commit"
+          ? { type: chosen.target, sha: chosen.sha }
+          : { type: chosen.target };
+  const result = await c.op(c.ops.environments.diffPatch, {
+    environmentId,
+    target,
+    paths,
+  });
+  if (result.outcome !== "available") {
+    return c.out(result, unavailable("Diff patches", result));
+  }
+  c.out(
+    result,
+    result.patches.flatMap((patch) => [
+      `File: ${patch.path}`,
+      patch.patch,
+      ...(patch.truncated ? ["(patch truncated)"] : []),
+    ]),
+  );
+};
+
+export const envProviders: Run = async (c) => {
+  const hostId = await machineFlag(c);
+  const projectId = c.id("project");
+  if (hostId !== undefined && projectId === undefined) {
+    throw usageError("--machine or --host requires --project <id>.");
+  }
+  const { providers } = await c.op(c.ops.environments.providers, {
+    projectId,
+    hostId,
+  });
+  if (providers.length === 0) {
+    return c.out(providers, "No environment providers available");
+  }
+  c.out(
+    providers,
+    providers.map((provider) => {
+      const status = provider.availability;
+      const availability =
+        hostId === undefined
+          ? ""
+          : status === null
+            ? "  availability: unknown"
+            : status.status === "available"
+              ? "  availability: available"
+              : `  availability: ${status.status} (${status.message})`;
+      const inputs =
+        provider.inputs === null ? "" : "  takes --environment-inputs";
+      const requires = Object.entries(provider.requires)
+        .filter(([, required]) => required)
+        .map(([name]) => name)
+        .join(", ");
+      const about = `${provider.id}  ${provider.displayName}  ${requires || "-"}`;
+      return `${about}${inputs}${availability}`;
+    }),
+  );
+};
+
+export const envArchiveThreads: Run = async (c) => {
+  const environmentId = id(c, "id");
+  const result = await c.op(c.ops.environments.archiveThreads, {
+    environmentId,
+  });
+  const count = result.archivedThreadIds.length;
+  c.out(result, `Archived ${count} thread(s) in environment ${environmentId}`);
+};
