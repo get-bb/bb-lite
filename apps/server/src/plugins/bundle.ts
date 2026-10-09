@@ -40,6 +40,7 @@ const APP_THEME = fileURLToPath(
 );
 const STYLED_SOURCES = "**/*.{ts,tsx,js,jsx,mts,mjs}";
 const SHARED_NAMESPACE = "bb-shared";
+const APP_PLUGIN_MODULE = "@bb/plugin/app";
 const REQUIRE_BANNER =
   'import { createRequire as bbCreateRequire } from "node:module";\n' +
   "const require = bbCreateRequire(import.meta.url);";
@@ -76,6 +77,10 @@ function hostModules(used: Set<string>): Plugin {
   return {
     name: "bb-host-modules",
     setup(esbuild) {
+      esbuild.onResolve({ filter: /^@bb\/plugin$/ }, () => {
+        used.add(APP_PLUGIN_MODULE);
+        return { path: APP_PLUGIN_MODULE, namespace: SHARED_NAMESPACE };
+      });
       esbuild.onResolve({ filter: /^[^./]/ }, ({ path }) => {
         if (!isHostModule(path)) return null;
         used.add(path);

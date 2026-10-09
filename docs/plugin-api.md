@@ -287,7 +287,9 @@ app's `callOp`, `useOp` and `useCall` and the CLI are built on it.
   lists each one with its doors. `threads.get` is `GET /threads/:threadId`, `machines.list` is
   `GET /machines`, `sections.create` is `POST /sections`.
 - `threads.create` takes a `CreateThreadRequest`; a plugin sets `origin: "plugin"` and
-  `originPluginId`. `threads.send` takes `{ threadId, input, mode, … }`; `threads.update` takes
+  `originPluginId`. Its first prompt (`input`) is not a `threads.send` call: a hook that rewrites
+  or refuses sends must hook `threads.create` too. `threads.send` takes
+  `{ threadId, input, mode, … }`; `threads.update` takes
   `{ threadId, title?, sectionId?, … }`. The queue operations take `{ threadId, queuedMessageId, … }`
   and the interaction operations `{ threadId, interactionId, … }`. `threads.get` and
   `environments.get` fail with 404 when there is nothing to return.

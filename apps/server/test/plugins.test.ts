@@ -890,6 +890,24 @@ it("bundles a worker an app part starts from a relative URL", async () => {
   expect(js).not.toContain("new URL(");
 });
 
+it("gives an app part the host's @bb/plugin, not a copy", async () => {
+  const directory = scratch();
+  writeFileSync(
+    join(directory, "app.ts"),
+    [
+      'import { contract, fail, op } from "@bb/plugin";',
+      'import { shell } from "@bb/plugin/app";',
+      'export const c = contract("x", { a: op({ input: undefined }) });',
+      "export const f = fail;",
+      "export const s = shell;",
+    ].join("\n"),
+  );
+  const { js, shared } = await bundleApp(join(directory, "app.ts"), directory);
+  expect(shared).toEqual(["@bb/plugin/app"]);
+  expect(js).not.toContain("class OpError");
+  expect(js).not.toContain("core-contracts");
+});
+
 it("names the manifest field that is wrong", async () => {
   const directory = scratch();
   const bb = { name: "Bad", skills: "./skills" };
