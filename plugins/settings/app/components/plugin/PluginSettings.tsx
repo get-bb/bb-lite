@@ -40,6 +40,7 @@ import {
 } from "@bb/app-kit/hooks/queries/plugin-settings-queries";
 import { useSystemProviderCatalog } from "@bb/app-kit/hooks/queries/system-queries";
 import { getMutationErrorMessage } from "@bb/app-kit/lib/mutation-errors";
+import { numberSettingError } from "../../lib/number-setting";
 import { getPluginConfigurationRoutePath } from "@bb/app-kit/lib/route-paths";
 import { PluginSlotMount } from "@bb/app-kit/plugins/mount";
 
@@ -68,12 +69,15 @@ function PluginSetting({
       setDraft(null);
     },
   });
-  const error = save.isError
-    ? getMutationErrorMessage({
-        error: save.error,
-        fallbackMessage: "Could not save this setting",
-      })
-    : null;
+  const [invalid, setInvalid] = useState<string | null>(null);
+  const error =
+    invalid ??
+    (save.isError
+      ? getMutationErrorMessage({
+          error: save.error,
+          fallbackMessage: "Could not save this setting",
+        })
+      : null);
   const aria = {
     "aria-label": descriptor.label,
     "aria-describedby": error === null ? undefined : messageId,
@@ -156,13 +160,19 @@ function PluginSetting({
             value={draft ?? (typeof stored === "number" ? String(stored) : "")}
             onChange={(event) => {
               setDraft(event.target.value);
+              setInvalid(null);
               if (!save.isPending) save.reset();
             }}
             onBlur={() => {
               if (draft === null) return;
               const parsed = Number(draft);
-              if (draft.trim() === "" || parsed === storedValue) setDraft(null);
-              else save.mutate(parsed);
+              if (draft.trim() === "" || parsed === storedValue) {
+                setDraft(null);
+                return;
+              }
+              const problem = numberSettingError(descriptor, draft);
+              if (problem === null) save.mutate(parsed);
+              else setInvalid(problem);
             }}
             className="h-7 w-full text-xs sm:w-32"
           />
