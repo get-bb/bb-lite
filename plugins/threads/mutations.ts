@@ -262,8 +262,10 @@ export function reorderQueuedMessages(
 ) {
   const { db } = engine.bb;
   engine.requireThread(threadId);
+  const leadIds = queue.leadQueuedGroupIds(db, threadId);
   queue.clearQueuedGroupEdges(db, threadId);
   queue.reorderQueuedMessages(db, threadId, queuedMessageIds);
+  queue.restoreLeadQueuedGroup(db, threadId, leadIds);
   queueChanged(engine, threadId);
   return queue
     .listQueuedMessages(db, threadId)

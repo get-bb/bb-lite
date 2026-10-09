@@ -206,6 +206,35 @@ it("sends queued messages up to a group boundary as one turn", async () => {
   expect(left).toEqual([ids[2]]);
 });
 
+it("keeps the lead queued group when a reorder leaves it in front", async () => {
+  const server = await createThreadServer();
+  const { http, ingest } = server;
+  const id = await server.spawn();
+  await server.send(id, "steer-if-active", "one");
+  await ingest(id, events.identity(), events.started("t1"));
+  for (const message of ["two", "three", "four", "five"]) {
+    await server.send(id, "queue-if-active", message);
+  }
+  const path = `/threads/${id}/queued-messages`;
+  type Queued = { id: string; groupWithNext: boolean }[];
+  const ids = (await http<Queued>("GET", path)).body.map((row) => row.id);
+  await http("PUT", `${path}/${ids[1]}/boundary`, {});
+  const order = `${path}/order`;
+  const kept = await http<Queued>("PUT", order, {
+    queuedMessageIds: [ids[1], ids[0], ids[3], ids[2]],
+  });
+  expect(kept.body.map((row) => row.groupWithNext)).toEqual([
+    true,
+    false,
+    false,
+    false,
+  ]);
+  const broken = await http<Queued>("PUT", order, {
+    queuedMessageIds: [ids[1], ids[3], ids[0], ids[2]],
+  });
+  expect(broken.body.some((row) => row.groupWithNext)).toBe(false);
+});
+
 it("starts a thread with no provider on an enabled one only", async () => {
   const server = await createThreadServer();
   const { ctx, http, runner } = server;

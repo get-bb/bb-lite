@@ -166,6 +166,32 @@ export function setQueuedMessageBoundary(
   }
 }
 
+export function leadQueuedGroupIds(db: Db, threadId: string): string[] {
+  const ids: string[] = [];
+  for (const row of listQueuedMessages(db, threadId)) {
+    ids.push(row.id);
+    if (!row.groupWithNext) break;
+  }
+  return ids;
+}
+
+export function restoreLeadQueuedGroup(
+  db: Db,
+  threadId: string,
+  leadIds: readonly string[],
+): void {
+  if (leadIds.length <= 1) return;
+  const rows = listQueuedMessages(db, threadId);
+  const lead = rows.slice(0, leadIds.length);
+  if (!lead.every(({ id }) => leadIds.includes(id))) return;
+  for (const row of lead.slice(0, -1)) {
+    db.run(
+      "UPDATE queued_thread_messages SET group_with_next = 1 WHERE id = ?",
+      row.id,
+    );
+  }
+}
+
 export function clearQueuedGroupEdges(
   db: Db,
   threadId: string,
