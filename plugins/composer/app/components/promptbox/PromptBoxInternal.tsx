@@ -1523,6 +1523,7 @@ export function PromptBoxInternal({
     value,
     mentionRanges,
     attachments,
+    onRemoveAttachment,
     onChange,
     editor,
     submitPrompt,
@@ -1592,7 +1593,11 @@ export function PromptBoxInternal({
         const current = now().value;
         setText(`${current}${current === "" ? "" : "\n\n"}${quoted}\n\n`);
       },
-      clear: () => setText(""),
+      clear() {
+        setText("");
+        const { attachments: items, onRemoveAttachment: remove } = now();
+        for (const item of items) remove?.(item.path);
+      },
       focus() {
         const target = now().editor;
         if (target !== null) focusEditorAtEnd(target);
