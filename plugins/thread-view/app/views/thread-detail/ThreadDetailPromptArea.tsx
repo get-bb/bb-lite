@@ -472,8 +472,10 @@ export function ThreadDetailPromptArea({
       });
     };
 
-  const handleSend = () => {
-    const isQueuingMessage = shouldQueueFollowUpMessage(runtimeDisplayStatus);
+  const handleSend = (options: { sendAt?: number } = {}) => {
+    const { sendAt } = options;
+    const isQueuingMessage =
+      sendAt === undefined && shouldQueueFollowUpMessage(runtimeDisplayStatus);
     if (
       currentPromptDraftInput.length === 0 ||
       (!isQueuingMessage && isDefaultExecutionOptionsLoading)
@@ -488,9 +490,9 @@ export function ThreadDetailPromptArea({
     const queuedRequest = isQueuingMessage
       ? buildCreateQueuedFollowUpRequest(request)
       : null;
-    const sendRequest = isQueuingMessage
-      ? null
-      : buildAutoFollowUpRequest(request);
+    const timed = sendAt === undefined ? {} : { sendAt };
+    const direct = isQueuingMessage ? null : buildAutoFollowUpRequest(request);
+    const sendRequest = direct === null ? null : { ...direct, ...timed };
     promptDraft.clearIfCurrentMatches(currentPromptDraft);
     uploads.setAttachmentError(null);
     const pending = queuedRequest

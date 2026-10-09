@@ -1,4 +1,8 @@
-import { callOp, projects as projectOps } from "@bb/plugin/app";
+import {
+  callOp,
+  projects as projectOps,
+  type ComposerSubmitOptions,
+} from "@bb/plugin/app";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAtom } from "jotai";
@@ -459,7 +463,7 @@ export function useNewThreadComposer({
                       : promptDraftToInput(currentDraft).length === 0
                         ? "Enter a prompt or attach a file."
                         : null));
-  const submitDraft = async () => {
+  const submitDraft = async (options: ComposerSubmitOptions = {}) => {
     const submittedDraft = promptDraft.getCurrent();
     const input = promptDraftToInput(submittedDraft);
     if (
@@ -483,6 +487,7 @@ export function useNewThreadComposer({
         executionInputSources,
         environment: submissionEnvironment,
         input,
+        ...(options.sendAt === undefined ? {} : { sendAt: options.sendAt }),
       }),
     )
       .then(() => setReuseValue(null))
@@ -590,7 +595,7 @@ export function useNewThreadComposer({
           value={promptDraft.text}
           mentionRanges={promptDraft.mentions}
           onChange={promptDraft.setTextAndMentions}
-          onSubmit={() => void submitDraft()}
+          onSubmit={(options) => void submitDraft(options)}
           history={{
             currentDraft,
             entries: promptHistoryEntriesToDrafts(promptHistory),

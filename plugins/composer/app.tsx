@@ -15,7 +15,7 @@ import {
 } from "./app/components/promptbox/composer-slots";
 import { ThreadContextWindowIndicator } from "bb-plugin-thread-view/contract";
 import * as parts from "./parts";
-import { useComposer, useComposers } from "./app/lib/composers";
+import { activeComposer, useComposer, useComposers } from "./app/lib/composers";
 
 function skillsAction(context: ComposerContext) {
   const action = composerMenuHost(context).actions.find(
@@ -48,7 +48,8 @@ function ContextWindowControl({ context }: ComposerFooterControlProps) {
 
 export default function composerApp(bb: PluginAppApi): void {
   bb.add(app.parts, { plugin: "composer", parts });
-  bb.add(composer.api, { useComposer, useComposers });
+  const active = activeComposer;
+  bb.add(composer.api, { useComposer, useComposers, active });
   bb.add(composer.menuItem, {
     id: "attach",
     label: "Attach files",

@@ -1,4 +1,9 @@
-import type { PermissionMode, ReasoningLevel, ServiceTier } from "@bb/domain";
+import type {
+  PermissionMode,
+  PromptInput,
+  ReasoningLevel,
+  ServiceTier,
+} from "@bb/domain";
 import type { ComponentType } from "react";
 import { contract, service, slot } from "../contract.js";
 
@@ -19,12 +24,23 @@ export interface ComposerTextEffect {
   ): readonly { from: number; to: number }[];
 }
 
+export interface ComposerMention {
+  start: number;
+  end: number;
+  resource: unknown;
+}
+
+export interface ComposerSubmitOptions {
+  sendAt?: number;
+}
+
 export interface ComposerHandle {
   readonly key: string;
   readonly surface: "new-thread" | "follow-up";
   readonly threadId: string | null;
   readonly projectId: string | null;
   readonly text: string;
+  readonly mentions: readonly ComposerMention[];
   readonly isEmpty: boolean;
   readonly isRunning: boolean;
   readonly isSubmittingBlocked: boolean;
@@ -35,6 +51,11 @@ export interface ComposerHandle {
   setSelection(selection: ComposerSelection): void;
   setTextEffect(effect: { className: string } | null): void;
   setText(text: string): void;
+  setDraft(draft: {
+    text: string;
+    mentions?: readonly ComposerMention[];
+  }): void;
+  input(): PromptInput[];
   updateText(update: (current: string) => string): void;
   insert(text: string): void;
   insertMention(resource: unknown, text: string): void;
@@ -42,7 +63,7 @@ export interface ComposerHandle {
   clear(): void;
   focus(): void;
   setInputLock(locked: boolean): void;
-  submit(): void;
+  submit(options?: ComposerSubmitOptions): void;
   onSubmitted(listener: () => void): () => void;
 }
 
@@ -118,6 +139,7 @@ export interface HomeSection {
 export interface ComposerApi {
   useComposer(): ComposerHandle | null;
   useComposers(): readonly ComposerHandle[];
+  active(): ComposerHandle | null;
 }
 
 export const composer = contract("composer", {

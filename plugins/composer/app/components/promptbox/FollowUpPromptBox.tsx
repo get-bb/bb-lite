@@ -1,3 +1,4 @@
+import type { ComposerSubmitOptions } from "@bb/plugin/app";
 import type { FollowUpSubmitMode } from "@bb/client-core";
 import {
   memo,
@@ -69,7 +70,7 @@ export interface FollowUpComposerProps {
   mentionRanges: readonly PromptTextMention[];
   onChangeMessage: (value: string, mentionRanges: PromptTextMention[]) => void;
   onModifierSubmit: () => void;
-  onSubmit: () => void;
+  onSubmit: (options?: ComposerSubmitOptions) => void;
   onEscape?: () => void;
   compactPromptPlaceholder: string;
   promptPlaceholder: string;
@@ -430,8 +431,8 @@ function FollowUpPromptBoxWithComposer({
               value={composer.message}
               mentionRanges={composer.mentionRanges}
               onChange={composer.onChangeMessage}
-              onSubmit={() => {
-                composer.onSubmit();
+              onSubmit={(options) => {
+                composer.onSubmit(options);
                 if (submitMode.kind !== "queue") bottomAnchor?.scrollToBottom();
               }}
               onEscape={composer.onEscape}

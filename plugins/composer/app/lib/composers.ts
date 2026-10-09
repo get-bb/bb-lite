@@ -26,6 +26,17 @@ export function showComposer(handle: ComposerHandle): () => void {
   };
 }
 
+let activeKey: string | null = null;
+
+export function markComposerActive(key: string): void {
+  activeKey = key;
+}
+
+export function activeComposer(): ComposerHandle | null {
+  const focused = activeKey === null ? undefined : mounted.get(activeKey);
+  return focused ?? snapshot.at(-1) ?? null;
+}
+
 export const BoundComposer = createContext<ComposerHandle | null>(null);
 
 export function useComposers(): readonly ComposerHandle[] {

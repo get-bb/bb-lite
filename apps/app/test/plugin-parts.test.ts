@@ -95,7 +95,7 @@ it("gets the composers on screen from whichever plugin is the composer", () => {
 
   const { useComposer, useComposers, showComposer } = composers;
   registerPluginApp("composer", (bb) => {
-    bb.add(composer.api, { useComposer, useComposers });
+    bb.add(composer.api, { useComposer, useComposers, active: () => null });
   });
   const handle = { key: "follow-up:thr_1" } as ComposerHandle;
   const hide = showComposer(handle);
@@ -107,7 +107,8 @@ it("gets the composers on screen from whichever plugin is the composer", () => {
   registerPluginApp(
     "my-composer",
     (bb) => {
-      bb.add(composer.api, { useComposer, useComposers: forked });
+      const active = () => null;
+      bb.add(composer.api, { useComposer, useComposers: forked, active });
     },
     "installed",
   );

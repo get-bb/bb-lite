@@ -29,6 +29,7 @@ import {
   findActiveTrigger,
   isPromptDraftEmpty,
   orderCommandSuggestions,
+  promptDraftToInput,
   type ActiveTrigger,
   type OrderedMentionSuggestions,
   type PluginMentionTrigger,
@@ -62,10 +63,15 @@ import {
   REDUCED_MOTION_QUERY,
 } from "@bb/shared-ui/hooks/use-media-query";
 import { cn } from "@bb/shared-ui/lib/utils";
-import type { ComposerHandle, ComposerSelection } from "@bb/plugin/app";
+import type {
+  ComposerHandle,
+  ComposerSelection,
+  ComposerSubmitOptions,
+} from "@bb/plugin/app";
 import {
   BoundComposer,
   composerSubmitted,
+  markComposerActive,
   onComposerSubmitted,
   showComposer,
 } from "../../lib/composers";
@@ -221,7 +227,7 @@ interface PromptBoxInternalProps {
   value: string;
   mentionRanges: readonly PromptTextMention[];
   onChange: (value: string, mentionRanges: PromptTextMention[]) => void;
-  onSubmit: () => void;
+  onSubmit: (options?: ComposerSubmitOptions) => void;
   onEscape?: () => void;
   blurOnPointerSubmit?: boolean;
   placeholder?: string;
@@ -803,11 +809,11 @@ export function PromptBoxInternal({
     canRun && hasModifierSubmit && (!swapSubmitActions || hasSubmittableInput);
   const canSubmit = hasSubmittableInput && canPrimarySubmit;
   const showStop = Boolean(isRunning && onStop && !canSubmit && !isAttaching);
-  const submitPrompt = () => {
+  const submitPrompt = (options?: ComposerSubmitOptions) => {
     const blurAfterSubmit = blurAfterPointerSubmitRef.current;
     blurAfterPointerSubmitRef.current = false;
     if (!canPrimarySubmit) return;
-    onPrimarySubmit?.();
+    onPrimarySubmit?.(options);
     composerSubmitted(composerKeyOf(composerScope));
     if (blurAfterSubmit) blurPromptEditor(editor);
   };
@@ -1500,7 +1506,15 @@ export function PromptBoxInternal({
       permission.onChange(next.permissionMode);
     }
   };
-  const composerNow = { value, onChange, editor, submitPrompt, applySelection };
+  const composerNow = {
+    value,
+    mentionRanges,
+    attachments,
+    onChange,
+    editor,
+    submitPrompt,
+    applySelection,
+  };
   const composerLatest = useRef(composerNow);
   useLayoutEffect(() => {
     composerLatest.current = composerNow;
@@ -1523,6 +1537,7 @@ export function PromptBoxInternal({
       threadId: composerThreadId,
       projectId,
       text: value,
+      mentions: mentionRanges,
       isEmpty: value.trim() === "",
       isRunning,
       isSubmittingBlocked: !canSubmit,
@@ -1533,6 +1548,14 @@ export function PromptBoxInternal({
       setSelection: (next) => now().applySelection(next),
       setTextEffect: (effect) => setTextEffect(effect?.className ?? null),
       setText,
+      setDraft: ({ text, mentions = [] }) =>
+        now().onChange(text, mentions as PromptTextMention[]),
+      input: () =>
+        promptDraftToInput({
+          text: now().value,
+          mentions: [...now().mentionRanges],
+          attachments: [...now().attachments],
+        }),
       updateText: (update) => setText(update(now().value)),
       insert(text) {
         const target = now().editor;
@@ -1561,7 +1584,7 @@ export function PromptBoxInternal({
         if (target !== null) focusEditorAtEnd(target);
       },
       setInputLock: (locked) => void now().editor?.setEditable(!locked),
-      submit: () => now().submitPrompt(),
+      submit: (options) => now().submitPrompt(options),
       onSubmitted: (listener) => onComposerSubmitted(composerKey, listener),
     };
   }, [
@@ -1570,6 +1593,7 @@ export function PromptBoxInternal({
     composerThreadId,
     projectId,
     value,
+    mentionRanges,
     isRunning,
     canSubmit,
     blockedReason,
@@ -1608,6 +1632,7 @@ export function PromptBoxInternal({
       <form
         ref={formRef}
         data-promptbox=""
+        onFocusCapture={() => markComposerActive(composerKey)}
         data-promptbox-compact={showCompactLayout ? "" : undefined}
         onSubmit={(event) => {
           event.preventDefault();
