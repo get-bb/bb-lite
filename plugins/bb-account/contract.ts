@@ -63,7 +63,11 @@ export function describeAccount(status: AccountStatus): string {
 }
 
 const print = (status: AccountStatus) => describeAccount(status);
-const write = { output: accountStatusSchema, kind: "write" } as const;
+const write = {
+  output: accountStatusSchema,
+  kind: "write",
+  allow: "owner",
+} as const;
 
 export const bbAccount = contract("bb-account", {
   status: op({

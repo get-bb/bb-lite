@@ -58,20 +58,21 @@ const chunkInput = z.object({ id: z.string() }).strict();
 const machineOp = { audit: false, internal: true, kind: "write" } as const;
 const enabledInput = z.object({ enabled: z.boolean() }).strict();
 const write = { output: statusSchema, kind: "write" } as const;
+const ownerWrite = { ...write, allow: "owner" } as const;
 
 export const connect = contract("connect", {
   status: op({ input: noInput, output: statusSchema }),
-  login: op({ input: noInput, ...write }),
+  login: op({ input: noInput, ...ownerWrite }),
   redeem: op({
     input: z.object({ code: z.string().min(1).max(200) }).strict(),
     ...write,
     allow: "owner",
     secret: ["code"],
   }),
-  logout: op({ input: noInput, ...write }),
-  setEnabled: op({ input: enabledInput, ...write }),
-  expose: op({ input: portInput, ...write }),
-  unexpose: op({ input: portInput, ...write }),
+  logout: op({ input: noInput, ...ownerWrite }),
+  setEnabled: op({ input: enabledInput, ...ownerWrite }),
+  expose: op({ input: portInput, ...ownerWrite }),
+  unexpose: op({ input: portInput, ...ownerWrite }),
   shareRequest: op({
     input: shareInput,
     output: bodyChunk.extend({ status: z.number(), headers: headerPairs }),

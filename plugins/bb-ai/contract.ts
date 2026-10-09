@@ -65,6 +65,7 @@ export const bbAi = contract("bb-ai", {
     input: z.object({ enabled: z.boolean() }),
     output: overviewSchema,
     kind: "write",
+    allow: "owner",
   }),
   usage: op({
     input: z.object({}),

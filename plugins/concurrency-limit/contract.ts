@@ -39,7 +39,12 @@ export type LimitsView = z.infer<typeof viewSchema>;
 
 export const concurrencyLimit = contract("concurrency-limit", {
   get: op({ input: z.object({}), output: viewSchema }),
-  update: op({ input: configurationSchema, output: viewSchema, kind: "write" }),
+  update: op({
+    input: configurationSchema,
+    output: viewSchema,
+    kind: "write",
+    allow: "owner",
+  }),
   capacity: op({
     input: z.object({}),
     output: z.object({ availableParallelism: z.number().int().positive() }),
