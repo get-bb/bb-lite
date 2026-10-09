@@ -7,6 +7,7 @@ import type {
 import { environments } from "@bb/plugin";
 import { listHosts } from "@bb/server-kit/db/hosts";
 import { getProjectSource, requireProject } from "@bb/server-kit/db/projects";
+import { kindWorkspace } from "@bb/server-kit/environments/kinds";
 import { inspectProjectPath } from "@bb/server-kit/projects/workspace";
 
 type Availability = SystemEnvironmentProvider["availability"];
@@ -18,6 +19,8 @@ interface EnvironmentProviderDefinition {
   icon: string;
   requires: SystemEnvironmentProvider["requires"];
   inputs: JsonValue | null;
+  workspace: SystemEnvironmentProvider["workspace"];
+  default?: number;
 }
 
 const NO_REQUIREMENTS = {
@@ -80,6 +83,8 @@ export async function listEnvironmentProviders(
       icon: item.icon ?? "Folder",
       requires: item.requires ?? NO_REQUIREMENTS,
       inputs: item.inputs ?? null,
+      workspace: kindWorkspace(item),
+      ...(item.default === undefined ? {} : { default: item.default }),
       placed: item.requires !== undefined,
       pluginId: plugin,
     };

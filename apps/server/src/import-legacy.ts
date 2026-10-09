@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { z } from "zod";
 import { dataPaths, loadConfig, loopbackUrl } from "@bb/server-kit/config";
 import type { ServerConfig, ServerEnv } from "@bb/server-kit/config";
+import { BACKFILL_WORKSPACE_TYPES } from "@bb/server-kit/db/environments";
 import { openDatabase, type Db, type SqlValue } from "@bb/server-kit/db/index";
 
 type Row = Record<string, SqlValue>;
@@ -164,6 +165,7 @@ function importCatalog(
   db.run("PRAGMA defer_foreign_keys = ON");
   copy("threads", THREADS + chosen);
   copy("environments", `${ENVIRONMENTS}${chosen})`);
+  db.run(BACKFILL_WORKSPACE_TYPES);
   copy("thread_sections");
   copy("project_sources");
   copy("projects", PROJECTS);

@@ -341,7 +341,22 @@ create(context), delete(context) })`.
   the thread) or `{ type: "checkout", kind?, path?, branch? }` (attach to an existing checkout,
   shared by every thread at that path, optionally switching branch; `create` is not called).
 - `delete({ hostId, path, resource })` undoes it. `validate(inputs, { projectId, hostId })` returns a
-  message to refuse a thread before it is created.
+  message to refuse a thread before it is created. Teardown always calls the kind's `delete`; if its
+  plugin is not running, teardown fails with "The plugin that provides this kind of environment is
+  not running." and is retried.
+- `workspace` (optional, default `"unmanaged"`) says what the kind's directory is:
+  `"managed-worktree"` (a private Git copy per thread), `"unmanaged"` (a checkout the user owns) or
+  `"personal"`. It is stored on the environment (`workspaceProvisionType`) and sets its initial
+  `isGitRepo`/`isWorktree` and how the thread list shows it.
+- `default` (optional number) makes the kind a candidate when no kind is named: a new thread gets
+  the highest-`default` kind that fits (projectless kinds for the personal project; kinds needing a
+  Git checkout only when the project has a branch), and a request for a workspace type
+  (`host` placement with `managed-worktree`, `unmanaged` or `personal`) gets the highest-`default`
+  kind with that `workspace`. Such a kind must accept that type's inputs (`{ branch }` for
+  `managed-worktree`, `{ path, branch? }` for `unmanaged`), and the composer shows the built-in
+  branch or checkout form for it. `environments.providers` returns both fields; the app picks with
+  `defaultEnvironmentProvider(providers, want)` from `@bb/client-core`, and server code with
+  `defaultKinds(bb, want)` from `@bb/server-kit/environments/kinds`.
 - Give the kind `inputs` (any non-null JSON) and add a form in the app part:
   `bb.add(composer.environmentInputs, { kind: "<id>", view })`. The view gets `value`, `onChange`,
   `projectId` and `hostId`.

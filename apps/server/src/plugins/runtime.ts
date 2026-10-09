@@ -23,6 +23,7 @@ import * as dbThreadUserState from "@bb/server-kit/db/thread-user-state";
 import * as dbThreads from "@bb/server-kit/db/threads";
 import * as dbUsers from "@bb/server-kit/db/users";
 import * as doors from "@bb/server-kit/doors";
+import * as environmentsKinds from "@bb/server-kit/environments/kinds";
 import * as environmentsTypes from "@bb/server-kit/environments/types";
 import * as environmentsWorkspace from "@bb/server-kit/environments/workspace";
 import * as httpApi from "@bb/server-kit/http/api";
@@ -76,6 +77,7 @@ export const SERVER_RUNTIME_MODULES: Record<string, object> = {
   "@bb/server-kit/db/threads": dbThreads,
   "@bb/server-kit/db/users": dbUsers,
   "@bb/server-kit/doors": doors,
+  "@bb/server-kit/environments/kinds": environmentsKinds,
   "@bb/server-kit/environments/types": environmentsTypes,
   "@bb/server-kit/environments/workspace": environmentsWorkspace,
   "@bb/server-kit/http/api": httpApi,

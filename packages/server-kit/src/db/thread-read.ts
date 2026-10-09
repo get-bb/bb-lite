@@ -20,6 +20,7 @@ export interface ThreadListRow extends ThreadRow {
   environmentPath: string | null;
   environmentProviderId: string | null;
   environmentStatus: EnvironmentStatus | null;
+  environmentWorkspaceProvisionType: string | null;
   hasPendingInteraction: number;
 }
 
@@ -36,6 +37,7 @@ const THREAD_LIST_SELECT = `WITH viewer (id) AS (SELECT ?)
     e.name AS environment_name, e.path AS environment_path,
     e.environment_provider_id AS environment_provider_id,
     e.status AS environment_status,
+    e.workspace_provision_type AS environment_workspace_provision_type,
     EXISTS (SELECT 1 FROM pending_interactions AS p
       WHERE p.thread_id = threads.id AND p.status = 'pending')
       AS has_pending_interaction

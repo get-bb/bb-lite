@@ -70,7 +70,8 @@ export function toThreadListEntries(
   );
   return rows.map((row) => {
     const worktree = row.environmentIsWorktree;
-    const managed = row.environmentProviderId === "git-worktree";
+    const managed =
+      row.environmentWorkspaceProvisionType === "managed-worktree";
     const unmanaged = worktree === 1 ? "unmanaged-worktree" : "other";
     const failed = failedQueues.get(row.id);
     const queued = failed === true ? "failed" : "waiting";

@@ -32,6 +32,8 @@ export default function gitWorktree(bb: PluginServerApi): void {
     displayName: "Worktree",
     description: "Create an isolated Git worktree for your changes.",
     icon: "FolderGit",
+    workspace: "managed-worktree",
+    default: 2,
     requires: {
       projectCheckout: true,
       gitCheckout: true,

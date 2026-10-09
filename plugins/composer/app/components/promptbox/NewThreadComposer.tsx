@@ -42,9 +42,7 @@ import {
 } from "./composer-slots";
 import { PromptBoxInternal, type PromptBoxHandle } from "./PromptBoxInternal";
 import {
-  GIT_WORKTREE_ENVIRONMENT_PROVIDER_ID,
   getProjectStoredPromptAttachmentPaths,
-  PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
   promptDraftToInput,
   type AppCreateThreadRequest,
 } from "@bb/client-core";
@@ -254,15 +252,21 @@ export function useNewThreadComposer({
   } | null>(null);
   const activeInputs =
     inputsState?.scopeKey === inputsScopeKey ? inputsState : null;
+  const pluginInputsView = pluginInputs.find(
+    ({ kind }) => kind === environmentProvider?.id,
+  )?.view as typeof CheckoutInputs | undefined;
+  const builtInInputs =
+    environmentProvider?.default === undefined
+      ? undefined
+      : environmentProvider.workspace === "managed-worktree"
+        ? WorktreeInputs
+        : environmentProvider.workspace === "unmanaged"
+          ? CheckoutInputs
+          : undefined;
   const InputsControl =
     environmentProvider === undefined || environmentProvider.inputs === null
       ? undefined
-      : environmentProvider.id === GIT_WORKTREE_ENVIRONMENT_PROVIDER_ID
-        ? WorktreeInputs
-        : environmentProvider.id === PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID
-          ? CheckoutInputs
-          : (pluginInputs.find(({ kind }) => kind === environmentProvider.id)
-              ?.view as typeof CheckoutInputs | undefined);
+      : (pluginInputsView ?? builtInInputs);
   const providerInputs: JsonValue | null =
     InputsControl === undefined
       ? null

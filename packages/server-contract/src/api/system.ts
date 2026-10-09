@@ -168,6 +168,8 @@ export const systemEnvironmentProviderSchema = z.object({
   machineInputs: domain.jsonValueSchema.nullable().optional(),
   machineAcceptsEmptyInputs: z.boolean().optional(),
   machineProviderPluginId: z.string().min(1).optional(),
+  workspace: domain.workspaceProvisionTypeSchema.optional(),
+  default: z.number().optional(),
 });
 export type SystemEnvironmentProvider = z.infer<
   typeof systemEnvironmentProviderSchema

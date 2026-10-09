@@ -16,8 +16,7 @@ type Derived =
   | "lifecycle"
   | "hostLifecycle"
   | "environmentProviderSelection"
-  | "managed"
-  | "workspaceProvisionType";
+  | "managed";
 
 interface EnvironmentRow extends Omit<domain.Environment, Derived> {
   isGitRepo: number;
@@ -60,6 +59,7 @@ export interface NewEnvironment {
   hostId: string;
   path: string | null;
   environmentProviderId: string;
+  workspaceProvisionType: domain.WorkspaceProvisionType;
   ownerThreadId: string | null;
   instanceKey: string | null;
 }
@@ -74,7 +74,7 @@ const SELECT_ENVIRONMENTS = `SELECT e.id, e.name, e.project_id, e.host_id,
   e.default_branch, e.merge_base_branch, e.status, e.environment_provider_id,
   e.environment_provider_selection, e.environment_provider_instance_key,
   e.provider_owns_path, e.retire_at, e.teardown_status, e.teardown_attempt,
-  e.teardown_message, hosts.phase AS host_phase,
+  e.teardown_message, e.workspace_provision_type, hosts.phase AS host_phase,
   hosts.destroyed_at AS host_destroyed_at, e.created_at, e.updated_at
   FROM environments e JOIN hosts ON hosts.id = e.host_id`;
 
@@ -87,11 +87,12 @@ const FILTER_COLUMNS = {
   status: "e.status",
 } as const;
 
-const PROVISION_TYPES: Record<string, domain.WorkspaceProvisionType> = {
-  "git-worktree": "managed-worktree",
-  "personal-workspace": "personal",
-  "project-checkout": "unmanaged",
-};
+export const BACKFILL_WORKSPACE_TYPES = `UPDATE environments
+  SET workspace_provision_type = CASE environment_provider_id
+    WHEN 'git-worktree' THEN 'managed-worktree'
+    WHEN 'personal-workspace' THEN 'personal'
+    WHEN 'project-checkout' THEN 'unmanaged'
+  END WHERE workspace_provision_type IS NULL`;
 
 function lifecycle(row: EnvironmentRow): domain.Environment["lifecycle"] {
   const { retireAt, teardownStatus: status, teardownAttempt: attempt } = row;
@@ -135,7 +136,7 @@ function toEnvironment(row: EnvironmentRow): domain.Environment {
         : decodeJson(domain.environmentProviderSelectionSchema, selection),
     environmentProviderInstanceKey: row.environmentProviderInstanceKey,
     managed: row.providerOwnsPath === 1,
-    workspaceProvisionType: PROVISION_TYPES[providerId ?? ""] ?? null,
+    workspaceProvisionType: row.workspaceProvisionType,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -182,7 +183,7 @@ export function insertEnvironment(db: Db, input: NewEnvironment): string {
   const id = newId("env");
   const { instanceKey, ...columns } = input;
   const managed = input.ownerThreadId !== null;
-  const worktree = input.environmentProviderId === "git-worktree";
+  const worktree = input.workspaceProvisionType === "managed-worktree";
   insertRow(db, "environments", {
     id,
     ...columns,

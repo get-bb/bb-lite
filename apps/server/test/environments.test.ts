@@ -4,6 +4,7 @@ import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import {
   environments as environmentKinds,
   machines as machineOps,
+  threads,
 } from "@bb/plugin";
 import type {
   CreateThreadRequest,
@@ -320,6 +321,8 @@ it("lets a plugin replace a built-in environment kind", async () => {
   plugin.add(environmentKinds.kind, {
     id: "git-worktree",
     displayName: "Copy-on-write clone",
+    workspace: "managed-worktree",
+    default: 2,
     async create({ thread }) {
       const path = join(root, `cow-${thread.id}`);
       mkdirSync(path);
@@ -346,6 +349,75 @@ it("lets a plugin replace a built-in environment kind", async () => {
     "repo",
   );
   expect(world.environmentOf(restored)).toMatchObject({ path: builtin });
+});
+
+it("treats a plugin kind like the built-ins everywhere", async () => {
+  const world = await createWorld();
+  const { ctx, db, hostId, project, reaches, root } = world;
+  const plugin = ctx.kernel.scope("cow-clones", "installed");
+  plugin.add(environmentKinds.kind, {
+    id: "cow-clone",
+    displayName: "Copy-on-write clone",
+    description: "Clone the checkout copy-on-write.",
+    icon: "Copy",
+    workspace: "managed-worktree",
+    default: 5,
+    async create({ thread }) {
+      const path = join(root, `cow-${thread.id}`);
+      mkdirSync(path);
+      return { path };
+    },
+    async delete({ path }) {
+      rmSync(path, { recursive: true });
+    },
+  });
+  const listed = await world.api.environments.providers.$get({
+    query: { projectId: project.id },
+  });
+  const { providers }: { providers: Record<string, unknown>[] } =
+    await listed.json();
+  expect(providers.find(({ id }) => id === "cow-clone")).toMatchObject({
+    displayName: "Copy-on-write clone",
+    icon: "Copy",
+    workspace: "managed-worktree",
+    default: 5,
+  });
+  const flags = {
+    environmentProviderId: "cow-clone",
+    workspaceProvisionType: "managed-worktree",
+    isGitRepo: true,
+    isWorktree: true,
+  };
+  const picked = await world.spawn({ type: "project-default" });
+  await reaches(picked, "idle");
+  expect(world.environmentOf(picked)).toMatchObject(flags);
+  const asked = await world.spawn(world.worktree);
+  await reaches(asked, "idle");
+  expect(world.environmentOf(asked)).toMatchObject(flags);
+  const probe = ctx.kernel.scope("probe", "product");
+  const entries = await probe.call(threads.list, { projectId: project.id });
+  expect(entries.find(({ id }) => id === picked)).toMatchObject({
+    environmentProviderId: "cow-clone",
+    environmentWorkspaceDisplayKind: "managed-worktree",
+  });
+  const checkout = { type: "unmanaged", path: world.repo } as const;
+  const plain = await world.spawn({
+    type: "host",
+    hostId,
+    workspace: checkout,
+  });
+  await reaches(plain, "idle");
+  expect(world.environmentOf(plain)).toMatchObject({
+    environmentProviderId: "project-checkout",
+    workspaceProvisionType: "unmanaged",
+  });
+  plugin.dispose();
+  await ctx.threads.archive(picked);
+  const environmentId = getThread(db, picked)?.environmentId ?? "";
+  await expect(ctx.environments.remove(environmentId)).rejects.toThrow(
+    "The plugin that provides this kind of environment is not running.",
+  );
+  expect(existsSync(join(root, `cow-${picked}`))).toBe(true);
 });
 
 it("lets a plugin kind create its own machine, take inputs and keep state", async () => {

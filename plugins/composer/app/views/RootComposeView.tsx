@@ -10,9 +10,10 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useNewThreadComposer } from "../components/promptbox/NewThreadComposer";
 import {
-  PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
+  defaultEnvironmentProvider,
   type PromptDraftState,
 } from "@bb/client-core";
+import { useSystemEnvironmentProviders } from "@bb/app-kit/hooks/queries/environment-provider-queries";
 import {
   encodeProviderValue,
   encodeReuseValue,
@@ -98,6 +99,11 @@ export function RootComposeView() {
     useNavigateToThreadAfterCreatePreference();
   const quickCreateProject = useQuickCreateProjectController();
   const isPointerCoarse = usePointerCoarse();
+  const { providers: environmentProviders } = useSystemEnvironmentProviders();
+  const checkoutProviderId =
+    defaultEnvironmentProvider(environmentProviders ?? [], {
+      workspace: "unmanaged",
+    })?.id ?? "";
   const isCompactViewport = useIsCompactViewport();
   const [lastCreatedThreadId, setLastCreatedThreadId] = useState<string | null>(
     null,
@@ -253,9 +259,7 @@ export function RootComposeView() {
         onComplete={({ hostId }) => {
           setMachineSetupTarget(null);
           selectEnvironment(
-            encodeProviderValue(
-              environmentProviderId ?? PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
-            ),
+            encodeProviderValue(environmentProviderId ?? checkoutProviderId),
             hostId,
           );
         }}

@@ -21,6 +21,8 @@ export default function projectCheckout(bb: PluginServerApi): void {
     displayName: "Project checkout",
     description: "Work in a project checkout on this machine.",
     icon: "Laptop",
+    workspace: "unmanaged",
+    default: 1,
     requires: {
       projectCheckout: true,
       gitCheckout: false,

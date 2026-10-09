@@ -4,10 +4,7 @@ import {
   type ThreadListEntry,
 } from "@bb/domain";
 import type { SystemEnvironmentProvider } from "@bb/server-contract";
-import {
-  PERSONAL_WORKSPACE_ENVIRONMENT_PROVIDER_ID,
-  PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID,
-} from "@bb/client-core";
+import { defaultEnvironmentProvider } from "@bb/client-core";
 import {
   encodeProviderValue,
   parseEnvironmentValue,
@@ -96,12 +93,13 @@ export function resolveEffectiveEnvironmentValue({
           (provider) => provider.id === parsed.environmentProviderId,
         )
       : undefined;
-  const fallbackId = isProjectless
-    ? PERSONAL_WORKSPACE_ENVIRONMENT_PROVIDER_ID
-    : PROJECT_CHECKOUT_ENVIRONMENT_PROVIDER_ID;
+  const fallbackId = defaultEnvironmentProvider(
+    providers,
+    isProjectless ? { projectless: true } : { workspace: "unmanaged" },
+  )?.id;
   const fallback =
     primaryHostId !== null &&
-    providers.some((provider) => provider.id === fallbackId) &&
+    fallbackId !== undefined &&
     (isProjectless ||
       (knownHostIds.has(primaryHostId) &&
         findLocalPathProjectSourceForHost(projectSources, primaryHostId) !==

@@ -24,6 +24,7 @@ import {
   type EnsureEnvironmentArgs as Job,
   type ThreadEnvironment,
 } from "@bb/server-kit/environments/types";
+import { defaultKinds, kindWorkspace } from "@bb/server-kit/environments/kinds";
 import { requireEnvironment } from "@bb/server-kit/environments/workspace";
 
 type Checkout = Extract<EnvironmentPlacement, { type: "checkout" }>;
@@ -46,6 +47,8 @@ const IN_USE = {
 const NO_CHECKOUT = "This project has no checkout on the chosen machine.";
 const KIND_GONE =
   "The plugin that provides this kind of environment is not running.";
+const NO_DEFAULT_KIND =
+  "No running plugin provides a default environment for this project.";
 const SHARED_CHECKOUT =
   "Cannot checkout branch while another thread is using this workspace";
 
@@ -74,8 +77,15 @@ export function createEnvironments(bb: PluginServerApi) {
     return requireEnvironment(bb, id);
   }
 
-  function create(input: store.NewEnvironment): Environment {
-    const id = store.insertEnvironment(db, input);
+  function create(
+    input: Omit<store.NewEnvironment, "workspaceProvisionType">,
+  ): Environment {
+    const kind = bb.find(environmentKinds.kind, input.environmentProviderId);
+    const workspaceProvisionType = kindWorkspace(kind);
+    const id = store.insertEnvironment(db, {
+      ...input,
+      workspaceProvisionType,
+    });
     hub.environment(id, ["environment-created"]);
     return requireEnvironment(bb, id);
   }
@@ -277,8 +287,14 @@ export function createEnvironments(bb: PluginServerApi) {
   async function defaultKind(projectId: string, hostId: string) {
     const path = sourcePathOf(projectId, hostId);
     const source = await runners.get(hostId).call(git.source, { path });
-    const base = source.defaultBranch ?? source.originDefaultBranch;
-    return base === null ? "project-checkout" : "git-worktree";
+    const branched =
+      (source.defaultBranch ?? source.originDefaultBranch) !== null;
+    const personal = requireProject(db, projectId).kind === "personal";
+    const usable = defaultKinds(bb, { personal }).find(
+      (kind) => branched || kind.requires?.gitCheckout !== true,
+    );
+    if (usable === undefined) throw notReady(NO_DEFAULT_KIND);
+    return usable.id;
   }
 
   async function ensureForThread(job: Job): Promise<ThreadEnvironment> {
@@ -323,12 +339,6 @@ export function createEnvironments(bb: PluginServerApi) {
     return prepare(kept ?? create(fresh), job, base);
   }
 
-  const removeManaged = async (target: { hostId: string; path: string }) => {
-    await runners
-      .get(target.hostId)
-      .call(git.deleteWorktree, { path: target.path });
-  };
-
   function refresh(found: Environment): Environment {
     const { retireAt, teardown } = found.lifecycle;
     if (store.environmentUse(db, found.id).live > 0) {
@@ -360,9 +370,10 @@ export function createEnvironments(bb: PluginServerApi) {
     try {
       if (found.managed && path !== null) {
         await scripts.teardown({ id, hostId, projectId, path });
-        const remove = kindOf(found)?.delete ?? removeManaged;
+        const kind = kindOf(found);
+        if (kind === null) throw notReady(KIND_GONE);
         const resource = store.getEnvironmentResource(db, id);
-        await remove({ hostId, path, resource });
+        await kind.delete({ hostId, path, resource });
       }
       const removed = { teardownStatus: "removed", retireAt: null } as const;
       patch(id, { status: "destroyed", ...removed });

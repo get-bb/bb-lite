@@ -7,6 +7,8 @@ export default function personalWorkspace(bb: PluginServerApi): void {
     displayName: "Personal workspace",
     description: "Create a personal directory without a project.",
     icon: "Folder",
+    workspace: "personal",
+    default: 1,
     requires: {
       projectCheckout: false,
       gitCheckout: false,

@@ -19,6 +19,11 @@ import {
 } from "@bb/server-kit/db/projects";
 import { requireThreadSection } from "@bb/server-kit/db/thread-sections";
 import * as store from "@bb/server-kit/db/threads";
+import {
+  defaultKinds,
+  kindWorkspace,
+  type KindWanted,
+} from "@bb/server-kit/environments/kinds";
 import type { EnvironmentIntent } from "@bb/server-kit/environments/types";
 import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
 import { assertHostUsable, defaultHostId } from "@bb/server-kit/runners/access";
@@ -63,6 +68,12 @@ export function requireValidParent(
   return parent;
 }
 
+function pickKind(bb: PluginServerApi, want: KindWanted): string {
+  const [kind] = defaultKinds(bb, want);
+  if (kind !== undefined) return kind.id;
+  throw invalidRequest("No environment provider offers this workspace.");
+}
+
 function resolveIntent(
   bb: PluginServerApi,
   args: EnvironmentArgs,
@@ -76,7 +87,8 @@ function resolveIntent(
     hostId: string,
     inputs: ProviderIntent["inputs"],
   ): EnvironmentIntent => {
-    if (environmentProviderId === "personal-workspace" && shared && personal) {
+    const kind = bb.find(environmentKinds.kind, environmentProviderId);
+    if (shared && personal && kindWorkspace(kind) === "personal") {
       return { type: "reuse", environmentId: shared.id };
     }
     const machine = null;
@@ -112,27 +124,38 @@ function resolveIntent(
     case "host": {
       const hostId = args.hostId ?? primary;
       const { workspace } = args;
+      const kindFor = (type: KindWanted["workspace"]) =>
+        pickKind(bb, { workspace: type });
       if (workspace.type === "personal") {
-        return provided("personal-workspace", hostId, null);
+        return provided(kindFor("personal"), hostId, null);
       }
       if (workspace.type === "managed-worktree") {
         const inputs = { branch: workspace.baseBranch };
-        return provided("git-worktree", hostId, inputs);
+        return provided(kindFor("managed-worktree"), hostId, inputs);
       }
       if (workspace.path !== null) {
         const { path, branch } = workspace;
         const inputs = { path, ...(branch === undefined ? {} : { branch }) };
-        return provided("project-checkout", hostId, inputs);
+        return provided(kindFor("unmanaged"), hostId, inputs);
       }
-      if (personal) return provided("personal-workspace", hostId, null);
-      if (shared) return provided("git-worktree", hostId, DEFAULT_BRANCH);
-      return provided("project-checkout", hostId, null);
+      if (personal) {
+        return provided(pickKind(bb, { personal }), hostId, null);
+      }
+      if (shared) {
+        return provided(kindFor("managed-worktree"), hostId, DEFAULT_BRANCH);
+      }
+      return provided(kindFor("unmanaged"), hostId, null);
     }
-    case "project-default":
-      if (personal) return provided("personal-workspace", primary, null);
-      if (shared)
-        return provided("git-worktree", shared.hostId, DEFAULT_BRANCH);
+    case "project-default": {
+      if (personal) {
+        return provided(pickKind(bb, { personal }), primary, null);
+      }
+      if (shared) {
+        const isolated = pickKind(bb, { workspace: "managed-worktree" });
+        return provided(isolated, shared.hostId, DEFAULT_BRANCH);
+      }
       return { type: "project-default", hostId: primary };
+    }
   }
 }
 

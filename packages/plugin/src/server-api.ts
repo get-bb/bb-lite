@@ -173,6 +173,8 @@ export interface EnvironmentDefinition {
   displayName: string;
   description?: string;
   icon?: string;
+  workspace?: Domain.WorkspaceProvisionType;
+  default?: number;
   requires?: EnvironmentRequirements;
   inputs?: Domain.JsonValue | null;
   validate?(
