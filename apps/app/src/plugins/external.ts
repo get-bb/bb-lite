@@ -193,28 +193,23 @@ async function syncPlugins(refetch: boolean): Promise<void> {
   }
   setPluginBranding(plugins);
   const pluginsById = new Map(plugins.map((plugin) => [plugin.id, plugin]));
+  const replacedIds: string[] = [];
   const builtinLoads = [...CORE_PLUGINS, ...BUILTIN_PLUGINS].map((plugin) => {
     const listed = pluginsById.get(plugin.id);
-    const replaced = listed?.app?.kind === "external";
-    if (listed?.enabled === false || replaced) {
-      if (!disabledBuiltinIds.has(plugin.id)) {
-        disabledBuiltinIds.add(plugin.id);
-        unregisterPluginApp(plugin.id);
-      }
+    if (listed?.app?.kind === "external" && listed.enabled) {
+      replacedIds.push(plugin.id);
+      return null;
+    }
+    if (listed?.enabled === false) {
+      dropBuiltin(plugin.id);
       return null;
     }
     return disabledBuiltinIds.delete(plugin.id) ? loadBuiltin(plugin) : null;
   });
-  for (const pluginId of [...externalHashes.keys()]) {
-    const plugin = pluginsById.get(pluginId);
-    if (!plugin?.enabled || plugin.app?.kind !== "external") {
-      dropExternal(pluginId);
-    }
-  }
   const externalLoads = plugins.map(async (plugin) => {
     const app = plugin.app;
-    if (!plugin.enabled || app?.kind !== "external") return;
-    if (externalHashes.get(plugin.id) === app.hash) return;
+    if (!plugin.enabled || app?.kind !== "external") return null;
+    if (externalHashes.get(plugin.id) === app.hash) return null;
     try {
       await shareWithPlugins(app.shared ?? []);
       const module: { default?: unknown } = await import(app.jsUrl);
@@ -222,21 +217,45 @@ async function syncPlugins(refetch: boolean): Promise<void> {
       if (typeof entry !== "function") {
         throw new Error("the default export is not a function");
       }
-      applyCss(plugin.id, app.cssUrl);
       const setup = entry as pluginApp.PluginAppEntry;
-      const failure = registerPluginApp(plugin.id, setup, "installed");
-      if (failure !== null) throw failure;
-      externalHashes.set(plugin.id, app.hash);
+      return { plugin, app, setup };
     } catch (error) {
       console.warn(`[plugin:${plugin.id}] app failed to load`, error);
       dropExternal(plugin.id);
+      return null;
     }
   });
+  const loaded = await Promise.all(externalLoads);
+  await Promise.all(builtinLoads);
+  for (const pluginId of [...externalHashes.keys()]) {
+    const plugin = pluginsById.get(pluginId);
+    if (!plugin?.enabled || plugin.app?.kind !== "external") {
+      dropExternal(pluginId);
+    }
+  }
+  for (const pluginId of replacedIds) dropBuiltin(pluginId);
+  for (const load of loaded) {
+    if (load === null) continue;
+    const { plugin, app, setup } = load;
+    applyCss(plugin.id, app.cssUrl);
+    const failure = registerPluginApp(plugin.id, setup, "installed");
+    if (failure === null) {
+      externalHashes.set(plugin.id, app.hash);
+      continue;
+    }
+    console.warn(`[plugin:${plugin.id}] app failed to load`, failure);
+    dropExternal(plugin.id);
+  }
   const styled = plugins.flatMap(({ enabled, app }) =>
     enabled && app?.kind === "external" ? [app.utilitiesUrl ?? null] : [],
   );
   applyUtilities(styled.find((url) => url !== null) ?? null);
-  await Promise.all([...builtinLoads, ...externalLoads]);
+}
+
+function dropBuiltin(pluginId: string): void {
+  if (disabledBuiltinIds.has(pluginId)) return;
+  disabledBuiltinIds.add(pluginId);
+  unregisterPluginApp(pluginId);
 }
 
 export function bootPlugins(): Promise<void> {
