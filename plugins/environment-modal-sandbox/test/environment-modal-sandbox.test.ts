@@ -26,6 +26,7 @@ async function modalWorld() {
   const log: string[] = [];
   const created: ModalSandboxSpec[] = [];
   const running = new Set<string>();
+  const images: { appName: string; dockerfile: string }[] = [];
   const joinPendingHost = async () => {
     const hosts = ctx.db.all<{ id: string }>(
       "SELECT id FROM hosts WHERE machine_provider_id = 'modal-sandbox'",
@@ -41,8 +42,10 @@ async function modalWorld() {
   };
   const client: ModalClient = {
     accountIdentity: async () => "workspace-1",
-    async ensureImage({ log }) {
+    async ensureImage({ appName, dockerfile, log }) {
+      images.push({ appName, dockerfile });
       log?.("Step 1/1 : RUN true");
+      if (dockerfile.includes("broken")) throw new Error("build failed");
       return "im-standard";
     },
     async create(spec) {
@@ -89,7 +92,17 @@ async function modalWorld() {
       { values: { tokenId: "ak-1", tokenSecret: "as-1" } },
       "PUT",
     );
-  return { server, scope, log, created, running, home, plugin, configure };
+  return {
+    server,
+    scope,
+    log,
+    created,
+    running,
+    images,
+    home,
+    plugin,
+    configure,
+  };
 }
 
 it("needs configuration until the Modal token is set", async () => {
@@ -145,11 +158,28 @@ async function startThread(server: helpers.TestServer) {
 }
 
 it("builds the image and runs, execs in and stops a debug sandbox", async () => {
-  const { scope, created, configure } = await modalWorld();
+  const { server, scope, created, images, home, configure } =
+    await modalWorld();
   await configure();
   expect(await scope.call(modal.createImage, {})).toEqual({
     imageId: "im-standard",
     logs: "Step 1/1 : RUN true\n",
+  });
+  const { dockerfile } = await scope.call(modal.image, {});
+  expect(images).toEqual([{ appName: "bb-sandboxes", dockerfile }]);
+  writeFileSync(join(home, "Dockerfile"), "FROM broken:1\nRUN true\n");
+  await server.send(`/plugins/${PLUGIN}/cli`, {
+    argv: ["image", "set", "--file", "Dockerfile"],
+    cwd: home,
+  });
+  await expect(scope.call(modal.createImage, {})).rejects.toThrow(
+    "Step 1/1 : RUN true\nbuild failed",
+  );
+  expect(images.at(-1)?.dockerfile).toBe("FROM broken:1\nRUN true\n");
+  writeFileSync(join(home, "Dockerfile"), dockerfile);
+  await server.send(`/plugins/${PLUGIN}/cli`, {
+    argv: ["image", "set", "--file", "Dockerfile"],
+    cwd: home,
   });
   const run = await scope.call(modal.createSandbox, {});
   expect(run).toMatchObject({ sandboxId: "sb-1", imageId: "im-standard" });
