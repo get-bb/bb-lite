@@ -300,6 +300,13 @@ async function editPluginConfig(c: Call, add: boolean): Promise<void> {
   const text = await readFile(file, "utf8").catch(() => "{}");
   const config = valid(schema, parseJson(text, file), file);
   const others = config.plugins.filter((known) => resolve(known.path) !== path);
+  if (!add && others.length === config.plugins.length) {
+    const known = config.plugins.map((known) => known.path).join(", ");
+    throw usageError(
+      `${path} is not a loaded plugin directory.`,
+      `Loaded directories: ${known || "none"}`,
+    );
+  }
   const plugins = add ? [...others, { path, enabled: true }] : others;
   const next = JSON.stringify({ ...config, plugins }, null, 2);
   await writeFile(file, `${next}\n`);
