@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -23,13 +23,14 @@ async function docsServer() {
   };
   const root = mkdtempSync(join(tmpdir(), "docs-vault-"));
   const work = mkdtempSync(join(tmpdir(), "docs-work-"));
-  const cli = async (line: string) => {
+  const cli = async (line: string, scope: Row = {}) => {
     const argv = line.split(" ");
-    const { body } = await send("/plugins/docs/cli", { argv, cwd: work });
+    const input = { argv, cwd: work, ...scope };
+    const { body } = await send("/plugins/docs/cli", input);
     return body as { exitCode: number; stdout: string; stderr: string };
   };
   await op("createVault", { name: "Team", absoluteRoot: root });
-  return { op, cli, root, work };
+  return { op, cli, root, work, server };
 }
 
 it("lists vaults, writes, reads and lists documents through the CLI", async () => {
@@ -59,13 +60,28 @@ it("pulls, reports status and pushes with version checks", async () => {
   expect(status.exitCode).toBe(4);
   expect(status.stdout).toContain("+two");
   writeFileSync(join(root, "a.md"), "theirs\n");
-  const conflict = await cli("push out");
+  const conflict = await cli("push out --json");
   expect(conflict.exitCode).not.toBe(0);
+  expect(conflict.stdout + conflict.stderr).toContain("document_changed");
   expect(readFileSync(join(root, "a.md"), "utf8")).toBe("theirs\n");
   writeFileSync(join(root, "a.md"), "one\n");
   expect((await cli("push out")).exitCode).toBe(0);
   expect(readFileSync(join(root, "a.md"), "utf8")).toBe("two\n");
   expect((await cli("status out")).exitCode).toBe(0);
+  expect((await cli("pull --vault team --into out")).exitCode).not.toBe(0);
+  const elsewhere = await cli("pull --all --vault team --into far", {
+    hostId: "host_elsewhere",
+  });
+  expect(elsewhere.exitCode).not.toBe(0);
+  expect(existsSync(join(work, "far"))).toBe(false);
+  const missing = await cli("status nowhere --json");
+  expect(missing.exitCode).not.toBe(0);
+  writeFileSync(join(work, "out/b.md"), "new\n");
+  const dry = await cli("push out --dry-run --json");
+  expect(JSON.parse(dry.stdout)).toMatchObject({
+    changes: [{ path: "b.md", status: "added" }],
+    dryRun: true,
+  });
 });
 
 it("proposes a change and accepts, undoes and redoes it", async () => {
@@ -98,3 +114,47 @@ it("proposes a change and accepts, undoes and redoes it", async () => {
   expect(redone).toMatchObject({ status: "accepted", version: 4 });
   expect(readFileSync(join(root, "letter.md"), "utf8")).toBe("Dear Alice\n");
 });
+
+it("renames to the title, uploads attachments, keeps order and recent documents", async () => {
+  const { op, root } = await docsServer();
+  writeFileSync(join(root, "untitled.md"), "# Launch Plan\n\nBody\n");
+  const team = { vault: "team" };
+  const renamed = await op("renameToTitle", { ...team, path: "untitled.md" });
+  expect(renamed).toEqual({ path: "Launch Plan.md" });
+  expect(readFileSync(join(root, "Launch Plan.md"), "utf8")).toContain("Body");
+  const upload = await op("uploadAttachment", {
+    ...team,
+    path: "Launch Plan.md",
+    name: "chart.png",
+    contentBase64: Buffer.from("png").toString("base64"),
+  });
+  expect(upload).toEqual({
+    path: "attachments/chart.png",
+    markdown: "![chart.png](attachments/chart.png)",
+  });
+  expect(readFileSync(join(root, "attachments/chart.png"), "utf8")).toBe("png");
+  await op("reorder", { ...team, folder: "", names: ["b.md", "a.md"] });
+  expect(await op("order", { ...team, folder: "" })).toEqual(["b.md", "a.md"]);
+  for (const path of ["a.md", "b.md", "a.md"])
+    await op("visit", { threadId: "thr_1", vault: "team", path });
+  expect(await op("recent", { threadId: "thr_1" })).toEqual([
+    { vault: "team", path: "a.md" },
+    { vault: "team", path: "b.md" },
+  ]);
+  await expect(
+    op("renameToTitle", { ...team, path: "attachments/chart.png" }),
+  ).rejects.toThrow(/no "# Title"/u);
+});
+
+it("refreshes the app when a document changes on disk", async () => {
+  const { op, root, server } = await docsServer();
+  writeFileSync(join(root, "live.md"), "one\n");
+  await op("read", { vault: "team", path: "live.md" });
+  const socket = await server.socket();
+  writeFileSync(join(root, "live.md"), "two\n");
+  const signal = await socket.next((message: Row) => {
+    const payload = message.payload as Row | undefined;
+    return message.type === "plugin-signal" && payload?.name === "docs.read";
+  });
+  expect(signal).toBeTruthy();
+}, 15_000);

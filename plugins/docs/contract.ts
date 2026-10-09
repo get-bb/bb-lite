@@ -46,6 +46,22 @@ const path = z.string().describe("Path relative to the vault root");
 const at = { vault, path };
 const version = z.number().int().positive();
 const lines = (rows: string[]) => `${rows.join("\n")}\n`;
+const caller = {
+  cwd: z.string().optional(),
+  hostId: z.string().optional(),
+};
+const from = { cwd: "cwd", hostId: "hostId" } as const;
+const workspaceDir = z
+  .string()
+  .optional()
+  .describe("Directory created by `bb docs pull` (default: .)");
+const showDiff = z.boolean().optional().describe("Show diffs");
+export const Change = z.object({
+  path: z.string(),
+  status: z.enum(["added", "modified", "deleted"]),
+});
+const changeLines = (changes: z.infer<typeof Change>[]) =>
+  changes.map((c) => `${c.status}\t${c.path}`);
 
 export const docs = contract("docs", {
   vaults: op({
@@ -207,6 +223,136 @@ export const docs = contract("docs", {
       expectedVersion: version,
     }),
     output: Proposal,
+    kind: "write",
+  }),
+  pull: op({
+    input: z.object({
+      vault,
+      path: z.string().optional().describe("Document or folder in the vault"),
+      into: z.string().describe("Workspace directory to pull into"),
+      all: z
+        .boolean()
+        .optional()
+        .describe("Pull the whole vault instead of one path"),
+      folder: z
+        .boolean()
+        .optional()
+        .describe("Treat the path as a folder subtree"),
+      ...caller,
+    }),
+    output: z.object({ files: z.array(z.string()) }),
+    kind: "write",
+    doors: {
+      cli: {
+        path: "docs pull",
+        summary: "Copy vault documents into a workspace directory",
+        positionals: ["path"],
+        flags: { into: { placeholder: "dir" } },
+        from,
+        constraints: [{ kind: "exactly-one", options: ["path", "all"] }],
+        print: ({ files }) => `Pulled ${files.length} file(s)\n`,
+      },
+    },
+  }),
+  status: op({
+    input: z.object({ workspaceDir, diff: showDiff, ...caller }),
+    output: z.object({
+      changes: z.array(Change),
+      diffs: z.array(z.string()).optional(),
+    }),
+    doors: {
+      cli: {
+        path: "docs status",
+        summary: "Show local changes since pull (exit 4 when changed)",
+        positionals: ["workspaceDir"],
+        from,
+        print: ({ changes, diffs = [] }) =>
+          changes.length
+            ? lines([...changeLines(changes), ...diffs])
+            : "No changes\n",
+        exitCode: ({ changes }) => (changes.length ? 4 : 0),
+      },
+    },
+  }),
+  push: op({
+    input: z.object({
+      workspaceDir,
+      diff: showDiff,
+      dryRun: z
+        .boolean()
+        .optional()
+        .describe("Plan the push without writing to the vault"),
+      delete: z
+        .boolean()
+        .optional()
+        .describe("Also delete vault paths deleted locally"),
+      ...caller,
+    }),
+    output: z.object({
+      changes: z.array(Change),
+      dryRun: z.boolean().optional(),
+      diffs: z.array(z.string()).optional(),
+    }),
+    kind: "write",
+    doors: {
+      cli: {
+        path: "docs push",
+        summary: "Write local changes back to the vault with version checks",
+        positionals: ["workspaceDir"],
+        from,
+        print: ({ changes, dryRun, diffs = [] }) =>
+          lines([
+            `${dryRun ? "Would push" : "Pushed"} ${changes.length} change(s)`,
+            ...changeLines(changes),
+            ...diffs,
+          ]),
+      },
+    },
+  }),
+  openFile: op({
+    input: z.object({ threadId: z.string(), path: z.string() }),
+    output: z.object({ content: z.string(), sha256: z.string() }).nullable(),
+  }),
+  saveOpenedFile: op({
+    input: z.object({
+      threadId: z.string(),
+      path: z.string(),
+      content: z.string(),
+      expectedSha256: z.string().nullable(),
+    }),
+    output: z.object({ sha256: z.string() }),
+    kind: "write",
+  }),
+  recent: op({
+    input: z.object({ threadId: z.string() }),
+    output: z.array(z.object({ vault: z.string(), path: z.string() })),
+  }),
+  visit: op({
+    input: z.object({ threadId: z.string(), vault: z.string(), path }),
+    output: z.object({ ok: z.literal(true) }),
+    kind: "write",
+  }),
+  order: op({
+    input: z.object({ vault, folder: z.string() }),
+    output: z.array(z.string()),
+  }),
+  reorder: op({
+    input: z.object({ vault, folder: z.string(), names: z.array(z.string()) }),
+    output: z.object({ ok: z.literal(true) }),
+    kind: "write",
+  }),
+  renameToTitle: op({
+    input: z.object(at),
+    output: z.object({ path: z.string() }),
+    kind: "write",
+  }),
+  uploadAttachment: op({
+    input: z.object({
+      ...at,
+      name: z.string().min(1),
+      contentBase64: z.string(),
+    }),
+    output: z.object({ path: z.string(), markdown: z.string() }),
     kind: "write",
   }),
   vaultRows: table<Vault>(),

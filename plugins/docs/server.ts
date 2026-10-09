@@ -1,8 +1,10 @@
 import { posix } from "node:path";
 import { homedir } from "node:os";
-import { sessions, type PluginServerApi } from "@bb/plugin";
+import { fail, sessions, type PluginServerApi } from "@bb/plugin";
 import { machineFiles, type PathMutation } from "@bb/runner";
 import { registerDocsCli } from "./cli.js";
+import { registerDocsExtras } from "./extras.js";
+import { onHost, registerDocsSync } from "./sync.js";
 import {
   docs,
   Proposal,
@@ -16,8 +18,8 @@ const ok = { ok: true } as const;
 export function vaultPath(raw: string): string {
   const clean = posix.normalize(raw.replaceAll("\\", "/")).replace(/\/$/u, "");
   if (!clean || clean === "." || clean.startsWith("../") || clean === "..")
-    throw new Error(`Invalid vault path: ${raw}`);
-  if (clean.startsWith("/")) throw new Error(`Path must be relative: ${raw}`);
+    fail("invalid", `Invalid vault path: ${raw}`);
+  if (clean.startsWith("/")) fail("invalid", `Path must be relative: ${raw}`);
   return clean;
 }
 
@@ -25,9 +27,11 @@ export default function docsServer(bb: PluginServerApi): void {
   const { tables } = bb.storage;
   const vaults = tables.name("vaults");
   const proposals = tables.name("proposals");
+  const entryOrder = tables.name("entry_order");
   tables.migrate([
     `CREATE TABLE ${vaults} (vault_id TEXT PRIMARY KEY, name TEXT NOT NULL, host_id TEXT, root_path TEXT NOT NULL, created_at INTEGER NOT NULL)`,
     `CREATE TABLE ${proposals} (vault_id TEXT NOT NULL, path TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY (vault_id, path))`,
+    `CREATE TABLE ${entryOrder} (vault_id TEXT NOT NULL, folder TEXT NOT NULL, names TEXT NOT NULL, PRIMARY KEY (vault_id, folder))`,
   ]);
   tables.publish(docs.vaultRows, "vaults");
   if (!bb.db.get(`SELECT 1 AS one FROM ${vaults}`))
@@ -41,13 +45,21 @@ export default function docsServer(bb: PluginServerApi): void {
     bb.db.all<Vault>(`SELECT * FROM ${vaults} ORDER BY created_at`);
   const getVault = (vaultId = "personal"): Vault => {
     const found = allVaults().find((v) => v.vaultId === vaultId);
-    if (!found) throw new Error(`Unknown vault: ${vaultId}`);
+    if (!found)
+      fail("not_found", `Unknown vault: ${vaultId}`, {
+        reason: "unknown_vault",
+        hint: "List vaults with `bb docs vaults`",
+      });
     return found;
+  };
+  const host = (vault: Vault) => {
+    const hostId = vault.hostId ?? bb.runners.localHostId;
+    return { call: onHost(bb, hostId) };
   };
   const at = (vaultId: string | undefined, raw: string) => {
     const vault = getVault(vaultId);
     const path = vaultPath(raw);
-    const runner = bb.runners.get(vault.hostId ?? bb.server.hostId);
+    const runner = host(vault);
     const where = {
       path: posix.join(vault.rootPath, path),
       rootPath: vault.rootPath,
@@ -82,8 +94,13 @@ export default function docsServer(bb: PluginServerApi): void {
         : { expectedSha256: input.expectedSha256 }),
     });
     if (result.outcome === "conflict")
-      throw new Error(
+      fail(
+        "conflict",
         `Conflict: ${path} changed in the vault (now ${result.currentSha256 ?? "missing"})`,
+        {
+          reason: "document_changed",
+          hint: "Read the document again and reapply your change",
+        },
       );
     bb.changed(docs.list);
     bb.changed(docs.read);
@@ -111,10 +128,12 @@ export default function docsServer(bb: PluginServerApi): void {
   const current = (vaultId: string | undefined, raw: string, v: number) => {
     const { vault, path } = at(vaultId, raw);
     const proposal = getProposal(vault.vaultId, path);
-    if (!proposal) throw new Error(`No proposal for ${path}`);
+    if (!proposal) fail("not_found", `No proposal for ${path}`);
     if (proposal.version !== v)
-      throw new Error(
+      fail(
+        "conflict",
         `Conflict: proposal is at version ${proposal.version}, not ${v}`,
+        { reason: "proposal_version", hint: "Run `bb docs proposal <path>`" },
       );
     return proposal;
   };
@@ -122,7 +141,7 @@ export default function docsServer(bb: PluginServerApi): void {
   bb.implement(docs.vaults, allVaults);
   bb.implement(docs.createVault, ({ name, absoluteRoot, hostId }) => {
     if (!posix.isAbsolute(absoluteRoot))
-      throw new Error("The vault root must be an absolute path");
+      fail("invalid", "The vault root must be an absolute path");
     const base = name.toLowerCase().replace(/[^a-z0-9]+/gu, "-") || "vault";
     const taken = new Set(allVaults().map((v) => v.vaultId));
     let vaultId = base;
@@ -142,7 +161,7 @@ export default function docsServer(bb: PluginServerApi): void {
   });
   bb.implement(docs.list, async ({ vault }) => {
     const found = getVault(vault);
-    const runner = bb.runners.get(found.hostId ?? bb.server.hostId);
+    const runner = host(found);
     const { paths } = await runner.call(machineFiles.list, {
       rootPath: found.rootPath,
       includeFiles: true,
@@ -161,7 +180,12 @@ export default function docsServer(bb: PluginServerApi): void {
       .map(([path, kind]) => ({ path, kind }))
       .sort((a, b) => a.path.localeCompare(b.path));
   });
-  bb.implement(docs.read, ({ vault, path }) => read(vault, path));
+  const watch = registerDocsExtras(bb, entryOrder, read);
+  bb.implement(docs.read, async ({ vault, path }) => {
+    const file = await read(vault, path);
+    watch({ vault: file.vaultId, path: file.path }, file.sha256);
+    return file;
+  });
   bb.implement(docs.write, write);
   const mutate = async (
     vault: string | undefined,
@@ -195,12 +219,17 @@ export default function docsServer(bb: PluginServerApi): void {
     const { vault, path } = at(input.vault, input.path);
     const existing = getProposal(vault.vaultId, path);
     if ((existing?.version ?? null) !== input.expectedVersion)
-      throw new Error(
+      fail(
+        "conflict",
         `Conflict: proposal version is ${existing?.version ?? "none"}`,
+        { reason: "proposal_version", hint: "Run `bb docs proposal <path>`" },
       );
     const file = await read(vault.vaultId, path);
     if (file.sha256 !== input.expectedSha256)
-      throw new Error(`Conflict: ${path} changed since it was read`);
+      fail("conflict", `Conflict: ${path} changed since it was read`, {
+        reason: "document_changed",
+        hint: "Read the document again with `bb docs read --json`",
+      });
     return saveProposal({
       vaultId: vault.vaultId,
       path,
@@ -215,7 +244,9 @@ export default function docsServer(bb: PluginServerApi): void {
   bb.implement(docs.updateProposal, (input) => {
     const proposal = current(input.vault, input.path, input.expectedVersion);
     if (proposal.status !== "pending")
-      throw new Error("Only a pending proposal can be edited");
+      fail("conflict", "Only a pending proposal can be edited", {
+        reason: "proposal_resolved",
+      });
     const { content } = input;
     return saveProposal({
       ...proposal,
@@ -230,7 +261,9 @@ export default function docsServer(bb: PluginServerApi): void {
       write({ vault: p.vaultId, path: p.path, content, expectedSha256 });
     const need = (status: Proposal["status"]) => {
       if (p.status !== status)
-        throw new Error(`Cannot ${input.action} a ${p.status} proposal`);
+        fail("conflict", `Cannot ${input.action} a ${p.status} proposal`, {
+          reason: "proposal_state",
+        });
     };
     if (input.action === "reject") {
       need("pending");
@@ -286,4 +319,5 @@ export default function docsServer(bb: PluginServerApi): void {
   });
 
   registerDocsCli(bb);
+  registerDocsSync(bb);
 }
