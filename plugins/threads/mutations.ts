@@ -234,6 +234,19 @@ export function deleteQueuedMessage(
   engine.announceMessage(threads.messageDeleted, threadId, queuedMessageId);
 }
 
+export function reorderQueuedMessages(
+  engine: Engine,
+  threadId: string,
+  queuedMessageIds: readonly string[],
+) {
+  const { db } = engine.bb;
+  queue.reorderQueuedMessages(db, threadId, queuedMessageIds);
+  queueChanged(engine, threadId);
+  return queue
+    .listQueuedMessages(db, threadId)
+    .map(queue.toThreadQueuedMessage);
+}
+
 export async function sendQueuedMessageNow(
   engine: Engine,
   threadId: string,

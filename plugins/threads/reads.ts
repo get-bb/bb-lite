@@ -9,12 +9,14 @@ import {
   THREAD_EVENT_LIST_PAGE_SIZE,
   type ThreadWithIncludesResponse,
 } from "@bb/server-contract";
+import { viewerId } from "@bb/server-kit/auth/actor";
 import { getEnvironment } from "@bb/server-kit/db/environments";
 import * as events from "@bb/server-kit/db/event-read";
 import { findHost, findHostName } from "@bb/server-kit/db/hosts";
 import * as pending from "@bb/server-kit/db/pending-interactions";
 import {
   getProjectExecutionDefaults,
+  inProjectOrder,
   listStandardProjects,
   requireProject,
 } from "@bb/server-kit/db/projects";
@@ -139,7 +141,8 @@ export function implementThreadReads(bb: PluginServerApi): void {
 
   bb.implement(projects.sidebar, () => {
     const personal = requireProject(db, domain.PERSONAL_PROJECT_ID);
-    const listed = [personal, ...listStandardProjects(db)];
+    const standard = inProjectOrder(db, viewerId(), listStandardProjects(db));
+    const listed = [personal, ...standard];
     const [personalProject, ...rest] = listProjectsWithThreads(bb, listed);
     const sections = listThreadSections(db);
     return { sections, projects: rest, personalProject };

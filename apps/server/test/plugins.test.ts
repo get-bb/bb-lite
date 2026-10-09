@@ -463,6 +463,26 @@ it("accepts a project setting only when it names a project", async () => {
   await expect(settings.write({ target: 4 })).rejects.toThrow("Invalid value");
 });
 
+it("stores project-scoped settings per project", async () => {
+  const server = await createTestServer();
+  const one = await createProject(server, "one");
+  const two = await createProject(server, "two");
+  const { ctx } = server;
+  const settings = new PluginSettings(ctx.db, "per-proj", join(scratch(), "s"));
+  const lint = { type: "boolean", label: "Lint", default: false } as const;
+  settings.define({ lint }, "project");
+  expect(settings.descriptors.lint).toMatchObject({ scope: "project" });
+  await settings.write({ lint: true }, null, one.id);
+  expect(await settings.read(null, one.id)).toEqual({ lint: true });
+  expect(await settings.read(null, two.id)).toEqual({ lint: false });
+  expect(await settings.read()).toEqual({ lint: false });
+  expect(settings.isPersonal(["lint"], one.id)).toBe(true);
+  expect(settings.isPersonal(["lint"])).toBe(false);
+  await expect(
+    settings.write({ lint: true }, null, "proj_missing"),
+  ).rejects.toThrow("Unknown project");
+});
+
 it("accepts select and number settings and refuses values outside them", async () => {
   const { ctx } = await createTestServer();
   const settings = new PluginSettings(ctx.db, "tuner", join(scratch(), "s"));

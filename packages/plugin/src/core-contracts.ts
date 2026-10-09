@@ -312,6 +312,25 @@ export const sessions = contract("sessions", {
     ),
     doors: { http: { method: "GET", path: "/sessions/provider-status" } },
   }),
+  environmentHealth: op({
+    input: z.object({
+      providerId: z.string(),
+      machineId: z.string().optional(),
+    }),
+    output: z.object({
+      providerId: z.string(),
+      machineId: z.string(),
+      status: z.enum(["ready", "disabled", "unknown-provider", "offline"]),
+      label: z.string().nullable(),
+      statusMessage: z.string().nullable(),
+    }),
+    doors: {
+      http: {
+        method: "GET",
+        path: "/sessions/providers/:providerId/environment-health",
+      },
+    },
+  }),
   providerCatalog: op({
     input: none,
     output: typed(z.array(Contract.systemProviderCatalogEntrySchema)),
@@ -540,6 +559,20 @@ export const threads = contract("threads", {
       http: {
         method: "PATCH",
         path: "/threads/:threadId/queued-messages/:queuedMessageId",
+      },
+    },
+  }),
+  reorderQueuedMessages: op({
+    input: z.object({
+      threadId: z.string(),
+      queuedMessageIds: z.array(z.string()),
+    }),
+    output: typed(Contract.threadQueuedMessageListResponseSchema),
+    kind: "write",
+    doors: {
+      http: {
+        method: "PUT",
+        path: "/threads/:threadId/queued-messages/order",
       },
     },
   }),
@@ -911,6 +944,18 @@ export const projects = contract("projects", {
     input: none,
     output: typed(Contract.sidebarBootstrapResponseSchema),
     doors: { http: { method: "GET", path: "/projects/sidebar" } },
+  }),
+  order: op({
+    input: none,
+    output: z.object({ projectIds: z.array(z.string()) }),
+    doors: { http: { method: "GET", path: "/projects/order" } },
+  }),
+  updateOrder: op({
+    input: z.object({ projectIds: z.array(z.string()) }),
+    output: z.object({ projectIds: z.array(z.string()) }),
+    kind: "write",
+    allow: "user",
+    doors: { http: { method: "PUT", path: "/projects/order" } },
   }),
   get: op({
     input: ref("projectId"),
@@ -1390,7 +1435,7 @@ export const plugins = contract("plugins", {
     doors: { http: { method: "POST", path: "/plugins/:pluginId/disable" } },
   }),
   settings: op({
-    input: ref("pluginId"),
+    input: z.object({ pluginId: z.string(), projectId: z.string().optional() }),
     output: typed(Contract.pluginSettingsResponseSchema),
     doors: { http: { method: "GET", path: "/plugins/:pluginId/settings" } },
   }),
@@ -1497,6 +1542,11 @@ export const server = contract("server", {
     input: none,
     output: typed(Contract.systemConfigResponseSchema),
     doors: { http: { method: "GET", path: "/server/config" } },
+  }),
+  experiments: op({
+    input: none,
+    output: z.object({ flags: z.record(z.string(), z.boolean()) }),
+    doors: { http: { method: "GET", path: "/server/experiments" } },
   }),
 });
 

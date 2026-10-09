@@ -336,3 +336,11 @@ it("compresses large JSON answers and leaves streams and small ones alone", asyn
   const rest = Buffer.from((await reader?.read())?.value ?? []).toString();
   expect(JSON.parse(rest)).toMatchObject({ exitCode: 0, stdout });
 });
+
+it("reads experiment flags from BB_EXPERIMENTS", async () => {
+  const env = { BB_DATA_DIR: scratch(), BB_EXPERIMENTS: "fast, -slow,," };
+  const { experiments } = loadConfig(env);
+  expect(experiments).toEqual({ fast: true, slow: false });
+  const server = await createTestServer({ experiments });
+  await server.matches("/server/experiments", { flags: experiments });
+});

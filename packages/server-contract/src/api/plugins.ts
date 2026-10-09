@@ -11,6 +11,7 @@ export const pluginStatusSchema = z.enum([
 const pluginSettingBaseSchema = {
   label: z.string().min(1),
   description: z.string().min(1).optional(),
+  scope: z.enum(["workspace", "user", "project"]).optional(),
 };
 
 export const pluginSettingDescriptorSchema = z.discriminatedUnion("type", [
@@ -116,7 +117,10 @@ export type PluginSettingsResponse = z.infer<
 >;
 
 export const pluginSettingsUpdateRequestSchema = z
-  .object({ values: z.record(z.string(), domain.jsonValueSchema) })
+  .object({
+    values: z.record(z.string(), domain.jsonValueSchema),
+    projectId: z.string().optional(),
+  })
   .strict();
 
 export const pluginTokenRequestSchema = z

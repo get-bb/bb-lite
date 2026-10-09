@@ -25,6 +25,7 @@ export interface ServerConfig {
   version: string;
   hostId: string;
   logLevel: LogLevel;
+  experiments?: Record<string, boolean>;
 }
 
 export type SettingDescriptor = Contract.PluginSettingDescriptor;
@@ -42,11 +43,17 @@ export type SettingValues<D extends SettingDescriptors> = {
 };
 type SettingsUpdate<D> = { [Key in keyof D]?: ValueOf<D[Key]> | null };
 type SettingsListener<Values> = (next: Values, previous: Values) => void;
-export type SettingScope = "workspace" | "user";
+export type SettingScope = "workspace" | "user" | "project";
 
 export interface SettingsHandle<D extends SettingDescriptors> {
-  get(options?: { userId?: string | null }): Promise<SettingValues<D>>;
-  set(values: SettingsUpdate<D>): Promise<SettingValues<D>>;
+  get(options?: {
+    userId?: string | null;
+    projectId?: string | null;
+  }): Promise<SettingValues<D>>;
+  set(
+    values: SettingsUpdate<D>,
+    options?: { projectId?: string | null },
+  ): Promise<SettingValues<D>>;
   onChange(listener: SettingsListener<SettingValues<D>>): void;
 }
 

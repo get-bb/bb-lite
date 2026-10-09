@@ -1,4 +1,4 @@
-import { describeKernel, threads } from "@bb/plugin/app";
+import { describeKernel, server, threads } from "@bb/plugin/app";
 import {
   createElement,
   useCallback,
@@ -119,8 +119,11 @@ function useChanged(member: Op | Live, handler: () => void): void {
   );
 }
 
-function useSettings(): SettingsState {
-  const query = usePluginSettingsView(usePluginId(), { enabled: true });
+function useSettings(options?: { projectId?: string }): SettingsState {
+  const query = usePluginSettingsView(usePluginId(), {
+    enabled: true,
+    projectId: options?.projectId,
+  });
   const stored = query.data?.values;
   const values = useMemo(() => {
     if (stored === undefined) return undefined;
@@ -135,6 +138,15 @@ function useSettings(): SettingsState {
 }
 
 const EMPTY_PROVIDERS: readonly never[] = [];
+const NO_FLAGS: Readonly<Record<string, boolean>> = {};
+
+function useExperiments(): Readonly<Record<string, boolean>> {
+  const read: OpState<{ flags: Record<string, boolean> }> = useOp(
+    server.experiments,
+    {},
+  );
+  return read.data?.flags ?? NO_FLAGS;
+}
 
 function useProviders(): ProvidersState {
   const query = useSystemProviders();
@@ -219,6 +231,7 @@ export const pluginAppHost: PluginAppHost = {
   use: (slot) => appKernel().use(slot),
   useRealtimeConnectionState: useServerConnectionState,
   useSettings,
+  useExperiments,
   usePluginId,
   useBbContext,
   useBbNavigate,

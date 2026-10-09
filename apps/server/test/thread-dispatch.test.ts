@@ -139,3 +139,25 @@ it("stops a thread that is still provisioning or about to start", async () => {
   await ingest(id, events.completed("t1", "interrupted"));
   expect(thread(id)).toMatchObject({ status: "idle", activeTurnId: null });
 });
+
+it("sends queued messages in the order a client set", async () => {
+  const server = await createThreadServer();
+  const { http, ingest, lastSubmit } = server;
+  const id = await server.spawn();
+  await server.send(id, "steer-if-active", "one");
+  await ingest(id, events.identity(), events.started("t1"));
+  await server.send(id, "queue-if-active", "two");
+  await server.send(id, "queue-if-active", "three");
+  const path = `/threads/${id}/queued-messages`;
+  type Queued = { id: string }[];
+  const listed = (await http<Queued>("GET", path)).body;
+  const reversed = listed.map((message) => message.id).reverse();
+  const moved = await http<Queued>("PUT", `${path}/order`, {
+    queuedMessageIds: reversed.slice(0, 1),
+  });
+  expect(moved.body.map((message) => message.id)).toEqual(reversed);
+  const stray = { queuedMessageIds: ["qmsg_missing"] };
+  expect((await http("PUT", `${path}/order`, stray)).status).toBe(404);
+  await ingest(id, events.completed("t1"));
+  expect(lastSubmit()).toEqual(["three", "start"]);
+});

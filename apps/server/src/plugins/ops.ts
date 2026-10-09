@@ -78,17 +78,26 @@ export function hostOps(ctx: HostContext, bb: PluginVerbs): void {
     const plugin = await ctx.plugins.setEnabled(pluginId, false);
     return { ok: true as const, plugin };
   });
-  bb.implement(plugins.settings, async ({ pluginId }) => {
-    const view = await ctx.plugins.settings(pluginId, undefined, actorUserId());
+  bb.implement(plugins.settings, async ({ pluginId, projectId = null }) => {
+    const user = actorUserId();
+    const view = await ctx.plugins.settings(
+      pluginId,
+      undefined,
+      user,
+      projectId,
+    );
     return { ok: true as const, ...view };
   });
-  bb.implement(plugins.updateSettings, async ({ pluginId, values }) => {
+  bb.implement(plugins.updateSettings, async (input) => {
+    const { pluginId, values, projectId = null } = input;
     const personal = ctx.plugins.hasPersonalSettings(
       pluginId,
       Object.keys(values),
+      projectId,
     );
     if (!personal) requireOwner("Only the owner can manage plugins");
-    const view = await ctx.plugins.settings(pluginId, values, actorUserId());
+    const user = actorUserId();
+    const view = await ctx.plugins.settings(pluginId, values, user, projectId);
     return { ok: true as const, ...view };
   });
   bb.implement(plugins.install, async ({ path, watch }) => {

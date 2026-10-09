@@ -5,6 +5,7 @@ import type {
   ProjectBranchesQuery,
   ProjectBranchesResponse,
 } from "@bb/server-contract";
+import { viewerId } from "@bb/server-kit/auth/actor";
 import { updateRow } from "@bb/server-kit/db/index";
 import * as store from "@bb/server-kit/db/projects";
 import {
@@ -104,7 +105,9 @@ export function implementProjects(bb: PluginServerApi): void {
       includePersonal === true
         ? [store.requireProject(db, PERSONAL_PROJECT_ID)]
         : [];
-    const listed = [...personal, ...store.listStandardProjects(db)];
+    const standard = store.listStandardProjects(db);
+    const ordered = store.inProjectOrder(db, viewerId(), standard);
+    const listed = [...personal, ...ordered];
     if (include?.split(",").includes("threads") !== true) {
       return store.withSources(db, listed);
     }
@@ -123,6 +126,17 @@ export function implementProjects(bb: PluginServerApi): void {
       hub.project(projectId, ["project-created", "project-sources-changed"]);
     }
     return projectResponse(projectId);
+  });
+
+  bb.implement(projects.order, () => ({
+    projectIds: store.readProjectOrder(db, viewerId()),
+  }));
+
+  bb.implement(projects.updateOrder, ({ projectIds }) => {
+    for (const projectId of projectIds) store.requireProject(db, projectId);
+    store.writeProjectOrder(db, viewerId(), projectIds);
+    for (const id of projectIds) hub.project(id, ["project-updated"]);
+    return { projectIds: store.readProjectOrder(db, viewerId()) };
   });
 
   bb.implement(projects.get, ({ projectId }) => projectResponse(projectId));

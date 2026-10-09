@@ -79,6 +79,27 @@ export function insertQueuedMessage(
   return row;
 }
 
+export function reorderQueuedMessages(
+  db: Db,
+  threadId: string,
+  ids: readonly string[],
+): void {
+  const rows = listQueuedMessages(db, threadId);
+  const known = new Set(rows.map(({ id }) => id));
+  const missing = ids.find((id) => !known.has(id));
+  if (missing !== undefined) throw queuedMessageNotFound();
+  const rest = rows.map(({ id }) => id).filter((id) => !ids.includes(id));
+  let previous: string | null = null;
+  for (const id of [...new Set(ids), ...rest]) {
+    previous = orderKeyBetween(previous, null);
+    db.run(
+      "UPDATE queued_thread_messages SET sort_key = ? WHERE id = ?",
+      previous,
+      id,
+    );
+  }
+}
+
 export function deleteQueuedMessages(db: Db, ids: readonly string[]): void {
   for (const id of ids) {
     db.run("DELETE FROM queued_thread_messages WHERE id = ?", id);

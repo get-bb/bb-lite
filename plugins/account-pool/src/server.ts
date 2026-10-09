@@ -168,6 +168,16 @@ export default async function accountPool(bb: PluginServerApi): Promise<void> {
       if (hostId === null || !(await canServe(provider))) return next();
       return [...entries(await tokens.forHost(hostId)), ...(await next())];
     });
+  const health = (providerId: string, provider: PoolProvider) =>
+    bb.on(sessions.environmentHealth, { providerId }, async (_input, next) => {
+      const read = await next();
+      if (!(await canServe(provider))) return read;
+      const statusMessage =
+        "Credentials are provided by the Account Pooler hub.";
+      return { ...read, label: "Proxied", statusMessage };
+    });
+  health("claude-code", "claude");
+  health("codex", "codex");
   contribute("claude-code", "claude", (token) => [
     { name: "ANTHROPIC_BASE_URL", value: { serverPath: HUB_PATH } },
     { name: "ANTHROPIC_AUTH_TOKEN", value: token },

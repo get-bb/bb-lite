@@ -47,7 +47,8 @@ export interface PluginAppHost {
   ): ReactElement;
   use<Item>(slot: Slot<Item>): Item;
   useRealtimeConnectionState(): T.RealtimeConnectionState;
-  useSettings(): T.SettingsState;
+  useSettings(options?: { projectId?: string }): T.SettingsState;
+  useExperiments(): Readonly<Record<string, boolean>>;
   usePluginId(): string;
   useBbContext(): T.BbContext;
   useBbNavigate(): T.BbNavigate;
@@ -111,6 +112,7 @@ function component<Props extends object>(
 
 export const useRealtimeConnectionState = hook("useRealtimeConnectionState");
 export const useSettings = hook("useSettings");
+export const useExperiments = hook("useExperiments");
 export const usePluginId = hook("usePluginId");
 export const useBbContext = hook("useBbContext");
 export const useBbNavigate = hook("useBbNavigate");

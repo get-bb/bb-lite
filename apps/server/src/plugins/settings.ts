@@ -46,6 +46,7 @@ export class PluginSettings {
   descriptors: SettingDescriptors = {};
   readonly listeners: SettingsListener[] = [];
   private readonly personal = new Set<string>();
+  private readonly perProject = new Set<string>();
 
   constructor(
     private readonly db: Db,
@@ -54,26 +55,43 @@ export class PluginSettings {
   ) {}
 
   define(descriptors: SettingDescriptors, scope: SettingScope): void {
-    this.descriptors = { ...this.descriptors, ...descriptors };
     for (const [key, descriptor] of Object.entries(descriptors)) {
-      if (scope === "user" && !isSecret(descriptor)) this.personal.add(key);
+      const own = descriptor.scope ?? scope;
+      const shared = isSecret(descriptor) || own === "workspace";
+      const stored = shared ? descriptor : { ...descriptor, scope: own };
+      this.descriptors = { ...this.descriptors, [key]: stored };
+      if (shared) continue;
+      (own === "user" ? this.personal : this.perProject).add(key);
     }
   }
 
-  isPersonal(keys: readonly string[]): boolean {
-    return keys.length > 0 && keys.every((key) => this.personal.has(key));
+  isPersonal(keys: readonly string[], projectId?: string | null): boolean {
+    const own = (key: string) =>
+      this.personal.has(key) || (this.perProject.has(key) && !!projectId);
+    return keys.length > 0 && keys.every(own);
   }
 
-  private rowKey(key: string, userId: string | null): string {
+  private rowKey(
+    key: string,
+    userId: string | null,
+    projectId: string | null,
+  ): string {
+    if (projectId !== null && this.perProject.has(key)) {
+      return `${key}#${projectId}`;
+    }
     const own = userId !== null && this.personal.has(key);
     return own ? `${key}@${userId}` : key;
   }
 
-  async read(userId: string | null = null): Promise<SettingRecord> {
+  async read(
+    userId: string | null = null,
+    projectId: string | null = null,
+  ): Promise<SettingRecord> {
     const rows = readPluginRows(this.db, "plugin_settings", this.pluginId);
     const values: SettingRecord = {};
     for (const [key, descriptor] of Object.entries(this.descriptors)) {
-      const own = rows.get(this.rowKey(key, userId)) ?? rows.get(key);
+      const row = this.rowKey(key, userId, projectId);
+      const own = rows.get(row) ?? rows.get(key);
       const stored: unknown = isSecret(descriptor)
         ? await readFile(join(this.secretsDir, key), "utf8").catch(() => null)
         : JSON.parse(own ?? "null");
@@ -85,7 +103,14 @@ export class PluginSettings {
   async write(
     update: Record<string, unknown>,
     userId: string | null = null,
+    projectId: string | null = null,
   ): Promise<SettingRecord> {
+    if (
+      projectId !== null &&
+      this.db.get(PROJECT_EXISTS, projectId) === undefined
+    ) {
+      throw invalidRequest(`Unknown project: ${projectId}`);
+    }
     const entries = Object.entries(update).map(([key, value]) => {
       const descriptor = this.descriptors[key];
       if (descriptor === undefined) {
@@ -103,11 +128,11 @@ export class PluginSettings {
       }
       return { key, value, secret: isSecret(descriptor) };
     });
-    const previous = await this.read(userId);
+    const previous = await this.read(userId, projectId);
     for (const { key, value, secret } of entries) {
       if (!secret) {
         const stored = value === null ? null : JSON.stringify(value);
-        const row = this.rowKey(key, userId);
+        const row = this.rowKey(key, userId, projectId);
         writePluginRow(this.db, "plugin_settings", this.pluginId, row, stored);
       } else if (value === null) {
         await rm(join(this.secretsDir, key), { force: true });
@@ -118,7 +143,7 @@ export class PluginSettings {
         await chmod(file, SECRET_FILE_MODE);
       }
     }
-    const next = await this.read(userId);
+    const next = await this.read(userId, projectId);
     if (JSON.stringify(next) !== JSON.stringify(previous)) {
       for (const listener of this.listeners) listener(next, previous);
     }
@@ -127,8 +152,9 @@ export class PluginSettings {
 
   async publicValues(
     userId: string | null = null,
+    projectId: string | null = null,
   ): Promise<Record<string, JsonValue>> {
-    const values = await this.read(userId);
+    const values = await this.read(userId, projectId);
     const visible: Record<string, JsonValue> = {};
     for (const [key, descriptor] of Object.entries(this.descriptors)) {
       const value = values[key];

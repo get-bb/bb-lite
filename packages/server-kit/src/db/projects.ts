@@ -57,6 +57,56 @@ export function listStandardProjects(db: Db): Project[] {
   );
 }
 
+const PROJECT_ORDER_KEY = "projectOrder";
+
+export function readProjectOrder(db: Db, userId: string): string[] {
+  const row = db.get<{ valueJson: string }>(
+    "SELECT value_json FROM ui_preferences WHERE user_id = ? AND key = ?",
+    userId,
+    PROJECT_ORDER_KEY,
+  );
+  const stored: unknown = JSON.parse(row?.valueJson ?? "[]");
+  return Array.isArray(stored)
+    ? stored.filter((id): id is string => typeof id === "string")
+    : [];
+}
+
+export function writeProjectOrder(
+  db: Db,
+  userId: string,
+  projectIds: readonly string[],
+): void {
+  db.run(
+    `INSERT INTO ui_preferences (user_id, key, value_json, revision, updated_at)
+     VALUES (?, ?, ?, 1, ?) ON CONFLICT (user_id, key) DO UPDATE SET
+     value_json = excluded.value_json, revision = revision + 1,
+     updated_at = excluded.updated_at`,
+    userId,
+    PROJECT_ORDER_KEY,
+    JSON.stringify([...new Set(projectIds)]),
+    Date.now(),
+  );
+}
+
+export function inProjectOrder<T extends { id: string }>(
+  db: Db,
+  userId: string,
+  listed: readonly T[],
+): T[] {
+  const order = readProjectOrder(db, userId);
+  if (order.length === 0) return [...listed];
+  const rank = (id: string) => {
+    const at = order.indexOf(id);
+    return at === -1 ? order.length : at;
+  };
+  return listed
+    .map((project, index) => ({ project, index }))
+    .sort(
+      (a, b) => rank(a.project.id) - rank(b.project.id) || a.index - b.index,
+    )
+    .map(({ project }) => project);
+}
+
 export function requireProject(db: Db, id: string): Project {
   const project = db.get<Project>(
     `SELECT ${PROJECT_COLUMNS} FROM projects

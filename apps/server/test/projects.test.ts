@@ -144,3 +144,24 @@ it("stores attachments and serves them with ranges", async () => {
   const copied = await read("bytes=9-", attachment.path, personal.id);
   expect(copied).toBe("206|bytes 9-9/10|9");
 });
+
+it("stores a per-user project order that the list and sidebar honour", async () => {
+  const server = await createTestServer();
+  const alpha = await createProject(server, "alpha");
+  const beta = await createProject(server, "beta");
+  const gamma = await createProject(server, "gamma");
+  await server.matches("/projects/order", { projectIds: [] });
+  const projectIds = [gamma.id, alpha.id];
+  const saved = await server.send("/projects/order", { projectIds }, "PUT");
+  expect(await saved.json()).toEqual({ projectIds });
+  const names = (listed: { name: string }[]) => listed.map(({ name }) => name);
+  const listed = await server.read<{ name: string }[]>("/projects");
+  expect(names(listed)).toEqual(["gamma", "alpha", "beta"]);
+  const sidebar = await server.read<{ projects: { name: string }[] }>(
+    "/projects/sidebar",
+  );
+  expect(names(sidebar.projects)).toEqual(["gamma", "alpha", "beta"]);
+  const unknown = { projectIds: [beta.id, "proj_missing"] };
+  const refused = await server.send("/projects/order", unknown, "PUT");
+  expect(refused.status).toBe(404);
+});

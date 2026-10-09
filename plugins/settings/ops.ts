@@ -109,6 +109,10 @@ export function implementSettings(bb: PluginServerApi): void {
   const appearance = () =>
     store.readSetting(db, personal(store.appearanceSetting));
 
+  bb.implement(server.experiments, () => ({
+    flags: { ...bb.server.experiments },
+  }));
+
   bb.implement(server.config, async (): Promise<SystemConfigResponse> => {
     const generalSettings = store.getAppSettings(db);
     const keybindingOverrides = store.readSetting(

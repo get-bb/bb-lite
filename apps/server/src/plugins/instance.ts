@@ -209,9 +209,13 @@ export function createPluginInstance(
             typed(
               await settings.read(
                 options?.userId === undefined ? user() : options.userId,
+                options?.projectId ?? null,
               ),
             ),
-          set: async (values) => typed(await settings.write(values, user())),
+          set: async (values, options) =>
+            typed(
+              await settings.write(values, user(), options?.projectId ?? null),
+            ),
           onChange: (listener) => {
             settings.listeners.push((next, previous) => {
               try {

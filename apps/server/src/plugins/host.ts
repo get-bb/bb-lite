@@ -198,24 +198,29 @@ export class PluginHost extends PluginRegistry {
     return comparable && timingSafeEqual(expected, given);
   }
 
-  hasPersonalSettings(id: string, keys: readonly string[]): boolean {
-    return this.running(id).settings.isPersonal(keys);
+  hasPersonalSettings(
+    id: string,
+    keys: readonly string[],
+    projectId?: string | null,
+  ): boolean {
+    return this.running(id).settings.isPersonal(keys, projectId);
   }
 
   async settings(
     id: string,
     update?: Record<string, unknown>,
     userId: string | null = null,
+    projectId: string | null = null,
   ) {
     const instance = this.running(id);
     if (update !== undefined) {
-      await instance.settings.write(update, userId);
+      await instance.settings.write(update, userId, projectId);
       const waiting = instance.needsConfiguration !== null;
       if (waiting) await this.load(this.record(id));
       this.options.hub.system(["plugins-changed"]);
     }
     const { settings } = this.running(id);
-    const values = await settings.publicValues(userId);
+    const values = await settings.publicValues(userId, projectId);
     return { schema: settings.descriptors, values };
   }
 

@@ -79,7 +79,10 @@ export const qk = {
 
   plugins,
   pluginList: () => plugins("list"),
-  pluginSettings: (pluginId: string) => plugins("settings", pluginId),
+  pluginSettings: (pluginId: string, projectId?: string) =>
+    projectId === undefined
+      ? plugins("settings", pluginId)
+      : plugins("settings", pluginId, projectId),
   pluginContributions: () => plugins("contributions"),
   pluginMentionSearch: (args: {
     trigger: string;

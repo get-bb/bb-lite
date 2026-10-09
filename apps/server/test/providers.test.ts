@@ -139,3 +139,26 @@ it("reports each enabled provider's install and login state", async () => {
     installAction: { kind: "update", command: "npm i -g codex" },
   });
 });
+
+it("reports the health of a provider's environment on a machine", async () => {
+  const server = await createTestServer();
+  const health = (providerId: string, machineId?: string) =>
+    server.read(
+      `/sessions/providers/${providerId}/environment-health` +
+        (machineId === undefined ? "" : `?machineId=${machineId}`),
+    );
+  const hostId = server.ctx.config.hostId;
+  const ready = { providerId: "codex", machineId: hostId, status: "ready" };
+  expect(await health("codex")).toEqual({
+    ...ready,
+    label: null,
+    statusMessage: null,
+  });
+  expect(await health("codex", "host_gone")).toMatchObject({
+    status: "offline",
+  });
+  expect(await health("nope")).toMatchObject({ status: "unknown-provider" });
+  const off = { enabled: false };
+  await server.send("/sessions/providers/codex/enabled", off, "PUT");
+  expect(await health("codex")).toMatchObject({ status: "disabled" });
+});

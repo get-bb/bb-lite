@@ -25,6 +25,7 @@ const envSchema = z.object({
   BB_PROFILE: z.string().min(1).optional(),
   BB_APP_DIR: z.string().min(1).optional(),
   BB_LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
+  BB_EXPERIMENTS: z.string().optional(),
 });
 
 export function loopbackUrl(config: ServerConfig): string {
@@ -81,6 +82,17 @@ function hostnames(list: string): string[] {
   return names.filter((name) => name !== "");
 }
 
+export function parseExperiments(list: string): Record<string, boolean> {
+  const flags = list.split(",").map((flag) => flag.trim());
+  return Object.fromEntries(
+    flags
+      .filter((flag) => flag !== "" && flag !== "-")
+      .map((flag) =>
+        flag.startsWith("-") ? [flag.slice(1), false] : [flag, true],
+      ),
+  );
+}
+
 export function loadConfig(env: ServerEnv = process.env): ServerConfig {
   const parsed = envSchema.parse(env);
   const dataDir = resolve(parsed.BB_DATA_DIR ?? join(homedir(), ".bb-150k"));
@@ -95,5 +107,6 @@ export function loadConfig(env: ServerEnv = process.env): ServerConfig {
     version: readVersion(),
     hostId: prepareDataDir(dataDir),
     logLevel: parsed.BB_LOG_LEVEL ?? "info",
+    experiments: parseExperiments(parsed.BB_EXPERIMENTS ?? ""),
   };
 }

@@ -94,6 +94,21 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
           : { installAction: status.installAction }),
       }));
   });
+  bb.implement(sessions.environmentHealth, (input) => {
+    const { providerId } = input;
+    const machineId = input.machineId ?? bb.runners.localHostId;
+    const enabled = listEnabledProviders(db).some(
+      ({ info }) => info.id === providerId,
+    );
+    const status = !enabled
+      ? findProviderDefinition(db, providerId) === undefined
+        ? "unknown-provider"
+        : "disabled"
+      : bb.runners.isConnected(machineId)
+        ? "ready"
+        : "offline";
+    return { providerId, machineId, status, label: null, statusMessage: null };
+  });
   bb.implement(sessions.providerCatalog, () => listProviderCatalog(db));
   bb.implement(sessions.updateProvider, ({ providerId, enabled }) => {
     if (findProviderDefinition(db, providerId) === undefined) {

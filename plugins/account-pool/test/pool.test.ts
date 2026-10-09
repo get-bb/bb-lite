@@ -151,6 +151,10 @@ it("forwards Claude messages for stored accounts and streams SSE unbuffered", as
   const accounts = [stored(1, "claude"), stored(2, "claude")];
   const pool = await seed(await createTestServer(), upstream.url, accounts);
   const value = await pool.token("claude-code", "ANTHROPIC_AUTH_TOKEN");
+  const health = await pool.ctx.kernel.call(sessions.environmentHealth, {
+    providerId: "claude-code",
+  });
+  expect(health).toMatchObject({ label: "Proxied" });
   expect(await pool.env("claude-code")).toEqual({
     ANTHROPIC_BASE_URL: { serverPath: HUB_PATH },
     ANTHROPIC_AUTH_TOKEN: value,

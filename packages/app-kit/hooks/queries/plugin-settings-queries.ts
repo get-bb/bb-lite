@@ -52,9 +52,13 @@ function toPluginListItem(plugin: InstalledPlugin): PluginListItem {
 export async function updatePluginSettings(
   pluginId: string,
   values: Record<string, unknown>,
+  projectId?: string,
 ): Promise<PluginSettingsView> {
-  const request = pluginSettingsUpdateRequestSchema.parse({ values });
-  return callOp(plugins.updateSettings, { pluginId, values: request.values });
+  const request = pluginSettingsUpdateRequestSchema.parse({
+    values,
+    projectId,
+  });
+  return callOp(plugins.updateSettings, { pluginId, ...request });
 }
 
 export async function setPluginEnabled(
@@ -68,9 +72,10 @@ export function applyPluginSettingsView(args: {
   queryClient: QueryClient;
   pluginId: string;
   view: PluginSettingsView;
+  projectId?: string;
 }): void {
-  const { pluginId, queryClient, view } = args;
-  queryClient.setQueryData(qk.pluginSettings(pluginId), view);
+  const { pluginId, queryClient, view, projectId } = args;
+  queryClient.setQueryData(qk.pluginSettings(pluginId, projectId), view);
 }
 
 export function invalidatePluginList(args: {
@@ -98,12 +103,13 @@ export function usePluginList(args: { enabled: boolean }) {
 
 export function usePluginSettingsView(
   pluginId: string,
-  options: { enabled: boolean },
+  options: { enabled: boolean; projectId?: string },
 ) {
+  const { projectId } = options;
   return useQuery({
-    queryKey: qk.pluginSettings(pluginId),
+    queryKey: qk.pluginSettings(pluginId, projectId),
     queryFn: (): Promise<PluginSettingsView | null> =>
-      callOp(plugins.settings, { pluginId }).catch(() => null),
+      callOp(plugins.settings, { pluginId, projectId }).catch(() => null),
     enabled: options.enabled,
     staleTime: 30_000,
   });

@@ -48,11 +48,13 @@ function PluginSetting({
   pluginId,
   settingKey,
   storedValue,
+  projectId,
 }: {
   descriptor: PluginSettingFieldDescriptor;
   pluginId: string;
   settingKey: string;
   storedValue: unknown;
+  projectId?: string;
 }) {
   const queryClient = useQueryClient();
   const messageId = useId();
@@ -60,9 +62,9 @@ function PluginSetting({
   const save = useMutation({
     scope: { id: `plugin-setting:${pluginId}:${settingKey}` },
     mutationFn: (value: string | boolean | number) =>
-      updatePluginSettings(pluginId, { [settingKey]: value }),
+      updatePluginSettings(pluginId, { [settingKey]: value }, projectId),
     onSuccess: (view) => {
-      applyPluginSettingsView({ queryClient, pluginId, view });
+      applyPluginSettingsView({ queryClient, pluginId, view, projectId });
       setDraft(null);
     },
   });
@@ -202,9 +204,12 @@ function PluginSetting({
 function PluginSettingsForm({ pluginId }: { pluginId: string }) {
   const view = usePluginSettingsView(pluginId, { enabled: true }).data;
   if (!view || Object.keys(view.schema).length === 0) return null;
+  const entries = Object.entries(view.schema);
+  const shared = entries.filter(([, field]) => field.scope !== "project");
+  const perProject = entries.filter(([, field]) => field.scope === "project");
   return (
     <div className="space-y-4">
-      {Object.entries(view.schema).map(([key, descriptor]) => (
+      {shared.map(([key, descriptor]) => (
         <PluginSetting
           key={key}
           descriptor={descriptor}
@@ -213,6 +218,45 @@ function PluginSettingsForm({ pluginId }: { pluginId: string }) {
           storedValue={view.values[key]}
         />
       ))}
+      {perProject.length > 0 ? (
+        <ProjectPluginSettings pluginId={pluginId} fields={perProject} />
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectPluginSettings({
+  pluginId,
+  fields,
+}: {
+  pluginId: string;
+  fields: [string, PluginSettingFieldDescriptor][];
+}) {
+  const [projectId, setProjectId] = useState("");
+  const chosen = projectId === "" ? undefined : projectId;
+  const view = usePluginSettingsView(pluginId, {
+    enabled: chosen !== undefined,
+    projectId: chosen,
+  }).data;
+  return (
+    <div className="space-y-4">
+      <ProjectSetting
+        value={projectId}
+        onChange={setProjectId}
+        aria={{ "aria-label": "Project" }}
+      />
+      {chosen !== undefined && view
+        ? fields.map(([key, descriptor]) => (
+            <PluginSetting
+              key={`${chosen}:${key}`}
+              descriptor={descriptor}
+              pluginId={pluginId}
+              settingKey={key}
+              storedValue={view.values[key]}
+              projectId={chosen}
+            />
+          ))
+        : null}
     </div>
   );
 }

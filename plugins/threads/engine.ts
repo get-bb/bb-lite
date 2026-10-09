@@ -460,6 +460,7 @@ export function createThreadEngine(bb: PluginServerApi) {
   const requeue = writes(serialized(mutations.updateQueuedMessage));
   const unqueue = writes(serialized(mutations.deleteQueuedMessage));
   const sendQueued = writes(serialized(mutations.sendQueuedMessageNow));
+  const reorderQueued = writes(serialized(mutations.reorderQueuedMessages));
   const resolve = writes(serialized(interactions.resolveProviderInteraction));
   const respond = writes(serialized(interactions.respondToInteraction));
   const cancel = writes(serialized(interactions.cancelByUser));
@@ -490,6 +491,9 @@ export function createThreadEngine(bb: PluginServerApi) {
   });
   bb.implement(threadOps.deleteQueuedMessage, (input) =>
     unqueue(input.threadId, input.queuedMessageId),
+  );
+  bb.implement(threadOps.reorderQueuedMessages, (input) =>
+    reorderQueued(input.threadId, input.queuedMessageIds),
   );
   bb.implement(threadOps.sendQueuedMessage, (input) =>
     sendQueued(input.threadId, input.queuedMessageId, input.mode),
