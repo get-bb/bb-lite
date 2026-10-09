@@ -11,6 +11,7 @@ const AGENT_FEATURES = [
   "bb-guide",
   "drafts",
   "provider-retry",
+  "scheduled-send",
   "audit",
   "plugin-dev",
 ];

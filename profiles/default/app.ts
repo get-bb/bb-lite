@@ -47,6 +47,10 @@ export const appPlugins: readonly BuiltinAppPlugin[] = [
     load: () => import("../../plugins/connect/app"),
   },
   {
+    id: "scheduled-send",
+    load: () => import("../../plugins/scheduled-send/app"),
+  },
+  {
     id: "secrets",
     load: () => import("../../plugins/secrets/app"),
   },

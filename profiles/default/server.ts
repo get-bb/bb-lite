@@ -71,6 +71,7 @@ export const serverPlugins: BuiltinPlugin[] = [
     server: customInstructions,
   },
   { directory: pluginDirectory("provider-retry"), server: providerRetry },
+  { directory: pluginDirectory("scheduled-send"), server: null },
   { directory: pluginDirectory("connect"), server: connect },
   { directory: pluginDirectory("audit"), server: audit },
   { directory: pluginDirectory("plugin-dev"), server: pluginDev },
