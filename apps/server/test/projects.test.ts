@@ -23,7 +23,9 @@ it("finds or creates projects by host and path, in creation order", async () => 
   const again = await createProject(server, "again", "/repos/alpha");
   expect(again.id).toBe(alpha.id);
   const beta = await createProject(server, "beta");
-  const listed = await (await api.projects.$get({ query: {} })).json();
+  const listed: { name: string }[] = await (
+    await api.projects.$get({ query: {} })
+  ).json();
   expect(listed.map((project) => project.name)).toEqual(["alpha", "beta"]);
   const param = { id: beta.id };
   const json = { name: "beta two" };
@@ -37,7 +39,7 @@ it("protects the personal project and deletes others entirely", async () => {
   const { api, ctx } = server;
   const changed = await watchChanges(server);
   const { id } = await createProject(server, "alpha");
-  const query = { includePersonal: "true", include: "threads" } as const;
+  const query = { includePersonal: true, include: "threads" } as const;
   const [first, second] = await (await api.projects.$get({ query })).json();
   const empty = { threads: [], defaultExecutionOptions: null, sources: [] };
   expect(first).toMatchObject({ ...personal, name: "Personal", ...empty });

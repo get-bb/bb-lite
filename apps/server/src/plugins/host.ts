@@ -67,9 +67,6 @@ const UNLOADED = { instance: null, app: null, error: null, token: null };
 
 export class PluginHost extends PluginRegistry {
   onChanged: () => void = () => {};
-  fetch: (request: Request) => Promise<Response> = async () => {
-    throw new Error("The plugin host has not started");
-  };
   private settled: Promise<void> = Promise.resolve();
   private readonly runnerBundles = new Map<string, RunnerPartBundle>();
   private readonly watchers = new Map<string, FSWatcher>();
@@ -347,7 +344,7 @@ export class PluginHost extends PluginRegistry {
     const { dataDir } = config;
     const server = { ...config, url: loopbackUrl(config), tunnelToken };
     const { instance, api } = createPluginInstance(
-      { ...this.options, server, fetch: this.fetch },
+      { ...this.options, server },
       id,
       record.external ? "installed" : "product",
     );

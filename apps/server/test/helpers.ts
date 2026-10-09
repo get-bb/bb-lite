@@ -23,7 +23,6 @@ import {
   RunnerError,
   type RunnerEventSink,
 } from "@bb/runner";
-import { createApiClient } from "@bb/server-contract";
 import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { expect, onTestFinished } from "vitest";
 import { WebSocket } from "ws";
@@ -48,6 +47,43 @@ const NEXT_MESSAGE_TIMEOUT_MS = 2_000;
 const JSON_HEADERS = { "content-type": "application/json" };
 const LISTS = ["project", "thread", "host", "environment"] as const;
 const AT = { createdAt: 1, updatedAt: 1 };
+
+interface Sent {
+  param?: Record<string, string>;
+  query?: Record<string, unknown>;
+  json?: unknown;
+}
+type Send = (sent?: Sent) => Promise<Response>;
+type Verb = "$get" | "$post" | "$put" | "$patch" | "$delete";
+type Paths = { [segment: string]: Paths } & Record<Verb, Send>;
+
+function paths(
+  request: (path: string, init: RequestInit) => Promise<Response>,
+  segments: string[] = [],
+): Paths {
+  const send = (verb: string, { param = {}, query = {}, json }: Sent) => {
+    const filled = segments.map((segment) =>
+      segment.startsWith(":")
+        ? encodeURIComponent(param[segment.slice(1)] ?? "")
+        : segment,
+    );
+    const given = Object.entries(query).filter(([, value]) => value != null);
+    const search = new URLSearchParams(
+      given.map(([name, value]) => [name, String(value)]),
+    ).toString();
+    const path = `/${filled.join("/")}${search === "" ? "" : `?${search}`}`;
+    const method = verb.slice(1).toUpperCase();
+    if (json === undefined) return request(path, { method });
+    const body = JSON.stringify(json);
+    return request(path, { method, headers: JSON_HEADERS, body });
+  };
+  return new Proxy({} as Paths, {
+    get: (_target, key: string) =>
+      key.startsWith("$")
+        ? (sent: Sent = {}) => send(key, sent)
+        : paths(request, [...segments, key]),
+  });
+}
 
 export class FakeRunner {
   readonly calls: { method: string; args: unknown[] }[] = [];
@@ -215,7 +251,7 @@ export async function createTestServer(
   return {
     ctx: Object.assign(server.ctx, facades(server.ctx)),
     url,
-    api: createApiClient(url).api.v1,
+    api: paths(request),
     runner,
     clock,
     request,

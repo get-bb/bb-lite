@@ -7,6 +7,7 @@ import {
   op,
   sessions,
   table,
+  projects as projectOps,
   threads as threadOps,
   type PluginServerApi,
   plugins as hostOps,
@@ -232,7 +233,10 @@ it("serves operations and the live chain over HTTP", async () => {
     failClosed: false,
   });
   const send = body.ops.find(({ name }) => name === "threads.send");
-  expect(send).toMatchObject({ owner: "threads", kind: "write", doors: [] });
+  const offered = { owner: "threads", kind: "write", doors: ["app", "http"] };
+  expect(send).toMatchObject(offered);
+  const held = body.ops.find(({ name }) => name === "threads.hold");
+  expect(held).toMatchObject({ owner: "threads", doors: [] });
 });
 
 it("offers one operation to agents and the CLI, and pushes changes", async () => {
@@ -516,7 +520,7 @@ it("lets plugins keep shared tables, publish one and join another's", async () =
   await host.stop();
 });
 
-it("gives a plugin the full client, acting as whoever called it", async () => {
+it("lets a plugin call core operations, acting as whoever called it", async () => {
   const server = await createThreadServer();
   const { ctx } = server;
   const threadId = await server.spawn();
@@ -530,9 +534,9 @@ it("gives a plugin the full client, acting as whoever called it", async () => {
   });
   const entry = (bb: PluginServerApi) => {
     bb.implement(helper.tidy, async (input) => {
-      const projects = await bb.sdk.projects.list();
-      await bb.sdk.threads.archive({ threadId: input.threadId });
-      return projects.length;
+      const listed = await bb.call(projectOps.list, {});
+      await bb.call(threadOps.archive, { threadId: input.threadId });
+      return listed.length;
     });
   };
   const directory = join(scratch(), "helper");
@@ -543,7 +547,6 @@ it("gives a plugin the full client, acting as whoever called it", async () => {
     ...ctx.plugins.options,
     builtins: [{ directory, server: entry }],
   });
-  host.fetch = ctx.plugins.fetch;
   await host.reload();
   const called = await server.http("POST", "/ops/helper.tidy", { threadId });
   expect(called).toMatchObject({ status: 200, body: { result: 1 } });

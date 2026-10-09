@@ -1,9 +1,9 @@
+import type { Remote } from "./call.js";
 import type {
   Environment,
   QueuedMessageWaitingOn,
   ThreadTimelinePendingTodos,
 } from "@bb/domain";
-import type { BbSdk } from "@bb/sdk";
 import type { ThreadResponse } from "@bb/server-contract";
 
 interface QueueWait {
@@ -25,11 +25,11 @@ function date(at: number): string {
 }
 
 export async function pendingTodosOf(
-  sdk: BbSdk,
+  remote: Remote,
   threadId: string,
 ): Promise<ThreadTimelinePendingTodos | null> {
-  const summaryOnly = "true";
-  const request = sdk.threads.timeline({ threadId, summaryOnly });
+  const summary = { threadId, summaryOnly: true };
+  const request = remote.op(remote.ops.threads.timeline, summary);
   return (await request.catch(() => null))?.pendingTodos ?? null;
 }
 

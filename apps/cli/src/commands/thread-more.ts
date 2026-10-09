@@ -29,7 +29,7 @@ function interactionTarget(c: Call) {
 
 export const threadInteractionsList: Run = async (c) => {
   const threadId = threadTarget(c);
-  const interactions = await c.sdk.threads.interactions.list({ threadId });
+  const interactions = await c.op(c.ops.interactions.list, { threadId });
   const { formatPendingInteractionSummary } = await import("@bb/core-ui");
   const rows = interactions.map((interaction) => ({
     id: interaction.id,
@@ -41,7 +41,7 @@ export const threadInteractionsList: Run = async (c) => {
 };
 
 export const threadInteractionsShow: Run = async (c) => {
-  c.out(await c.sdk.threads.interactions.get(interactionTarget(c)));
+  c.out(await c.op(c.ops.interactions.get, interactionTarget(c)));
 };
 
 function userAnswer(
@@ -109,17 +109,18 @@ async function resolution(
 
 export const threadInteractionsResolve: Run = async (c) => {
   const target = interactionTarget(c);
-  const { interactions } = c.sdk.threads;
+  const { interactions } = c.ops;
   const raw = c.flag("value");
   let updated: PendingInteraction;
   if (raw === undefined) {
-    const interaction = await interactions.get(target);
+    const interaction = await c.op(interactions.get, target);
     const resolved = await resolution(c, interaction);
-    updated = await interactions.resolve({ ...target, resolution: resolved });
+    const answer = { ...target, resolution: resolved };
+    updated = await c.op(interactions.resolve, answer);
   } else {
     const { jsonValueSchema } = loaded().domain;
     const value = valid(jsonValueSchema, parseJson(raw, "--value"), "--value");
-    updated = await interactions.respond({ ...target, value });
+    updated = await c.op(interactions.respond, { ...target, value });
   }
   const delivering = updated.status === "resolving";
   const state = delivering
@@ -130,7 +131,7 @@ export const threadInteractionsResolve: Run = async (c) => {
 
 export const threadQueueList: Run = async (c) => {
   const threadId = threadTarget(c);
-  const queued = await c.sdk.threads.queuedMessages.list({ threadId });
+  const queued = await c.op(c.ops.threads.listQueuedMessages, { threadId });
   const rows = queued.map((row) => {
     const texts = row.content.flatMap((block) =>
       block.type === "text" ? [block.text] : [],
@@ -152,38 +153,38 @@ function queuedMessage(c: Call) {
 export const threadQueueSend: Run = async (c) => {
   const target = queuedMessage(c);
   const mode = c.choice("mode", ["auto", "steer"]) ?? "auto";
-  const { queuedMessages } = c.sdk.threads;
-  const result = await queuedMessages.send({ ...target, mode });
+  const queued = { ...target, mode };
+  const result = await c.op(c.ops.threads.sendQueuedMessage, queued);
   const text = `Queued message ${target.queuedMessageId} ${result.delivery}`;
   c.out({ ...target, ...result }, text);
 };
 
 export const threadQueueDelete: Run = async (c) => {
   const target = queuedMessage(c);
-  const result = await c.sdk.threads.queuedMessages.delete(target);
+  await c.op(c.ops.threads.deleteQueuedMessage, target);
   const text = `Queued message ${target.queuedMessageId} deleted`;
-  c.out({ ...target, ...result }, text);
+  c.out({ ...target, ok: true }, text);
 };
 
 export const threadSectionList: Run = async (c) => {
-  c.rows(await c.sdk.threadSections.list(), ["id", "name"]);
+  c.rows(await c.op(c.ops.sections.list, {}), ["id", "name"]);
 };
 
 export const threadSectionCreate: Run = async (c) => {
-  const section = await c.sdk.threadSections.create({ name: c.arg("name") });
+  const section = await c.op(c.ops.sections.create, { name: c.arg("name") });
   c.out(section, `Section ${section.id} created`);
 };
 
 export const threadSectionRename: Run = async (c) => {
   const change = { id: c.arg("id"), name: c.arg("name") };
-  const section = await c.sdk.threadSections.update(change);
+  const section = await c.op(c.ops.sections.update, change);
   c.out(section, `Section ${section.id} renamed to ${section.name}`);
 };
 
 export const threadSectionDelete: Run = async (c) => {
   const id = c.arg("id");
   await confirm(c, `Delete section ${id}? Its threads stay, unsectioned.`);
-  const result = await c.sdk.threadSections.delete({ id });
+  const result = await c.op(c.ops.sections.delete, { id });
   const moved = `${result.updatedThreadCount} thread(s) unsectioned`;
   c.out(result, `Section ${result.id} deleted; ${moved}`);
 };

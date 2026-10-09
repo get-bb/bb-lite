@@ -31,9 +31,10 @@ export async function findPluginCommand(
   env: CliEnv,
   name: string,
 ): Promise<string | null> {
-  const { sdk } = await loadModules();
-  const { plugins } = sdk.createNodeBbSdk({ baseUrl: env.serverUrl });
-  const { cliCommands } = await plugins.contributions();
+  const { plugin } = await loadModules();
+  const remote = plugin.createOpClient({ baseUrl: env.serverUrl, door: "cli" });
+  const listed = await remote.call(plugin.plugins.contributions, {});
+  const { cliCommands } = listed;
   return cliCommands.find((command) => command.name === name)?.pluginId ?? null;
 }
 
@@ -45,12 +46,12 @@ export async function runPluginCommand(
   const argv = await materializeStdinFlag(args);
   const { threadId, projectId } = env;
   const url = `${env.serverUrl}/api/v1/plugins/${pluginId}/cli`;
-  const { sdk } = await loadModules();
+  const { plugin } = await loadModules();
   const headers = new Headers({
     "content-type": "application/json",
     "x-bb-door": "cli",
   });
-  if (threadId !== undefined) headers.set(sdk.THREAD_ID_HEADER, threadId);
+  if (threadId !== undefined) headers.set(plugin.THREAD_ID_HEADER, threadId);
   const response = await fetch(url, {
     method: "POST",
     headers,

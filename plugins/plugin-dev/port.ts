@@ -3,6 +3,7 @@ import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { PortFinding, PortStatus } from "./contract.js";
+import { SDK_OPS } from "./sdk-ops.js";
 
 export interface PortPath {
   status: PortStatus;
@@ -32,7 +33,7 @@ const METADATA: Path = [
 ];
 const MACHINE_ENV: Path = [
   "changed",
-  "bb.sdk.projects.replaceMachineEnvironment",
+  "bb.call(projects.updateMachineEnvironment)",
 ];
 
 const QUEUE_ORDER: Path = [
@@ -51,6 +52,10 @@ const SDK_PATHS: Record<string, Path> = {
     "events: bb.on(threads.*), bb.on(machines.*); useChanged in the app",
   ],
   "threads.storageLocation": ["renamed", "bb.call(threads.storageLocation)"],
+  "projects.attachments.upload": [
+    "changed",
+    "POST /api/v1/projects/:projectId/attachments with a multipart file",
+  ],
   "threads.storageFiles": [
     "changed",
     "bb.call(threads.storageLocation), then node:fs",
@@ -58,24 +63,27 @@ const SDK_PATHS: Record<string, Path> = {
   "system.usageLimits": ["changed", "read the sessions.usage slot"],
   "threads.getPluginMetadata": METADATA,
   "threads.updatePluginMetadata": METADATA,
-  "threads.queue.list": ["renamed", "bb.sdk.threads.queuedMessages.list"],
+  "threads.queue.list": ["renamed", "bb.call(threads.listQueuedMessages)"],
   "threads.retry": [
     "changed",
-    "bb.sdk.threads.queuedMessages.create with sendAt",
+    "bb.call(threads.createQueuedMessage) with sendAt",
   ],
-  "threads.conversationOutline": ["changed", "bb.sdk.threads.timeline"],
-  "threads.listRunning": ["changed", "bb.sdk.threads.list, filtered by status"],
-  "threads.count": ["changed", "bb.sdk.threads.list"],
+  "threads.conversationOutline": ["changed", "bb.call(threads.timeline)"],
+  "threads.listRunning": [
+    "changed",
+    "bb.call(threads.list), filtered by status",
+  ],
+  "threads.count": ["changed", "bb.call(threads.list)"],
   "threads.events.wait": ["changed", "bb.on(threads.appended)"],
   "threads.context": [
     "changed",
-    "contextWindowUsage on bb.sdk.threads.timeline",
+    "contextWindowUsage on bb.call(threads.timeline)",
   ],
   "threads.fork": REWIND,
   "threads.editMessage": REWIND,
   "promptHistory.list": [
     "renamed",
-    "bb.sdk.threads.promptHistory and bb.sdk.projects.promptHistory",
+    "bb.call(threads.promptHistory) and bb.call(projects.promptHistory)",
   ],
   "hosts.suspend": ["renamed", "bb.call(machines.suspend)"],
   "hosts.resume": ["renamed", "bb.call(machines.resume)"],
@@ -86,7 +94,7 @@ const SDK_PATHS: Record<string, Path> = {
   "hosts.createJoinCode": ["renamed", "bb.call(machines.enroll)"],
   "hosts.pickFolder": [
     "changed",
-    "bb.sdk.hosts.directory lists folders; draw the picker",
+    "bb.call(machines.directory) lists folders; draw the picker",
   ],
   "system.providerStates": ["changed", "bb.call(sessions.providers)"],
   "system.reloadConfig": [
@@ -110,8 +118,8 @@ const SDK_PATHS: Record<string, Path> = {
   "projects.setMachineEnvironmentVariable": MACHINE_ENV,
   "projects.deleteMachineEnvironmentVariable": MACHINE_ENV,
   "terminals.resize": ["renamed", "bb.call(terminals.resize)"],
-  "theme.get": ["changed", "appearance on bb.sdk.system.config"],
-  "theme.catalog": ["changed", "themes on bb.sdk.system.config"],
+  "theme.get": ["changed", "appearance on bb.call(server.config)"],
+  "theme.catalog": ["changed", "themes on bb.call(server.config)"],
   "environments.pullRequest": PULL_REQUESTS,
   "environments.markPullRequestReady": PULL_REQUESTS,
   "environments.markPullRequestDraft": PULL_REQUESTS,
@@ -133,7 +141,7 @@ const SDK_PATHS: Record<string, Path> = {
   "skills.registry.search": SKILLS,
   "terminals.restart": [
     "changed",
-    "bb.sdk.terminals.close, then bb.sdk.terminals.create",
+    "bb.call(terminals.close), then bb.call(terminals.create)",
   ],
   "threads.queuedMessages.reorder": QUEUE_ORDER,
   "threads.queuedMessages.setGroupBoundary": QUEUE_ORDER,
@@ -497,7 +505,12 @@ const RULES: Rule[] = [
   ],
   [/^app\.useComposer(View)?\./u, "none", "not on the composer handle"],
   [
-    /^app\.hook\.(useBbContext|useBbNavigate|usePluginId|useProviders|useEnvironmentProviders|useRealtimeConnectionState|useSdk|useSettings|useSidebarNavigation|useSidebarNavigationSplit|useSidebarSplitLayout|useSidebarThreadActions|useSidebarThreadDraft|useSidebarThreadDraftIds|useSidebarThreadRowStatus|useSidebarThreadRowStatuses|useSidebarThreadShortcut|useSidebarThreadSplit|useSidebarThreads)$/u,
+    /^app\.hook\.useSdk$/u,
+    "changed",
+    "callOp(op, input), or useOp and useCall, with the core contracts",
+  ],
+  [
+    /^app\.hook\.(useBbContext|useBbNavigate|usePluginId|useProviders|useEnvironmentProviders|useRealtimeConnectionState|useSettings|useSidebarNavigation|useSidebarNavigationSplit|useSidebarSplitLayout|useSidebarThreadActions|useSidebarThreadDraft|useSidebarThreadDraftIds|useSidebarThreadRowStatus|useSidebarThreadRowStatuses|useSidebarThreadShortcut|useSidebarThreadSplit|useSidebarThreads)$/u,
     "same",
     'the same hook from "@bb/plugin/app"',
   ],
@@ -624,25 +637,13 @@ const RULES: Rule[] = [
   ],
 ];
 
-export function methodsOf(client: object, prefix = ""): Set<string> {
-  const names = new Set<string>();
-  for (const [key, member] of Object.entries(client)) {
-    if (typeof member === "function") names.add(`${prefix}${key}`);
-    else if (typeof member === "object" && member !== null) {
-      for (const name of methodsOf(member, `${prefix}${key}.`)) names.add(name);
-    }
-  }
-  return names;
-}
-
-export function pathFor(id: string, sdkMethods: ReadonlySet<string>): PortPath {
+export function pathFor(id: string): PortPath {
   const sdk = /^(server|app)\.sdk\.(.+)$/u.exec(id);
   if (sdk !== null) {
     const [, tier = "", method = ""] = sdk;
-    const client = tier === "server" ? "bb.sdk" : "useSdk()";
-    if (sdkMethods.has(method)) {
-      return { status: "same", now: `${client}.${method}` };
-    }
+    const call = tier === "server" ? "bb.call" : "callOp";
+    const op = SDK_OPS[method];
+    if (op !== undefined) return { status: "renamed", now: `${call}(${op})` };
     const known = SDK_PATHS[method];
     if (known !== undefined) return { status: known[0], now: known[1] };
     return { status: "none", now: "the feature behind it does not exist here" };
@@ -725,10 +726,7 @@ async function manifestOf(directory: string): Promise<string> {
   return lines.join("\n");
 }
 
-export async function portReport(
-  directory: string,
-  sdkMethods: ReadonlySet<string>,
-): Promise<PortFinding[]> {
+export async function portReport(directory: string): Promise<PortFinding[]> {
   const surface = JSON.parse(
     await readFile(SURFACE, "utf8"),
   ) as OldCapability[];
@@ -738,7 +736,7 @@ export async function portReport(
   for (const { id, pattern, manifest: declared } of surface) {
     const test = compile(pattern);
     const used = declared ? test(manifest) : sources.some(test);
-    if (used) findings.push({ id, ...pathFor(id, sdkMethods) });
+    if (used) findings.push({ id, ...pathFor(id) });
   }
   return findings;
 }

@@ -18,7 +18,6 @@
     "@bb/fuzzy-match": "workspace:*",
     "@bb/plugin": "workspace:*",
     "@bb/profile-default": "workspace:*",
-    "@bb/sdk": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "@bb/shared-ui": "workspace:*",
     "@bb/text-utils": "workspace:*",

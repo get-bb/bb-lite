@@ -3,9 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { createBbSdk } from "../../../packages/sdk/src/core.js";
 import { expect, it, vi } from "vitest";
-import { methodsOf, pathFor } from "../port.js";
+import { pathFor } from "../port.js";
 import {
   commitAll,
   createProject,
@@ -343,9 +342,8 @@ it("reports what a plugin written for the original bb uses and what each call is
 it("has a path for all but a known few of the original calls plugins use", async () => {
   const text = readFileSync(join(HERE, "..", "old-sdk.json"), "utf8");
   const used = JSON.parse(text) as { id: string }[];
-  const methods = methodsOf(createBbSdk({ baseUrl: "http://bb.test" }));
   const none = used
-    .filter(({ id }) => pathFor(id, methods).status === "none")
+    .filter(({ id }) => pathFor(id).status === "none")
     .map(({ id }) => id);
   expect(used.length).toBe(579);
   expect(none).toEqual(["server.sdk.threads.paneAction"]);

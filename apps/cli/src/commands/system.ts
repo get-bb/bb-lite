@@ -10,6 +10,7 @@ import {
   readStdin,
   valid,
   type Call,
+  type Remote,
 } from "../call.js";
 import { CliError, commandReference, usageError, type Run } from "../engine.js";
 import { bbCliPath, cliDir, guideDir } from "../paths.js";
@@ -27,22 +28,26 @@ function quiet<Value>(request: Promise<Value>): Promise<Value | null> {
 }
 
 export const status: Run = async (c) => {
-  const { sdk } = c;
+  const remote: Remote = c;
   const { projectId, threadId, serverUrl } = c.env;
   const [config, project, thread] = await Promise.all([
-    quiet(sdk.system.config()),
-    projectId === undefined ? null : quiet(sdk.projects.get({ projectId })),
-    threadId === undefined ? null : quiet(sdk.threads.get({ threadId })),
+    quiet(remote.op(remote.ops.server.config, {})),
+    projectId === undefined
+      ? null
+      : quiet(remote.op(remote.ops.projects.get, { projectId })),
+    threadId === undefined
+      ? null
+      : quiet(remote.op(remote.ops.threads.get, { threadId })),
   ]);
   const environmentId = thread?.environmentId ?? null;
   const parentThreadId = thread?.id;
   const [environment, children, pendingTodos, listed] = await Promise.all([
     environmentId === null
       ? null
-      : quiet(sdk.environments.get({ environmentId })),
-    thread && quiet(sdk.threads.list({ parentThreadId })),
-    thread && pendingTodosOf(sdk, thread.id),
-    config && quiet(sdk.plugins.list()),
+      : quiet(remote.op(remote.ops.environments.get, { environmentId })),
+    thread && quiet(remote.op(remote.ops.threads.list, { parentThreadId })),
+    thread && pendingTodosOf(remote, thread.id),
+    config && quiet(remote.op(remote.ops.plugins.list, {})),
   ]);
   const childThreads =
     children?.map(({ id, status, title }) => ({ id, status, title })) ?? null;
@@ -103,7 +108,7 @@ async function hostPath(c: Call) {
 
 export const fileRead: Run = async (c) => {
   const target = { ...(await hostPath(c)), rootPath: c.flag("root") };
-  const file = await c.sdk.files.read(target);
+  const file = await c.op(c.ops.machines.readFile, target);
   if (c.json) return c.out(file);
   const trailing = file.contentEncoding === "utf8" ? "" : "\n";
   process.stdout.write(`${file.content}${trailing}`);
@@ -114,7 +119,7 @@ export const fileWrite: Run = async (c) => {
   if ((inline === undefined) === !c.on("stdin")) {
     throw usageError("Provide exactly one of --content or --stdin.");
   }
-  const result = await c.sdk.files.write({
+  const result = await c.op(c.ops.machines.writeFile, {
     ...(await hostPath(c)),
     rootPath: c.flag("root"),
     content: inline ?? (await readStdin()).toString("utf8"),
@@ -127,7 +132,7 @@ export const fileWrite: Run = async (c) => {
 };
 
 export const fileList: Run = async (c) => {
-  const result = await c.sdk.files.list({
+  const result = await c.op(c.ops.machines.listFiles, {
     ...(await hostPath(c)),
     query: c.flag("query"),
     limit: integer(c.flag("limit"), "--limit"),
@@ -137,10 +142,9 @@ export const fileList: Run = async (c) => {
 };
 
 async function readSettings(c: Call): Promise<Record<string, unknown>> {
-  const { system } = c.sdk;
   const [config, ui] = await Promise.all([
-    system.config(),
-    system.uiPreferences.list(),
+    c.op(c.ops.server.config, {}),
+    c.op(c.ops.settings.uiPreferences, {}),
   ]);
   const keybindings = config.keybindingOverrides.map(
     ({ command, shortcut }): [string, unknown] => {
@@ -171,8 +175,8 @@ function settingValue(raw: string): unknown {
 
 async function writeSetting(c: Call, key: string, raw?: string) {
   const { domain } = loaded();
-  const { system, theme } = c.sdk;
-  const config = await system.config();
+  const { settings } = c.ops;
+  const config = await c.op(c.ops.server.config, {});
   if (key === "theme" || key === "theme.faviconColor") {
     const { themeId, faviconColor } = config.appearance;
     const next = raw ?? "default";
@@ -180,7 +184,8 @@ async function writeSetting(c: Call, key: string, raw?: string) {
       key === "theme"
         ? { themeId: next, faviconColor }
         : { themeId, faviconColor: next };
-    return theme.set(valid(domain.appThemeSchema, selection, key));
+    const theme = valid(domain.appThemeSchema, selection, key);
+    return c.op(settings.updateAppearance, theme);
   }
   if (key.startsWith(KEYBINDING)) {
     const command = key.slice(KEYBINDING.length);
@@ -197,7 +202,7 @@ async function writeSetting(c: Call, key: string, raw?: string) {
     const added = raw === undefined ? [] : [{ command, shortcut }];
     const schema = domain.appKeybindingOverridesSchema;
     const overrides = valid(schema, [...kept, ...added], "keybinding");
-    return system.updateKeyboardSettings(overrides);
+    return c.op(settings.updateKeyboard, { overrides });
   }
   if (key.startsWith(UI)) {
     const name = key.slice(UI.length);
@@ -205,13 +210,16 @@ async function writeSetting(c: Call, key: string, raw?: string) {
       const known = domain.UI_PREFERENCE_KEYS.join(", ");
       throw usageError(`Unknown UI preference '${name}'.`, `Known: ${known}`);
     }
-    if (raw === undefined) return system.uiPreferences.reset({ key: name });
+    if (raw === undefined) {
+      return c.op(settings.resetUiPreference, { key: name });
+    }
     const parsed = domain.parseUiPreferenceValue(name, settingValue(raw));
     if (!parsed.success) throw usageError(parsed.message);
-    const { preferences } = await system.uiPreferences.list();
+    const { preferences } = await c.op(settings.uiPreferences, {});
     const expectedRevision = preferences[name].revision;
     const { value } = parsed;
-    return system.uiPreferences.set({ key: name, value, expectedRevision });
+    const write = { key: name, value, expectedRevision };
+    return c.op(settings.updateUiPreference, write);
   }
   const defaults: Record<string, unknown> = domain.defaultAppSettings;
   if (!Object.hasOwn(defaults, key)) {
@@ -221,7 +229,7 @@ async function writeSetting(c: Call, key: string, raw?: string) {
   const value = raw === undefined ? defaults[key] : settingValue(raw);
   const changed = { ...config.generalSettings, [key]: value };
   const next = valid(domain.appSettingsSchema, changed, "setting");
-  return system.updateGeneralSettings(next);
+  return c.op(settings.updateGeneral, { settings: next });
 }
 
 function changeSetting(reset: boolean): Run {
@@ -253,7 +261,7 @@ export const settingsShow: Run = async (c) => {
 export const settingsGet = settingsShow;
 
 export const pluginList: Run = async (c) => {
-  const result = await c.sdk.plugins.list();
+  const result = await c.op(c.ops.plugins.list, {});
   const rows = result.plugins.map((plugin) => ({
     id: plugin.id,
     status: plugin.status,
@@ -265,7 +273,10 @@ export const pluginList: Run = async (c) => {
 
 function setPluginEnabled(verb: "enable" | "disable"): Run {
   return async (c) => {
-    const plugin = await c.sdk.plugins[verb]({ pluginId: c.arg("id") });
+    const toggled = await c.op(c.ops.plugins[verb], {
+      pluginId: c.arg("id"),
+    });
+    const { plugin } = toggled;
     c.out(plugin, `Plugin ${plugin.id} is ${plugin.status}`);
   };
 }
@@ -275,13 +286,13 @@ export const pluginDisable = setPluginEnabled("disable");
 
 export const pluginReload: Run = async (c) => {
   const pluginId = c.args.id;
-  const result = await c.sdk.plugins.reload({ pluginId });
+  const result = await c.op(c.ops.plugins.reload, { id: pluginId });
   c.out(result, `Reloaded ${pluginId ?? `${result.plugins.length} plugins`}`);
 };
 
 async function editPluginConfig(c: Call, add: boolean): Promise<void> {
   const path = resolve(c.arg("path"));
-  const { dataDir } = await c.sdk.system.config();
+  const { dataDir } = await c.op(c.ops.server.config, {});
   const file = join(dataDir, "config.json");
   const { z } = await import("zod");
   const entry = z.looseObject({ path: z.string() });
@@ -292,7 +303,7 @@ async function editPluginConfig(c: Call, add: boolean): Promise<void> {
   const plugins = add ? [...others, { path, enabled: true }] : others;
   const next = JSON.stringify({ ...config, plugins }, null, 2);
   await writeFile(file, `${next}\n`);
-  const result = await c.sdk.plugins.reload();
+  const result = await c.op(c.ops.plugins.reload, {});
   const done = add ? "added to" : "removed from";
   c.out(result, `${path} ${done} ${file}; plugins reloaded`);
 }
@@ -326,7 +337,7 @@ export const importLegacy: Run = async (c) => {
 
 export const serverStatus: Run = async (c) => {
   const url = c.env.serverUrl;
-  const config = await c.sdk.system.config().catch((error: unknown) => {
+  const config = await c.op(c.ops.server.config, {}).catch((error: unknown) => {
     const hint = "Start it with `bb server`, or set BB_SERVER_URL.";
     const message = `No bb server at ${url}: ${errorMessage(error)}`;
     throw new CliError(message, { code: "server_unreachable", hint });

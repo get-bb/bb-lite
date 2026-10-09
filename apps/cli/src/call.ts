@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
-import type { BbSdk } from "@bb/sdk";
+import type { OpClient } from "@bb/plugin";
 import type { ZodType } from "zod";
 import {
   CliError,
@@ -11,7 +11,7 @@ import {
 } from "./engine.js";
 
 interface Modules {
-  sdk: typeof import("@bb/sdk");
+  plugin: typeof import("@bb/plugin");
   domain: typeof import("@bb/domain");
 }
 type Unit = keyof typeof UNIT_MS;
@@ -36,7 +36,7 @@ let modules: Modules | undefined;
 
 export async function loadModules(): Promise<Modules> {
   modules ??= {
-    sdk: await import("@bb/sdk"),
+    plugin: await import("@bb/plugin"),
     domain: await import("@bb/domain"),
   };
   return modules;
@@ -82,9 +82,15 @@ export function clip(value: string, width = CELL_WIDTH): string {
   return line.length <= width ? line : `${line.slice(0, width - 1)}…`;
 }
 
-export class Call {
+export interface Remote {
+  readonly ops: Modules["plugin"];
+  readonly op: OpClient["call"];
+  readonly request: OpClient["request"];
+}
+
+export class Call implements Remote {
   wroteJson = false;
-  private client: BbSdk | undefined;
+  private client: OpClient | undefined;
 
   constructor(
     readonly table: Table,
@@ -144,11 +150,26 @@ export class Call {
     throw usageError(`Invalid --${name} '${value}'. Expected: ${expected}.`);
   }
 
-  get sdk(): BbSdk {
-    const baseUrl = this.env.serverUrl;
-    this.client ??= loaded().sdk.createNodeBbSdk({ baseUrl });
+  get ops(): Modules["plugin"] {
+    return loaded().plugin;
+  }
+
+  private get remote(): OpClient {
+    const { createOpClient, DEFAULT_CALL_TIMEOUT_MS } = loaded().plugin;
+    this.client ??= createOpClient({
+      baseUrl: this.env.serverUrl,
+      door: "cli",
+      threadId: process.env.BB_THREAD_ID || undefined,
+      timeoutMs: DEFAULT_CALL_TIMEOUT_MS,
+    });
     return this.client;
   }
+
+  readonly op: OpClient["call"] = (op, input, options) =>
+    this.remote.call(op, input, options);
+
+  readonly request: OpClient["request"] = (path, init) =>
+    this.remote.request(path, init);
 
   out(data: unknown, text?: string | string[]): void {
     if (this.json || text === undefined) {
@@ -328,7 +349,9 @@ export function valid<Output>(
 export async function machineId(call: Call, target: string): Promise<string> {
   const wanted = target.trim();
   if (wanted.startsWith("host_")) return validId(wanted, "machine ID");
-  const hosts = await call.sdk.hosts.list({ includeCreating: true });
+  const hosts = await call.op(call.ops.machines.list, {
+    includeCreating: true,
+  });
   const named = hosts.filter((host) => host.name === wanted);
   const [found] = named;
   if (found !== undefined && named.length === 1) return found.id;
@@ -345,9 +368,9 @@ export async function machineFlag(call: Call): Promise<string | undefined> {
 export async function thisMachineId(call: Call): Promise<string> {
   const { environmentId } = call.env;
   if (environmentId !== undefined) {
-    return (await call.sdk.environments.get({ environmentId })).hostId;
+    return (await call.op(call.ops.environments.get, { environmentId })).hostId;
   }
-  const { primaryHostId } = await call.sdk.system.config();
+  const { primaryHostId } = await call.op(call.ops.server.config, {});
   if (primaryHostId !== null) return primaryHostId;
   throw usageError("The server has no machine of its own.", "Pass --machine.");
 }

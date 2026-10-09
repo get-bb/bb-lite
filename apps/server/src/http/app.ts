@@ -4,27 +4,17 @@ import {
   server,
   type ApiRoutes,
   type Authenticator,
-  type Caller,
 } from "@bb/plugin";
-import { currentActor, runAs, type Actor } from "@bb/server-kit/auth/actor";
+import { runAs } from "@bb/server-kit/auth/actor";
 import type { HostContext } from "../host-context.js";
 import { THREAD_ID_HEADER } from "@bb/server-kit/runners/access";
-import {
-  currentCaller,
-  declaredDoor,
-  enterCaller,
-  throughDoor,
-} from "@bb/server-kit/kernel/caller";
+import { declaredDoor, throughDoor } from "@bb/server-kit/kernel/caller";
 import type { ApiApp, AppEnv } from "@bb/server-kit/http/api";
 import { compressJson } from "./compression.js";
 import { registerOpDoors } from "./doors.js";
 import { ApiError, errorResponse, notFound } from "@bb/server-kit/http/errors";
 import { registerStaticApp } from "./static.js";
-import {
-  principals,
-  withRequest,
-  type Principal,
-} from "@bb/server-kit/http/trust";
+import { principals, withRequest } from "@bb/server-kit/http/trust";
 
 export function authenticatorOf(ctx: HostContext): Authenticator {
   const authenticator = ctx.kernel.pick(server.authenticator);
@@ -54,18 +44,6 @@ export class RouteTable {
   }
 }
 
-interface InnerCall {
-  principal: Principal;
-  actor: Actor | null;
-  caller: Caller;
-}
-
-const innerCalls = new WeakMap<Request, InnerCall>();
-
-function identityOf({ userId, role }: Actor) {
-  return { userId, role };
-}
-
 function mount(app: ApiApp, prefix: string, groups: readonly ApiRoutes[]) {
   const scoped = new Hono<AppEnv>();
   for (const register of groups) register(scoped);
@@ -79,17 +57,8 @@ function assemble(ctx: HostContext, table: RouteTable): ApiApp {
   const app = new Hono<AppEnv>();
   app.onError((error, c) => errorResponse(error, ctx.log, c.req));
   app.use("*", async (c, next) => {
-    const inner = innerCalls.get(c.req.raw);
     const { origin } = new URL(c.req.url);
     const sender = c.req.header("origin") ?? null;
-    if (inner !== undefined) {
-      principals.set(c.req.raw, inner.principal);
-      const scope = { principal: inner.principal, origin, sender };
-      await runAs(inner.actor, () =>
-        enterCaller(inner.caller, () => withRequest(scope, next)),
-      );
-      return;
-    }
     const { headers, socket } = c.env.incoming;
     const { method, path } = c.req;
     const request = { method, path, headers, socket };
@@ -114,9 +83,7 @@ function assemble(ctx: HostContext, table: RouteTable): ApiApp {
   return app;
 }
 
-export interface HttpApp extends Pick<ApiApp, "fetch"> {
-  inner(request: Request): Promise<Response>;
-}
+export type HttpApp = Pick<ApiApp, "fetch">;
 
 export function createHttpApp(ctx: HostContext, table: RouteTable): HttpApp {
   let built: { version: string; app: ApiApp } | undefined;
@@ -129,14 +96,5 @@ export function createHttpApp(ctx: HostContext, table: RouteTable): HttpApp {
   };
   return {
     fetch: (...request) => current().fetch(...request),
-    async inner(request) {
-      const actor = currentActor();
-      const principal: Principal =
-        actor === null
-          ? authenticatorOf(ctx).owner()
-          : { kind: "user", ...identityOf(actor), implicit: false };
-      innerCalls.set(request, { principal, actor, caller: currentCaller() });
-      return current().fetch(request);
-    },
   };
 }

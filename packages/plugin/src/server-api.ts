@@ -1,6 +1,5 @@
 import type * as Domain from "@bb/domain";
 import type { Runner, RunnerEvent, RunnerEventSink } from "@bb/runner";
-import type { BbSdkAreas } from "@bb/sdk";
 import type * as Contract from "@bb/server-contract";
 import type { IncomingHttpHeaders } from "node:http";
 import type { HttpBindings } from "@hono/node-server";
@@ -352,7 +351,6 @@ export interface PluginServerApi extends PluginBase {
   };
   readonly cli: { register(registration: CliRegistration): void };
   readonly status: { needsConfiguration(message: string): void };
-  readonly sdk: BbSdkAreas;
 }
 
 export type PluginServerEntry = (bb: PluginServerApi) => MaybePromise<void>;

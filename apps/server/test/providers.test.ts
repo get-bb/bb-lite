@@ -1,7 +1,10 @@
 import { statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AvailableModel } from "@bb/domain";
-import { pluginSettingsResponseSchema } from "@bb/server-contract";
+import {
+  pluginSettingsResponseSchema,
+  type SystemExecutionOptionsResponse,
+} from "@bb/server-contract";
 import { expect, it } from "vitest";
 import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
 import { providerOptionsFor } from "@bb/server-kit/providers/settings";
@@ -19,7 +22,8 @@ it("caches model catalogs and merges custom models", async () => {
   const changed = await watchChanges(server);
   const route = api.system["execution-options"];
   const query = { providerId: "codex" };
-  const options = async () => (await route.$get({ query })).json();
+  const options = async (): Promise<SystemExecutionOptionsResponse> =>
+    (await route.$get({ query })).json();
   const modelLoadError = { providerId: "codex", code: "failed" };
   expect(await options()).toMatchObject({ models: [], modelLoadError });
   let models = [model("gpt-5")];

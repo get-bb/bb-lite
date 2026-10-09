@@ -55,7 +55,9 @@ it("enrolls a machine with a single-use join token", async () => {
   await changed("host", "host-connected");
   const param = { id: created.id };
   expect(await (await api.hosts.$post({ json })).json()).toMatchObject(param);
-  const visible = await (await api.hosts.$get({ query: {} })).json();
+  const visible: { id: string }[] = await (
+    await api.hosts.$get({ query: {} })
+  ).json();
   expect(visible.map((host) => host.id)).toEqual([ctx.config.hostId]);
   const enrollment = api.hosts[":id"]["enrollment-command"];
   const command = await (await enrollment.$get({ param })).json();

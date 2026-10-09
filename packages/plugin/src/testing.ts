@@ -28,7 +28,6 @@ export interface LoadOptions {
   settings?: Record<string, SettingValue>;
   database?: () => Database.Database;
   tables?: PluginTables;
-  sdk?: PluginServerApi["sdk"];
   db?: PluginServerApi["db"];
   realtime?: PluginServerApi["realtime"];
   runners?: PluginServerApi["runners"];
@@ -60,12 +59,6 @@ const HARNESS_SERVER: PluginServerApi["server"] = {
   hostId: "host_test",
   logLevel: "silent",
 };
-
-const unavailableSdk = new Proxy({} as PluginServerApi["sdk"], {
-  get() {
-    throw new Error("Pass `sdk` to load() to use bb.sdk");
-  },
-});
 
 const noTables = (): never => {
   throw new Error("Pass `tables` to load() to use shared tables");
@@ -270,7 +263,6 @@ export function createPluginHarness(): PluginHarness {
             loaded.needsConfiguration = message;
           },
         },
-        sdk: options.sdk ?? unavailableSdk,
         onStart: (start) => void starters.push(start),
         onDispose: (stop) => void disposers.push(stop),
       };

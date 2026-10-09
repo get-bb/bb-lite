@@ -95,7 +95,6 @@ export function createServer(options: CreateServerOptions): BbServer {
   table.add((app) => registerPluginRoutes(app, ctx));
   table.add((app) => registerKernelRoutes(app, ctx));
   const app = createHttpApp(ctx, table);
-  plugins.fetch = (request) => app.inner(request);
   const sockets = new SocketRegistry(ctx, socketResolver(ctx, resolvers));
   let stopPlugins: Disposer | undefined;
   let http: ServerType | undefined;

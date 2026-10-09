@@ -248,7 +248,8 @@ it("runs a thread in an environment kind a plugin contributed", async () => {
   const listed = await world.api.system["environment-providers"].$get({
     query: { projectId: world.project.id },
   });
-  const { providers } = await listed.json();
+  const { providers }: { providers: { id: string; pluginId: string }[] } =
+    await listed.json();
   expect(providers.map(({ id, pluginId }) => [id, pluginId])).toContainEqual([
     "scratch-dir",
     "scratch-dirs",
