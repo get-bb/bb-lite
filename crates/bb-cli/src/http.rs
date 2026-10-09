@@ -12,7 +12,7 @@ pub const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 75_000;
 pub const THREAD_ID_HEADER: &str = "x-bb-thread-id";
 pub const DOOR_HEADER: &str = "x-bb-door";
 pub const API_VERSION_HEADER: &str = "x-bb-api";
-pub const API_VERSION: &str = "1.0.0";
+pub const API_VERSION: &str = "1.1.0";
 const BODY_LIMIT: u64 = 1 << 34;
 
 /// Blocking client for `<base>/api/v1`; paths passed to it start with `/` and omit `/api/v1`.

@@ -66,6 +66,62 @@ it("tells an added field from a removed one and a moved door", () => {
   expect(lost.breaking).toEqual(["notes.list: the http door changed"]);
 });
 
+it("counts more output, and more for a hook to read, as additions", () => {
+  const op = (internal: boolean, input: object, output: object) => ({
+    notes: {
+      list: {
+        type: "op",
+        kind: "read",
+        hooks: "rewrite",
+        allow: "member",
+        internal,
+        doors: {},
+        input,
+        output,
+      },
+    },
+  });
+  const note = (kinds: string[], extra: object = {}) => ({
+    type: "object",
+    properties: {
+      items: {
+        type: "array",
+        items: {
+          anyOf: kinds.map((kind) => ({
+            type: "object",
+            properties: { kind: { const: kind }, ...extra },
+          })),
+        },
+      },
+    },
+  });
+  const wider = compareApi(
+    op(false, {}, note(["text"])),
+    op(false, {}, note(["text", "image"], { size: {} })),
+  );
+  expect(wider).toEqual({
+    breaking: [],
+    additive: ["notes.list: more in the output"],
+  });
+  const narrower = compareApi(
+    op(false, {}, note(["text", "image"])),
+    op(false, {}, note(["text"])),
+  );
+  expect(narrower.breaking).toEqual(["notes.list: the output changed"]);
+  const held = { type: "object", properties: { a: {} }, required: ["a"] };
+  const told = {
+    type: "object",
+    properties: { a: {}, b: {} },
+    required: ["a", "b"],
+  };
+  expect(compareApi(op(true, held, {}), op(true, told, {})).breaking).toEqual(
+    [],
+  );
+  expect(compareApi(op(false, held, {}), op(false, told, {})).breaking).toEqual(
+    ["notes.list: the input changed"],
+  );
+});
+
 it("reads version ranges the way package managers do", () => {
   const cases: [string, string, boolean][] = [
     ["1.4.2", "^1.2", true],

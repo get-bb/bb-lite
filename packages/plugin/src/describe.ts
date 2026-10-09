@@ -229,32 +229,35 @@ function listOf(value: Json | undefined): string[] {
   return Array.isArray(value) ? value.map(String) : [];
 }
 
+const WIDER = ["enum", "anyOf", "oneOf", "required"];
+
+function widens(before: Json | undefined, after: Json | undefined): boolean {
+  if (same(before, after)) return true;
+  const plain = (value: Json | undefined): value is { [key: string]: Json } =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
+  if (!plain(before) || !plain(after)) return false;
+  return Object.entries(before).every(([key, old]) => {
+    const next = after[key];
+    if (!WIDER.includes(key)) return widens(old, next);
+    if (!Array.isArray(old) || !Array.isArray(next)) return false;
+    return old.every((each) => next.some((other) => widens(each, other)));
+  });
+}
+
 function onlyAdds(
   before: Json | undefined,
   after: Json | undefined,
   deep = false,
 ): boolean {
   if (same(before, after)) return true;
-  const grew = (old: Json | undefined, next: Json | undefined) =>
-    deep ? onlyAdds(old, next, deep) : same(old, next);
-  const sameType = same(field(before, "type"), field(after, "type"));
-  for (const union of deep ? ["anyOf", "oneOf"] : []) {
-    const [was, now] = [field(before, union), field(after, union)];
-    if (!Array.isArray(was) || !Array.isArray(now)) continue;
-    const paired = was.length === now.length;
-    return paired && was.every((each, index) => grew(each, now[index]));
-  }
-  const [items, nextItems] = [field(before, "items"), field(after, "items")];
-  if (deep && items !== undefined && nextItems !== undefined) {
-    return sameType && grew(items, nextItems);
-  }
+  if (deep) return widens(before, after);
   const [was, now] = [field(before, "properties"), field(after, "properties")];
   if (was === undefined || now === undefined)
     return keysOf(before).length === 0;
   const kept = keysOf(was).every((key) =>
-    grew(field(was, key), field(now, key)),
+    same(field(was, key), field(now, key)),
   );
-  return kept && sameType;
+  return kept && same(field(before, "type"), field(after, "type"));
 }
 
 function inputChange(before: Json, after: Json): "same" | "adds" | "breaks" {
@@ -272,7 +275,10 @@ const REACH = ["owner", "user", "member"];
 
 function opChanges(name: string, before: Json, after: Json, out: ApiChanges) {
   const read = (source: Json, key: string) => field(source, key) ?? null;
-  const input = inputChange(read(before, "input"), read(after, "input"));
+  const [given, nowGiven] = [read(before, "input"), read(after, "input")];
+  const hookPoint = read(before, "internal") === true;
+  const received = hookPoint && onlyAdds(given, nowGiven, true);
+  const input = received ? "adds" : inputChange(given, nowGiven);
   if (input === "breaks") out.breaking.push(`${name}: the input changed`);
   if (input === "adds") out.additive.push(`${name}: new optional input`);
   const [was, now] = [read(before, "output"), read(after, "output")];

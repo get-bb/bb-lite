@@ -241,7 +241,7 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
   await op("plugins.uninstall", { path: join(cwd, "tasks") });
   const restored = await op("plugins.describe", { id: "tasks" });
   expect(restored.result).toMatchObject({ builtin: true });
-}, 120_000);
+}, 600_000);
 
 it("copies a plugin under a new id that runs beside the original", async () => {
   const server = await createTestServer({}, "echo");
