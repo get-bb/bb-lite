@@ -187,13 +187,18 @@ function doorCommand(kernel: Kernel, op: Op, door: CliDoor): CliCommand {
         }
       : { kind: constraint.kind, options: constraint.options.map(flagOf) },
   );
-  const named: readonly string[] = door.positionals ?? [];
-  const positionals: CliPositional[] = named.flatMap((key) => {
-    const found = fields.find((field) => field.key === key);
+  const listed: readonly (string | { field: string; name: string })[] =
+    door.positionals ?? [];
+  const placed = listed.map((entry) =>
+    typeof entry === "string" ? { field: entry, name: kebab(entry) } : entry,
+  );
+  const named = placed.map(({ field }) => field);
+  const shown = new Map(placed.map(({ field, name }) => [kebab(field), name]));
+  const positionals: CliPositional[] = placed.flatMap(({ field, name }) => {
+    const found = fields.find(({ key }) => key === field);
     if (found === undefined) return [];
     const { description, required: needed, repeatable } = found.option;
-    const shape = { name: found.flag, description };
-    return [{ ...shape, required: needed, variadic: repeatable }];
+    return [{ name, description, required: needed, variadic: repeatable }];
   });
   const flags = fields.filter(({ key }) => !named.includes(key));
   const options: Record<string, CliOption> = Object.fromEntries(
@@ -210,7 +215,7 @@ function doorCommand(kernel: Kernel, op: Op, door: CliDoor): CliCommand {
       const given = { ...parsed.options, ...parsed.positionals };
       const input = Object.fromEntries(
         fields.flatMap(({ key, flag, decode }) => {
-          const raw: unknown = given[flag];
+          const raw: unknown = given[shown.get(flag) ?? flag];
           const empty = Array.isArray(raw) && raw.length === 0;
           return raw === undefined || empty ? [] : [[key, decode(raw)]];
         }),
@@ -234,7 +239,12 @@ function doorCommand(kernel: Kernel, op: Op, door: CliDoor): CliCommand {
       }
       const exitCode = door.exitCode?.(output, input) ?? 0;
       if (parsed.options.json === true) {
-        return { exitCode, stdout: JSON.stringify(output ?? null, null, 2) };
+        const value = door.json ? door.json(output, input) : output;
+        const indent = door.compactJson ? undefined : 2;
+        return {
+          exitCode,
+          stdout: JSON.stringify(value ?? null, null, indent),
+        };
       }
       return { exitCode, stdout: printed(door, output, input) };
     },

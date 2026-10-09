@@ -93,7 +93,9 @@ export function explainMember(member: ContractMember): Json {
       ...(cli.description === undefined
         ? {}
         : { description: cli.description }),
-      positionals: [...(cli.positionals ?? [])],
+      positionals: (cli.positionals ?? []).map((entry) =>
+        typeof entry === "string" ? entry : entry.field,
+      ),
       aliases: [...(cli.aliases ?? [])],
       flags: plain(cli.flags ?? {}),
       from: plain(cli.from ?? {}),

@@ -22,6 +22,7 @@ import { expect, it, vi } from "vitest";
 import { z } from "zod";
 import { runAs } from "@bb/server-kit/auth/actor";
 import { pruneAudit } from "@bb/server-kit/db/audit";
+import { currentCaller, enterCaller } from "@bb/server-kit/kernel/caller";
 import { insertRow } from "@bb/server-kit/db/index";
 import { PluginHost } from "../src/plugins/host.js";
 import { scratch } from "./helpers.js";
@@ -835,4 +836,19 @@ it("gives a runner part the same handle as the other parts", async () => {
   await vi.waitFor(() =>
     expect(ran).toEqual(["started", "stopped", "disposed"]),
   );
+});
+
+it("keeps the thread a CLI call names, but an agent's own thread wins", () => {
+  const person = { userId: "usr_owner", role: "owner", agentThreadId: null };
+  const named = runAs({ ...person, role: "owner" }, () => {
+    const caller = { ...currentCaller(), door: "cli", thread: "thr_cli" };
+    return enterCaller({ ...caller, door: "cli" }, currentCaller);
+  });
+  expect(named).toMatchObject({ door: "cli", thread: "thr_cli" });
+  const agent = { ...person, agentThreadId: "thr_agent" };
+  const own = runAs({ ...agent, role: "owner" }, () => {
+    const caller = { ...currentCaller(), thread: "thr_other" };
+    return enterCaller(caller, currentCaller);
+  });
+  expect(own).toMatchObject({ door: "agent", thread: "thr_agent" });
 });

@@ -44,11 +44,16 @@ export interface CliDoor<Input = unknown, Output = unknown> {
   summary: string;
   description?: string;
   aliases?: readonly string[];
-  positionals?: readonly (keyof Input & string)[];
+  positionals?: readonly (
+    | (keyof Input & string)
+    | { field: keyof Input & string; name: string }
+  )[];
   flags?: { readonly [Field in keyof Input & string]?: CliFlag };
   from?: { readonly [Field in keyof Input & string]?: CliContextField };
   constraints?: readonly CliDoorConstraint<keyof Input & string>[];
   print?(output: Output, input: Input): string;
+  json?(output: Output, input: Input): unknown;
+  compactJson?: boolean;
   exitCode?(output: Output, input: Input): number;
 }
 

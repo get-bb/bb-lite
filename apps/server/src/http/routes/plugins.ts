@@ -103,7 +103,8 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
       const context = { ...scope, signal: c.req.raw.signal };
       const caller = currentCaller();
       const door = caller.door === "agent" ? "agent" : "cli";
-      const result = await enterCaller({ ...caller, door }, () =>
+      const thread = caller.thread ?? scope.threadId ?? null;
+      const result = await enterCaller({ ...caller, door, thread }, () =>
         asPlugin(id, () => cli.run(argv, context)),
       );
       const { exitCode, stdout = "", stderr = "" } = result;

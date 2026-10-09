@@ -37,7 +37,23 @@ const notes = contract("notes", {
     input: z.object({ noteId: z.string() }),
     output: z.string(),
     doors: {
-      cli: { path: "note show", summary: "Show", positionals: ["noteId"] },
+      cli: {
+        path: "note show",
+        summary: "Show",
+        positionals: [{ field: "noteId", name: "note-id" }],
+      },
+    },
+  }),
+  count: op({
+    input: z.object({}),
+    output: z.object({ total: z.number() }),
+    doors: {
+      cli: {
+        path: "note count",
+        summary: "Count the notes",
+        json: ({ total }) => ({ ok: true, total }),
+        compactJson: true,
+      },
     },
   }),
   check: op({
@@ -78,6 +94,7 @@ function cli() {
     }),
   );
   scope.implement(notes.check, () => ({ problems: 2 }));
+  scope.implement(notes.count, () => ({ total: 3 }));
   const registration = doorCli(kernel, "notes", "Notes");
   const signal = new AbortController().signal;
   const context = { signal, cwd: "/repo", projectId: "proj_1" };
@@ -117,6 +134,10 @@ it("reports a refused call with its code", async () => {
       hint: "Run `bb note list` to see the notes.",
     },
   });
+  const usage = await cli()("show", "--help");
+  expect(usage?.stdout).toContain("bb note show <note-id>");
+  const counted = await cli()("count", "--json");
+  expect(counted?.stdout).toBe('{"ok":true,"total":3}');
   const checked = await cli()("check");
   expect(checked?.exitCode).toBe(4);
   expect(JSON.parse(checked?.stdout ?? "")).toEqual({ problems: 2 });
