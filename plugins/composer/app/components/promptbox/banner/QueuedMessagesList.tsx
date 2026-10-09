@@ -123,6 +123,10 @@ function dropTargetProps(drag: QueuedMessageDragHandlers, overId: string) {
   };
 }
 
+function orderOf(messages: readonly ThreadQueuedMessage[]): string {
+  return messages.map((message) => message.id).join("\n");
+}
+
 function arrowOffset(key: string): -1 | 1 | null {
   if (key === "ArrowUp") return -1;
   if (key === "ArrowDown") return 1;
@@ -787,8 +791,6 @@ function QueuedMessagesListSurface({
     id: string;
     order: string;
   } | null>(null);
-  const orderOf = (messages: readonly ThreadQueuedMessage[]) =>
-    messages.map((message) => message.id).join("\n");
   const applyOrderChange = (
     change: QueuedMessageOrderChange | null,
     focusId: string | null,
@@ -810,7 +812,7 @@ function QueuedMessagesListSurface({
         ? "[data-queued-message-group-divider] button"
         : `[data-queued-message-id="${CSS.escape(pendingFocus.id)}"] [data-queued-message-reorder]`;
     listRef.current?.querySelector<HTMLElement>(selector)?.focus();
-  });
+  }, [pendingFocus, queuedMessages]);
   const drag: QueuedMessageDragHandlers = {
     disabled:
       !onChangeOrder ||
