@@ -68,9 +68,39 @@ export function rewindPoint(db: Db, threadId: string, before: number) {
   );
   const cleared = contextClearSequence(db, threadId, before - 1) ?? 0;
   if (turn === undefined || turn.sequence < cleared) return "fresh";
-  const { providerThreadId, checkpointId } = turn;
-  if (providerThreadId === null || checkpointId === null) return null;
-  return { providerThreadId, checkpointId };
+  const { checkpointId } = turn;
+  if (checkpointId === null) return null;
+  const providerThreadId =
+    turn.providerThreadId ?? inheritedSession(db, threadId, checkpointId);
+  return providerThreadId === null ? null : { providerThreadId, checkpointId };
+}
+
+function inheritedSession(
+  db: Db,
+  threadId: string,
+  checkpointId: string,
+): string | null {
+  let current = threadId;
+  for (let hops = 0; hops < 16; hops += 1) {
+    const fork = db.get<{ sourceThreadId: string | null }>(
+      "SELECT source_thread_id AS sourceThreadId FROM threads WHERE id = ?",
+      current,
+    );
+    const source = fork?.sourceThreadId ?? null;
+    if (source === null) return null;
+    const turn = db.get<{ providerThreadId: string | null }>(
+      `SELECT provider_thread_id AS providerThreadId FROM events
+       WHERE thread_id = ? AND type = 'turn/completed'
+         AND json_extract(data, '$.providerCheckpointId') = ?
+       ORDER BY sequence DESC LIMIT 1`,
+      source,
+      checkpointId,
+    );
+    if (turn === undefined) return null;
+    if (turn.providerThreadId !== null) return turn.providerThreadId;
+    current = source;
+  }
+  return null;
 }
 
 function rewoundFrom(db: Db, thread: ThreadRow) {

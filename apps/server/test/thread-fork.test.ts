@@ -125,6 +125,42 @@ it("forks at a checkpoint with the source's timeline and no transcript", async (
   expect((await s.conversation(tip)).at(-1)).toBe("assistant: Turn count: 3");
 });
 
+it("edits the first message of a fork by forking the source again", async () => {
+  const s = await forkScenario();
+  const forked = await s.created({});
+  await s.send(forked, "count");
+  await s.send(forked, "count");
+  expect((await s.conversation(forked)).at(-1)).toBe(
+    "assistant: Turn count: 3",
+  );
+  const first = s.ctx.db.get<{ sequence: number }>(
+    `SELECT sequence FROM events WHERE thread_id = ?
+     AND type = 'client/turn/requested' AND provider_thread_id IS NOT NULL
+     ORDER BY sequence LIMIT 1`,
+    forked,
+  );
+  const own = s.ctx.db.all<{ sequence: number }>(
+    `SELECT e.sequence FROM events e WHERE e.thread_id = ?
+     AND e.type = 'client/turn/requested' ORDER BY e.sequence`,
+    forked,
+  );
+  const seq = first?.sequence ?? own.at(-2)?.sequence ?? 0;
+  const edited = await s.request(`/threads/${forked}/messages/update`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ seq, input: text("count") }),
+  });
+  expect(edited.status).toBe(200);
+  await vi.waitFor(async () => {
+    expect(await s.conversation(forked)).toEqual([
+      "user: first pineapple",
+      "assistant: Response to: first pineapple",
+      "user: count",
+      "assistant: Turn count: 2",
+    ]);
+  });
+});
+
 it("seeds a transcript when the provider cannot fork a checkpoint", async () => {
   const s = await forkScenario();
   const definition = findProviderDefinition(s.ctx.db, "echo");
