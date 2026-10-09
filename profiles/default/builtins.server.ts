@@ -40,6 +40,7 @@ import pushNotifications from "../../plugins/push-notifications/server.js";
 import secrets from "../../plugins/secrets/src/server.js";
 import sessions from "../../plugins/sessions/server.js";
 import settings from "../../plugins/settings/server.js";
+import sideChat from "../../plugins/side-chat/server.js";
 import storageRetention from "../../plugins/storage-retention/server.js";
 import tasks from "../../plugins/tasks/server.js";
 import terminals from "../../plugins/terminals/server.js";
@@ -96,6 +97,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   sessions: sessions,
   settings: settings,
   shell: null,
+  "side-chat": sideChat,
   "side-panel": null,
   "storage-retention": storageRetention,
   tasks: tasks,

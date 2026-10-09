@@ -50,6 +50,7 @@ const PRODUCT = [
   "github",
   "storage-retention",
   "environment-modal-sandbox",
+  "side-chat",
 ];
 
 export const profiles: Record<string, Profile> = {

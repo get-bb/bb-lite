@@ -24,6 +24,7 @@
 @source "../../../../plugins/secrets";
 @source "../../../../plugins/settings";
 @source "../../../../plugins/shell";
+@source "../../../../plugins/side-chat";
 @source "../../../../plugins/side-panel";
 @source "../../../../plugins/storage-retention";
 @source "../../../../plugins/tasks";
