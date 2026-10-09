@@ -15,6 +15,7 @@ const FS_ERROR_CODES: Record<string, RunnerErrorCode> = {
   ENOTDIR: "invalid_path",
   EISDIR: "invalid_path",
   ELOOP: "invalid_path",
+  ENAMETOOLONG: "invalid_path",
   ENOTEMPTY: "invalid_path",
   EEXIST: "conflict",
 };

@@ -56,6 +56,7 @@ describe("files", () => {
       h.api.writeFile({ path: "dangling", rootPath: root, content: "x" }),
       h.api.mutatePath({ op: "mkdir", path: "../made", rootPath: root }),
       h.api.mutatePath({ op: "remove", path: ".", rootPath: root }),
+      h.api.readFile({ path: path.join(h.root, "a".repeat(5000)) }),
     ];
     const codes = await Promise.all(escapes.map(failureCode));
     expect(new Set(codes)).toEqual(new Set(["invalid_path"]));

@@ -79,6 +79,7 @@ const OP_ERROR_RESPONSES: Record<
 function runnerErrorStatus(code: RunnerErrorCode): ContentfulStatusCode {
   if (code.endsWith("_not_found")) return 404;
   if (code === "unavailable") return 503;
+  if (code === "invalid_path") return 400;
   return code === "failed" ? 502 : 409;
 }
 
