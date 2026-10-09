@@ -13,6 +13,7 @@ import pluginDev from "../../plugins/plugin-dev/server.js";
 import claudeCode from "../../plugins/provider-claude-code/server.js";
 import codex from "../../plugins/provider-codex/server.js";
 import echo from "../../plugins/provider-echo/server.js";
+import inlineVis from "../../plugins/inline-vis/server.js";
 import secrets from "../../plugins/secrets/src/server.js";
 import tasks from "../../plugins/tasks/server.js";
 import threadList from "../../plugins/thread-list/server.js";
@@ -61,6 +62,7 @@ export const serverPlugins: BuiltinPlugin[] = [
   { directory: pluginDirectory("thread-list"), server: threadList },
   { directory: pluginDirectory("navigation"), server: null },
   { directory: pluginDirectory("pdf-preview"), server: null },
+  { directory: pluginDirectory("inline-vis"), server: inlineVis },
   { directory: pluginDirectory("secrets"), server: secrets },
   { directory: pluginDirectory("ask-user-question"), server: askUserQuestion },
   {

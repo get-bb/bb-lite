@@ -1,0 +1,89 @@
+import path from "node:path";
+import { files, OpError, threads, type PluginServerApi } from "@bb/plugin";
+import { inlineVis } from "./contract.js";
+
+export const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
+
+const KINDS = new Map<string, "html" | "markdown">([
+  [".html", "html"],
+  [".htm", "html"],
+  [".md", "markdown"],
+  [".markdown", "markdown"],
+]);
+
+const invalid = (message: string) => new OpError("invalid_input", message);
+
+function previewKind(file: string): "html" | "markdown" {
+  const kind = KINDS.get(path.posix.extname(file).toLowerCase());
+  if (kind === undefined) {
+    throw invalid(
+      `"file" must end with .html, .htm, .md, or .markdown, got ${JSON.stringify(file)}`,
+    );
+  }
+  return kind;
+}
+
+export function relativePreviewFile(value: string): string {
+  const file = value.trim();
+  if (file.length === 0) throw invalid(`"file" must be a non-empty string`);
+  if (
+    path.isAbsolute(file) ||
+    /^[a-zA-Z]:[\\/]/.test(file) ||
+    file.startsWith("\\\\")
+  ) {
+    throw invalid(`"file" must be source-relative, not absolute: ${file}`);
+  }
+  const slashed = file.replace(/\\/g, "/");
+  if (slashed.split("/").includes("..")) {
+    throw invalid(`"file" must not contain traversal segments: ${file}`);
+  }
+  const normalized = path.posix.normalize(slashed);
+  if (normalized === "." || normalized.startsWith("/")) {
+    throw invalid(`"file" must not escape its source: ${file}`);
+  }
+  previewKind(normalized);
+  return normalized;
+}
+
+const encodePath = (value: string) =>
+  value.replace(/^\/+/u, "").split("/").map(encodeURIComponent).join("/");
+
+export default function inlineVisServer(bb: PluginServerApi): void {
+  const locate = async (threadId: string, file: string, source: string) => {
+    if (source === "workspace") {
+      const workspace = await bb.call(threads.workspace, { threadId });
+      const environment = encodeURIComponent(workspace.id);
+      return {
+        readPath: file,
+        url: `/api/v1/environments/${environment}/files/${encodePath(file)}`,
+      };
+    }
+    const storage = await bb.call(threads.storageLocation, { threadId });
+    if (storage === null) {
+      throw new Error("This thread has no storage directory.");
+    }
+    const absolute = path.posix.join(storage.path, file);
+    const thread = encodeURIComponent(threadId);
+    return {
+      readPath: absolute,
+      url: `/api/v1/threads/${thread}/host-files/${encodePath(absolute)}`,
+    };
+  };
+
+  bb.implement(inlineVis.preview, async ({ threadId, file: raw, source }) => {
+    const file = relativePreviewFile(raw);
+    const { readPath, url } = await locate(threadId, file, source);
+    const read = await bb.call(files.read, { threadId, path: readPath });
+    if (read === null) return { kind: "not-found" as const, file };
+    const sizeBytes = Buffer.byteLength(read.content);
+    if (sizeBytes > MAX_PREVIEW_BYTES) {
+      throw invalid(
+        `Preview file is too large (${sizeBytes} bytes; max ${MAX_PREVIEW_BYTES}).`,
+      );
+    }
+    const kind = previewKind(file);
+    return kind === "html"
+      ? { kind, file, source, url }
+      : { kind, file, source, url, content: read.content };
+  });
+}
