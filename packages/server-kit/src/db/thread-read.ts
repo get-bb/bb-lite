@@ -2,6 +2,7 @@ import {
   promptInputSchema,
   type EnvironmentStatus,
   type PromptHistoryEntry,
+  type PromptInput,
   type Thread,
 } from "@bb/domain";
 import type { ThreadListQuery } from "@bb/server-contract";
@@ -202,6 +203,47 @@ export function listPromptHistoryEntries(
      ORDER BY h.created_at DESC, h.request_sequence DESC, h.id DESC LIMIT ?`,
     id,
     viewerId(),
+    limit,
+  );
+  return rows.flatMap((row) => {
+    const input = storedPromptInputSchema.safeParse(JSON.parse(row.input));
+    return input.success ? [{ ...row, input: input.data }] : [];
+  });
+}
+
+export interface RecentPromptRow {
+  id: string;
+  projectId: string;
+  threadId: string;
+  scope: "project" | "thread";
+  createdAt: number;
+  input: PromptInput[];
+}
+
+export function listRecentPrompts(
+  db: Db,
+  query: {
+    projectId?: string;
+    before?: { createdAt: number; id: string };
+    limit: number;
+  },
+): RecentPromptRow[] {
+  const { projectId = null, before = null, limit } = query;
+  const at = before?.createdAt ?? null;
+  const rows = db.all<Omit<RecentPromptRow, "input"> & { input: string }>(
+    `SELECT h.id, h.project_id, h.thread_id, h.scope, h.created_at, h.input
+     FROM prompt_history_entries AS h JOIN threads AS t ON t.id = h.thread_id
+     WHERE t.deleted_at IS NULL AND h.user_id = ?
+       AND (? IS NULL OR h.project_id = ?)
+       AND (? IS NULL OR h.created_at < ? OR (h.created_at = ? AND h.id < ?))
+     ORDER BY h.created_at DESC, h.id DESC LIMIT ?`,
+    viewerId(),
+    projectId,
+    projectId,
+    at,
+    at,
+    at,
+    before?.id ?? null,
     limit,
   );
   return rows.flatMap((row) => {

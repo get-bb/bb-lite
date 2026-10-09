@@ -160,9 +160,24 @@ export default function promptLibraryServer(bb: PluginServerApi): void {
     if (input.scope === "project") {
       return input.projectId === null ? [] : projectHistory(input.projectId);
     }
-    const all = await bb.call(projects.list, { includePersonal: true });
-    const lists = await Promise.all(all.map(({ id }) => projectHistory(id)));
-    return lists.flat().sort((a, b) => b.createdAt - a.createdAt);
+    const recent: Recent[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await bb.call(threads.recentPrompts, { cursor, limit: 200 });
+      for (const entry of page.entries) {
+        if (entry.scope !== "project") continue;
+        recent.push({
+          promptId: entry.id,
+          text: entry.text,
+          createdAt: entry.sentAt,
+          projectId: entry.projectId,
+          threadId: null,
+          startsThread: true,
+        });
+      }
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor !== undefined && recent.length < HISTORY_LIMIT);
+    return recent;
   }
 
   function ordered(

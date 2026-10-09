@@ -4,6 +4,7 @@ import {
   createStandaloneBuiltinCompactCommandInput,
   threadScope,
   type JsonValue,
+  type QueuedMessageWaitingOn,
   type ThreadChangeKind,
 } from "@bb/domain";
 import type * as contract from "@bb/server-contract";
@@ -184,6 +185,11 @@ export function createQueuedMessage(
   const { db } = engine.bb;
   const thread = engine.requireUnarchived(threadId);
   const stopping = thread.status === "stopping";
+  const sendAt = request.sendAt ?? null;
+  const later = sendAt !== null && sendAt > engine.bb.now();
+  const waitingOn: QueuedMessageWaitingOn = later
+    ? { kind: "time" }
+    : { kind: stopping ? "stopping" : "thread-busy" };
   const row = queue.insertQueuedMessage(db, {
     threadId,
     content: request.input,
@@ -191,8 +197,8 @@ export function createQueuedMessage(
     requestedByUserId: actorUserId(),
     systemNotice: null,
     ...resolveTurnExecution(db, thread, request),
-    waitingOn: { kind: stopping ? "stopping" : "thread-busy" },
-    sendAt: null,
+    waitingOn,
+    sendAt,
   });
   queueChanged(engine, threadId);
   engine.announceMessage(threads.messageQueued, threadId, row.id);

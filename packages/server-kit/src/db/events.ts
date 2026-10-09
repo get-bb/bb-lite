@@ -1,10 +1,16 @@
 import {
   OWNER_USER_ID,
+  providerErrorInfoSchema,
+  providerRateLimitStateSchema,
+  turnRequestEventDataSchema,
   type PromptInput,
+  type ProviderErrorInfo,
+  type ProviderRateLimitState,
   type ThreadEventType,
   type ThreadSearchSourceKind,
 } from "@bb/domain";
 import type { RunnerThreadEvent } from "@bb/runner";
+import { z, type ZodType } from "zod";
 import { latestSequence } from "./event-read.js";
 import { insertRow, newId, type Db } from "./index.js";
 import { setThreadUserState } from "./thread-user-state.js";
@@ -280,6 +286,68 @@ export function lastSystemError(
   );
   if (row === undefined || row.message === null) return null;
   return { code: row.code, message: row.message, detail: row.detail };
+}
+
+export interface TurnFailure {
+  errorInfo: ProviderErrorInfo | null;
+  rateLimits: ProviderRateLimitState | null;
+  turn: { requestId: string; attempt: number; input: PromptInput[] } | null;
+}
+
+const errorData = z.object({ errorInfo: providerErrorInfoSchema });
+const rateLimitsData = z.object({ rateLimits: providerRateLimitStateSchema });
+
+function lastData<T>(
+  db: Db,
+  threadId: string,
+  type: string,
+  after: number,
+  schema: ZodType<T>,
+): T | null {
+  const row = db.get<{ data: string }>(
+    `SELECT data FROM events WHERE thread_id = ? AND type = ? AND sequence > ?
+     ORDER BY sequence DESC LIMIT 1`,
+    threadId,
+    type,
+    after,
+  );
+  return row === undefined
+    ? null
+    : (schema.safeParse(JSON.parse(row.data)).data ?? null);
+}
+
+export function lastTurnFailure(db: Db, threadId: string): TurnFailure {
+  const requested = db.get<{ sequence: number; data: string }>(
+    `SELECT sequence, data FROM events
+     WHERE thread_id = ? AND type = 'client/turn/requested'
+     ORDER BY sequence DESC LIMIT 1`,
+    threadId,
+  );
+  const after = requested?.sequence ?? 0;
+  const request =
+    requested === undefined
+      ? undefined
+      : turnRequestEventDataSchema.safeParse(JSON.parse(requested.data)).data;
+  const error = lastData(db, threadId, "provider/error", after, errorData);
+  const limits = lastData(
+    db,
+    threadId,
+    "provider/rateLimits/updated",
+    after,
+    rateLimitsData,
+  );
+  return {
+    errorInfo: error?.errorInfo ?? null,
+    rateLimits: limits?.rateLimits ?? null,
+    turn:
+      request === undefined
+        ? null
+        : {
+            requestId: request.requestId,
+            attempt: request.retryAttempt ?? 1,
+            input: request.input,
+          },
+  };
 }
 
 export function isQueueAutoSendPaused(db: Db, threadId: string): boolean {

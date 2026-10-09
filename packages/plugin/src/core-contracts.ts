@@ -237,6 +237,9 @@ export const threads = contract("threads", {
       projectId: z.string(),
       providerId: z.string(),
       sendNow: z.boolean(),
+      hostId: z.string().nullable(),
+      queuedMessageId: z.string().nullable(),
+      input: z.array(Domain.promptInputSchema),
     }),
     output: z
       .object({
@@ -248,7 +251,7 @@ export const threads = contract("threads", {
     internal: true,
   }),
   release: op({
-    input: threadRef,
+    input: z.object({ threadId: z.string().optional() }),
     output: nothing,
     kind: "write",
     internal: true,
@@ -294,6 +297,13 @@ export const threads = contract("threads", {
   failed: threadEvent<{
     error: string | null;
     failure: ThreadFailure | null;
+    errorInfo: Domain.ProviderErrorInfo | null;
+    rateLimits: Domain.ProviderRateLimitState | null;
+    turn: {
+      requestId: string;
+      attempt: number;
+      input: Domain.PromptInput[];
+    } | null;
   }>(),
   archived: threadEvent(),
   unarchived: threadEvent(),
@@ -413,6 +423,11 @@ export const threads = contract("threads", {
     doors: {
       http: { method: "GET", path: "/threads/:threadId/prompt-history" },
     },
+  }),
+  recentPrompts: op({
+    input: Contract.recentPromptsQuerySchema,
+    output: typed(Contract.recentPromptsResponseSchema),
+    doors: { http: { method: "GET", path: "/threads/prompt-history" } },
   }),
   deleteQueuedMessage: op({
     input: ref("threadId", "queuedMessageId"),

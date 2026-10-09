@@ -518,6 +518,51 @@ it("lets a plugin hold a message until it releases the thread", async () => {
   expect(where?.path.endsWith(id)).toBe(true);
 });
 
+it("tells a hold the machine and message, and releases every hold", async () => {
+  const server = await createTestServer({}, "echo");
+  const { ctx } = server;
+  const limiter = ctx.kernel.scope("limiter", "installed");
+  let busy = true;
+  const asked: { hostId: string | null; queuedMessageId: string | null }[] = [];
+  limiter.on(threads.hold, async (input, next) => {
+    asked.push(input);
+    const held = await next();
+    if (held !== null || !busy) return held;
+    return { pluginId: "limiter", reason: "Busy" };
+  });
+  const directory = join(ctx.config.dataDir, "repo");
+  mkdirSync(directory);
+  const project = await createProject(server, "echo", directory);
+  const spawned = await server.send("/threads", {
+    projectId: project.id,
+    origin: "app",
+    providerId: "echo",
+    input: [{ type: "text", text: "hold me" }],
+    environment: { type: "project-default" },
+    startedOnBehalfOf: null,
+  });
+  const { id } = (await spawned.json()) as { id: string };
+  type Queued = { id: string };
+  const queued = () => server.read<Queued[]>(`/threads/${id}/queued-messages`);
+  await vi.waitFor(async () => expect(await queued()).toHaveLength(1));
+  const [row] = await queued();
+  expect(asked[0]).toMatchObject({
+    hostId: ctx.config.hostId,
+    queuedMessageId: null,
+    input: [{ type: "text", text: "hold me" }],
+  });
+  busy = false;
+  await limiter.call(threads.release, {});
+  await vi.waitFor(async () => {
+    const reply = { output: "Response to: hold me" };
+    expect(await server.read(`/threads/${id}/output`)).toEqual(reply);
+  });
+  expect(asked.at(-1)).toMatchObject({
+    hostId: ctx.config.hostId,
+    queuedMessageId: row?.id,
+  });
+});
+
 it("offers the themes a plugin's manifest declares", async () => {
   const directory = join(scratch(), "echo");
   cpSync(FIXTURE, directory, { recursive: true });

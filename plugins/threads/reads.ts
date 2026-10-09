@@ -334,4 +334,41 @@ export function implementThreadReads(bb: PluginServerApi): void {
     }));
     return promptHistory({ threadId }, input.limit, queued);
   });
+
+  bb.implement(threads.recentPrompts, ({ cursor, limit, projectId }) => {
+    const wanted = bounded(positive(limit, "limit", 50), "limit", 200);
+    const [at = "", id = ""] = cursor?.split(":") ?? [];
+    const createdAt = Number(at);
+    if (cursor !== undefined && (!Number.isFinite(createdAt) || id === "")) {
+      throw invalidRequest("cursor is not valid");
+    }
+    const before = cursor === undefined ? undefined : { createdAt, id };
+    const rows = store.listRecentPrompts(db, {
+      projectId,
+      before,
+      limit: wanted + 1,
+    });
+    const page = rows.slice(0, wanted);
+    const last = page.at(-1);
+    const entries = page.map((row) => {
+      const text = row.input.flatMap((part) =>
+        part.type === "text" && part.text.trim() !== "" ? [part] : [],
+      );
+      const mentions = text.flatMap((part) => part.mentions);
+      return {
+        id: row.id,
+        text: text.map((part) => part.text).join("\n\n"),
+        ...(mentions.length > 0 ? { mentions } : {}),
+        threadId: row.threadId,
+        projectId: row.projectId,
+        scope: row.scope,
+        sentAt: row.createdAt,
+      };
+    });
+    const nextCursor =
+      rows.length > wanted && last !== undefined
+        ? `${last.createdAt}:${last.id}`
+        : null;
+    return { entries, nextCursor };
+  });
 }

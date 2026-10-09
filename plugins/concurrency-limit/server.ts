@@ -3,7 +3,6 @@ import {
   defineCli,
   machines,
   PluginCliError,
-  projects,
   threads,
   type PluginServerApi,
 } from "@bb/plugin";
@@ -112,11 +111,7 @@ export default async function concurrencyLimitPlugin(
   }
 
   async function releaseWaiting(): Promise<void> {
-    const list = await bb.call(threads.list, { includeHidden: true });
-    for (const thread of list) {
-      if (thread.queuedWork !== "waiting") continue;
-      await bb.call(threads.release, { threadId: thread.id });
-    }
+    await bb.call(threads.release, {});
   }
 
   async function save(next: Configuration): Promise<void> {
@@ -172,32 +167,25 @@ export default async function concurrencyLimitPlugin(
       }
     });
   });
+  const admitted = new Map<string, string>();
   for (const freed of [
     threads.idle,
     threads.failed,
     threads.archived,
     threads.deleted,
   ]) {
-    bb.on(freed, () => void releaseWaiting());
+    bb.on(freed, ({ thread }) => {
+      admitted.delete(thread.id);
+      void releaseWaiting();
+    });
   }
 
-  async function defaultHost(projectId: string) {
-    const { sources } = await bb.call(projects.get, { projectId });
-    const source = sources.find((entry) => entry.isDefault) ?? sources[0];
-    if (source === undefined) return null;
-    const hosts = await bb.call(machines.list, {});
-    return hosts.find((entry) => entry.id === source.hostId) ?? null;
-  }
-
-  bb.on(threads.hold, async ({ threadId }, next) => {
+  bb.on(threads.hold, async ({ threadId, hostId }, next) => {
     const held = await next();
     if (held !== null) return held;
-    const thread = await bb.call(threads.get, { threadId, include: "host" });
+    const thread = await bb.call(threads.get, { threadId });
     if (RUNNING.has(thread.status)) return null;
-    const host =
-      ("host" in thread ? thread.host : null) ??
-      (await defaultHost(thread.projectId));
-    if (configuration.globalLimit === null && host === null) return null;
+    if (configuration.globalLimit === null && hostId === null) return null;
     const running = (await bb.call(threads.list, { includeHidden: true }))
       .filter((entry) => entry.id !== threadId)
       .filter((entry) => RUNNING.has(entry.status));
@@ -206,13 +194,18 @@ export default async function concurrencyLimitPlugin(
     if (globalLimit !== null && running.length >= globalLimit) {
       return hold(waitReason(globalLimit, "all hosts"));
     }
-    if (host === null) return null;
-    const limit = hostLimit(host.id);
+    if (hostId === null) return null;
+    const limit = hostLimit(hostId);
     const onHost = running.filter(
-      (entry) => entry.environmentHostId === host.id,
+      (entry) => (entry.environmentHostId ?? admitted.get(entry.id)) === hostId,
     );
-    if (onHost.length < limit) return null;
-    const label = host.name.trim() === "" ? host.id : host.name;
+    if (onHost.length < limit) {
+      admitted.set(threadId, hostId);
+      return null;
+    }
+    const hosts = await bb.call(machines.list, {});
+    const name = hosts.find((entry) => entry.id === hostId)?.name ?? "";
+    const label = name.trim() === "" ? hostId : name;
     return hold(waitReason(limit, `host ${label}`));
   });
 

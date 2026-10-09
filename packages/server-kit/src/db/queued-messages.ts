@@ -150,6 +150,16 @@ export function listThreadIdsWaitingOn(
   return rows.map((row) => row.threadId);
 }
 
+export function listThreadIdsHeldBy(db: Db, pluginId: string): string[] {
+  const rows = db.all<{ threadId: string }>(
+    `SELECT DISTINCT thread_id FROM queued_thread_messages
+     WHERE json_extract(waiting_on, '$.kind') = 'plugin'
+       AND json_extract(waiting_on, '$.pluginId') = ?`,
+    pluginId,
+  );
+  return rows.map((row) => row.threadId);
+}
+
 export function queuedInitiator(row: QueuedMessageRow) {
   if (row.systemNotice !== null) return "system";
   return row.senderThreadId === null ? "user" : "agent";

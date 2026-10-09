@@ -5,11 +5,6 @@ import {
   threads,
   type PluginServerApi,
 } from "@bb/plugin";
-import {
-  promptInputSchema,
-  providerErrorInfoSchema,
-  providerRateLimitStateSchema,
-} from "@bb/domain";
 import { z } from "zod";
 import {
   DEFAULT_MAXIMUM_WAIT_MS,
@@ -22,18 +17,6 @@ const MAXIMUM_WAIT_MS: Record<string, number | null> = {
   "24 hours": 24 * 60 * 60 * 1_000,
   "No limit": null,
 };
-
-const EVENT_TYPES = [
-  "client/turn/requested",
-  "provider/error",
-  "provider/rateLimits/updated",
-].join(",");
-
-const requested = z.object({ input: z.array(promptInputSchema).min(1) });
-const providerError = z.object({ errorInfo: providerErrorInfoSchema });
-const rateLimitsUpdated = z.object({
-  rateLimits: providerRateLimitStateSchema,
-});
 
 const pendingSchema = z.object({
   attempt: z.number().int(),
@@ -78,56 +61,33 @@ export default function providerRetry(bb: PluginServerApi): void {
     return parsed.success ? parsed.data : null;
   };
 
-  const lastFailure = async (threadId: string, attemptNumber: number) => {
-    const rows = await bb.call(threads.events, {
-      threadId,
-      order: "desc",
-      limit: 100,
-      types: EVENT_TYPES,
-    });
-    let category: Failure["category"] = null;
-    let rateLimits: Failure["rateLimits"] = null;
-    for (const row of rows) {
-      if (row.type === "client/turn/requested") {
-        const turn = requested.safeParse(row.data);
-        if (!turn.success) return null;
-        const failure = { attemptNumber, category, rateLimits };
-        return { input: turn.data.input, failure };
-      }
-      if (row.type === "provider/error" && category === null) {
-        category =
-          providerError.safeParse(row.data).data?.errorInfo.category ?? null;
-      }
-      if (row.type === "provider/rateLimits/updated" && rateLimits === null) {
-        rateLimits =
-          rateLimitsUpdated.safeParse(row.data).data?.rateLimits ?? null;
-      }
-    }
-    return null;
-  };
-
-  bb.on(threads.failed, async ({ thread }) => {
+  bb.on(threads.failed, async ({ thread, errorInfo, rateLimits, turn }) => {
     const threadId = thread.id;
     const attempt = ((await pending(threadId))?.attempt ?? 0) + 1;
-    const found = await lastFailure(threadId, attempt);
     const { maximumWait } = await settings.get();
+    const failure: Failure = {
+      attemptNumber: attempt,
+      category: errorInfo?.category ?? null,
+      rateLimits,
+    };
+    const resend = turn !== null && turn.input.length > 0 ? turn.input : null;
     const decision =
-      found === null
+      resend === null
         ? null
         : decideRetry({
-            failure: found.failure,
+            failure,
             maximumWaitMs:
               MAXIMUM_WAIT_MS[String(maximumWait)] ?? DEFAULT_MAXIMUM_WAIT_MS,
             now: bb.now(),
             random: Math.random(),
           });
-    if (found === null || decision === null || decision.kind === "decline") {
+    if (resend === null || decision === null || decision.kind === "decline") {
       await kv.delete(key(threadId));
       return;
     }
     const sent = await bb.call(threads.send, {
       threadId,
-      input: found.input,
+      input: resend,
       mode: "queue-if-active",
       sendAt: decision.sendAt,
     });

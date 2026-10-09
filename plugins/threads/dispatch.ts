@@ -26,6 +26,7 @@ import type { Engine } from "./engine.js";
 import * as execution from "./execution.js";
 import type { SessionEnvironment } from "@bb/server-kit/services";
 import { buildSessionSpec } from "./session-spec.js";
+import { startupContextSchema } from "./provisioning.js";
 
 type QueuedMessageRow = queue.QueuedMessageRow;
 type PromptInput = domain.PromptInput;
@@ -196,13 +197,33 @@ function currentWait(
   return null;
 }
 
+function turnHostOf(engine: Engine, thread: ThreadRow): string | null {
+  const hostId = engine.hostOf(thread);
+  if (hostId !== null || thread.startupContext === null) return hostId;
+  const startup = startupContextSchema.safeParse(
+    JSON.parse(thread.startupContext),
+  );
+  const { intent } = startup.data ?? {};
+  if (intent === undefined) return null;
+  if (intent.type !== "reuse") return intent.hostId;
+  return getEnvironment(engine.bb.db, intent.environmentId)?.hostId ?? null;
+}
+
 async function heldBy(
   engine: Engine,
   thread: ThreadRow,
-  { sendNow }: DispatchArgs,
+  { sendNow, rows, message }: DispatchArgs,
 ): Promise<domain.QueuedMessageWaitingOn | null> {
   const { id: threadId, projectId, providerId } = thread;
-  const asked = { threadId, projectId, providerId, sendNow };
+  const asked = {
+    threadId,
+    projectId,
+    providerId,
+    sendNow,
+    hostId: turnHostOf(engine, thread),
+    queuedMessageId: rows[0]?.id ?? null,
+    input: message.input,
+  };
   const held = await engine.bb.call(threads.hold, asked);
   return held === null ? null : { kind: "plugin", ...held };
 }

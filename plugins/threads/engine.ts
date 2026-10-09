@@ -13,6 +13,7 @@ import { findHost } from "@bb/server-kit/db/hosts";
 import { lastOutput } from "@bb/server-kit/db/event-read";
 import * as eventLog from "@bb/server-kit/db/events";
 import * as queue from "@bb/server-kit/db/queued-messages";
+import { listThreadIdsHeldBy } from "@bb/server-kit/db/queued-messages";
 import { findThreadListRow } from "@bb/server-kit/db/thread-read";
 import * as store from "@bb/server-kit/db/threads";
 import { ApiError, threadNotFound } from "@bb/server-kit/http/errors";
@@ -180,7 +181,9 @@ export class Engine {
     } else if (thread.status === "error") {
       const failure = eventLog.lastSystemError(db, thread.id);
       const error = failure?.message ?? null;
-      this.bb.emit(threadOps.failed, { thread: response, error, failure });
+      const turn = eventLog.lastTurnFailure(db, thread.id);
+      const payload = { thread: response, error, failure, ...turn };
+      this.bb.emit(threadOps.failed, payload);
     }
   }
 
@@ -419,8 +422,15 @@ export function createThreadEngine(bb: PluginServerApi) {
     remove(threadId, confirmation),
   );
   bb.implement(threadOps.hold, () => null);
-  bb.implement(threadOps.release, ({ threadId }) => {
-    engine.scheduleDrain(threadId);
+  bb.implement(threadOps.release, ({ threadId }, { caller }) => {
+    const pluginId = caller.via.at(-1);
+    const held =
+      threadId !== undefined
+        ? [threadId]
+        : pluginId === undefined
+          ? []
+          : listThreadIdsHeldBy(bb.db, pluginId);
+    for (const id of held) engine.scheduleDrain(id);
   });
   bb.implement(threadOps.storageLocation, ({ threadId }) => {
     const hostId = engine.hostOf(engine.requireThread(threadId));

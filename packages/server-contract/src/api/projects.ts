@@ -185,6 +185,30 @@ export const promptHistoryQuerySchema = z
   .partial();
 export type PromptHistoryQuery = z.infer<typeof promptHistoryQuerySchema>;
 
+export const recentPromptsQuerySchema = z
+  .object({
+    cursor: z.string().min(1),
+    limit: countField,
+    projectId: z.string().min(1),
+  })
+  .partial();
+
+export const recentPromptsResponseSchema = z.object({
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      text: z.string(),
+      mentions: z.array(domain.promptTextMentionSchema).optional(),
+      threadId: z.string(),
+      projectId: z.string(),
+      scope: z.enum(["project", "thread"]),
+      sentAt: z.number(),
+    }),
+  ),
+  nextCursor: z.string().nullable(),
+});
+export type RecentPromptsResponse = z.infer<typeof recentPromptsResponseSchema>;
+
 export const promptHistoryResponseSchema = z.array(
   domain.promptHistoryEntrySchema,
 );
