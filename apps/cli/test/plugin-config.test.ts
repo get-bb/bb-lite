@@ -43,3 +43,18 @@ it("shows and changes a plugin's settings without echoing a secret", async () =>
   expect(missing.code).toBe(1);
   expect(parsed<Settings>(missing).ok).toBe(false);
 });
+
+it("stops loading a plugin named by its id", async () => {
+  const { bb, ctx } = await startBb();
+  const config = { plugins: [{ path: FIXTURE }] };
+  const file = join(ctx.config.dataDir, "config.json");
+  writeFileSync(file, JSON.stringify(config));
+  await ctx.plugins.reload();
+  const builtin = await bb(["plugin", "remove", "tasks", "--yes"]);
+  expect(builtin.code).toBe(1);
+  expect(builtin.stderr).toContain("is not a loaded plugin directory");
+  const removed = await bb(["plugin", "remove", "echo", "--yes"]);
+  expect(removed.code).toBe(0);
+  expect(removed.stdout).toContain(`${FIXTURE} removed from`);
+  expect(ctx.plugins.list().map(({ id }) => id)).not.toContain("echo");
+});

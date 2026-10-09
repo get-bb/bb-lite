@@ -796,8 +796,8 @@ action }, { userId })`, `action` one of `maximize`, `restore`, `toggle`, `spotli
 ## Forking a built-in plugin
 
 `bb dev fork <id> [--path <dir>]` copies a plugin from `plugins/` to a directory of yours and loads
-the copy in place of the original, reloading it when a file changes. `bb plugin remove <path>` brings
-the original back. Every plugin in `plugins/` forks this way: the providers, the add-ons, the ten
+the copy in place of the original, reloading it when a file changes. `bb plugin remove <path>` (or
+`bb plugin remove <id>`) brings the original back. Every plugin in `plugins/` forks this way: the providers, the add-ons, the ten
 core server plugins and the core app plugins (`shell`, `thread-view`, `composer`, `side-panel`).
 
 - The copy keeps the original's id, so its contract names, settings and data carry over and it

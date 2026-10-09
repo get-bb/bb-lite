@@ -457,8 +457,18 @@ export const pluginConfig: Run = async (c) => {
   c.out(result, shown.length === 0 ? `${pluginId} has no settings` : shown);
 };
 
+async function loadedDirectory(c: Call, given: string): Promise<string> {
+  const path = resolve(given);
+  if (given.includes("/") || (await stat(path).catch(() => null)) !== null) {
+    return path;
+  }
+  const found = await c.op(c.ops.plugins.describe, { id: given });
+  return found === null || found.builtin ? path : found.directory;
+}
+
 async function editPluginConfig(c: Call, add: boolean): Promise<void> {
-  const path = resolve(c.arg("path"));
+  const given = c.arg("path");
+  const path = add ? resolve(given) : await loadedDirectory(c, given);
   const { dataDir } = await c.op(c.ops.server.config, {});
   const file = join(dataDir, "config.json");
   const { z } = await import("zod");
