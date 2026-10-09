@@ -70,6 +70,7 @@ export const sharedViteConfig = {
   },
   resolve: {
     conditions: ["source"],
+    dedupe: ["react", "react-dom"],
     alias: [
       {
         find: /^\.\.\/\.\.\/lib\/portal-scope$/,
