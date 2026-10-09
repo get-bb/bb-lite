@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { posix } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
@@ -897,7 +897,7 @@ export default function workflowsServer(bb: PluginServerApi): void {
       return fail("invalid", "The resumed run is from another project");
     }
     const limits = clampLimits(await settings.get());
-    const runId = `wfr_${randomBytes(9).toString("base64url")}`;
+    const runId = `wfr_${randomUUID()}`;
     db.prepare(
       `INSERT INTO runs (id, project_id, origin_thread_id, environment_id,
        provider_id, settings_json, name, description, source,

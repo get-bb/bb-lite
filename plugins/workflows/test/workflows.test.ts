@@ -138,6 +138,7 @@ it("runs a two-step workflow to completion and reads back status and history", a
   });
   expect(started.success).toBe(true);
   const { runId, previewDirective } = JSON.parse(started.text);
+  expect(runId).toMatch(/^wfr_[0-9a-f-]{36}$/);
   expect(previewDirective).toBe(`::workflow-preview{run="${runId}"}`);
   await vi.waitFor(async () =>
     expect(await server.status(runId)).toMatchObject({
