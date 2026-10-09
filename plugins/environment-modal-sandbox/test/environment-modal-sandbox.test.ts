@@ -99,6 +99,10 @@ it("needs configuration until the Modal token is set", async () => {
     available: false,
     message: "Set tokenId and tokenSecret in the plugin's settings.",
   });
+  const inspect = modal.account.doors.cli;
+  const missing = { available: false, message: "" };
+  expect(inspect?.exitCode?.(missing, {})).toBe(1);
+  expect(inspect?.exitCode?.({ ...missing, available: true }, {})).toBe(0);
   expect((await configure()).status).toBe(200);
   await vi.waitFor(
     async () => expect(await plugin()).toMatchObject({ status: "running" }),

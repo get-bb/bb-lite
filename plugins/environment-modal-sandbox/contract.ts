@@ -69,6 +69,7 @@ export const modal = contract("modal", {
         path: "modal account inspect",
         summary: "Test the configured Modal account",
         print: (output) => output.message,
+        exitCode: ({ available }) => (available ? 0 : 1),
       },
     },
   }),
