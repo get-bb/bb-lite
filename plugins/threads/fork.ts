@@ -144,6 +144,21 @@ function unavailable(message: string): never {
   });
 }
 
+function turnEnd(db: Db, threadId: string, sequence: number): number {
+  const completed = db.get<{ sequence: number }>(
+    `SELECT sequence FROM events
+     WHERE thread_id = ? AND type = 'turn/completed' AND turn_id = (
+       SELECT turn_id FROM events
+       WHERE thread_id = ? AND sequence <= ? AND turn_id IS NOT NULL
+       ORDER BY sequence DESC LIMIT 1
+     )`,
+    threadId,
+    threadId,
+    sequence,
+  );
+  return Math.max(sequence, completed?.sequence ?? sequence);
+}
+
 export function forkThread(
   engine: Engine,
   request: ForkRequest,
@@ -160,8 +175,9 @@ export function forkThread(
     unavailable("source has no workspace to continue in");
   }
   const latest = latestSequence(db, source.id);
-  const end = request.sourceSeqEnd ?? latest;
-  if (end > latest) unavailable("sourceSeqEnd is past the source history");
+  const asked = request.sourceSeqEnd ?? latest;
+  if (asked > latest) unavailable("sourceSeqEnd is past the source history");
+  const end = turnEnd(db, source.id, asked);
   const history = readHistory(db, source.id, end);
   if (history.length === 0) unavailable("source has no conversation yet");
   const checkpoint = forkCheckpoint(db, source.providerId, source.id, end);

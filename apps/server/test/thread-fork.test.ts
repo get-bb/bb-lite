@@ -196,6 +196,25 @@ it("still edits in a fork after its source's history is rewritten", async () => 
   });
 });
 
+it("forks at a reply with the whole turn that produced it", async () => {
+  const s = await forkScenario();
+  await s.send(s.id, "second banana");
+  const reply = s.ctx.db.get<{ sequence: number }>(
+    `SELECT sequence FROM events WHERE thread_id = ?
+     AND type = 'item/completed' ORDER BY sequence LIMIT 1`,
+    s.id,
+  );
+  const forked = await s.created({ sourceSeqEnd: reply?.sequence ?? 0 });
+  expect(await s.conversation(forked)).toEqual([
+    "user: first pineapple",
+    "assistant: Response to: first pineapple",
+  ]);
+  await s.send(forked, "count");
+  expect((await s.conversation(forked)).at(-1)).toBe(
+    "assistant: Turn count: 2",
+  );
+});
+
 it("seeds a transcript when the provider cannot fork a checkpoint", async () => {
   const s = await forkScenario();
   const definition = findProviderDefinition(s.ctx.db, "echo");

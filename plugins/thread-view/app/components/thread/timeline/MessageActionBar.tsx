@@ -32,7 +32,10 @@ import {
   TimelineContext,
   type ThreadTimelineAddToChatHandler,
 } from "./timeline-context";
-import { useEditMessageAction } from "../../../lib/edit-message";
+import {
+  useEditMessageAction,
+  useForkMessageAction,
+} from "../../../lib/edit-message";
 
 export type MobileActionDisplay = "inline" | "overflow";
 
@@ -132,6 +135,7 @@ export function MessageActionBar({
   const extraActions = [
     ...useContext(ExtraMessageActionsContext),
     ...useEditMessageAction(threadId, seq),
+    ...useForkMessageAction(threadId, seq),
   ];
   const pluginActions = [
     ...useOwned(threadView.messageAction),

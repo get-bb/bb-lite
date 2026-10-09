@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from "react";
+import { useNavigate } from "react-router-dom";
+import { getThreadRoutePath } from "@bb/app-kit/lib/route-paths";
 import { appToast } from "@bb/app-kit/components/ui/app-toast";
 import { useThread } from "@bb/app-kit/hooks/queries/thread-queries";
 import { useSystemProviders } from "@bb/app-kit/hooks/queries/system-queries";
@@ -80,6 +82,35 @@ export function useEditMessageAction(
       icon: "Edit",
       isAvailable: (message) => message.role === "user",
       run: (context) => startEditing(target, seq, context.text),
+    },
+  ];
+}
+
+export function useForkMessageAction(
+  threadId: string | null,
+  seq: number | null,
+): MessageAction[] {
+  const navigate = useNavigate();
+  if (threadId === null || seq === null) return [];
+  const fork = async () => {
+    const source = { sourceThreadId: threadId, sourceSeqEnd: seq };
+    const forked = await callOp(threads.fork, source);
+    const { projectId, id } = forked;
+    navigate(getThreadRoutePath({ projectId, threadId: id }));
+  };
+  return [
+    {
+      id: "fork-thread",
+      label: "Fork into new thread",
+      icon: "Fork",
+      isAvailable: (message) => message.role !== "user",
+      run: () => {
+        fork().catch((error: unknown) =>
+          appToast.error(
+            `Could not fork the thread: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+        );
+      },
     },
   ];
 }
