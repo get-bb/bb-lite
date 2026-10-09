@@ -1,0 +1,37 @@
+{
+  "name": "bb-plugin-bb-account",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tells this bb and its plugins which getbb account it is signed in to, and makes requests to hosted services as this server.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "bb account",
+    "description": "Tells this bb and its plugins which getbb account it is signed in to, and makes requests to hosted services as this server.",
+    "icon": "UserRound",
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ],
+    "requires": [
+      "connect"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

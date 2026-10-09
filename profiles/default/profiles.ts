@@ -31,6 +31,7 @@ const AGENT_FEATURES = [
   "plugin-api-tester",
 ];
 const PRODUCT = [
+  "bb-account",
   "connect",
   "account-pool",
   "tasks",
