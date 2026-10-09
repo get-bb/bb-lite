@@ -16,6 +16,9 @@ it("picks the in-repo plugins a profile names", () => {
     "provider-codex",
     "provider-claude-code",
     "provider-echo",
+    "environment-project-checkout",
+    "environment-git-worktree",
+    "environment-personal-workspace",
     "plugin-dev",
   ]);
   expect(ids("headless")).not.toContain("thread-list");

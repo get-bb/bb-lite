@@ -4,6 +4,11 @@ export interface Profile {
 }
 
 const PROVIDERS = ["provider-codex", "provider-claude-code", "provider-echo"];
+const ENVIRONMENT_KINDS = [
+  "environment-project-checkout",
+  "environment-git-worktree",
+  "environment-personal-workspace",
+];
 const SCREEN = [
   "thread-list",
   "navigation",
@@ -36,16 +41,27 @@ const PRODUCT = [
 export const profiles: Record<string, Profile> = {
   default: {
     description: "The whole product.",
-    plugins: [...PROVIDERS, ...SCREEN, ...AGENT_FEATURES, ...PRODUCT],
+    plugins: [
+      ...PROVIDERS,
+      ...ENVIRONMENT_KINDS,
+      ...SCREEN,
+      ...AGENT_FEATURES,
+      ...PRODUCT,
+    ],
   },
   headless: {
     description:
       "No screen plugins: a server that only the CLI and agents talk to.",
-    plugins: [...PROVIDERS, ...AGENT_FEATURES, ...PRODUCT],
+    plugins: [
+      ...PROVIDERS,
+      ...ENVIRONMENT_KINDS,
+      ...AGENT_FEATURES,
+      ...PRODUCT,
+    ],
   },
   minimal: {
     description: "Providers and the plugin tools, nothing else.",
-    plugins: [...PROVIDERS, "plugin-dev"],
+    plugins: [...PROVIDERS, ...ENVIRONMENT_KINDS, "plugin-dev"],
   },
 };
 
@@ -66,4 +82,9 @@ export const CORE = [
   "side-panel",
 ];
 
-export const LOADED_FIRST = [...PROVIDERS, "thread-list", "navigation"];
+export const LOADED_FIRST = [
+  ...PROVIDERS,
+  ...ENVIRONMENT_KINDS,
+  "thread-list",
+  "navigation",
+];

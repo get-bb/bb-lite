@@ -122,7 +122,14 @@ export interface EnvironmentContext {
   inputs: Domain.JsonValue | null;
   machine: { providerId: string; inputs: Domain.JsonValue | null } | null;
   resource: Domain.JsonValue | null;
-  report(text: string, status?: "started" | "completed" | "failed"): void;
+  instanceKey: string;
+  restoring: boolean;
+  baseBranch: string | null;
+  report(
+    text: string,
+    status?: "started" | "completed" | "failed",
+    step?: { key?: string; startedAt?: number },
+  ): void;
   signal: AbortSignal;
 }
 
@@ -131,7 +138,21 @@ export interface EnvironmentResult {
   hostId?: string;
   resource?: Domain.JsonValue;
   branchName?: string;
+  mergeBaseBranch?: string | null;
 }
+
+export type EnvironmentBranch =
+  | { kind: "existing"; name: string }
+  | { kind: "new"; baseBranch: string };
+
+export type EnvironmentPlacement =
+  | { type: "owned"; instanceKey?: string; baseBranch?: string | null }
+  | {
+      type: "checkout";
+      kind?: string;
+      path?: string;
+      branch?: EnvironmentBranch;
+    };
 
 export interface EnvironmentDeletion {
   hostId: string;
@@ -157,6 +178,10 @@ export interface EnvironmentDefinition {
     inputs: Domain.JsonValue | null,
     context: { projectId: string; hostId: string },
   ): MaybePromise<string | null>;
+  place?(
+    inputs: Domain.JsonValue | null,
+    context: { threadId: string; projectId: string; hostId: string },
+  ): MaybePromise<EnvironmentPlacement>;
   create(context: EnvironmentContext): Promise<EnvironmentResult>;
   delete(context: EnvironmentDeletion): Promise<void>;
 }

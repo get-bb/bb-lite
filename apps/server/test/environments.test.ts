@@ -250,9 +250,10 @@ it("runs a thread in an environment kind a plugin contributed", async () => {
   });
   const { providers }: { providers: { id: string; pluginId: string }[] } =
     await listed.json();
-  expect(providers.map(({ id, pluginId }) => [id, pluginId])).toContainEqual([
-    "scratch-dir",
-    "scratch-dirs",
+  expect(providers.map(({ id, pluginId }) => [id, pluginId])).toEqual([
+    ["project-checkout", "environment-project-checkout"],
+    ["git-worktree", "environment-git-worktree"],
+    ["scratch-dir", "scratch-dirs"],
   ]);
   const machine = { type: "existing", hostId } as const;
   const kind = { environmentProviderId: "scratch-dir", machine };

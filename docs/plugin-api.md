@@ -282,14 +282,22 @@ create(context), delete(context) })`.
 
 - `create(context)` receives `thread`, `project`, `host`, `checkoutPath`, `branchName`, the user's
   `inputs`, the `machine` request if the user asked for a new machine, the `resource` you stored
-  before, `report(text, status?)` for progress lines and a `signal`. It returns `{ path }` and
-  optionally `hostId` (the machine it created), `resource` (JSON to keep) and `branchName`.
+  before, `instanceKey` (stable per environment), `restoring` (true when recreating one that
+  existed, keeping its `branchName`), `baseBranch`, `report(text, status?, { key?, startedAt? }?)`
+  for progress lines and a `signal`. It returns `{ path }` and optionally `hostId` (the machine it
+  created), `resource` (JSON to keep), `branchName` and `mergeBaseBranch`.
+- `place(inputs, { threadId, projectId, hostId })` (optional) decides where the thread goes:
+  `{ type: "owned", instanceKey?, baseBranch? }` (the default: a directory this kind creates for
+  the thread) or `{ type: "checkout", kind?, path?, branch? }` (attach to an existing checkout,
+  shared by every thread at that path, optionally switching branch; `create` is not called).
 - `delete({ hostId, path, resource })` undoes it. `validate(inputs, { projectId, hostId })` returns a
   message to refuse a thread before it is created.
 - Give the kind `inputs` (any non-null JSON) and add a form in the app part:
   `bb.add(composer.environmentInputs, { kind: "<id>", view })`. The view gets `value`, `onChange`,
   `projectId` and `hostId`.
-- Using a built-in id (`git-worktree`, `personal-workspace`, `project-checkout`) replaces that kind.
+- The built-in kinds are plugins too (`plugins/environment-git-worktree`,
+  `environment-personal-workspace`, `environment-project-checkout`). Using one of their ids
+  replaces that kind.
 
 To create machines (a sandbox, a VM), add a `machines.provider` (`{ id, displayName, suspend?,
 resume?, delete? }`) and use the machine operations:

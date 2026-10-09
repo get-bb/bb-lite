@@ -8,6 +8,9 @@ import concurrencyLimit from "../../plugins/concurrency-limit/server.js";
 import connect from "../../plugins/connect/src/server.js";
 import customInstructions from "../../plugins/custom-instructions/server.js";
 import drafts from "../../plugins/drafts/server.js";
+import environmentGitWorktree from "../../plugins/environment-git-worktree/server.js";
+import environmentPersonalWorkspace from "../../plugins/environment-personal-workspace/server.js";
+import environmentProjectCheckout from "../../plugins/environment-project-checkout/server.js";
 import environments from "../../plugins/environments/server.js";
 import identity from "../../plugins/identity/server.js";
 import inlineVis from "../../plugins/inline-vis/server.js";
@@ -43,6 +46,9 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   connect: connect,
   "custom-instructions": customInstructions,
   drafts: drafts,
+  "environment-git-worktree": environmentGitWorktree,
+  "environment-personal-workspace": environmentPersonalWorkspace,
+  "environment-project-checkout": environmentProjectCheckout,
   environments: environments,
   identity: identity,
   "inline-vis": inlineVis,

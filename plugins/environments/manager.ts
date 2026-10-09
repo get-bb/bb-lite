@@ -1,12 +1,13 @@
-import { git, machineFiles, workspaces } from "@bb/runner";
+import { git, machineFiles } from "@bb/runner";
 import { randomUUID } from "node:crypto";
-import type { Environment, JsonValue } from "@bb/domain";
+import type { Environment } from "@bb/domain";
 import {
   environments as environmentKinds,
+  type EnvironmentBranch,
   type EnvironmentDefinition,
+  type EnvironmentPlacement,
   threads,
 } from "@bb/plugin";
-import type { z } from "zod";
 import type { EnvironmentContext, PluginServerApi } from "@bb/plugin";
 import type { ServerRunner } from "@bb/server-kit/context";
 import * as store from "@bb/server-kit/db/environments";
@@ -14,11 +15,6 @@ import { findHost } from "@bb/server-kit/db/hosts";
 import { getProjectSource, requireProject } from "@bb/server-kit/db/projects";
 import { getAppSettings } from "@bb/server-kit/db/settings";
 import { getThread, type ThreadRow } from "@bb/server-kit/db/threads";
-import {
-  BUILTIN_ENVIRONMENT_KINDS,
-  checkoutInputsSchema,
-  worktreeInputsSchema,
-} from "./environment-providers.js";
 import { errorMessage } from "@bb/server-kit/http/errors";
 import { hostResponse } from "@bb/server-kit/runners/hosts";
 import { ThreadSerial } from "@bb/server-kit/threads/serial";
@@ -30,26 +26,7 @@ import {
 } from "@bb/server-kit/environments/types";
 import { requireEnvironment } from "@bb/server-kit/environments/workspace";
 
-interface BuiltinKind extends EnvironmentDefinition {
-  resolve(
-    job: Job,
-    hostId: string,
-    inputs: JsonValue | null,
-  ): Promise<ThreadEnvironment>;
-  materialize?(
-    found: Environment,
-    runner: ServerRunner,
-    job: Job,
-    base: string | null,
-  ): Promise<string>;
-}
-
-function isBuiltin(kind: EnvironmentDefinition): kind is BuiltinKind {
-  return "resolve" in kind;
-}
-
-type CheckoutInputs = z.infer<typeof checkoutInputsSchema>;
-type CheckoutBranch = NonNullable<CheckoutInputs["branch"]>;
+type Checkout = Extract<EnvironmentPlacement, { type: "checkout" }>;
 
 const RETIRE_GRACE_MS = 5 * 60_000;
 const TEARDOWN_RETRY_MS = 60_000;
@@ -118,45 +95,6 @@ export function createEnvironments(bb: PluginServerApi) {
     return managedBranchName(getAppSettings(db).managedBranchPrefix, thread);
   }
 
-  async function addWorktree(
-    found: Environment,
-    runner: ServerRunner,
-    job: Job,
-    base: string | null,
-  ) {
-    const { onProgress, thread } = job;
-    const sourcePath = sourcePathOf(found.projectId, found.hostId);
-    const branchName = found.branchName ?? branchNameFor(thread);
-    if (found.branchName !== null) {
-      const selectedBranch = branchName;
-      const query = { path: sourcePath, selectedBranch, limit: 1 };
-      const kept = (await runner.call(git.branches, query)).selectedBranch;
-      if (kept?.kind !== "local") {
-        const gone = `Branch ${branchName} no longer exists`;
-        throw notReady(`${gone}, so its worktree cannot be restored.`);
-      }
-    }
-    const startedAt = now();
-    const creating = "Creating worktree";
-    onProgress([step("git-worktree-started", creating, "started", startedAt)]);
-    const key = found.environmentProviderInstanceKey ?? found.id;
-    const baseBranch = found.mergeBaseBranch ?? base;
-    const worktree = { sourcePath, key, branchName, baseBranch };
-    const made = await runner.call(git.createWorktree, worktree);
-    const created = "Created worktree";
-    const done = "completed";
-    const entries = [step("git-worktree-completed", created, done, startedAt)];
-    if (made.worktreeInclude !== null) {
-      const { copied, skipped } = made.worktreeInclude;
-      const kept = skipped === 0 ? "" : `, skipped ${skipped}`;
-      const text = `Copied ${copied} file(s) from .worktreeinclude${kept}`;
-      entries.push(step("worktree-include-completed", text, done, now()));
-    }
-    onProgress(entries);
-    patch(found.id, { branchName, mergeBaseBranch: made.mergeBaseBranch });
-    return made.path;
-  }
-
   function kindOf(found: Environment): EnvironmentDefinition | null {
     const id = found.environmentProviderId;
     return id === null ? null : bb.find(environmentKinds.kind, id);
@@ -166,6 +104,7 @@ export function createEnvironments(bb: PluginServerApi) {
     kind: EnvironmentDefinition,
     found: Environment,
     job: Job,
+    base: string | null,
   ) {
     const { hostId, projectId } = found;
     const threadId = job.thread.id;
@@ -176,16 +115,23 @@ export function createEnvironments(bb: PluginServerApi) {
     }
     const source = getProjectSource(db, projectId, { hostId });
     const { intent, onProgress } = job;
-    const report: EnvironmentContext["report"] = (text, status = "started") => {
-      const key = `environment-${randomUUID()}`;
-      onProgress([step(key, text, status, now())]);
+    const report: EnvironmentContext["report"] = (
+      text,
+      status = "started",
+      at = {},
+    ) => {
+      const key = at.key ?? `environment-${randomUUID()}`;
+      onProgress([step(key, text, status, at.startedAt ?? now())]);
     };
     const made = await kind.create({
       thread,
       project: requireProject(db, projectId),
       host: hostResponse(bb, host),
       checkoutPath: source?.path ?? null,
-      branchName: branchNameFor(job.thread),
+      branchName: found.branchName ?? branchNameFor(job.thread),
+      restoring: found.branchName !== null,
+      instanceKey: found.environmentProviderInstanceKey ?? found.id,
+      baseBranch: found.mergeBaseBranch ?? base,
       inputs: intent.type === "provider" ? intent.inputs : null,
       machine: intent.type === "provider" ? intent.machine : null,
       resource: store.getEnvironmentResource(db, found.id),
@@ -199,26 +145,26 @@ export function createEnvironments(bb: PluginServerApi) {
         : { resource: JSON.stringify(made.resource) };
     const named =
       made.branchName === undefined ? {} : { branchName: made.branchName };
-    store.updateEnvironment(db, found.id, { ...moved, ...kept, ...named });
+    const based =
+      made.mergeBaseBranch === undefined
+        ? {}
+        : { mergeBaseBranch: made.mergeBaseBranch };
+    const changes = { ...moved, ...kept, ...named, ...based };
+    store.updateEnvironment(db, found.id, changes);
     return { path: made.path, hostId: made.hostId ?? hostId };
   }
 
   async function materialize(
     found: Environment,
-    runner: ServerRunner,
     job: Job,
     base: string | null,
   ) {
-    const { id, hostId, projectId } = found;
+    const { id, projectId } = found;
     job.signal.throwIfAborted();
     patch(id, { status: "creating", statusMessage: null, ...IN_USE });
     const kind = kindOf(found);
     if (kind === null) throw notReady(KIND_GONE);
-    const made = isBuiltin(kind) ? kind.materialize : undefined;
-    const placed =
-      made === undefined
-        ? await createWith(kind, found, job)
-        : { path: await made(found, runner, job, base), hostId };
+    const placed = await createWith(kind, found, job, base);
     const { path } = placed;
     patch(id, { path, status: "provisioning" });
     job.signal.throwIfAborted();
@@ -252,7 +198,7 @@ export function createEnvironments(bb: PluginServerApi) {
       }
       try {
         const path = found.managed
-          ? await materialize(found, runner, job, base)
+          ? await materialize(found, job, base)
           : await attach(found, runner);
         patch(environmentId, { status: "ready" });
         return { environmentId, path };
@@ -270,7 +216,7 @@ export function createEnvironments(bb: PluginServerApi) {
     { environmentId, path }: ThreadEnvironment,
     hostId: string,
     thread: ThreadRow,
-    branch: CheckoutBranch,
+    branch: EnvironmentBranch,
   ) {
     if (store.hasOtherLiveThread(db, environmentId, thread.id)) {
       throw notReady(SHARED_CHECKOUT);
@@ -290,12 +236,12 @@ export function createEnvironments(bb: PluginServerApi) {
   async function attachCheckout(
     job: Job,
     hostId: string,
-    inputs: CheckoutInputs,
+    inputs: Checkout,
+    environmentProviderId: string,
   ): Promise<ThreadEnvironment> {
     const { thread } = job;
     const { projectId } = thread;
     const path = inputs.path ?? sourcePathOf(projectId, hostId);
-    const environmentProviderId = "project-checkout";
     const unowned = { ownerThreadId: null, instanceKey: null };
     const fresh = {
       projectId,
@@ -345,8 +291,18 @@ export function createEnvironments(bb: PluginServerApi) {
       : await defaultKind(projectId, hostId);
     const kind = bb.find(environmentKinds.kind, environmentProviderId);
     if (kind === null) throw notReady(KIND_GONE);
-    if (isBuiltin(kind)) return kind.resolve(job, hostId, inputs);
-    return owned(job, hostId, environmentProviderId, ownerThreadId, null);
+    const where = { threadId: ownerThreadId, projectId, hostId };
+    const placed: EnvironmentPlacement = (await kind.place?.(
+      inputs,
+      where,
+    )) ?? { type: "owned" };
+    if (placed.type === "checkout") {
+      const as = placed.kind ?? environmentProviderId;
+      return attachCheckout(job, hostId, placed, as);
+    }
+    const key = placed.instanceKey ?? ownerThreadId;
+    const base = placed.baseBranch ?? null;
+    return owned(job, hostId, environmentProviderId, key, base);
   }
 
   function owned(
@@ -363,52 +319,11 @@ export function createEnvironments(bb: PluginServerApi) {
     return prepare(kept ?? create(fresh), job, base);
   }
 
-  const [checkoutKind, worktreeKind, personalKind] = BUILTIN_ENVIRONMENT_KINDS;
-  const attached = async (): Promise<never> => {
-    throw notReady("This kind of environment attaches to an existing path.");
-  };
   const removeManaged = async (target: { hostId: string; path: string }) => {
     await runners
       .get(target.hostId)
       .call(git.deleteWorktree, { path: target.path });
   };
-  const builtins: BuiltinKind[] = [
-    {
-      ...checkoutKind,
-      create: attached,
-      delete: async () => {},
-      resolve: (job, hostId, inputs) =>
-        attachCheckout(job, hostId, checkoutInputsSchema.parse(inputs ?? {})),
-    },
-    {
-      ...worktreeKind,
-      create: attached,
-      delete: removeManaged,
-      materialize: addWorktree,
-      resolve(job, hostId, inputs) {
-        const worktree = worktreeInputsSchema.parse(inputs ?? undefined);
-        if ("kind" in worktree) {
-          return attachCheckout(job, hostId, { path: worktree.path });
-        }
-        const { branch } = worktree;
-        const base = branch.kind === "named" ? branch.name : null;
-        const key = `${job.thread.id}-1`;
-        return owned(job, hostId, worktreeKind.id, key, base);
-      },
-    },
-    {
-      ...personalKind,
-      create: attached,
-      delete: removeManaged,
-      async materialize(found, runner) {
-        const key = found.environmentProviderInstanceKey ?? found.id;
-        return (await runner.call(workspaces.ensurePersonal, { key })).path;
-      },
-      resolve: (job, hostId) =>
-        owned(job, hostId, personalKind.id, job.thread.id, null),
-    },
-  ];
-  for (const builtin of builtins) bb.add(environmentKinds.kind, builtin);
 
   function refresh(found: Environment): Environment {
     const { retireAt, teardown } = found.lifecycle;
