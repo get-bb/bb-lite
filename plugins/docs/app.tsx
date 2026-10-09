@@ -162,7 +162,7 @@ function DocEditor({
   const [status, setStatus] = useState("");
   const [conflict, setConflict] = useState(false);
   const saved = file.data?.contentEncoding === "utf8" ? file.data.content : "";
-  useEffect(() => setDraft(null), [saved]);
+  const [base, setBase] = useState<string | null>(null);
   if (file.status === "loading") return <p className="p-2 text-sm">Loading…</p>;
   if (!file.data) {
     const missing = failureStatus(file.error) === 404;
@@ -174,12 +174,20 @@ function DocEditor({
   }
   const { sha256 } = file.data;
   const text = draft ?? saved;
+  const edit = (next: string) => {
+    if (draft === null) setBase(sha256);
+    setDraft(next);
+  };
   const save = (overwrite = false) => {
     setStatus("Saving…");
     setConflict(false);
-    const expectedSha256 = overwrite ? undefined : sha256;
+    const expectedSha256 = overwrite ? undefined : (base ?? sha256);
     write({ ...at, content: text, expectedSha256 }).then(
-      () => setStatus("Saved"),
+      () => {
+        setStatus("Saved");
+        setDraft(null);
+        setBase(null);
+      },
       (failure: unknown) => {
         const changed = failureStatus(failure) === 409;
         setConflict(changed);
@@ -191,6 +199,7 @@ function DocEditor({
     setConflict(false);
     setStatus("");
     setDraft(null);
+    setBase(null);
     void file.refetch();
   };
   const attach = async (picked: File) => {
@@ -200,7 +209,7 @@ function DocEditor({
       name: picked.name,
       contentBase64,
     });
-    setDraft(`${text}\n${markdown}\n`);
+    edit(`${text}\n${markdown}\n`);
   };
   const renameToTitle = () =>
     rename(at).then(
@@ -265,7 +274,7 @@ function DocEditor({
         <textarea
           className="bg-background min-h-64 flex-1 rounded border p-2 font-mono text-sm"
           value={text}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => edit(event.target.value)}
           onBlur={() => draft !== null && save()}
         />
       )}
