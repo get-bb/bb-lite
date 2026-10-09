@@ -91,5 +91,6 @@ it("shares every module of the server kit with forked plugins", () => {
     .filter((file) => file.endsWith(".ts"))
     .map((file) => `@bb/server-kit/${file.slice(0, -3).replaceAll(sep, "/")}`);
   const shared = Object.keys(SERVER_RUNTIME_MODULES);
-  expect(shared.sort()).toEqual(["@bb/runner", ...modules].sort());
+  const host = ["@bb/plugin", "@bb/runner", "zod"];
+  expect(shared.sort()).toEqual([...host, ...modules].sort());
 });
