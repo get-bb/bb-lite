@@ -164,3 +164,17 @@ it("searches a configured registry", async () => {
   ]);
   expect(queries[0]).toContain("/api/v1/skills/search?q=pdf");
 });
+
+it("acts on the machine the CLI runs on", async () => {
+  const { send } = await setup();
+  const source = mkdtempSync(join(tmpdir(), "bb-skill-src-"));
+  const directory = skillDir(source, "roamer", "Travel");
+  const cli = async (argv: string[], hostId?: string) => {
+    const input = { argv, ...(hostId === undefined ? {} : { hostId }) };
+    const response = await send("/plugins/skills/cli", input);
+    return (await response.json()) as { exitCode: number; stderr: string };
+  };
+  const elsewhere = await cli(["install", directory], "host_far");
+  expect(elsewhere.exitCode).not.toBe(0);
+  expect((await cli(["install", directory])).exitCode).toBe(0);
+});

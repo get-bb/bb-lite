@@ -45,6 +45,7 @@ const target = z.object({
   ...located,
 });
 const listInput = z.object(located);
+const fromMachine = { hostId: "hostId" } as const;
 const printList = (skills: Skill[]) =>
   skills
     .map(
@@ -67,7 +68,12 @@ export const skills = contract("skills", {
     output: z.array(skillSchema),
     doors: {
       http: { method: "GET", path: "/skills" },
-      cli: { path: "skill list", summary: "List skills", print: printList },
+      cli: {
+        path: "skill list",
+        summary: "List skills",
+        from: fromMachine,
+        print: printList,
+      },
     },
   }),
   get: op({
@@ -82,6 +88,7 @@ export const skills = contract("skills", {
         path: "skill show",
         summary: "Print a skill's SKILL.md and files",
         positionals: ["id"],
+        from: fromMachine,
         print: (skill) =>
           `${skill.content}\n\nfiles:\n${skill.files.join("\n")}`,
       },
@@ -104,6 +111,7 @@ export const skills = contract("skills", {
         path: "skill install",
         summary: "Install a skill from a git repository or a directory",
         positionals: ["source", "skill"],
+        from: fromMachine,
         print: done("Installed"),
       },
     },
@@ -119,6 +127,7 @@ export const skills = contract("skills", {
         aliases: ["skill remove"],
         summary: "Remove an installed skill",
         positionals: ["id"],
+        from: fromMachine,
         print: done("Removed"),
       },
     },
@@ -133,6 +142,7 @@ export const skills = contract("skills", {
         path: "skill enable",
         summary: "Offer a skill to agents again",
         positionals: ["id"],
+        from: fromMachine,
         print: done("Enabled"),
       },
     },
@@ -147,6 +157,7 @@ export const skills = contract("skills", {
         path: "skill disable",
         summary: "Stop offering a skill to agents",
         positionals: ["id"],
+        from: fromMachine,
         print: done("Disabled"),
       },
     },
