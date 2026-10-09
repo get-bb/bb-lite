@@ -39,6 +39,7 @@ import tasks from "../../plugins/tasks/server.js";
 import terminals from "../../plugins/terminals/server.js";
 import threadList from "../../plugins/thread-list/server.js";
 import threads from "../../plugins/threads/server.js";
+import workflows from "../../plugins/workflows/server.js";
 import workspace from "../../plugins/workspace/server.js";
 
 export const serverEntries: Record<string, PluginServerEntry | null> = {
@@ -89,5 +90,6 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "thread-list": threadList,
   "thread-view": null,
   threads: threads,
+  workflows: workflows,
   workspace: workspace,
 };

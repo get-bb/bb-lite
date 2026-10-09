@@ -1,0 +1,40 @@
+{
+  "name": "bb-plugin-workflows",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Run durable, provider-independent agent workflows.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Workflows",
+    "description": "Run durable, provider-independent agent workflows.",
+    "icon": "Workflow",
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ],
+    "enabledByDefault": false
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --ignore-pattern node_modules --ignore-pattern dist ."
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "acorn": "8.16.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@bb/server-kit": "workspace:*",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "better-sqlite3": "12.10.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}
