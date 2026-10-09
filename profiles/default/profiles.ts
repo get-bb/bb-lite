@@ -32,6 +32,7 @@ const AGENT_FEATURES = [
 ];
 const PRODUCT = [
   "bb-account",
+  "bb-ai",
   "connect",
   "account-pool",
   "tasks",

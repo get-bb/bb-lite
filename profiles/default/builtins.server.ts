@@ -4,6 +4,7 @@ import askUserQuestion from "../../plugins/ask-user-question/src/server.js";
 import audit from "../../plugins/audit/server.js";
 import auditLog from "../../plugins/audit-log/server.js";
 import bbAccount from "../../plugins/bb-account/server.js";
+import bbAi from "../../plugins/bb-ai/server.js";
 import bbGuide from "../../plugins/bb-guide/server.js";
 import concurrencyLimit from "../../plugins/concurrency-limit/server.js";
 import connect from "../../plugins/connect/src/server.js";
@@ -46,6 +47,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   audit: audit,
   "audit-log": auditLog,
   "bb-account": bbAccount,
+  "bb-ai": bbAi,
   "bb-guide": bbGuide,
   composer: null,
   "concurrency-limit": concurrencyLimit,

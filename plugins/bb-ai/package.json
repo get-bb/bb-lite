@@ -1,0 +1,37 @@
+{
+  "name": "bb-plugin-bb-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Thread titles from bb cloud, included with your bb account.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "bb cloud AI",
+    "description": "Thread titles from bb cloud, included with your bb account.",
+    "icon": "AiBrain01",
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ],
+    "requires": [
+      "bb-account"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}
