@@ -21,6 +21,7 @@ export interface CliEnv {
   threadId?: string;
   projectId?: string;
   environmentId?: string;
+  hostId?: string;
   threadStorage?: string;
 }
 
@@ -73,6 +74,7 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): CliEnv {
     threadId: id("BB_THREAD_ID"),
     projectId: id("BB_PROJECT_ID"),
     environmentId: id("BB_ENVIRONMENT_ID"),
+    hostId: id("BB_HOST_ID"),
     threadStorage: env.BB_THREAD_STORAGE?.trim() || undefined,
   };
 }

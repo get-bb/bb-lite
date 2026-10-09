@@ -234,9 +234,11 @@ it("runs a thread in an environment kind a plugin contributed", async () => {
   plugin.add(environmentKinds.kind, {
     id: "scratch-dir",
     displayName: "Scratch directory",
-    async create({ thread, host, checkoutPath, branchName }) {
+    async create({ thread, host, checkoutPath, branchName, log }) {
       const path = join(root, `scratch-${thread.id}`);
       mkdirSync(path);
+      log("building layer 1");
+      log("building layer 2");
       made.push(`${host.id} ${checkoutPath} ${branchName}`);
       return { path };
     },
@@ -267,6 +269,31 @@ it("runs a thread in an environment kind a plugin contributed", async () => {
   });
   expect(made).toEqual([`${hostId} ${world.repo} bb/build-the-widget-${id}`]);
   expect(world.stored(id, "item/completed").join()).toContain(path);
+  const provisioning = world.stored(id, "system/thread-provisioning").join();
+  expect(provisioning).toContain('"text":"building layer 1"');
+  expect(provisioning).toContain('"text":"building layer 2"');
+  const contexts: unknown[] = [];
+  const run = async (_argv: string[], context: unknown) => {
+    contexts.push(context);
+    return { exitCode: 0 };
+  };
+  ctx.plugins.running = () => ({ cli: { run } }) as never;
+  ctx.plugins.cliOf = () => ({ run }) as never;
+  const cli = (body: object) =>
+    world.request("/plugins/scratch-dirs/cli", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ argv: [], ...body }),
+    });
+  await cli({ threadId: id });
+  await cli({ threadId: id, hostId: "host_elsewhere" });
+  await cli({});
+  expect(contexts).toMatchObject([
+    { threadId: id, hostId },
+    { threadId: id, hostId: "host_elsewhere" },
+    {},
+  ]);
+  expect(contexts[2]).not.toHaveProperty("hostId");
   const environmentId = getThread(db, id)?.environmentId ?? "";
   await ctx.threads.delete(id, { childThreadsConfirmed: true });
   await ctx.environments.remove(environmentId).catch(() => {});

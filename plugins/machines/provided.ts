@@ -57,7 +57,8 @@ export function provideMachines(bb: PluginServerApi): void {
     const blob = { serverUrl, hostId: id, joinToken, headers };
     hub.host(id, ["host-connected"]);
     const command = enrollment.joinCommand(blob);
-    return { hostId: id, command, serverUrl, expiresAt };
+    const script = enrollment.joinScript(command, serverUrl);
+    return { hostId: id, command, script, serverUrl, expiresAt };
   });
 
   bb.implement(machines.waitConnected, ({ hostId, timeoutMs }) => {
@@ -75,7 +76,14 @@ export function provideMachines(bb: PluginServerApi): void {
     });
   });
 
-  const lifecycle = async (hostId: string, step: "suspend" | "resume") => {
+  bb.implement(machines.resource, ({ hostId }) =>
+    resourceOf(requireHost(bb, hostId)),
+  );
+
+  const lifecycle = async (
+    hostId: string,
+    step: "suspend" | "resume" | "reconcile",
+  ) => {
     const host = requireHost(bb, hostId);
     const { provider, machine } = providerOf(bb, host);
     const run = provider?.[step];
@@ -89,12 +97,16 @@ export function provideMachines(bb: PluginServerApi): void {
       const message = `Could not ${step} the machine: ${errorMessage(error)}`;
       throw new ApiError(502, "machine_provider_failed", message);
     }
+    if (step === "reconcile") return;
     const suspendedAt = step === "suspend" ? bb.now() : null;
     store.updateHost(db, hostId, { suspendedAt });
     hub.host(hostId, ["host-connected"]);
   };
   bb.implement(machines.suspend, ({ hostId }) => lifecycle(hostId, "suspend"));
   bb.implement(machines.resume, ({ hostId }) => lifecycle(hostId, "resume"));
+  bb.implement(machines.reconcile, ({ hostId }) =>
+    lifecycle(hostId, "reconcile"),
+  );
 
   bb.onDispose(
     runners.onConnected((hostId) => bb.emit(machines.connected, { hostId })),

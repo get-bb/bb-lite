@@ -136,6 +136,10 @@ export function createEnvironments(bb: PluginServerApi) {
       machine: intent.type === "provider" ? intent.machine : null,
       resource: store.getEnvironmentResource(db, found.id),
       report,
+      log: (text) => {
+        const key = `environment-output-${randomUUID()}`;
+        onProgress([{ type: "output", key, text, startedAt: now() }]);
+      },
       signal: job.signal,
     });
     const moved = made.hostId === undefined ? {} : { hostId: made.hostId };

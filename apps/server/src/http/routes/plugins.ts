@@ -22,6 +22,8 @@ import {
   notFound,
 } from "@bb/server-kit/http/errors";
 import { requireOwner } from "@bb/server-kit/http/trust";
+import { getEnvironment } from "@bb/server-kit/db/environments";
+import { getThread } from "@bb/server-kit/db/threads";
 
 type RouteContext = Context<AppEnv>;
 
@@ -72,6 +74,13 @@ function keepAliveJson(result: Promise<unknown>) {
 export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
   const ctx = shared as HostContext;
   const { plugins } = ctx;
+  const threadHost = (threadId: string | undefined) => {
+    const thread =
+      threadId === undefined ? undefined : getThread(ctx.db, threadId);
+    const environmentId = thread?.environmentId ?? null;
+    if (environmentId === null) return undefined;
+    return getEnvironment(ctx.db, environmentId)?.hostId;
+  };
   const requireManager = () =>
     requireOwner("Only the owner can manage plugins");
 
@@ -84,7 +93,9 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
 
   app.post("/plugins/:id/cli", async (c) => {
     const id = c.req.param("id");
-    const { argv, ...scope } = await jsonBody(c, pluginCliRequestSchema);
+    const { argv, ...given } = await jsonBody(c, pluginCliRequestSchema);
+    const hostId = given.hostId ?? threadHost(given.threadId);
+    const scope = hostId === undefined ? given : { ...given, hostId };
     const run = async () => {
       plugins.running(id);
       const cli = plugins.cliOf(id);

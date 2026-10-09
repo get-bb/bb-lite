@@ -130,6 +130,7 @@ export interface EnvironmentContext {
     status?: "started" | "completed" | "failed",
     step?: { key?: string; startedAt?: number },
   ): void;
+  log(line: string): void;
   signal: AbortSignal;
 }
 

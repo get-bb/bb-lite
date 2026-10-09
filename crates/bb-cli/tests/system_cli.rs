@@ -176,3 +176,19 @@ fn status_reports_project_server_and_plugins() {
     assert_eq!(data["pluginsNeedingAttention"], json!([{ "id": "tasks", "status": "error" }]));
     assert_eq!(data["dataDir"], json!("/data"));
 }
+
+#[test]
+fn plugin_commands_send_the_callers_machine() {
+    let answer = json!({ "exitCode": 0, "stdout": "", "stderr": "" });
+    let server = FakeServer::start(vec![route("POST", "/plugins/demo/cli", answer)]);
+    let env = CliEnv {
+        server_url: server.url.clone(),
+        thread_id: Some("thr_1".into()),
+        host_id: Some("host_1".into()),
+        ..CliEnv::default()
+    };
+    let code = bb_cli::plugin_proxy::run_plugin_command(&env, "demo", vec!["x".into()]).unwrap();
+    assert_eq!(code, 0);
+    let body = server.requests()[0].body.clone().unwrap();
+    assert_eq!((body["threadId"].clone(), body["hostId"].clone()), (json!("thr_1"), json!("host_1")));
+}

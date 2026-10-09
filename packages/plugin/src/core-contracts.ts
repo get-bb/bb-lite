@@ -896,6 +896,7 @@ export interface MachineProvider {
   delete?(machine: MachineRef): void | Promise<void>;
   suspend?(machine: MachineRef): void | Promise<void>;
   resume?(machine: MachineRef): void | Promise<void>;
+  reconcile?(machine: MachineRef): void | Promise<void>;
 }
 
 const machineRef = z.object({ hostId: z.string() });
@@ -914,6 +915,7 @@ export const machines = contract("machines", {
     output: z.object({
       hostId: z.string(),
       command: z.string(),
+      script: z.string(),
       serverUrl: z.string(),
       expiresAt: z.number(),
     }),
@@ -943,6 +945,17 @@ export const machines = contract("machines", {
     input: machineRef,
     output: nothing,
     kind: "write",
+    internal: true,
+  }),
+  reconcile: op({
+    input: machineRef,
+    output: nothing,
+    kind: "write",
+    internal: true,
+  }),
+  resource: op({
+    input: machineRef,
+    output: typed(Domain.jsonValueSchema.nullable()),
     internal: true,
   }),
   connected: event(machineRef),
@@ -980,7 +993,13 @@ export const machines = contract("machines", {
   }),
   list: op({
     input: Contract.hostListQuerySchema,
-    output: typed(z.array(Domain.hostSchema)),
+    output: typed(
+      z.array(
+        Domain.hostSchema.extend({
+          threadStorageRootPath: z.string().nullable(),
+        }),
+      ),
+    ),
     doors: { http: { method: "GET", path: "/machines" } },
   }),
   get: op({

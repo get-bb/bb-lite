@@ -63,6 +63,9 @@ pub fn run_plugin_command(env: &CliEnv, plugin_id: &str, args: Vec<String>) -> C
     if let Some(id) = &env.project_id {
         body["projectId"] = json!(id);
     }
+    if let Some(id) = &env.host_id {
+        body["hostId"] = json!(id);
+    }
     let http = Http::with_timeout_ms(&env.server_url, None).on_behalf_of(env.thread_id.as_deref());
     let (status, text) = http.post_raw(&format!("/plugins/{plugin_id}/cli"), &body)?;
     let trimmed = text.trim();

@@ -44,7 +44,7 @@ export async function runPluginCommand(
   args: string[],
 ): Promise<number> {
   const argv = await materializeStdinFlag(args);
-  const { threadId, projectId } = env;
+  const { threadId, projectId, hostId } = env;
   const url = `${env.serverUrl}/api/v1/plugins/${pluginId}/cli`;
   const { plugin } = await loadModules();
   const headers = new Headers({
@@ -55,7 +55,13 @@ export async function runPluginCommand(
   const response = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ argv, cwd: process.cwd(), threadId, projectId }),
+    body: JSON.stringify({
+      argv,
+      cwd: process.cwd(),
+      threadId,
+      projectId,
+      hostId,
+    }),
   });
   const { pluginCliResponseSchema } = await import("@bb/server-contract");
   const body: unknown = JSON.parse((await response.text()).trim() || "null");

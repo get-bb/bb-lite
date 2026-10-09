@@ -178,6 +178,10 @@ enabledFor?(context) }`. The implementation sees `caller.thread` (the calling th
   from the input schema (`projectKey` is `--project-key`; booleans are switches; arrays repeat;
   `.describe()` is the help text). `--json` prints the output. All of a plugin's CLI doors share their
   first word.
+  `from: { field: "cwd" | "projectId" | "threadId" | "hostId" }` fills an input field from the
+  caller's context (`CliContext` of a `bb.cli.register` command has the same fields). `hostId` is
+  the machine `bb` runs on (`BB_HOST_ID`, set in agent sessions; otherwise the machine of the
+  `threadId`'s environment): reach the caller's files with `bb.runners.call(hostId, machineFiles.*)`.
 - `doors.http` serves it at a REST path: `{ method, path, status?, empty?, body? }` under `/api/v1`.
   `:name` segments, the query (for `GET`) or the JSON body (otherwise) are merged into the one input
   object and validated by the input schema, so a query flag or count may arrive as text
@@ -314,7 +318,8 @@ create(context), delete(context) })`.
   `inputs`, the `machine` request if the user asked for a new machine, the `resource` you stored
   before, `instanceKey` (stable per environment), `restoring` (true when recreating one that
   existed, keeping its `branchName`), `baseBranch`, `report(text, status?, { key?, startedAt? }?)`
-  for progress lines and a `signal`. It returns `{ path }` and optionally `hostId` (the machine it
+  for progress steps, `log(line)` for output lines that append under the thread's provisioning
+  output (an image build log; `report` replaces a step's text) and a `signal`. It returns `{ path }` and optionally `hostId` (the machine it
   created), `resource` (JSON to keep), `branchName` and `mergeBaseBranch`.
 - `place(inputs, { threadId, projectId, hostId })` (optional) decides where the thread goes:
   `{ type: "owned", instanceKey?, baseBranch? }` (the default: a directory this kind creates for
@@ -330,7 +335,7 @@ create(context), delete(context) })`.
   replaces that kind.
 
 To create machines (a sandbox, a VM), add a `machines.provider` (`{ id, displayName, suspend?,
-resume?, delete? }`) and use the machine operations:
+resume?, delete?, reconcile? }`) and use the machine operations:
 
 ```ts
 const { hostId, command } = await bb.call(machines.enroll, {
@@ -344,6 +349,12 @@ return { path: "/workspace", hostId, resource: { box } };
 ```
 
 `command` is the `bb runner join …` line to run on the new machine; `bb` must be installed there.
+`script` is a POSIX `sh` script that installs `bb` from the server's `/install.sh` when it is not
+on `PATH` and then runs `command`. `machines.resource({ hostId })` (server parts only) returns the
+`resource` stored for the machine (`machines.update({ hostId, resource })` replaces it), so a
+provider needs no copy of its own. `machines.list` items carry `threadStorageRootPath` like
+`machines.get`. `machines.reconcile({ hostId })` (server parts only) calls the provider's
+`reconcile(machine)` to bring what it recorded in line with reality (orphaned sandboxes).
 `machines.suspend`, `resume` and `delete` call your provider and update the machine;
 `machines.connected`, `disconnected` and `deleted` are events. Hook `threads.send` to resume a
 suspended machine before a message is delivered.

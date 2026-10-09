@@ -87,9 +87,10 @@ export function implementMachines(bb: PluginServerApi): void {
   });
 
   bb.implement(machines.list, ({ includeCreating = false, type }) =>
-    store
-      .listHosts(db, { includeCreating, type })
-      .map((host) => hostResponse(bb, host)),
+    store.listHosts(db, { includeCreating, type }).map((host) => ({
+      ...hostResponse(bb, host),
+      threadStorageRootPath: host.threadStorageRoot,
+    })),
   );
 
   bb.implement(machines.get, ({ hostId }) => {

@@ -20,7 +20,7 @@ export interface AgentDoor {
   enabledFor?(context: DoorContext): boolean;
 }
 
-export type CliContextField = "cwd" | "projectId" | "threadId";
+export type CliContextField = "cwd" | "projectId" | "threadId" | "hostId";
 
 export interface CliFlag {
   aliases?: readonly string[];

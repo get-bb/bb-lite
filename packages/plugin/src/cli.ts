@@ -2,6 +2,7 @@ export interface CliContext {
   cwd?: string;
   threadId?: string;
   projectId?: string;
+  hostId?: string;
   signal: AbortSignal;
 }
 

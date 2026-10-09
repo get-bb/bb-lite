@@ -121,6 +121,7 @@ export const pluginCliRequestSchema = z.object({
   cwd: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
+  hostId: z.string().min(1).optional(),
 });
 
 export const pluginCliResponseSchema = z.object({

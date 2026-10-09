@@ -213,7 +213,6 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
     return { preset, image };
   }
 
-  const resourceKey = (hostId: string) => `resource/${hostId}`;
   const allocationKey = (sandboxId: string) => `allocations/${sandboxId}`;
 
   async function track(
@@ -224,29 +223,23 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
     await kv.set(allocationKey(sandboxId), { accountIdentity, appName, key });
   }
 
-  async function sweepAllocations() {
+  async function reconcile(owner: Resource | null, ownedKeys: Set<string>) {
     const keys = await kv.list("allocations/");
     if (keys.length === 0) return;
     const { api } = await client();
     const accountIdentity = await api.accountIdentity();
-    const owners = new Map<string, { phase: string; resource: Resource }>();
-    for (const host of await bb.call(machines.list, {})) {
-      if (host.machineProviderId !== PROVIDER_ID) continue;
-      const resource = await storedResource(host.id);
-      if (resource === null) continue;
-      owners.set(resource.key, { phase: host.lifecycle.phase, resource });
-    }
     for (const entry of keys) {
       const sandboxId = entry.slice("allocations/".length);
       const allocation = allocationSchema.parse(await kv.get<unknown>(entry));
       if (allocation.accountIdentity !== accountIdentity) continue;
+      if (owner === null && ownedKeys.has(allocation.key)) continue;
+      if (owner !== null && allocation.key !== owner.key) continue;
       if (!(await api.running(sandboxId))) {
         await kv.delete(entry);
         continue;
       }
-      const owner = owners.get(allocation.key);
-      if (owner?.resource.sandboxId === sandboxId) continue;
-      if (owner === undefined || owner.resource.snapshotImageId === null) {
+      if (owner?.sandboxId === sandboxId) continue;
+      if (owner === null || owner.snapshotImageId === null) {
         bb.log.warn(
           `Tracked Modal sandbox ${sandboxId} has no matching machine; retaining it for inspection`,
         );
@@ -256,16 +249,30 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
       await kv.delete(entry);
     }
   }
+
+  async function sweepAllocations() {
+    const ownedKeys = new Set<string>();
+    for (const host of await bb.call(machines.list, {})) {
+      if (host.machineProviderId !== PROVIDER_ID) continue;
+      const resource = await storedResource(host.id);
+      if (resource === null) continue;
+      ownedKeys.add(resource.key);
+      await bb.call(machines.reconcile, { hostId: host.id });
+    }
+    await reconcile(null, ownedKeys);
+  }
   const idleKey = (hostId: string) => `idle/${hostId}`;
 
   async function saveResource(hostId: string, resource: Resource) {
-    await kv.set(resourceKey(hostId), resource);
     await bb.call(machines.update, { hostId, resource });
   }
 
   async function storedResource(hostId: string): Promise<Resource | null> {
-    const stored = await kv.get<unknown>(resourceKey(hostId));
-    return stored === undefined ? null : resourceSchema.parse(stored);
+    const stored = await bb
+      .call(machines.resource, { hostId })
+      .catch(() => null);
+    const parsed = resourceSchema.safeParse(stored);
+    return parsed.success ? parsed.data : null;
   }
 
   async function run(api: ModalClient, sandboxId: string, script: string) {
@@ -333,7 +340,7 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
                 signal,
                 log: (line) => {
                   const text = line.trim();
-                  if (text) context.report(text, "started", step);
+                  if (text) context.log(text);
                 },
               }),
             signal,
@@ -375,7 +382,6 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
         resource,
       });
       hostId = enrolled.hostId;
-      await kv.set(resourceKey(hostId), resource);
       context.report("Starting the bb runner in the sandbox");
       await startRunner(api, sandboxId, hostId, enrolled.command);
       const path = await checkout(api, sandboxId, context);
@@ -395,7 +401,6 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
     if (current.snapshotImageId !== null) {
       await api.deleteSnapshot(current.snapshotImageId);
     }
-    await kv.delete(resourceKey(hostId));
     await kv.delete(idleKey(hostId));
   }
 
@@ -443,6 +448,8 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
       await startRunner(api, sandboxId, hostId, command);
     },
     delete: ({ hostId, resource }) => release(hostId, resource),
+    reconcile: ({ resource }) =>
+      reconcile(resourceSchema.parse(resource), new Set()),
   });
 
   bb.add(environments.kind, {

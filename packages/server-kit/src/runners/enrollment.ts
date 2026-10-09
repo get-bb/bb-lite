@@ -59,6 +59,24 @@ export function joinCommand(blob: JoinBlob): string {
   return `bb runner join ${encoded}`;
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+export function joinScript(command: string, serverUrl: string): string {
+  const installer = shellQuote(new URL("/install.sh", serverUrl).href);
+  return [
+    "#!/bin/sh",
+    "set -eu",
+    'export PATH="$HOME/.local/bin:$HOME/.bb/bin:$PATH"',
+    "if ! command -v bb >/dev/null 2>&1; then",
+    `  curl -fsSL ${installer} | sh`,
+    "fi",
+    `exec ${command}`,
+    "",
+  ].join("\n");
+}
+
 export function redeemJoinToken(
   db: Db,
   request: {

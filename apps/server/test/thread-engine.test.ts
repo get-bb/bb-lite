@@ -76,6 +76,7 @@ it("creates a thread, records provisioning and submits the first turn", async ()
       BB_THREAD_ID: threadId,
       BB_PROJECT_ID: "proj_1",
       BB_ENVIRONMENT_ID: row.environmentId,
+      BB_HOST_ID: expect.any(String),
       POOL_URL: "{BB_SERVER_URL}/pool",
     },
     customModels: [tuned],

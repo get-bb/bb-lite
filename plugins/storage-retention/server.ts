@@ -151,16 +151,6 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
     return host;
   };
 
-  const rootOf = async (hostId: string, known: readonly Listed[]) => {
-    for (const thread of known) {
-      const location = await bb.call(threads.storageLocation, {
-        threadId: thread.id,
-      });
-      if (location?.hostId === hostId) return dirname(location.path);
-    }
-    throw new Error(`No thread storage is known on machine ${hostId}.`);
-  };
-
   const cached = async (hostId: string) => {
     const stored = usageSchema.safeParse(
       await bb.storage.kv.get(`usage:${hostId}`),
@@ -173,7 +163,9 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
     if (host.status !== "connected")
       throw new Error(`Machine ${hostId} is offline.`);
     const known = await listThreads({ hostId });
-    const rootPath = await rootOf(hostId, known);
+    const rootPath = host.threadStorageRootPath;
+    if (rootPath === null)
+      throw new Error(`No thread storage is known on machine ${hostId}.`);
     const measured = await bb.runners.call(hostId, storageRetention.measure, {
       rootPath,
     });

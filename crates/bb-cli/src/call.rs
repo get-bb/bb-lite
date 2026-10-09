@@ -136,6 +136,7 @@ pub struct CliEnv {
     pub thread_id: Option<String>,
     pub project_id: Option<String>,
     pub environment_id: Option<String>,
+    pub host_id: Option<String>,
     pub thread_storage: Option<String>,
 }
 
@@ -160,6 +161,7 @@ pub fn read_env(var: impl Fn(&str) -> Option<String>) -> CliResult<CliEnv> {
         thread_id: id("BB_THREAD_ID")?,
         project_id: id("BB_PROJECT_ID")?,
         environment_id: id("BB_ENVIRONMENT_ID")?,
+        host_id: id("BB_HOST_ID")?,
         thread_storage: trimmed("BB_THREAD_STORAGE"),
     })
 }

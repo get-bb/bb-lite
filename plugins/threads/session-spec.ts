@@ -109,6 +109,7 @@ export async function buildSessionSpec(
       BB_THREAD_ID: thread.id,
       BB_PROJECT_ID: thread.projectId,
       BB_ENVIRONMENT_ID: environment.id,
+      BB_HOST_ID: environment.hostId,
     },
     skillDirs,
     ...(customModels.length > 0 ? { customModels } : {}),
