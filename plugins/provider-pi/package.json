@@ -12,7 +12,10 @@
     "description": "Run bb threads with Pi.",
     "icon": "./logo.svg",
     "server": "./server.ts",
-    "runner": "./runner.ts"
+    "runner": "./runner.ts",
+    "skills": [
+      "skills"
+    ]
   },
   "keywords": [
     "bb-plugin"

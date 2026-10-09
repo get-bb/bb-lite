@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import {
   ZERO_TOKEN_USAGE,
@@ -12,6 +14,10 @@ import type { ThreadEventItemPresentation as Presentation } from "@bb/domain";
 const ASSISTANT = { channel: "assistant" };
 const COMMAND_TOOLS = new Set(["bash"]);
 const FILE_TOOLS = new Set(["edit", "write"]);
+const IMAGE_PATH = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
+const UNICODE_SPACE = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
+const URL_SCHEME = /^[a-z][a-z\d+.-]*:\/\//i;
+const readArgsSchema = z.object({ path: z.string().min(1) });
 
 const record = z.record(z.string(), z.unknown());
 const usageSchema = z
@@ -89,6 +95,24 @@ interface Started {
   shape: ItemShape;
   presentation: Presentation;
   startedAt: number;
+  imagePath?: string;
+}
+
+function imageReadPath(tool: string, args: unknown, cwd: string) {
+  const parsed = readArgsSchema.safeParse(args);
+  if (tool !== "read" || !parsed.success) return undefined;
+  let path = parsed.data.path.replace(UNICODE_SPACE, " ").replace(/^@/, "");
+  if (path === "~" || path.startsWith("~/")) {
+    path = join(homedir(), path.slice(2));
+  }
+  if (URL_SCHEME.test(path)) return undefined;
+  const absolute = isAbsolute(path) ? resolve(path) : resolve(cwd, path);
+  return IMAGE_PATH.test(absolute) ? absolute : undefined;
+}
+
+function hasImage(result: unknown) {
+  const parsed = resultSchema.safeParse(result);
+  return parsed.success && parsed.data.content.some((c) => c.type === "image");
 }
 
 export type PiUsage = ReturnType<typeof toUsage>;
@@ -182,7 +206,6 @@ export class PiTranslator {
   private closed = false;
   private compactionTurn = false;
   private readonly output = new Map<string, string>();
-  leafId: string | null = null;
 
   constructor(
     private readonly events: EventBuilder,
@@ -194,7 +217,6 @@ export class PiTranslator {
     switch (event.type) {
       case "agent_start":
         this.interrupted = false;
-        this.leafId = null;
         this.turnId = this.events.openTurn();
         return;
       case "compaction_start":
@@ -249,7 +271,9 @@ export class PiTranslator {
     const { toolCallId, toolName, args } = parsed.data;
     const labelled = this.presentations.get(toolName);
     const started = classify(toolName, args, this.cwd, labelled);
-    this.tools.set(toolCallId, started);
+    const imagePath = imageReadPath(toolName, args, this.cwd);
+    this.tools.set(toolCallId, { ...started, imagePath });
+    if (imagePath !== undefined) return;
     const { shape, presentation } = started;
     this.events.openItem({ providerItemId: toolCallId }, shape, {
       presentation,
@@ -301,8 +325,18 @@ export class PiTranslator {
             }
           : started.shape;
     const status = isError ? "failed" : "completed";
-    const { presentation } = started;
     const key = { providerItemId: toolCallId };
+    const { imagePath } = started;
+    if (imagePath !== undefined && !isError && hasImage(result)) {
+      const presentation = labels.imageView(imagePath);
+      const image: ItemShape = { type: "imageView", path: imagePath };
+      this.events.closeItem(key, image, { status, presentation });
+      return;
+    }
+    const { presentation } = started;
+    if (imagePath !== undefined) {
+      this.events.openItem(key, started.shape, { presentation });
+    }
     this.events.closeItem(key, shape, { status, presentation });
   }
 
@@ -314,8 +348,7 @@ export class PiTranslator {
       return result.success ? [result.data] : [];
     });
     const last = assistants.at(-1);
-    const checkpointId =
-      parsed.data.providerCheckpointId ?? this.leafId ?? undefined;
+    const checkpointId = parsed.data.providerCheckpointId;
     const failure =
       last?.stopReason === "error" && last.errorMessage?.trim()
         ? last.errorMessage

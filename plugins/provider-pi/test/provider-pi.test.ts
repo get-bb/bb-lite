@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -47,6 +47,7 @@ class FakePi extends EventEmitter {
   channel = { input: new PassThrough(), output: new PassThrough() };
   received: z.infer<typeof commandSchema>[] = [];
   fromExtension: Event[] = [];
+  leaves = 0;
 
   constructor(
     readonly launch: PiLaunch,
@@ -78,6 +79,9 @@ class FakePi extends EventEmitter {
 
   send(message: Event) {
     this.stdout.write(`${JSON.stringify(message)}\n`);
+    if (message.type !== "agent_end") return;
+    this.leaves += 1;
+    this.extension({ kind: "agent-end-leaf", leafId: `leaf-${this.leaves}` });
   }
 
   extension(message: Event) {
@@ -107,12 +111,14 @@ async function openSession(
   script: (pi: FakePi, command: z.infer<typeof commandSchema>) => void,
   overrides: Partial<SessionHost> = {},
   dynamicTools: DynamicTool[] = [],
+  version = "0.84.1",
 ) {
   const events: RunnerThreadEvent[] = [];
   const children: FakePi[] = [];
   const sessionDir = mkdtempSync(join(tmpdir(), "bb-pi-"));
   const adapter = createPiAdapter({
     env: { BB_PI_BRIDGE_SESSION_DIR: sessionDir },
+    version: async () => version,
     spawn: (launch) => {
       const child = new FakePi(launch, script);
       children.push(child);
@@ -142,7 +148,7 @@ async function openSession(
     skillDirs: [],
   };
   const session = await adapter.open(spec, options, host);
-  return { session, events, children, adapter };
+  return { session, events, children, adapter, sessionDir };
 }
 
 function types(events: RunnerThreadEvent[]) {
@@ -459,4 +465,94 @@ it("streams shell output, compacts and reports the context window", async () => 
   ).toMatchObject({
     contextWindowUsage: { usedTokens: 1200, modelContextWindow: 200000 },
   });
+});
+
+it("sends attached images and a selected skill to Pi", async () => {
+  const { session, children, sessionDir } = await openSession((pi, c) =>
+    pi.reply(c.id),
+  );
+  const png = join(sessionDir, "shot.png");
+  writeFileSync(png, Buffer.from([1, 2, 3]));
+  const mention = {
+    start: 0,
+    end: 7,
+    resource: {
+      kind: "command" as const,
+      source: "skill" as const,
+      trigger: "$" as const,
+      name: "review",
+    },
+  };
+  await session.startTurn({
+    clientRequestId: "creq_2345678abc",
+    input: [
+      { type: "text", text: "$review the diff", mentions: [mention] },
+      { type: "localImage", path: png },
+      { type: "image", url: "data:image/gif;base64,R0lG" },
+    ],
+    options,
+  });
+  await settle(8);
+  const sent = children[0]?.received.find((c) => c.type === "prompt");
+  expect(sent).toMatchObject({
+    message: "/skill:review the diff",
+    images: [
+      { type: "image", mimeType: "image/png", data: "AQID" },
+      { type: "image", mimeType: "image/gif", data: "R0lG" },
+    ],
+  });
+});
+
+it("shows image reads and waits for the checkpoint leaf", async () => {
+  const read = { toolCallId: "call_img", toolName: "read" };
+  const { session, events } = await openSession((pi, command) => {
+    pi.reply(command.id);
+    if (command.type !== "prompt") return;
+    pi.send({ type: "agent_start" });
+    pi.send({ type: "tool_execution_start", ...read, args: { path: "a.png" } });
+    pi.send({
+      type: "tool_execution_end",
+      ...read,
+      result: { content: [{ type: "image", data: "AQID" }] },
+    });
+    pi.send({ type: "agent_end", messages: [] });
+  });
+  await session.startTurn(prompt("Look at a.png"));
+  await settle(8);
+  const items = events.flatMap((e) =>
+    e.type === "item/started" || e.type === "item/completed" ? [e] : [],
+  );
+  expect(items).toMatchObject([
+    {
+      type: "item/completed",
+      item: { type: "imageView", path: "/Users/developer/project/a.png" },
+    },
+  ]);
+  expect(events.at(-1)).toMatchObject({
+    type: "turn/completed",
+    providerCheckpointId: "leaf-1",
+  });
+});
+
+it("refuses a Pi older than the supported minimum", async () => {
+  await expect(
+    openSession((pi, command) => pi.reply(command.id), {}, [], "0.83.9"),
+  ).rejects.toThrow(/older than the supported minimum 0.84.0/);
+});
+
+it("retries a prompt while Pi has not loaded its API key yet", async () => {
+  let failures = 2;
+  const { session, children } = await openSession((pi, command) => {
+    if (command.type !== "prompt" || failures === 0) {
+      return pi.reply(command.id);
+    }
+    failures -= 1;
+    const error = "No API key found for anthropic";
+    pi.send({ type: "response", id: command.id, success: false, error });
+  });
+  await session.startTurn(prompt("Hello"));
+  await settle(8);
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  const prompts = children[0]?.received.filter((c) => c.type === "prompt");
+  expect(prompts).toHaveLength(3);
 });
