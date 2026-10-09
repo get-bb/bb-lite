@@ -17,7 +17,9 @@ it("picks the in-repo plugins a profile names", () => {
   ]);
   expect(ids("headless")).not.toContain("thread-list");
   expect(ids("default")).toContain("thread-list");
-  expect(ids("default")).toHaveLength(13);
+  expect(ids("default")).toHaveLength(15);
+  expect(ids("default")).not.toContain("plugin-api-tester");
+  expect(ids("development")).toContain("plugin-api-tester");
   expect(() => profilePlugins("nope")).toThrow('Unknown profile "nope"');
 });
 

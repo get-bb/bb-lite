@@ -21,6 +21,16 @@ export const profiles: Record<string, Profile> = {
     description: "The whole product.",
     plugins: [...PROVIDERS, ...SCREEN, ...AGENT_FEATURES, ...PRODUCT],
   },
+  development: {
+    description: "The whole product plus the Plugin API Tester.",
+    plugins: [
+      ...PROVIDERS,
+      ...SCREEN,
+      ...AGENT_FEATURES,
+      ...PRODUCT,
+      "plugin-api-tester",
+    ],
+  },
   headless: {
     description:
       "No screen plugins: a server that only the CLI and agents talk to.",
