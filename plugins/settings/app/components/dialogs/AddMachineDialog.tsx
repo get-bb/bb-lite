@@ -190,7 +190,7 @@ function MachineSetup({
           }
         >
           {errorMessage ??
-            "Run this command on the machine you want to add. It installs bb and keeps the machine connected to this server."}
+            "Run this command on a machine that has bb installed. It enrols the machine and keeps it connected to this server."}
         </DialogDescription>
       </DialogHeader>
       {errorMessage === null ? null : (
