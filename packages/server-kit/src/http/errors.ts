@@ -34,7 +34,7 @@ export function invalidRequest(message: string): ApiError {
 }
 
 export function conflict(message: string): ApiError {
-  return new ApiError(409, "invalid_request", message);
+  return new ApiError(409, "conflict", message);
 }
 
 export function forbidden(message: string): ApiError {
