@@ -330,6 +330,25 @@ export const threads = contract("threads", {
     hooks: "answer",
     doors: { http: { method: "POST", path: "/threads", status: 201 } },
   }),
+  fork: op({
+    input: z.object({
+      sourceThreadId: z.string().min(1),
+      sourceSeqEnd: z.number().int().nonnegative().optional(),
+      visibility: Domain.threadVisibilitySchema.optional(),
+      lifecycleOwnerThreadId: z.string().min(1).optional(),
+      agentContextSeed: z.array(Domain.promptInputSchema).optional(),
+      title: z.string().min(1).optional(),
+    }),
+    output: typed(Contract.threadResponseSchema),
+    kind: "write",
+    doors: {
+      http: {
+        method: "POST",
+        path: "/threads/:sourceThreadId/fork",
+        status: 201,
+      },
+    },
+  }),
   get: op({
     input: at(Contract.threadGetQuerySchema, "threadId"),
     output: z.custom<

@@ -21,6 +21,7 @@ import { assertHostUsable } from "@bb/server-kit/runners/access";
 import { ThreadSerial } from "@bb/server-kit/threads/serial";
 import * as core from "./core.js";
 import { createThread } from "./create.js";
+import { forkThread } from "./fork.js";
 import * as dispatching from "./dispatch.js";
 import { ingestThreadEvents } from "./ingest.js";
 import * as interactions from "./interactions.js";
@@ -409,6 +410,9 @@ export function createThreadEngine(bb: PluginServerApi) {
   const unarchive = writes(serialized(lifecycle.unarchiveThread));
   const remove = writes(direct(lifecycle.deleteThreadTree));
   bb.implement(threadOps.create, (request) => create(request));
+  bb.implement(threadOps.fork, (request, { caller }) =>
+    forkThread(engine, request, caller.via.at(-1) ?? null),
+  );
   bb.implement(threadOps.send, ({ threadId, ...request }) =>
     send(threadId, request),
   );

@@ -240,6 +240,14 @@ input }`: `hostId` is the machine the turn will run on (also before the thread h
   environment), `queuedMessageId` the queued message being held (`null` for a message that is not
   queued yet) and `input` its prompt. `threads.release({})` without a `threadId` re-checks every
   thread the calling plugin holds.
+- `threads.fork({ sourceThreadId, sourceSeqEnd?, visibility?, lifecycleOwnerThreadId?,
+agentContextSeed?, title? })` (`POST /threads/:sourceThreadId/fork`) creates a pending thread
+  with `originKind: "fork"`, `sourceThreadId` and the calling plugin as `originPluginId`, in the
+  source's environment with its provider and execution settings. Providers here cannot clone a
+  session, so the fork starts a fresh one: its first message is prefixed with an agent-only
+  transcript of the source up to `sourceSeqEnd`, then `agentContextSeed`. It fails `unavailable`
+  with reason `fork_source_session_unavailable` when the source has no live environment, no
+  conversation, or `sourceSeqEnd` is past its history.
 - Writes that happen constantly (`threads.markRead`, `pin`, `updateTabs`, `open`, `terminals.write`,
   `settings.updateUiPreference`) are not recorded in the audit log. Records older than the audit
   plugin's "Days to keep" setting (90) are removed nightly.

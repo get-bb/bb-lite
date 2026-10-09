@@ -42,7 +42,11 @@ export type NewThread = Pick<
   | "lifecycleOwnerThreadId"
   | "originPluginId"
   | "visibility"
-> & { pinned: boolean; viewerId: string };
+> &
+  Partial<Pick<ThreadRow, "originKind" | "sourceThreadId">> & {
+    pinned: boolean;
+    viewerId: string;
+  };
 
 type Unpatchable =
   | "id"

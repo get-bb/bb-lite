@@ -25,6 +25,7 @@ import { buildSessionSpec } from "./session-spec.js";
 export const startupContextSchema = z.object({
   intent: environmentIntentSchema,
   titleProvided: z.boolean(),
+  seed: z.array(domain.promptInputSchema).optional(),
 });
 export type StartupContext = z.infer<typeof startupContextSchema>;
 
@@ -261,7 +262,9 @@ export function beginProvisioning(
 ): void {
   const { db } = engine.bb;
   const startup = startupOf(thread);
-  const message = dispatching.attributedMessage(args.message);
+  const attributed = dispatching.attributedMessage(args.message);
+  const input = [...(startup.seed ?? []), ...attributed.input];
+  const message = { ...attributed, input };
   const requestId = newId("creq");
   const job = { id: newId("tpv"), requestId, startup, message };
   engine.commit((out) => {
