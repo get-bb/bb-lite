@@ -1,0 +1,33 @@
+{
+  "name": "bb-plugin-github",
+  "version": "0.2.1",
+  "private": true,
+  "type": "module",
+  "description": "Browse GitHub issues and pull requests in BB, then send them to agents.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "GitHub",
+    "description": "Browse GitHub issues and pull requests in BB, then send them to agents.",
+    "icon": "Github",
+    "server": "./server.ts",
+    "runner": "./runner.ts"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

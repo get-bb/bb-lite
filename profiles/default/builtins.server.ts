@@ -12,6 +12,7 @@ import environmentGitWorktree from "../../plugins/environment-git-worktree/serve
 import environmentPersonalWorkspace from "../../plugins/environment-personal-workspace/server.js";
 import environmentProjectCheckout from "../../plugins/environment-project-checkout/server.js";
 import environments from "../../plugins/environments/server.js";
+import github from "../../plugins/github/server.js";
 import identity from "../../plugins/identity/server.js";
 import inlineVis from "../../plugins/inline-vis/server.js";
 import keepAwake from "../../plugins/keep-awake/server.js";
@@ -52,6 +53,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "environment-personal-workspace": environmentPersonalWorkspace,
   "environment-project-checkout": environmentProjectCheckout,
   environments: environments,
+  github: github,
   identity: identity,
   "inline-vis": inlineVis,
   "keep-awake": keepAwake,

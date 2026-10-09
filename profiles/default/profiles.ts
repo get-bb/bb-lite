@@ -38,6 +38,7 @@ const PRODUCT = [
   "keep-awake",
   "provider-pi",
   "push-notifications",
+  "github",
 ];
 
 export const profiles: Record<string, Profile> = {
