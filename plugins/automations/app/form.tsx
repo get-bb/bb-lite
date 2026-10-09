@@ -166,7 +166,7 @@ export function AutomationForm({
       mode: "agent" as const,
       prompt,
       providerId: chosenProvider,
-      model: model.trim(),
+      model: model.trim() || chosenModel?.model || "",
       reasoningLevel,
       permissionMode,
       environment: execution?.environment ?? { type: "project-default" },

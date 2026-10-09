@@ -394,7 +394,8 @@ function ThreadLink({ threadId }: { threadId: string }) {
 
 function RunRow({ run }: { run: Run }) {
   const note = run.error ?? run.skipReason;
-  return (
+  const output = run.runMode === "script" ? run.output?.trimEnd() : undefined;
+  const row = (
     <div className="flex items-center gap-3 rounded-md px-2 py-1 text-sm">
       <span className="w-20 shrink-0 capitalize">{run.status}</span>
       <span className="w-32 shrink-0 text-muted-foreground">
@@ -407,6 +408,15 @@ function RunRow({ run }: { run: Run }) {
         {note}
       </span>
       {run.threadId && <ThreadLink threadId={run.threadId} />}
+    </div>
+  );
+  if (!output) return row;
+  return (
+    <div className="grid gap-1">
+      {row}
+      <pre className="mx-2 mb-1 whitespace-pre-wrap rounded-md bg-muted px-3 py-2 font-mono text-xs">
+        {output}
+      </pre>
     </div>
   );
 }

@@ -521,6 +521,11 @@ export function registerCli(bb: PluginServerApi): void {
     ctx: CliContext,
   ): Promise<Execution | undefined> {
     const execution = current.execution;
+    const switches =
+      execution.mode === "agent"
+        ? has(options, ["script", "script-file"])
+        : AGENT_ONLY.every((name) => options[name] !== undefined);
+    if (switches) return newExecution(options, ctx, current.projectId);
     if (execution.mode === "agent") {
       if (has(options, ["script", "script-file", ...SCRIPT_ONLY])) {
         fail(

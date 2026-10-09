@@ -267,6 +267,27 @@ it("runs a script automation on the machine and records output and exit status",
   expect(both.exitCode).not.toBe(0);
 });
 
+it("switches an automation between agent and script mode on update", async () => {
+  const server = await withRunner();
+  const created = await server.create("--in 5m");
+  const toScript = await server.cli(
+    `automation update ${created.id} --project proj_1 --script 'echo hi' --json`,
+  );
+  expect(toScript.exitCode, toScript.stderr).toBe(0);
+  expect(toScript.json<Automation>().execution).toMatchObject({
+    mode: "script",
+    script: "echo hi",
+  });
+  const toAgent = await server.cli(
+    `automation update ${created.id} --project proj_1 --prompt 'Again' --provider codex --model gpt-test --json`,
+  );
+  expect(toAgent.exitCode, toAgent.stderr).toBe(0);
+  expect(toAgent.json<Automation>().execution).toMatchObject({
+    mode: "agent",
+    prompt: "Again",
+  });
+});
+
 it("stops a running script and its children when its signal aborts", async () => {
   const dir = scratch();
   const stop = new AbortController();
