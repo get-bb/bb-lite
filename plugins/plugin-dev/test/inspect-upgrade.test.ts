@@ -152,3 +152,25 @@ it("upgrades from bb dev upgrade", async () => {
     `engines.bb ^1.0.0 -> ^${API_VERSION} (plugin API 1.0.0 -> ${API_VERSION})`,
   );
 });
+
+it("reports without writing from bb dev upgrade --dry-run", async () => {
+  const server = await createTestServer();
+  const directory = plugin("^1.0.0");
+  const file = join(directory, "package.json");
+  const original = readFileSync(file, "utf8");
+  const sent = await server.send("/plugins/plugin-dev/cli", {
+    argv: ["upgrade", directory, "--dry-run", "--to", "1.1.0"],
+  });
+  const { exitCode, stdout } = (await sent.json()) as {
+    exitCode: number;
+    stdout: string;
+  };
+  expect(exitCode).toBe(0);
+  expect(stdout.split("\n")[0]).toBe(
+    "engines.bb ^1.0.0 -> ^1.1.0 (plugin API 1.0.0 -> 1.1.0) (dry run, package.json not changed)",
+  );
+  expect(readFileSync(file, "utf8")).toBe(original);
+  const report = await upgradePlugin(directory, "1.1.0", [before, after], true);
+  expect(report.written).toBe(false);
+  expect(readFileSync(file, "utf8")).toBe(original);
+});

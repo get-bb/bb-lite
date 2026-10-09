@@ -490,8 +490,10 @@ export default function plugin(bb: PluginServerApi): void {
     return describeMachine(machine, parts, name);
   });
 
-  bb.implement(pluginDev.upgrade, async ({ to = API_VERSION, ...input }) =>
-    upgradePlugin(located(input), to, await lockHistory(REPO)),
+  bb.implement(
+    pluginDev.upgrade,
+    async ({ to = API_VERSION, dryRun = false, ...input }) =>
+      upgradePlugin(located(input), to, await lockHistory(REPO), dryRun),
   );
 
   bb.implement(pluginDev.validate, (input) => validatePlugin(located(input)));

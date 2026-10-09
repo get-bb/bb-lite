@@ -122,14 +122,16 @@ export const upgradeReportSchema = z.object({
   from: z.string(),
   to: z.string(),
   range: z.object({ before: z.string(), after: z.string() }),
+  written: z.boolean(),
   uses: z.array(z.string()),
   changes: z.array(upgradeChangeSchema),
 });
 export type UpgradeReport = z.infer<typeof upgradeReportSchema>;
 
 export function printUpgrade(report: UpgradeReport): string {
-  const { from, to, range, uses, changes } = report;
-  const head = `engines.bb ${range.before} -> ${range.after} (plugin API ${from} -> ${to})`;
+  const { from, to, range, uses, changes, written } = report;
+  const verb = written ? "" : " (dry run, package.json not changed)";
+  const head = `engines.bb ${range.before} -> ${range.after} (plugin API ${from} -> ${to})${verb}`;
   if (changes.length === 0) {
     return `${head}\nNone of the ${uses.length} members this plugin uses changed.`;
   }
@@ -173,6 +175,10 @@ export const pluginDev = contract("plugin-dev", {
         .string()
         .optional()
         .describe("The plugin API version to move to; this bb's by default"),
+      dryRun: z
+        .boolean()
+        .optional()
+        .describe("Report what changed without rewriting package.json"),
     }),
     output: upgradeReportSchema,
     kind: "write",

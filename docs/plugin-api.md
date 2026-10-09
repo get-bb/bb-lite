@@ -890,11 +890,12 @@ changing a manifest's entries; `node scripts/gen-builtins.mjs --check` fails whe
 `bb dev inspect [name]` lists live operations, events, slots, live values and plugins;
 `--machine <hostId>` lists that machine's runner parts instead (each with its tier, `policy`,
 `installed` or `product`, and what it implements).
-`bb dev upgrade <path> [--to <version>]` moves a plugin's `engines.bb` to a newer plugin API (this
-bb's by default) and lists each member the plugin uses that changed since, `breaking` or
-`additive` (owner only).
+`bb dev upgrade <path> [--to <version>] [--dry-run]` moves a plugin's `engines.bb` to a newer
+plugin API (this bb's by default) and lists each member the plugin uses that changed since,
+`breaking` or `additive` (owner only). `--dry-run` prints the same report without rewriting
+`package.json`.
 `--machine <hostId>` lists the runner parts loaded on that machine instead.
-`bb dev upgrade <dir> [--to <version>]` moves a plugin's `engines.bb` to a newer API and lists what
+`bb dev upgrade <dir> [--to <version>] [--dry-run]` moves a plugin's `engines.bb` to a newer API and lists what
 it uses that changed.
 `bb dev new <id>` writes a working plugin. `bb dev watch <dir>` loads a directory and reloads it when
 a file changes (`bb plugin add <dir>` loads it without watching; `bb plugin remove <dir> --yes`

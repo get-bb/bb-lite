@@ -89,6 +89,7 @@ export async function upgradePlugin(
   directory: string,
   to: string,
   locks: readonly ApiLock[],
+  dryRun = false,
 ): Promise<UpgradeReport> {
   const file = join(directory, "package.json");
   const text = await readFile(file, "utf8").catch(() =>
@@ -123,14 +124,17 @@ export async function upgradePlugin(
   ].map(({ target }) => target);
   const next = `^${to}`;
   const engines = { ...current, bb: next };
-  await writeFile(
-    file,
-    `${JSON.stringify({ ...manifest, engines }, null, 2)}\n`,
-  );
+  if (!dryRun) {
+    await writeFile(
+      file,
+      `${JSON.stringify({ ...manifest, engines }, null, 2)}\n`,
+    );
+  }
   return {
     from: before.version,
     to,
     range: { before: range, after: next },
+    written: !dryRun,
     uses: [...new Set(used)].sort(),
     changes: changesFor(used, before, after),
   };
