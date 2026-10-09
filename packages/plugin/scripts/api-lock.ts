@@ -30,7 +30,10 @@ const text = [
   "}\n",
 ].join("\n");
 
-if (existsSync(FILE)) {
+const rebase = process.argv.includes("--rebase");
+if (rebase) console.log("Rewriting the lock without comparing it.");
+
+if (existsSync(FILE) && !rebase) {
   const locked = JSON.parse(readFileSync(FILE, "utf8")) as server.ApiLock;
   const { breaking, additive } = compareApi(unpackApi(locked), contracts);
   const lines = [

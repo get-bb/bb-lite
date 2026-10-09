@@ -467,16 +467,19 @@ export function compareApi(
         const placed = ["key", "pick"].every((part) =>
           same(field(old, part), field(next, part)),
         );
+        const service = field(next, "pick") === "one";
         const entry = entryChange(
           field(old, "item"),
           field(next, "item"),
-          false,
+          service,
         );
         if (!placed)
           out.breaking.push(`${name}: the slot's key or pick changed`);
         if (entry === "breaks") out.breaking.push(`${name}: the entry changed`);
-        if (entry === "adds")
-          out.additive.push(`${name}: the entry takes more`);
+        const grew = service
+          ? "the service offers more"
+          : "the entry takes more";
+        if (entry === "adds") out.additive.push(`${name}: ${grew}`);
       } else {
         const part = field(old, "type") === "event" ? "payload" : "value";
         const grew = onlyAdds(field(old, part), field(next, part), true);

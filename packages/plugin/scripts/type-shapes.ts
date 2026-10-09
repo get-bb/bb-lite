@@ -64,17 +64,42 @@ function describer(checker: ts.TypeChecker) {
     return literal(type);
   };
 
-  function shapeOf(type: ts.Type, depth: number, seen: ts.Type[]): Json {
+  const opaque = (symbol: ts.Symbol | undefined): boolean =>
+    foreign(symbol) &&
+    !(symbol?.declarations ?? []).some((declaration) =>
+      declaration.getSourceFile().fileName.includes("/node_modules/zod/"),
+    );
+  const digests = new Map<ts.Type, string>();
+  const digestOf = (type: ts.Type): string => {
+    const known = digests.get(type);
+    if (known !== undefined) return known;
+    digests.set(type, "self");
+    const text = JSON.stringify(shapeOf(type, 0, [], Infinity));
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < text.length; index += 1) {
+      hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193);
+    }
+    const digest = `#${(hash >>> 0).toString(36)}`;
+    digests.set(type, digest);
+    return digest;
+  };
+
+  function shapeOf(
+    type: ts.Type,
+    depth: number,
+    seen: ts.Type[],
+    limit: number,
+  ): Json {
     const simple = basic(type);
     if (simple !== undefined) return simple;
     const deeper = (inner: ts.Type) =>
-      shapeOf(inner, depth + 1, [...seen, type]);
+      shapeOf(inner, depth + 1, [...seen, type], limit);
     const alias = type.aliasSymbol;
     if (alias?.name === "ComponentType" && foreign(alias)) {
       const [props] = type.aliasTypeArguments ?? [];
       return { component: props === undefined ? {} : deeper(props) };
     }
-    if (alias !== undefined && foreign(alias)) return named(type);
+    if (alias !== undefined && opaque(alias)) return named(type);
     if (type.isUnion()) {
       const members = type.types.map(deeper);
       const sorted = members.sort((left, right) =>
@@ -82,7 +107,8 @@ function describer(checker: ts.TypeChecker) {
       );
       return { anyOf: sorted };
     }
-    if (depth >= MAX_DEPTH || seen.includes(type)) return named(type);
+    if (seen.includes(type)) return { cycle: seen.length - seen.indexOf(type) };
+    if (depth >= limit) return { ref: digestOf(type) };
     if (checker.isArrayType(type)) {
       const [item] = checker.getTypeArguments(type as ts.TypeReference);
       return { type: "array", items: item === undefined ? {} : deeper(item) };
@@ -122,7 +148,7 @@ function describer(checker: ts.TypeChecker) {
   }
 
   return (type: ts.Type | undefined): Json =>
-    type === undefined ? {} : shapeOf(type, 0, []);
+    type === undefined ? {} : shapeOf(type, 0, [], MAX_DEPTH);
 }
 
 export function describeTypes(): TypeShapes {
