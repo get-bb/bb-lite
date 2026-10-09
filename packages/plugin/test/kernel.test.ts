@@ -5,6 +5,7 @@ import {
   createKernel,
   deny,
   event,
+  fail,
   live,
   op,
   service,
@@ -159,6 +160,42 @@ it("passes the owner's own failure through untouched", async () => {
   scope.on(save, async (input, next) => next(input));
   await expect(kernel.call(save, {})).rejects.toBe(failure);
   expect(records).toMatchObject([{ outcome: "error", detail: "disk full" }]);
+});
+
+it("names the plugin and the kind of failure when an owner refuses", async () => {
+  const { kernel, trail } = harness();
+  const scope = kernel.scope("library", "product");
+  const book = z.object({ title: z.string() });
+  const library = contract("library", {
+    get: op({ input: book, output: z.string() }),
+    lend: op({ input: book, output: z.string(), kind: "write" }),
+    burn: op({ input: book, output: z.void(), kind: "write" }),
+  });
+  scope.implement(library.get, ({ title }) =>
+    fail("not_found", `No book called ${title}`),
+  );
+  scope.implement(library.lend, () =>
+    fail("conflict", "Already lent", { reason: "book_lent" }),
+  );
+  scope.implement(library.burn, () => deny("Books are not burned here"));
+  const missing = kernel.call(library.get, { title: "Dune" });
+  await expect(missing).rejects.toMatchObject({
+    code: "not_found",
+    plugin: "library",
+    message: "No book called Dune",
+  });
+  const lent = kernel.call(library.lend, { title: "Dune" });
+  await expect(lent).rejects.toMatchObject({
+    code: "conflict",
+    reason: "book_lent",
+  });
+  const burned = kernel.call(library.burn, { title: "Dune" });
+  await expect(burned).rejects.toBeInstanceOf(OpError);
+  expect(trail()).toEqual([
+    ["library.get", "error"],
+    ["library.lend", "error"],
+    ["library.burn", "denied"],
+  ]);
 });
 
 it("checks who may call and what goes in and out", async () => {

@@ -19,7 +19,7 @@ export * from "./app/side-panel.js";
 export * from "./app/thread-view.js";
 export * from "./contract.js";
 export * from "./core-contracts.js";
-export { createKernel, deny, OpError } from "./kernel.js";
+export { createKernel, deny, fail, OpError } from "./kernel.js";
 export type * from "./kernel.js";
 export * from "./shared-modules.js";
 export * from "./version.js";

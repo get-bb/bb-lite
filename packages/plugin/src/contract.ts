@@ -20,10 +20,34 @@ export interface AgentDoor {
   enabledFor?(context: DoorContext): boolean;
 }
 
+export type CliContextField = "cwd" | "projectId" | "threadId";
+
+export interface CliFlag {
+  aliases?: readonly string[];
+  split?: string;
+  placeholder?: string;
+  duration?: {
+    min?: number;
+    max?: number;
+    units?: readonly ("ms" | "s" | "m" | "h" | "d")[];
+  };
+}
+
+export type CliDoorConstraint<Field extends string = string> =
+  | { kind: "exactly-one"; options: readonly Field[] }
+  | { kind: "at-most-one"; options: readonly Field[] }
+  | { kind: "at-least-one"; options: readonly Field[] }
+  | { kind: "requires"; option: Field; needs: readonly Field[] };
+
 export interface CliDoor<Input = unknown, Output = unknown> {
   path: string;
   summary: string;
+  description?: string;
+  aliases?: readonly string[];
   positionals?: readonly (keyof Input & string)[];
+  flags?: { readonly [Field in keyof Input & string]?: CliFlag };
+  from?: { readonly [Field in keyof Input & string]?: CliContextField };
+  constraints?: readonly CliDoorConstraint<keyof Input & string>[];
   print?(output: Output, input: Input): string;
 }
 

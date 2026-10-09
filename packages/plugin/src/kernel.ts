@@ -26,7 +26,11 @@ export type OpErrorCode =
   | "forbidden"
   | "unimplemented"
   | "invalid_input"
-  | "invalid_output";
+  | "invalid_output"
+  | "not_found"
+  | "conflict"
+  | "unavailable";
+export type FailureCode = "not_found" | "conflict" | "unavailable" | "invalid";
 
 export interface Caller {
   user: string | null;
@@ -60,13 +64,27 @@ export class OpError extends Error {
     message: string,
     readonly plugin: string | null = null,
     cause?: unknown,
+    readonly reason: string | null = null,
   ) {
     super(message, { cause });
     this.name = "OpError";
   }
 }
 
-class Denial extends Error {}
+class Refusal extends Error {
+  constructor(
+    readonly code: OpErrorCode,
+    message: string,
+    readonly reason: string | null = null,
+  ) {
+    super(message);
+  }
+}
+
+function attributed(error: Refusal, plugin: string): OpError {
+  const { code, message, reason } = error;
+  return new OpError(code, message, plugin, undefined, reason);
+}
 
 export class ToolFailure extends Error {}
 
@@ -75,7 +93,16 @@ export function toolError(text: string): never {
 }
 
 export function deny(reason: string): never {
-  throw new Denial(reason);
+  throw new Refusal("denied", reason);
+}
+
+export function fail(
+  code: FailureCode,
+  message: string,
+  options: { reason?: string } = {},
+): never {
+  const known = code === "invalid" ? "invalid_input" : code;
+  throw new Refusal(known, message, options.reason ?? null);
 }
 
 type MaybePromise<T> = T | Promise<T>;
@@ -483,7 +510,12 @@ export function createKernel(options: KernelOptions): Kernel {
     const traces: HookTrace[] = [];
     const owner = async (input: unknown): Promise<unknown> => {
       if (state.owner !== null) {
-        return state.owner.run(input, { caller, signal });
+        const { plugin, run: answer } = state.owner;
+        try {
+          return await answer(input, { caller, signal });
+        } catch (error) {
+          throw error instanceof Refusal ? attributed(error, plugin) : error;
+        }
       }
       if (options.unowned !== undefined) {
         return options.unowned(op, input, { caller, signal });
@@ -538,9 +570,9 @@ export function createKernel(options: KernelOptions): Kernel {
               );
         if (failure !== UNSETTLED && failure === error) throw error;
         const refusable = op.hooks === "answer";
-        if (error instanceof Denial && refusable) {
+        if (error instanceof Refusal && refusable) {
           traces.push({ plugin, action: "denied" });
-          throw new OpError("denied", error.message, plugin);
+          throw attributed(error, plugin);
         }
         const reason = messageOf(error);
         options.warn("A plugin hook failed", { plugin, op: op.name, reason });

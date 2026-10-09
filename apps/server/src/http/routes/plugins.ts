@@ -8,7 +8,11 @@ import type { Context } from "hono";
 import { contentType } from "mime-types";
 import type { z } from "zod";
 import type { HostContext } from "../../host-context.js";
-import { asPlugin } from "@bb/server-kit/kernel/caller";
+import {
+  asPlugin,
+  currentCaller,
+  enterCaller,
+} from "@bb/server-kit/kernel/caller";
 import { resolveInside } from "../../plugins/manifest.js";
 import type { ApiApp, AppEnv } from "@bb/server-kit/http/api";
 import {
@@ -86,7 +90,11 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
       const cli = plugins.cliOf(id);
       if (cli === null) throw new Error(`Plugin "${id}" has no CLI command`);
       const context = { ...scope, signal: c.req.raw.signal };
-      const result = await asPlugin(id, () => cli.run(argv, context));
+      const caller = currentCaller();
+      const door = caller.door === "agent" ? "agent" : "cli";
+      const result = await enterCaller({ ...caller, door }, () =>
+        asPlugin(id, () => cli.run(argv, context)),
+      );
       const { exitCode, stdout = "", stderr = "" } = result;
       return { exitCode, stdout, stderr };
     };

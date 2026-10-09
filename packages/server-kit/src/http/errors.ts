@@ -71,6 +71,9 @@ const OP_ERROR_RESPONSES: Record<
   unimplemented: [501, "unimplemented"],
   invalid_input: [400, "invalid_request"],
   invalid_output: [500, "internal_error"],
+  not_found: [404, "not_found"],
+  conflict: [409, "conflict"],
+  unavailable: [503, "unavailable"],
 };
 
 function runnerErrorStatus(code: RunnerErrorCode): ContentfulStatusCode {
@@ -93,7 +96,9 @@ export function toApiError(error: unknown): ApiError | null {
     const [status, code] = OP_ERROR_RESPONSES[error.code];
     const details =
       error.plugin === null ? undefined : { plugin: error.plugin };
-    return new ApiError(status, code, error.message, { details });
+    return new ApiError(status, error.reason ?? code, error.message, {
+      details,
+    });
   }
   if (error instanceof HTTPException && error.status < 500) {
     return new ApiError(error.status, "invalid_request", error.message);

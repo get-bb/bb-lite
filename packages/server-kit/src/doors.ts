@@ -9,7 +9,9 @@ import {
   PluginCliError,
   ToolFailure,
   type CliCommand,
+  type CliContextField,
   type CliDoor,
+  type CliFlag,
   type CliOption,
   type CliPositional,
   type CliRegistration,
@@ -106,15 +108,29 @@ function kebab(key: string): string {
   return key.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
 }
 
-function fieldOf(key: string, property: JsonProperty, required: boolean) {
+function fieldOf(
+  key: string,
+  property: JsonProperty,
+  required: boolean,
+  declared: CliFlag = {},
+) {
   const types = [property.type ?? []].flat();
   const description = property.description ?? key;
-  const base = { description, ...(required ? { required } : {}) };
+  const { aliases, placeholder, split, duration } = declared;
+  const base = {
+    description,
+    ...(required ? { required } : {}),
+    ...(aliases ? { aliases } : {}),
+    ...(placeholder ? { placeholder } : {}),
+  };
   const flag = kebab(key);
   const plain: Decode = (raw) => raw;
   const field = (option: CliOption, decode = plain): Field => {
     return { key, flag, option, decode };
   };
+  if (duration !== undefined) {
+    return field({ ...base, ...duration, type: "duration" });
+  }
   if (types.includes("boolean")) return field({ ...base, type: "boolean" });
   if (property.enum?.every((value) => typeof value === "string")) {
     const values = property.enum as string[];
@@ -125,7 +141,8 @@ function fieldOf(key: string, property: JsonProperty, required: boolean) {
     return field({ ...base, type: "string" }, (raw) => Number(raw));
   }
   if (types.includes("array")) {
-    return field({ ...base, type: "string", repeatable: true });
+    const many = { repeatable: true, ...(split ? { split } : {}) };
+    return field({ ...base, ...many, type: "string" });
   }
   if (types.includes("string") || types.length === 0) {
     return field({ ...base, type: "string" });
@@ -148,8 +165,25 @@ function printed(door: CliDoor, output: unknown, input: unknown): string {
 
 function doorCommand(kernel: Kernel, op: Op, door: CliDoor): CliCommand {
   const { properties = {}, required = [] } = shapeOf(op);
+  const declared: Record<string, CliFlag | undefined> = door.flags ?? {};
+  const sources: Record<string, CliContextField | undefined> = door.from ?? {};
   const fields = Object.entries(properties).map(([key, property]) =>
-    fieldOf(key, property, required.includes(key)),
+    fieldOf(
+      key,
+      property,
+      required.includes(key) && sources[key] === undefined,
+      declared[key],
+    ),
+  );
+  const flagOf = (key: string) => kebab(key);
+  const constraints = (door.constraints ?? []).map((constraint) =>
+    constraint.kind === "requires"
+      ? {
+          kind: constraint.kind,
+          option: flagOf(constraint.option),
+          needs: constraint.needs.map(flagOf),
+        }
+      : { kind: constraint.kind, options: constraint.options.map(flagOf) },
   );
   const named: readonly string[] = door.positionals ?? [];
   const positionals: CliPositional[] = named.flatMap((key) => {
@@ -166,8 +200,10 @@ function doorCommand(kernel: Kernel, op: Op, door: CliDoor): CliCommand {
   options.json = { type: "boolean", description: "Print the result as JSON" };
   return {
     summary: door.summary,
+    ...(door.description ? { description: door.description } : {}),
     options,
     positionals,
+    constraints,
     async run(parsed, context) {
       const given = { ...parsed.options, ...parsed.positionals };
       const input = Object.fromEntries(
@@ -179,6 +215,10 @@ function doorCommand(kernel: Kernel, op: Op, door: CliDoor): CliCommand {
       );
       const located = "cwd" in properties && input.cwd === undefined;
       if (located && context.cwd !== undefined) input.cwd = context.cwd;
+      for (const [key, source] of Object.entries(sources)) {
+        const known = source === undefined ? undefined : context[source];
+        if (input[key] === undefined && known !== undefined) input[key] = known;
+      }
       let output: unknown;
       try {
         output = await kernel.call(op, input);
@@ -208,7 +248,12 @@ export function doorCli(
     const [first = "", ...rest] = door.path.trim().split(/\s+/u);
     name ??= first;
     if (first !== name) continue;
-    const command = doorCommand(kernel, op, door);
+    const spelled = (door.aliases ?? []).flatMap((alias) => {
+      const [head, ...tail] = alias.trim().split(/\s+/u);
+      return head === name && tail.length > 0 ? [tail.join(" ")] : [];
+    });
+    const aliases = spelled.length === 0 ? {} : { aliases: spelled };
+    const command = { ...doorCommand(kernel, op, door), ...aliases };
     if (rest.length === 0) root = command;
     else commands[rest.join(" ")] = command;
   }
