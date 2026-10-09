@@ -5,6 +5,7 @@ type Load = () => Promise<{ default: PluginAppEntry }>;
 export const appLoaders: Record<string, Load> = {
   "account-pool": () => import("../../plugins/account-pool/app"),
   "ask-user-question": () => import("../../plugins/ask-user-question/app"),
+  automations: () => import("../../plugins/automations/app"),
   "bb-guide": () => import("../../plugins/bb-guide/app"),
   composer: () => import("../../plugins/composer/app"),
   "concurrency-limit": () => import("../../plugins/concurrency-limit/app"),

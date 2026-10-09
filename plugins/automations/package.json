@@ -14,7 +14,8 @@
     "server": "./server.ts",
     "skills": [
       "skills"
-    ]
+    ],
+    "app": "./app.tsx"
   },
   "keywords": [
     "bb-plugin"
@@ -24,7 +25,12 @@
     "@bb/plugin": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "@bb/server-kit": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
     "cron-parser": "^5.5.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0"
   }
 }

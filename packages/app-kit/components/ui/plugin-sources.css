@@ -1,5 +1,6 @@
 @source "../../../../plugins/account-pool";
 @source "../../../../plugins/ask-user-question";
+@source "../../../../plugins/automations";
 @source "../../../../plugins/bb-guide";
 @source "../../../../plugins/composer";
 @source "../../../../plugins/concurrency-limit";
