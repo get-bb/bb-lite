@@ -1,4 +1,4 @@
-import { OpError, type OpErrorCode } from "@bb/plugin";
+import { OpError, ToolFailure, type OpErrorCode } from "@bb/plugin";
 import { RunnerError, type RunnerErrorCode } from "@bb/runner";
 import type {
   ApiError as ApiErrorBody,
@@ -103,6 +103,9 @@ export function toApiError(error: unknown): ApiError | null {
     return new ApiError(status, error.reason ?? code, error.message, {
       details,
     });
+  }
+  if (error instanceof ToolFailure) {
+    return new ApiError(409, "tool_failed", error.message);
   }
   if (error instanceof HTTPException && error.status < 500) {
     return new ApiError(error.status, "invalid_request", error.message);

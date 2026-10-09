@@ -290,6 +290,7 @@ export function createTasksStore(db: PluginDatabase) {
     get(`SELECT ${LABEL} FROM labels WHERE id = ?`, id);
 
   function createLabel({ projectId, name, color }: Omit<Label, "id">): Label {
+    found(getProject(projectId), `Project ${projectId}`);
     const label = { id: createUlid(), projectId, name, color };
     insert("labels", label);
     return label;

@@ -48,7 +48,10 @@ export function assertHostUsable(
 ): void {
   if (actor === null) return;
   const host = findHost(ctx.db, "id", hostId);
-  if (host !== undefined && !canUseHost(host, actor)) throw machineNotShared();
+  if (host === undefined) {
+    throw new ApiError(404, "host_not_found", "Host not found");
+  }
+  if (!canUseHost(host, actor)) throw machineNotShared();
 }
 
 export function defaultHostId(

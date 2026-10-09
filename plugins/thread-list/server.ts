@@ -1,4 +1,5 @@
-import type { PluginServerApi } from "@bb/plugin";
+import { fail, type PluginServerApi } from "@bb/plugin";
+import { z } from "zod";
 import { threadList } from "./shared/contract.js";
 import {
   PREFERENCE_DEFAULTS,
@@ -29,7 +30,11 @@ export default function threadListPlugin(bb: PluginServerApi) {
     return { preferences: Object.fromEntries(entries) as PreferenceValues };
   });
   bb.implement(threadList.setPreference, async ({ key, value }) => {
-    const parsed: unknown = preferenceSchemas[key].parse(value);
+    const result = preferenceSchemas[key].safeParse(value);
+    if (!result.success) {
+      fail("invalid", `${key}: ${z.prettifyError(result.error)}`);
+    }
+    const parsed: unknown = result.data;
     await bb.storage.kv.set(kvKey(key), parsed);
     bb.changed(threadList.listPreferences);
     return { key, value: parsed };

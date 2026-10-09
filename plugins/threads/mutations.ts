@@ -241,6 +241,7 @@ export function reorderQueuedMessages(
   queuedMessageIds: readonly string[],
 ) {
   const { db } = engine.bb;
+  engine.requireThread(threadId);
   queue.clearQueuedGroupEdges(db, threadId);
   queue.reorderQueuedMessages(db, threadId, queuedMessageIds);
   queueChanged(engine, threadId);
