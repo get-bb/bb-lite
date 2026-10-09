@@ -220,6 +220,7 @@ export class PluginHost extends PluginRegistry {
       this.options.hub.system(["plugins-changed"]);
     }
     const { settings } = this.running(id);
+    settings.requireProject(projectId);
     const values = await settings.publicValues(userId, projectId);
     return { schema: settings.descriptors, values };
   }

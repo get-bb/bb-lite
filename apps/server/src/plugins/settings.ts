@@ -116,17 +116,18 @@ export class PluginSettings {
     return values;
   }
 
+  requireProject(projectId: string | null): void {
+    if (projectId === null) return;
+    if (this.db.get(PROJECT_EXISTS, projectId) !== undefined) return;
+    throw invalidRequest(`Unknown project: ${projectId}`);
+  }
+
   async write(
     update: Record<string, unknown>,
     userId: string | null = null,
     projectId: string | null = null,
   ): Promise<SettingRecord> {
-    if (
-      projectId !== null &&
-      this.db.get(PROJECT_EXISTS, projectId) === undefined
-    ) {
-      throw invalidRequest(`Unknown project: ${projectId}`);
-    }
+    this.requireProject(projectId);
     const entries = Object.entries(update).map(([key, value]) => {
       const descriptor = this.descriptors[key];
       if (descriptor === undefined) {

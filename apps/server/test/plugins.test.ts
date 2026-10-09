@@ -196,6 +196,9 @@ it("stores settings and never returns a secret", async () => {
   expect(await call("echo.echo", { text: "you" })).toEqual([200, greeted]);
   expect((await save({ greeting: 5 })).status).toBe(400);
   expect((await save({ unknown: "x" })).status).toBe(400);
+  const elsewhere = { pluginId: "echo", projectId: "proj_missing" };
+  const [code, body] = await call("plugins.settings", elsewhere);
+  expect([code, body]).toEqual([400, "invalid_request"]);
 });
 
 it("restarts a crashed service and disposes a disabled plugin", async () => {
