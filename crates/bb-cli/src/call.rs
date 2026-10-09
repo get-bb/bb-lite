@@ -190,7 +190,7 @@ pub fn locale_date(ms: f64) -> String {
     };
     let half = if tm.tm_hour < 12 { "AM" } else { "PM" };
     format!(
-        "{}/{}/{}, {hour}:{:02}:{:02}\u{202f}{half}",
+        "{}/{}/{}, {hour}:{:02}:{:02} {half}",
         tm.tm_mon + 1,
         tm.tm_mday,
         tm.tm_year + 1900,

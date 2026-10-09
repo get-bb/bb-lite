@@ -125,3 +125,10 @@ fn every_request_names_the_thread_it_is_sent_for() {
     ok(&server, &["user", "list"]);
     assert_eq!(*server.thread_ids.lock().unwrap(), [Some("thr_abc".to_string()), None]);
 }
+
+#[test]
+fn locale_date_separates_the_time_from_am_pm_with_a_plain_space_as_node_does() {
+    let shown = locale_date(0.0);
+    assert!(shown.ends_with(" AM") || shown.ends_with(" PM"), "{shown}");
+    assert!(!shown.contains('\u{202f}'), "{shown}");
+}
