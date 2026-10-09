@@ -13,17 +13,18 @@ share URL, not a localhost URL.
    (`bb connect login`). If `enabled` is false, the user turned remote access off
    (`bb connect off`); give the localhost URL and mention `bb connect on`. Do
    not sign in or turn it on yourself unless the user asks.
-2. Run `bb connect expose <port>`. It prints the share URL
-   (`https://<label>--<port>.<base domain>`); with `--json` it prints
-   `{"port": …, "url": …}`.
+2. Run `bb connect expose <port>` on the machine where the server runs. It
+   prints the share URL (`https://<label>--<port>.<base domain>`); with
+   `--json` it prints `{"hostId": …, "port": …, "url": …}`.
 3. Give that URL to the user as a markdown link. It opens for viewers signed in
    to the owner's getbb.dev account; it is not a public link.
 4. When the server stops, run `bb connect unexpose <port>`. `bb connect shares`
    lists what is shared and `bb connect unexpose-all` revokes everything.
 
-Only ports of the machine that runs the bb server can be shared. From a thread
-on another machine `bb connect expose` fails with code `remote_machine`: give
-the user the machine's own address instead, or run the server from a thread on
-the server machine.
+A thread on any connected machine can share that machine's ports. On a machine
+other than the bb server's, WebSockets (hot reload, live sockets) do not pass
+through the share: pages load but such features answer 501. A port number is
+shared from one machine at a time; `expose` fails with code `port_taken` when
+another machine already shares it.
 
 With `--json` a failure prints `{"ok":false,"error":{"code":…,"message":…}}`.

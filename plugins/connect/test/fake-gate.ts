@@ -66,7 +66,9 @@ export async function startFakeGate() {
     if (auth !== undefined) headers.push(["x-bb-gate-auth", auth]);
     if (machineId) headers.push(["x-bb-gate-machine-id", machineId]);
     streamId += 1;
-    return { streamId, path, headers };
+    const target = request.headers["x-bb-tunnel-target"];
+    const shared = typeof target === "string" ? { target } : {};
+    return { streamId, path, headers, ...shared };
   }
 
   async function onRequest(request: IncomingMessage, response: ServerResponse) {

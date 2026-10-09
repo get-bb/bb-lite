@@ -10,7 +10,7 @@ const STABLE_MS = 10_000;
 export interface TunnelOptions {
   loopbackUrl: string;
   marker: string;
-  isShared(port: number): boolean;
+  originOf(port: number): string | null;
   confirmRefused(credential: string): Promise<void>;
   log: { info(message: string): void; warn(message: string): void };
   onChange(): void;
@@ -76,10 +76,11 @@ export class ConnectTunnel {
       return { kind: "ok", resolved: { origin, publicOrigin } };
     }
     const port = /^\d{1,5}$/u.test(target) ? Number(target) : Number.NaN;
-    if (!this.options.isShared(port)) return { kind: "unregistered" };
+    const origin = this.options.originOf(port);
+    if (origin === null) return { kind: "unregistered" };
     const host = `127.0.0.1:${port}`;
     const publicOrigin = shareUrl(link, port);
-    const resolved = { origin: `http://${host}`, publicOrigin, host };
+    const resolved = { origin, publicOrigin, host };
     return { kind: "ok", resolved };
   }
 

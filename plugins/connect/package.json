@@ -9,6 +9,7 @@
     "description": "Remote access via getbb.dev: this bb becomes reachable at https://<label>.getbb.dev for your browsers and machines.",
     "icon": "ComputerCloud",
     "server": "./src/server.ts",
+    "runner": "./src/runner.ts",
     "app": "./app.tsx",
     "skills": [
       "skills"

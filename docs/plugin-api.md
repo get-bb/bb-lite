@@ -688,6 +688,11 @@ can hook them (`bb.on(machineFiles.write, (input, next) => …)`), refuse with `
 place of the built-in one. Starting and steering agent sessions is not an operation: that is the
 runner's own host, and a provider plugs into it through `runner.provider`.
 
+A runner call answers once, with JSON. To move a large or open-ended byte stream, answer the first
+part with an id and let the server ask for the next with a second operation until `done`, then close:
+`plugins/connect` relays HTTP from another machine's port this way (`connect.shareRequest`,
+`connect.shareChunk`, `connect.shareClose`; base64 chunks of up to 1 MiB, each waiting at most 20 s).
+
 How the three sides reach each other:
 
 | From   | To     | How                                                                |
