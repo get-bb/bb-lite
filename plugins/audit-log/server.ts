@@ -12,6 +12,8 @@ export default function auditLog(bb: PluginServerApi): void {
       description:
         "Audit records older than this are removed each night. 0 keeps them forever.",
       default: 90,
+      min: 0,
+      integer: true,
     },
   });
   const prune = async () => {
