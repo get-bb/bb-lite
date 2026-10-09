@@ -1657,6 +1657,7 @@ export function PromptBoxInternal({
           onFocusCapture={() => markComposerActive(composerKey)}
           data-promptbox-compact={showCompactLayout ? "" : undefined}
           onSubmit={(event) => {
+            if (event.target !== event.currentTarget) return;
             event.preventDefault();
             submitPrompt();
           }}

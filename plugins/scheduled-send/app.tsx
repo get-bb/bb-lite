@@ -85,7 +85,7 @@ function SendLaterPicker({ composer }: { composer: ComposerHandle }) {
     try {
       await callOp(threads.send, {
         threadId,
-        input: [{ type: "text", text: composer.text, mentions: [] }],
+        input: composer.input(),
         mode: "queue-if-active",
         sendAt: resolved.at,
         ...composer.selection,
