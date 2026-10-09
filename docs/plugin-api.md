@@ -801,7 +801,8 @@ the original back. Every plugin in `plugins/` forks this way: the providers, the
 core server plugins and the core app plugins (`shell`, `thread-view`, `composer`, `side-panel`).
 
 - The copy keeps the original's id, so its contract names, settings and data carry over and it
-  takes the original's place.
+  takes the original's place. Forking it again while a copy runs is refused (`conflict`, naming
+  the copy's directory): edit that copy, or remove it first.
 - `bb dev fork <id> --as <new-id>` makes a plugin of your own instead: the copy gets the new id and
   runs beside the original. Its package name, contract id, parts, CLI name and agent tool names are
   renamed for you. Check anything else it shares with the original, such as a pick-one slot both

@@ -334,13 +334,16 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
   );
   const providers = await ctx.runners.get(ctx.config.hostId).listProviders();
   expect(providers.map(({ providerId }) => providerId)).toContain("echo");
-  const again = await op("plugin-dev.fork", { id: "tasks", cwd });
-  expect(again.status).toBe(409);
-  expect(again.body).toMatchObject({
-    code: "conflict",
-    message: `${join(cwd, "tasks")} already exists`,
-    details: { hint: expect.stringContaining("--as") },
-  });
+  for (const path of ["tasks", "elsewhere"]) {
+    const again = await op("plugin-dev.fork", { id: "tasks", cwd, path });
+    expect(again.status).toBe(409);
+    expect(again.body).toMatchObject({
+      code: "conflict",
+      message: `"tasks" already runs from ${join(cwd, "tasks")}`,
+      details: { hint: expect.stringContaining("--as") },
+    });
+  }
+  expect(existsSync(join(cwd, "elsewhere"))).toBe(false);
   const core = ctx.plugins.list().filter((plugin) => plugin.core);
   expect(core.map(({ id }) => id)).toContain("threads");
   const directory = join(ctx.config.dataDir, "repo");

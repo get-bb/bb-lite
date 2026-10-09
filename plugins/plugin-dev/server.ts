@@ -524,6 +524,14 @@ export default function plugin(bb: PluginServerApi): void {
       const known = found === null ? "is not a plugin" : "is not built in";
       fail("not_found", `"${id}" ${known}, so there is nothing to fork`);
     }
+    if (as === null && found !== null && !found.builtin) {
+      fail("conflict", `"${id}" already runs from ${found.directory}`, {
+        hint:
+          "Edit that copy, or `bb plugin remove " +
+          `${found.directory}\` first to fork it again, or fork beside it ` +
+          "under a new id with --as.",
+      });
+    }
     if (as !== null && !PLUGIN_ID.test(as)) {
       fail("invalid", "A plugin id is lower-case letters, digits and dashes");
     }
