@@ -26,6 +26,12 @@ const manifestSchema = z.object({
             .max(64),
           name: z.string().min(1),
           css: z.string().min(1),
+          codeTheme: z
+            .object({
+              dark: z.string().optional(),
+              light: z.string().optional(),
+            })
+            .optional(),
         }),
       )
       .default([]),
@@ -129,28 +135,40 @@ export async function validatePlugin(path: string): Promise<Report> {
   report.requires = Array.isArray(bb.requires)
     ? bb.requires
     : Object.keys(bb.requires);
-  const files = [
-    ...bb.skills.map((dir) => ({ what: "skills directory", path: dir })),
-    ...bb.themes.map((theme) => ({ what: "theme css", path: theme.css })),
-  ];
-  for (const { what, path } of files) {
-    const file = resolve(directory, path);
-    const inside = file.startsWith(`${directory}/`);
-    if (!inside || (await stat(file).catch(() => null)) === null) {
-      report.problems.push(`The ${what} ${path} does not exist.`);
-    }
-  }
+  const present = async (entry: string) => {
+    const file = resolve(directory, entry);
+    if (!file.startsWith(`${directory}/`)) return false;
+    return (await stat(file).catch(() => null)) !== null;
+  };
   for (const part of ["server", "app", "runner"] as const) {
     const entry = bb[part];
     if (entry === undefined) continue;
-    const file = resolve(directory, entry);
-    const inside = file.startsWith(`${directory}/`);
-    const exists = inside && (await stat(file).catch(() => null)) !== null;
-    if (exists) report.parts.push(part);
+    if (await present(entry)) report.parts.push(part);
     else report.problems.push(`The ${part} entry ${entry} does not exist.`);
   }
-  if (report.parts.length === 0 && report.problems.length === 0) {
-    report.problems.push("The plugin has no server, app or runner part.");
+  for (const skill of bb.skills) {
+    if (!(await present(skill)))
+      report.problems.push(`The skill ${skill} does not exist.`);
+  }
+  for (const { id, css, codeTheme } of bb.themes) {
+    if (!(await present(css)))
+      report.problems.push(`The CSS ${css} of theme ${id} does not exist.`);
+    for (const file of Object.values(codeTheme ?? {})) {
+      if (/[/\\]|\.json$/u.test(file) && !(await present(file)))
+        report.problems.push(
+          `The code theme ${file} of theme ${id} does not exist.`,
+        );
+    }
+  }
+  const content = bb.skills.length + bb.themes.length;
+  if (
+    report.parts.length === 0 &&
+    content === 0 &&
+    report.problems.length === 0
+  ) {
+    report.problems.push(
+      "The plugin has no server, app or runner part, skill or theme.",
+    );
   }
   for (const path of await sourceFiles(directory)) {
     const file = relative(directory, path);

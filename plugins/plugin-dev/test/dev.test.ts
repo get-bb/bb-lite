@@ -101,6 +101,35 @@ it("scaffolds, loads, reloads on change, validates and inspects a plugin", async
   expect(broken.result).toMatchObject({
     problems: ["There is no package.json."],
   });
+  const themed = scratch();
+  mkdirSync(join(themed, "themes"));
+  writeFileSync(
+    join(themed, "themes", "dusk.css"),
+    ":root { --canvas: #000; }",
+  );
+  const theme = (codeTheme: Record<string, string>) =>
+    writeFileSync(
+      join(themed, "package.json"),
+      JSON.stringify({
+        name: "bb-plugin-dusk",
+        bb: {
+          name: "Dusk",
+          themes: [
+            { id: "dusk", name: "Dusk", css: "./themes/dusk.css", codeTheme },
+          ],
+        },
+      }),
+    );
+  theme({ dark: "nord" });
+  const themeOnly = await op("plugin-dev.validate", { path: themed });
+  expect(themeOnly.result).toMatchObject({ parts: [], problems: [] });
+  theme({ dark: "./themes/missing.json" });
+  const missing = await op("plugin-dev.validate", { path: themed });
+  expect(missing.result).toMatchObject({
+    problems: [
+      "The code theme ./themes/missing.json of theme dusk does not exist.",
+    ],
+  });
 
   const inspected = await cli("plugin-dev", ["inspect", "hello-there."]);
   expect(inspected.stdout).toContain(
