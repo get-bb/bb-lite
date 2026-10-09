@@ -21,6 +21,7 @@ import {
   errorMessage,
   threadNotFound,
 } from "@bb/server-kit/http/errors";
+import { resolvePluginMentions } from "./mentions.js";
 import { deliverAttachments } from "./attachments.js";
 import * as core from "./core.js";
 import type { Engine } from "./engine.js";
@@ -312,7 +313,8 @@ export function submitToRunner(
   const accepted = engine
     .onHost(hostId, async (runner) => {
       const target = { hostId, runner, thread };
-      const input = await deliverAttachments(engine.bb, target, args.input);
+      const mentioned = await resolvePluginMentions(engine.bb, args.input);
+      const input = await deliverAttachments(engine.bb, target, mentioned);
       return runner.submitTurn({ ...args, input });
     })
     .then(
