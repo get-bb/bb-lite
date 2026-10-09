@@ -114,9 +114,17 @@ fn plugin_list_add_and_remove() {
 #[test]
 fn file_commands_post_to_the_files_routes() {
     let server = FakeServer::start(vec![
-        route("POST", "/machines/files/read", json!({ "content": "hi\n", "contentEncoding": "utf8" })),
+        route(
+            "POST",
+            "/machines/files/read",
+            json!({ "content": "hi\n", "contentEncoding": "utf8" }),
+        ),
         route("POST", "/machines/files/write", json!({ "outcome": "written" })),
-        route("POST", "/machines/files/list", json!({ "files": [{ "path": "a" }, { "path": "b" }] })),
+        route(
+            "POST",
+            "/machines/files/list",
+            json!({ "files": [{ "path": "a" }, { "path": "b" }] }),
+        ),
     ]);
     let env = CliEnv::default;
     let (result, printed) = run(&server, &["file", "read", "/a", "--machine", "host_1"], env());
@@ -133,7 +141,11 @@ fn file_commands_post_to_the_files_routes() {
     assert_eq!(
         server.requests(),
         [
-            request("POST", "/machines/files/read", Some(json!({ "hostId": "host_1", "path": "/a" }))),
+            request(
+                "POST",
+                "/machines/files/read",
+                Some(json!({ "hostId": "host_1", "path": "/a" }))
+            ),
             request("POST", "/machines/files/write", Some(json!({ "path": "/a", "content": "x" }))),
             request("POST", "/machines/files/list", Some(json!({ "limit": 2, "path": "/src" }))),
         ]
@@ -190,5 +202,8 @@ fn plugin_commands_send_the_callers_machine() {
     let code = bb_cli::plugin_proxy::run_plugin_command(&env, "demo", vec!["x".into()]).unwrap();
     assert_eq!(code, 0);
     let body = server.requests()[0].body.clone().unwrap();
-    assert_eq!((body["threadId"].clone(), body["hostId"].clone()), (json!("thr_1"), json!("host_1")));
+    assert_eq!(
+        (body["threadId"].clone(), body["hostId"].clone()),
+        (json!("thr_1"), json!("host_1"))
+    );
 }
