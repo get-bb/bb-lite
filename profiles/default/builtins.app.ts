@@ -28,6 +28,7 @@ export const appLoaders: Record<string, Load> = {
   settings: () => import("../../plugins/settings/app"),
   shell: () => import("../../plugins/shell/app"),
   "side-panel": () => import("../../plugins/side-panel/app"),
+  "storage-retention": () => import("../../plugins/storage-retention/app"),
   tasks: () => import("../../plugins/tasks/app"),
   "thread-list": () => import("../../plugins/thread-list/app"),
   "thread-view": () => import("../../plugins/thread-view/app"),

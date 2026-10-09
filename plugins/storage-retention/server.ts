@@ -27,8 +27,12 @@ const BATCH_LIMIT = 50;
 const PAGE = 500;
 const PENDING_KEY = "pendingArchives";
 const RETIRE_GRACE_MS = 10 * 60_000;
+const LARGE_FILE_MIN_BYTES = 10 * 1024 * 1024;
 
-type Listed = RetentionThread & { hostId?: string | null };
+type Listed = RetentionThread & {
+  hostId?: string | null;
+  title: string | null;
+};
 
 const stopped = (thread: { status: string }) =>
   thread.status === "idle" || thread.status === "error";
@@ -196,6 +200,7 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
       const archived = thread.archivedAt !== null;
       usage.threads.push({
         threadId: thread.id,
+        title: thread.title,
         sizeBytes: entry.sizeBytes,
         archived,
         clearable: archived && thread.pinnedAt === null && stopped(thread),
@@ -306,14 +311,21 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
         names: [basename(location.path)],
         recreate: true,
       });
+      const report = await cached(location.hostId);
+      const entry = report?.threads.find((row) => row.threadId === threadId);
+      if (report !== null && entry !== undefined) {
+        report.threadStorageBytes -= entry.sizeBytes;
+        entry.sizeBytes = 0;
+        await bb.storage.kv.set(`usage:${location.hostId}`, report);
+        bb.changed(storageRetention.usage);
+      }
       return { ok: true as const };
     } finally {
       clearing.delete(threadId);
     }
   };
 
-  const clearArchivedFiles = async ({ hostId }: { hostId: string }) => {
-    const report = await requireScan(hostId);
+  const archivedNames = async (report: Usage) => {
     const names: string[] = [];
     for (const entry of report.threads) {
       if (!entry.clearable || entry.sizeBytes === 0) continue;
@@ -325,6 +337,12 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
       )
         names.push(thread.id);
     }
+    return names;
+  };
+
+  const clearArchivedFiles = async ({ hostId }: { hostId: string }) => {
+    const report = await requireScan(hostId);
+    const names = await archivedNames(report);
     if (names.length === 0) return { clearedThreads: 0, clearedBytes: 0 };
     const { removed } = await bb.runners.call(hostId, storageRetention.clear, {
       rootPath: report.rootPath,
@@ -336,6 +354,38 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
       clearedThreads: removed.length,
       clearedBytes: removed.reduce((sum, entry) => sum + entry.sizeBytes, 0),
     };
+  };
+
+  const clearLargeFiles = async ({ hostId }: { hostId?: string }) => {
+    const reports =
+      hostId === undefined ? await usage({}) : [await requireScan(hostId)];
+    const online = new Set(
+      (await bb.call(machines.list, {}))
+        .filter((host) => host.status === "connected")
+        .map((host) => host.id),
+    );
+    const total = { clearedThreads: 0, clearedFiles: 0, clearedBytes: 0 };
+    for (const report of reports) {
+      if (!online.has(report.hostId)) {
+        if (hostId === undefined) continue;
+        throw new Error(`Machine ${report.hostId} is offline.`);
+      }
+      const names = await archivedNames(report);
+      if (names.length === 0) continue;
+      const { removed } = await bb.runners.call(
+        report.hostId,
+        storageRetention.discardLargeFiles,
+        { rootPath: report.rootPath, names, minBytes: LARGE_FILE_MIN_BYTES },
+      );
+      for (const entry of removed) {
+        if (entry.count === 0) continue;
+        total.clearedThreads++;
+        total.clearedFiles += entry.count;
+        total.clearedBytes += entry.sizeBytes;
+      }
+      await scanHost(report.hostId);
+    }
+    return total;
   };
 
   const pending = async () => {
@@ -392,6 +442,7 @@ export default function storageRetentionServer(bb: PluginServerApi): void {
   bb.implement(storageRetention.clearThread, clearThread);
   bb.implement(storageRetention.retryWorktreeCleanup, retryWorktreeCleanup);
   bb.implement(storageRetention.clearArchivedFiles, clearArchivedFiles);
+  bb.implement(storageRetention.clearLargeFiles, clearLargeFiles);
 
   bb.background.schedule("retention", "0 * * * *", async () => {
     await sweep();

@@ -5,9 +5,14 @@ policy, previews, the hourly retention run (`bb.background.schedule`), run
 summaries and the `bb storage` CLI. It rebuilds archive and delete groups from
 `threads.list` rows and acts with `threads.archive` and `threads.delete`.
 
-Its runner part measures and deletes files on a machine (`measure`, `clear`);
+Its runner part measures and deletes files on a machine (`measure`, `clear`,
+`discardLargeFiles`), stopping processes inside folders it removes;
 the server part calls it with `bb.runners.call`. Scans are cached per machine in
 the plugin's key-value storage and classify each folder under the machine's
 thread storage root as a thread's storage or an orphan. Delete storage on
 archive queues archived threads and empties their storage once they are stopped,
 retrying every minute.
+
+The app part adds the "Storage & retention" nav panel: machines with disk
+usage and rescan, a machine page with the largest threads and clean-up actions
+(confirmed, with toasts), and the retention settings with a live preview.

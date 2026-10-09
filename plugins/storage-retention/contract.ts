@@ -43,6 +43,7 @@ export const usageSchema = z.object({
   threads: z.array(
     z.object({
       threadId: z.string(),
+      title: z.string().nullable(),
       sizeBytes: count,
       archived: z.boolean(),
       clearable: z.boolean(),
@@ -89,6 +90,15 @@ export const storageRetention = contract("storage-retention", {
     output: z.object({ clearedThreads: count, clearedBytes: count }),
     kind: "write",
   }),
+  clearLargeFiles: op({
+    input: z.object({ hostId: hostId.optional() }).strict(),
+    output: z.object({
+      clearedThreads: count,
+      clearedFiles: count,
+      clearedBytes: count,
+    }),
+    kind: "write",
+  }),
   measure: op({
     input: z.object({ rootPath: z.string().min(1) }).strict(),
     output: z.object({
@@ -106,6 +116,20 @@ export const storageRetention = contract("storage-retention", {
       })
       .strict(),
     output: z.object({ removed: z.array(entrySchema) }),
+    kind: "write",
+    internal: true,
+  }),
+  discardLargeFiles: op({
+    input: z
+      .object({
+        rootPath: z.string().min(1),
+        names: z.array(z.string().min(1)).min(1).max(500),
+        minBytes: z.number().int().min(1),
+      })
+      .strict(),
+    output: z.object({
+      removed: z.array(entrySchema.extend({ count })),
+    }),
     kind: "write",
     internal: true,
   }),

@@ -1,6 +1,6 @@
 import { lstat, mkdir, readdir, rm, statfs } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { PluginRunnerApi } from "@bb/runner";
+import { killProcessesWithCwdUnder, type PluginRunnerApi } from "@bb/runner";
 import { storageRetention, type Entry } from "./contract.js";
 
 export interface StorageFs {
@@ -29,7 +29,15 @@ function missing(error: unknown) {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
-export function storageOps(fs: StorageFs) {
+function checkName(name: string) {
+  if (basename(name) !== name || name === "." || name === "..")
+    throw new Error(`Invalid storage entry name: ${name}`);
+}
+
+export function storageOps(
+  fs: StorageFs,
+  stopProcesses: (path: string) => Promise<void> = killProcessesWithCwdUnder,
+) {
   async function size(path: string): Promise<number> {
     try {
       const stat = await fs.lstat(path);
@@ -75,11 +83,10 @@ export function storageOps(fs: StorageFs) {
   }) {
     const removed: Entry[] = [];
     for (const name of input.names) {
-      if (basename(name) !== name || name === "." || name === "..") {
-        throw new Error(`Invalid storage entry name: ${name}`);
-      }
+      checkName(name);
       const path = join(input.rootPath, name);
       const sizeBytes = await size(path);
+      await stopProcesses(path);
       await fs.rm(path);
       if (input.recreate) await fs.mkdir(path);
       removed.push({ name, sizeBytes });
@@ -87,7 +94,46 @@ export function storageOps(fs: StorageFs) {
     return { removed };
   }
 
-  return { measure, clear };
+  async function largeFiles(path: string, minBytes: number) {
+    const found: { path: string; size: number }[] = [];
+    const walk = async (current: string): Promise<void> => {
+      const stat = await fs.lstat(current).catch((error: unknown) => {
+        if (missing(error)) return null;
+        throw error;
+      });
+      if (stat?.isFile() && stat.size >= minBytes)
+        found.push({ path: current, size: stat.size });
+      if (!stat?.isDirectory()) return;
+      for (const name of await fs.readdir(current))
+        await walk(join(current, name));
+    };
+    await walk(path);
+    return found;
+  }
+
+  async function discardLargeFiles(input: {
+    rootPath: string;
+    names: string[];
+    minBytes: number;
+  }) {
+    const removed: (Entry & { count: number })[] = [];
+    for (const name of input.names) {
+      checkName(name);
+      const files = await largeFiles(
+        join(input.rootPath, name),
+        input.minBytes,
+      );
+      for (const file of files) await fs.rm(file.path);
+      removed.push({
+        name,
+        count: files.length,
+        sizeBytes: files.reduce((sum, file) => sum + file.size, 0),
+      });
+    }
+    return { removed };
+  }
+
+  return { measure, clear, discardLargeFiles };
 }
 
 export function createStorageRunner(fs: StorageFs) {
@@ -95,6 +141,7 @@ export function createStorageRunner(fs: StorageFs) {
     const ops = storageOps(fs);
     bb.implement(storageRetention.measure, ops.measure);
     bb.implement(storageRetention.clear, ops.clear);
+    bb.implement(storageRetention.discardLargeFiles, ops.discardLargeFiles);
   };
 }
 

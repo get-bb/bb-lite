@@ -13,12 +13,14 @@ async function storageServer() {
   const server = await createThreadServer();
   const root = scratch();
   server.ctx.db.run("UPDATE hosts SET thread_storage_root = ?", root);
-  const ops = storageOps(nodeFs);
+  const ops = storageOps(nodeFs, async () => undefined);
   const fallback = server.runner.script.callOp;
   server.runner.script.callOp = async (op) => {
     const { name, input } = op as Sent;
     if (name === "storage-retention.measure") return ops.measure(input);
     if (name === "storage-retention.clear") return ops.clear(input);
+    if (name === "storage-retention.discardLargeFiles")
+      return ops.discardLargeFiles(input);
     return fallback?.(op);
   };
   const cli = async (...argv: string[]) => {
@@ -127,6 +129,7 @@ it("scans thread storage and clears orphans and archived files", async () => {
   expect(report.orphans).toEqual([{ name: "orphan-dir", sizeBytes: 500 }]);
   expect(report.threads).toContainEqual({
     threadId: archived,
+    title: server.thread(archived).title,
     sizeBytes: 2000,
     archived: true,
     clearable: true,
@@ -162,6 +165,16 @@ it("scans thread storage and clears orphans and archived files", async () => {
   );
   expect(retry.json()).toEqual({ retriedCount: 0 });
   expect((await server.cli("retry-worktree-cleanup")).exitCode).toBe(1);
+  const machine = ["--machine", server.hostId, "--yes"];
+  const cleanup = await server.cli(
+    "cleanup",
+    "--kind",
+    "worktrees",
+    ...machine,
+  );
+  expect(cleanup.json()).toEqual({ retriedCount: 0 });
+  const dev = await server.cli("cleanup", "--kind", "development", ...machine);
+  expect(dev.stderr).toContain("orphans or worktrees");
 });
 
 it("clears thread storage on archive when the policy asks for it", async () => {
@@ -177,4 +190,39 @@ it("clears thread storage on archive when the policy asks for it", async () => {
   );
   await server.http("POST", `/threads/${threadId}/archive-all`, {});
   await expect.poll(() => readdirSync(join(server.root, threadId))).toEqual([]);
+});
+
+it("deletes large files from archived threads only", async () => {
+  const server = await storageServer();
+  const active = await server.idle(await server.spawn());
+  const archived = await server.idle(await server.spawn());
+  const big = 10 * 1024 * 1024;
+  server.fill(active, big);
+  server.fill(archived, big);
+  writeFileSync(join(server.root, archived, "small.txt"), "keep");
+  await server.http("POST", `/threads/${archived}/archive-all`, {});
+
+  const unscanned = await server.cli("clear-large-files", "--yes");
+  expect(unscanned.json()).toEqual({
+    clearedThreads: 0,
+    clearedFiles: 0,
+    clearedBytes: 0,
+  });
+  await server.cli("usage", "--rescan");
+  expect((await server.cli("clear-large-files")).exitCode).toBe(1);
+  const cleared = await server.cli(
+    "clear-large-files",
+    "--machine",
+    server.hostId,
+    "--yes",
+  );
+  expect(cleared.json()).toEqual({
+    clearedThreads: 1,
+    clearedFiles: 1,
+    clearedBytes: big,
+  });
+  expect(readdirSync(join(server.root, archived))).toEqual(["small.txt"]);
+  expect(readdirSync(join(server.root, active))).toEqual(["big.bin"]);
+  const [report] = (await server.cli("usage")).json();
+  expect(report.threadStorageBytes).toBe(big + 4);
 });

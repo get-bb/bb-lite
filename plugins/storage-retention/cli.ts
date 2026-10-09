@@ -188,6 +188,39 @@ export function registerCli(bb: PluginServerApi) {
               return bb.call(ops.clearArchivedFiles, { hostId });
             }),
         }),
+        cleanup: cliCommand({
+          summary: "Run cleanup of one kind on a machine and print its result",
+          options: {
+            machine: MACHINE,
+            kind: { type: "string", description: "orphans or worktrees" },
+            yes: YES,
+          },
+          run: ({ options }) =>
+            output(async () => {
+              confirm(options.yes, "Pass --yes to confirm cleanup.");
+              const hostId = required(options.machine, "machine");
+              if (options.kind === "orphans")
+                return bb.call(ops.removeOrphans, { hostId });
+              if (options.kind === "worktrees")
+                return bb.call(ops.retryWorktreeCleanup, { hostId });
+              throw new Error("Use --kind orphans or worktrees.");
+            }),
+        }),
+        "clear-large-files": cliCommand({
+          summary:
+            "Delete files of 10 MB or more from archived threads on --machine, or on every scanned online machine",
+          options: { machine: MACHINE, yes: YES },
+          run: ({ options }) =>
+            output(async () => {
+              confirm(
+                options.yes,
+                "Pass --yes to permanently delete large files from archived threads.",
+              );
+              return bb.call(ops.clearLargeFiles, {
+                ...(options.machine ? { hostId: options.machine } : {}),
+              });
+            }),
+        }),
       },
     }),
   );

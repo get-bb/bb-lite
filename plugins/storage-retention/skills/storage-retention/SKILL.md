@@ -22,8 +22,11 @@ bb storage usage --machine HOST_ID --rescan
 bb storage usage --machine HOST_ID
 bb storage remove-orphans --machine HOST_ID --yes
 bb storage retry-worktree-cleanup --machine HOST_ID
+bb storage cleanup --machine HOST_ID --kind orphans|worktrees --yes
 bb storage clear-thread --thread THREAD_ID --yes
 bb storage clear-archived-files --machine HOST_ID --yes
+bb storage clear-large-files --machine HOST_ID --yes
+bb storage clear-large-files --yes
 ```
 
 Without `--save`, retention thresholds only preview affected thread counts.
@@ -40,28 +43,33 @@ Pinned threads are skipped. Cleanup waits for stopped threads and online
 machines; pending cleanup survives reloads and retries every minute, and
 unarchiving or deleting the thread cancels it.
 
-`--delete-dev-data-on-checkout-removal` is saved with the policy; removing
-`~/.bb-dev` data is not available in this version yet.
+`--delete-dev-data-on-checkout-removal` is saved with the policy but has no
+effect: this version of bb keeps no `~/.bb-dev` development data.
 
 `--rescan` measures the thread storage folder of `--machine`, or of every online
 machine, and caches the report; usage without `--rescan` reads the cached
 reports and never starts a scan. A report has `disk` (total and free bytes of
-the volume holding thread storage), `threadStorageBytes`, `threads` (size,
-archived, clearable) and `orphans` (folders that belong to no known thread).
+the volume holding thread storage), `threadStorageBytes`, `threads` (title,
+size, archived, clearable) and `orphans` (folders that belong to no known thread).
 
 Remove-orphans needs a completed scan and removes only folders that the scan
 and a fresh recheck both find orphaned. Clear-archived-files empties the storage
 folders of archived, stopped, unpinned threads found in the last scan.
-Clear-thread empties one stopped thread's storage folder. Retry-worktree-cleanup
+Clear-large-files deletes files of 10 MB or more from those same archived
+threads, on `--machine` or on every scanned online machine, and rescans.
+Clear-thread empties one stopped thread's storage folder. Processes whose
+working directory is inside a folder being removed are stopped first. Retry-worktree-cleanup
 deletes again the worktree environments on the machine whose teardown failed or
-that stayed retiring for over ten minutes, unless a live thread still uses them. Conversation history
-is never affected.
+that stayed retiring for over ten minutes, unless a live thread still uses them. `cleanup --kind` runs
+remove-orphans or retry-worktree-cleanup and waits for the result. Conversation
+history is never affected.
 
 The same actions are operations: `storage-retention.state`, `preview`,
 `configure` (`{archiveAfterDays, deleteAfterDays, deleteStorageOnArchive,
 deleteDevDataOnCheckoutRemoval}`, null for Never), `run` (one retention pass
 now), `usage({hostId?})`, `scan({hostId?})`, `removeOrphans({hostId})`,
-`retryWorktreeCleanup({hostId})`, `clearThread({threadId})` and `clearArchivedFiles({hostId})`.
+`retryWorktreeCleanup({hostId})`, `clearThread({threadId})`, `clearArchivedFiles({hostId})` and
+`clearLargeFiles({hostId?})`.
 
 Pin automation target threads to keep them. Disabling the plugin stops scheduled
 retention and removes its storage actions.
