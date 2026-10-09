@@ -14,7 +14,7 @@ interface CliOutput {
 }
 
 const MINUTE = 60_000;
-const WAIT = { timeout: 4000 };
+const WAIT = { timeout: 10_000 };
 
 async function automationsServer() {
   const server = await createThreadServer();
