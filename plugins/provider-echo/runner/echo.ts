@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  providerErrorCategorySchema,
   reasoningEffortsForLevels,
   type AvailableModel,
   type PendingInteractionPayload as Payload,
@@ -176,10 +177,14 @@ class EchoSession implements ProviderSession {
     this.host.events.closeTurn({ turn: turn.key, status, checkpointId });
   }
 
-  private fail(turn: string, detail: string) {
+  private fail(turn: string, detail: string, category?: string) {
     if (this.active?.key !== turn) return;
     this.active = null;
-    const report = { detail, willRetry: false };
+    const parsed = providerErrorCategorySchema.safeParse(category);
+    const errorInfo = parsed.success
+      ? { category: parsed.data, providerCode: null, httpStatusCode: null }
+      : undefined;
+    const report = { detail, willRetry: false, errorInfo };
     this.host.events.error(report, { turn, settlesTurn: true });
   }
 
@@ -289,7 +294,9 @@ class EchoSession implements ProviderSession {
       return;
     }
     const failure = directive(text, "fail_turn");
-    if (failure !== undefined) return this.fail(turn, failure);
+    if (failure !== undefined) {
+      return this.fail(turn, failure, directive(text, "fail_category"));
+    }
     if (directive(text, "hold_turn") !== undefined) return;
     if (!(await this.wait(live, Number(directive(text, "delay") ?? 0)))) return;
     const counted = directive(text, "count") !== undefined;
