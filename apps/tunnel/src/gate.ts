@@ -15,6 +15,7 @@ export interface GateOptions {
   upstream: { host: string; port: number };
   log(message: string): void;
   headTimeoutMs?: number;
+  hostLabels?: Record<string, string>;
 }
 
 interface Admission {
@@ -53,6 +54,8 @@ export function createGate(options: GateOptions) {
 
   function addressOf(host: string | undefined) {
     const name = host?.toLowerCase() ?? "";
+    const alias = options.hostLabels?.[name];
+    if (alias !== undefined) return { label: alias, target: null };
     if (!name.endsWith(`.${baseHost}`)) return null;
     const first = name.slice(0, -baseHost.length - 1);
     const share = SHARE.exec(first);

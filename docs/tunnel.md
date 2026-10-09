@@ -38,8 +38,16 @@ The gate's rules for who may come in live behind one interface (`src/accounts.ts
   for 20 s. It serves `<label>--<port>` share addresses by sending the port in `x-bb-tunnel-target`,
   lets anyone fetch the install files, and refuses machine credentials and `/internal`.
 
-For timing runs only, `OWNER_CREDENTIAL_HEADER=<header name>` also admits a request that carries
-the server's own link credential in that header, as its owner. It is off unless set.
+For timing runs only, `OWNER_CREDENTIAL_HEADER=<header name>` (or `OWNER_CREDENTIAL_COOKIE=<cookie
+name>`, for a browser) also admits a request that carries the server's own link credential, as its
+owner, and `HOST_LABELS=<host>=<label>` serves one server on a host outside the wildcard, such as the
+Fly app's own `fly.dev` name, so a browser can load it before any DNS exists. All are off unless set.
+
+What a browser run against the original bb showed (2026-10-08, one server, everything near San
+Jose): API calls were 1.5 to 2 times faster through frp, but a page load with an empty browser cache
+was slower, because the original gateway answers the app's script and style files from Cloudflare's
+cache and this gate sends every one of them through the tunnel. The gate needs its own cache for
+long-lived files before it can match that.
 
 In both modes the gate rewrites `Origin` only when it is the address the visitor used, so a request
 from another site reaches the server with its real origin and is refused there.

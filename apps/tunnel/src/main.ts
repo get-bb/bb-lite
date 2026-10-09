@@ -23,7 +23,18 @@ function accountsFromEnv(secure: boolean): Accounts {
     serverBase: setting("SERVER_BASE").toLowerCase(),
     secureCookies: secure,
     ownerCredentialHeader: process.env.OWNER_CREDENTIAL_HEADER || undefined,
+    ownerCredentialCookie: process.env.OWNER_CREDENTIAL_COOKIE || undefined,
   });
+}
+
+function hostLabelsFromEnv(): Record<string, string> {
+  const pairs = (process.env.HOST_LABELS ?? "").split(",");
+  const labels: Record<string, string> = {};
+  for (const pair of pairs) {
+    const [host = "", label = ""] = pair.trim().toLowerCase().split("=");
+    if (host !== "" && label !== "") labels[host] = label;
+  }
+  return labels;
 }
 
 const log = (message: string) => console.log(message);
@@ -32,6 +43,7 @@ const tunnel = await startTunnel({
   baseHost: setting("BASE_DOMAIN").toLowerCase(),
   secure,
   accounts: accountsFromEnv(secure),
+  hostLabels: hostLabelsFromEnv(),
   frps: setting("FRPS", "frps"),
   bindHost: setting("BIND_HOST", "0.0.0.0"),
   ports: {

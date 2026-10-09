@@ -37,9 +37,11 @@ function visit(
     method?: string;
     headers?: Record<string, string>;
     body?: string;
+    host?: string;
   } = {},
 ): Promise<Visited> {
-  const headers = { ...init.headers, host: `${name}.fly.bb.test` };
+  const host = init.host ?? `${name}.fly.bb.test`;
+  const headers = { ...init.headers, host };
   const { method = "GET", body } = init;
   return new Promise((resolve, reject) => {
     const sent = request(`${gate}${path}`, { method, headers }, (answer) => {
@@ -97,8 +99,10 @@ beforeAll(async () => {
       secureCookies: false,
       resolveServerHost: () => `127.0.0.1:${accountPort}`,
       ownerCredentialHeader: "x-test-owner",
+      ownerCredentialCookie: "test-owner",
     }),
     upstream: { host: "127.0.0.1", port: upstreamPort },
+    hostLabels: { "bee-direct.test": "bee" },
     log: () => {},
   });
   gate = `http://127.0.0.1:${await listening(made.web)}`;
@@ -186,6 +190,17 @@ it("admits a caller that holds the server's credential, when switched on", async
   expect(owner.status).toBe(200);
   expect(seen.at(-1)?.headers["x-bb-gate-auth"]).toBe("session");
   expect(seen.at(-1)?.headers["x-test-owner"]).toBeUndefined();
+  const byCookie = { cookie: "test-owner=bbcred_bee; theme=dark" };
+  const direct = await visit("bee", "/api/v1/threads", {
+    headers: { ...byCookie, origin: "http://bee-direct.test" },
+    host: "bee-direct.test",
+  });
+  expect(direct.status).toBe(200);
+  expect(seen.at(-1)?.headers).toMatchObject({
+    cookie: "theme=dark",
+    host: "bee.fly.bb.test",
+    origin: `http://bee.bb.test:${accountPort}`,
+  });
 });
 
 it("marks a share's port and keeps machines and internals out", async () => {

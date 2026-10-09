@@ -14,6 +14,7 @@ export interface TunnelOptions {
   bindHost: string;
   ports: { web: number; frp: number; vhost: number; hooks: number };
   logLevel?: string;
+  hostLabels?: Record<string, string>;
   log(message: string): void;
 }
 
@@ -23,6 +24,7 @@ export async function startTunnel(options: TunnelOptions) {
     baseHost,
     secure: options.secure,
     accounts: options.accounts,
+    hostLabels: options.hostLabels,
     upstream: { host: "127.0.0.1", port: ports.vhost },
     log,
   });

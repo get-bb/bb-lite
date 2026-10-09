@@ -7,6 +7,7 @@ export interface BbAccountsOptions {
   cacheMs?: number;
   resolveServerHost?(label: string): string;
   ownerCredentialHeader?: string;
+  ownerCredentialCookie?: string;
 }
 
 interface ServerList {
@@ -110,10 +111,22 @@ export function bbAccounts(options: BbAccountsOptions): accounts.Accounts {
     () => cacheMs,
   );
   const ownerHeader = options.ownerCredentialHeader?.toLowerCase();
+  const ownerCookie = options.ownerCredentialCookie;
+  const offeredCredential = (request: accounts.Visit["request"]) => {
+    const sent =
+      ownerHeader === undefined
+        ? undefined
+        : accounts.header(request, ownerHeader);
+    if (sent !== undefined || ownerCookie === undefined) return sent;
+    const cookies = accounts.header(request, "cookie") ?? "";
+    return accounts.readCookie(cookies, ownerCookie) ?? undefined;
+  };
 
   return {
     shares: true,
-    isPlatformCookie: (name) => PLATFORM_COOKIE.test(name),
+    isPlatformCookie: (name) => {
+      return name === ownerCookie || PLATFORM_COOKIE.test(name);
+    },
     isPrivateHeader: (name) => {
       const reserved = name === MACHINE_HEADER || name === TARGET_HEADER;
       return reserved || name === ownerHeader || PRIVATE_HEADERS.test(name);
@@ -141,10 +154,7 @@ export function bbAccounts(options: BbAccountsOptions): accounts.Accounts {
         return accounts.plain(target === null ? 403 : 404, message);
       }
       const identity = { "x-bb-gate-auth": "session", ...targeted };
-      const offered =
-        ownerHeader === undefined
-          ? undefined
-          : accounts.header(request, ownerHeader);
+      const offered = offeredCredential(request);
       if (offered !== undefined) {
         const owns = await ownsServer(`${label}\n${offered}`);
         if (owns) return { identity, address };
