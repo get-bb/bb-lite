@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-automations",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Schedule recurring and one-shot agent or script work.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Automations",
+    "description": "Schedule recurring and one-shot agent or script work.",
+    "icon": "Repeat",
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "cron-parser": "^5.5.0",
+    "zod": "^4.3.6"
+  }
+}

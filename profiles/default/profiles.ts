@@ -19,6 +19,7 @@ const SCREEN = [
   "provider-usage",
 ];
 const AGENT_FEATURES = [
+  "automations",
   "secrets",
   "ask-user-question",
   "custom-instructions",
