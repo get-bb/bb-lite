@@ -37,6 +37,7 @@ const AGENT_FEATURES = [
   "workflows",
 ];
 const PRODUCT = [
+  "monaco-editor",
   "bb-account",
   "bb-ai",
   "connect",

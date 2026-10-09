@@ -12,6 +12,7 @@
 @source "../../../../plugins/inline-vis";
 @source "../../../../plugins/keep-awake";
 @source "../../../../plugins/memory";
+@source "../../../../plugins/monaco-editor";
 @source "../../../../plugins/navigation";
 @source "../../../../plugins/pdf-preview";
 @source "../../../../plugins/plugin-api-docs";
