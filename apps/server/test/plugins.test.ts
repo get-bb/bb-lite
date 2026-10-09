@@ -32,6 +32,7 @@ import { cronMatches, parseCron } from "../src/plugins/cron.js";
 import { insertRow } from "@bb/server-kit/db/index";
 import { runAs } from "@bb/server-kit/auth/actor";
 import { PluginHost } from "../src/plugins/host.js";
+import { readManifest } from "../src/plugins/manifest.js";
 import { PluginSettings } from "../src/plugins/settings.js";
 import { createProject, createTestServer, scratch } from "./helpers.js";
 
@@ -675,6 +676,21 @@ it("offers the themes a plugin's manifest declares", async () => {
   manifest.bb.themes = [dusk];
   writeFileSync(file, JSON.stringify(manifest));
   writeFileSync(join(directory, "dusk.css"), ":root { --canvas: #111; }");
+  mkdirSync(join(directory, "themes"));
+  const codeFile = join(directory, "themes", "light-code.json");
+  writeFileSync(codeFile, JSON.stringify({ name: "Mine", type: "light" }));
+  const parsed = await readManifest(directory);
+  expect(parsed.themes[0]).toMatchObject({
+    codeTheme: { dark: "nord" },
+    codeThemeFiles: { light: codeFile },
+  });
+  const escaping = { ...dusk, codeTheme: { light: "../outside.json" } };
+  writeFileSync(
+    file,
+    JSON.stringify({ ...manifest, bb: { ...manifest.bb, themes: [escaping] } }),
+  );
+  await expect(readManifest(directory)).rejects.toThrow("outside");
+  writeFileSync(file, JSON.stringify(manifest));
   const started = await serverWithEcho(directory);
   const { request, read, server, configFile, ctx } = started;
   type Config = { themes: unknown[]; appearance: { themeId: string } };
@@ -687,8 +703,26 @@ it("offers the themes a plugin's manifest declares", async () => {
   ctx.kernel.scope("listener", "installed").on(appearance.changed, (chosen) => {
     heard.push(chosen);
   });
-  const listed = { id, pluginId: "echo", name: "Dusk", cssUrl, codeTheme };
-  expect((await config()).themes).toEqual([{ ...listed, description: "" }]);
+  const codeVersion = Math.trunc(statSync(codeFile).mtimeMs);
+  const light = `/api/v1/plugins/echo/themes/dusk.light.json?v=${codeVersion}`;
+  const served = { ...codeTheme, light };
+  const listed = { id, pluginId: "echo", name: "Dusk", cssUrl };
+  const offered = { ...listed, codeTheme: served, description: "" };
+  expect((await config()).themes).toEqual([offered]);
+  const code = await request("/echo/themes/dusk.light.json");
+  expect(code.response.headers.get("content-type")).toContain("json");
+  expect(code.body).toEqual({ name: "Mine", type: "light" });
+  expect((await request("/echo/themes/dusk.dark.json")).status).toBe(404);
+  const themeCss = (themeId: string) =>
+    ctx.kernel.call(appearance.themeCss, { themeId });
+  expect((await themeCss(id)).css).toContain("--canvas: #111");
+  expect((await themeCss("nord")).css).toContain("--canvas: #eceff4");
+  expect(await themeCss("default")).toEqual({ css: "" });
+  const door = `/appearance/themes/${encodeURIComponent(id)}/css`;
+  expect(await read<{ css: string }>(door)).toMatchObject({
+    css: expect.stringContaining("--canvas: #111"),
+  });
+  await expect(themeCss("plugin:echo:dawn")).rejects.toThrow("Unknown theme");
   const css = await request("/echo/themes/dusk.css");
   expect(css.response.headers.get("content-type")).toContain("text/css");
   expect(css.text).toContain("--canvas: #111");

@@ -83,16 +83,29 @@ export interface ManifestTheme {
   name: string;
   description: string;
   cssFile: string;
-  codeTheme: { dark?: string; light?: string } | null;
+  codeTheme: CodeThemeSides | null;
+  codeThemeFiles: CodeThemeSides;
 }
 
-function namedCodeTheme(
-  declared: { dark?: string; light?: string } | undefined,
-): ManifestTheme["codeTheme"] {
-  if (declared === undefined) return null;
-  const named = (name: string | undefined) =>
-    name === undefined || /[./\\]/u.test(name) ? undefined : name;
-  return { dark: named(declared.dark), light: named(declared.light) };
+type CodeThemeSides = { dark?: string; light?: string };
+
+function isCodeThemeFile(value: string): boolean {
+  return /[/\\]|\.json$/u.test(value);
+}
+
+function codeThemeSides(
+  declared: CodeThemeSides | undefined,
+  inside: (path: string) => string,
+) {
+  const names: CodeThemeSides = {};
+  const files: CodeThemeSides = {};
+  for (const side of ["dark", "light"] as const) {
+    const value = declared?.[side];
+    if (value === undefined) continue;
+    if (isCodeThemeFile(value)) files[side] = inside(value);
+    else names[side] = value;
+  }
+  return { codeTheme: declared === undefined ? null : names, files };
 }
 
 export function resolveInside(directory: string, path: string): string | null {
@@ -131,11 +144,11 @@ export async function readManifest(path: string): Promise<PluginManifest> {
     forkOf: bb.forkOf ?? null,
     enabledByDefault: bb.enabledByDefault,
     skillDirs: bb.skills.map(inside),
-    themes: bb.themes.map(({ css, codeTheme, ...theme }) => ({
-      ...theme,
-      cssFile: inside(css),
-      codeTheme: namedCodeTheme(codeTheme),
-    })),
+    themes: bb.themes.map(({ css, codeTheme: declared, ...theme }) => {
+      const { codeTheme, files } = codeThemeSides(declared, inside);
+      const cssFile = inside(css);
+      return { ...theme, cssFile, codeTheme, codeThemeFiles: files };
+    }),
   };
 }
 

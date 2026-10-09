@@ -1531,8 +1531,13 @@ export const terminals = contract("terminals", {
 });
 
 export const appearance = contract("appearance", {
-  theme: slot<Domain.PluginTheme>({ key: "id" }),
+  theme: slot<Domain.PluginTheme & { cssFile?: string }>({ key: "id" }),
   changed: event(Domain.appThemeSchema),
+  themeCss: op({
+    input: ref("themeId"),
+    output: z.object({ css: z.string() }),
+    doors: { http: { method: "GET", path: "/appearance/themes/:themeId/css" } },
+  }),
 });
 
 export const server = contract("server", {

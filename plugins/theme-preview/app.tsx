@@ -15,6 +15,7 @@ import {
   settings,
   shell,
   useCall,
+  useChanged,
   useOp,
   type PluginAppApi,
 } from "@bb/plugin/app";
@@ -140,6 +141,7 @@ function ThemePreviewPanel() {
   const [area, setArea] = useState<Area>("preview");
   const [error, setError] = useState<string | null>(null);
   const data = catalog.data;
+  useChanged(server.config, () => void catalog.refetch());
 
   async function choose(themeId: string) {
     setError(null);

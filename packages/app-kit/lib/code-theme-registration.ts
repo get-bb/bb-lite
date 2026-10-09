@@ -8,7 +8,11 @@ import {
   registerCustomTheme,
   resolveTheme,
 } from "@pierre/diffs";
-import { deriveLightCodeTheme, lightCodeThemes } from "@bb/domain";
+import {
+  deriveLightCodeTheme,
+  lightCodeThemes,
+  type JsonObject,
+} from "@bb/domain";
 import { useResolvedCodeThemePair } from "./code-theme";
 
 for (const light of lightCodeThemes) {
@@ -17,8 +21,23 @@ for (const light of lightCodeThemes) {
   );
 }
 
+const servedThemes = new Set<string>();
+
+function registerServedTheme(name: string): void {
+  if (!name.startsWith("/api/") || servedThemes.has(name)) return;
+  servedThemes.add(name);
+  registerCustomTheme(name, async () => {
+    const response = await fetch(name);
+    if (!response.ok) throw new Error(`Code theme ${name} did not load`);
+    const theme = (await response.json()) as JsonObject;
+    return { ...theme, name };
+  });
+}
+
 export function useCodeHighlighter(path: string) {
   const theme = useResolvedCodeThemePair();
+  registerServedTheme(theme.dark);
+  registerServedTheme(theme.light);
   const language = getFiletypeFromFileName(path);
   const key = `${language}:${theme.dark}:${theme.light}`;
   const [settledKey, setSettledKey] = useState("");

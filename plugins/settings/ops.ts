@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import * as domain from "@bb/domain";
 import {
   appearance as appearanceSlots,
@@ -93,8 +94,9 @@ export function implementSettings(bb: PluginServerApi): void {
   const { db, realtime: hub } = bb;
   const personal = <T>(setting: store.Setting<T>) =>
     store.userSetting(setting, viewerId());
-  const themes = () =>
+  const declared = () =>
     bb.entries(appearanceSlots.theme).map(({ item }) => item);
+  const themes = () => declared().map(({ cssFile: _file, ...theme }) => theme);
   const isKnownTheme = (themeId: string) =>
     domain.isBuiltInThemeId(themeId) ||
     themes().some(({ id }) => id === themeId);
@@ -173,6 +175,19 @@ export function implementSettings(bb: PluginServerApi): void {
     bb.emit(appearanceSlots.changed, chosen);
     bb.changed(server.config);
     return chosen;
+  });
+
+  bb.implement(appearanceSlots.themeCss, async ({ themeId }) => {
+    if (domain.isBuiltInThemeId(themeId)) {
+      return { css: domain.builtInThemeCss[themeId] };
+    }
+    const theme = declared().find(({ id }) => id === themeId);
+    const css = await readFile(theme?.cssFile ?? "", "utf8").catch(() => null);
+    if (css === null) {
+      const message = `Unknown theme '${themeId}'.`;
+      throw new ApiError(404, "theme_not_found", message);
+    }
+    return { css };
   });
 
   bb.implement(settings.uiPreferences, () => ({

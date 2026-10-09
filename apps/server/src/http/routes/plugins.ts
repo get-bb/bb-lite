@@ -161,10 +161,18 @@ export function registerPluginRoutes(app: ApiApp, shared: HostContext): void {
   app.get("/plugins/:id/themes/:theme", async (c) => {
     const { themes } = plugins.record(c.req.param("id")).manifest;
     const wanted = c.req.param("theme");
-    const theme = themes.find(({ id }) => `${id}.css` === wanted);
-    const content = await readFile(theme?.cssFile ?? "").catch(() => null);
-    if (content === null) throw notFound();
-    const headers = { "content-type": "text/css", "cache-control": "no-cache" };
+    const files = themes.flatMap(({ id, cssFile, codeThemeFiles }) => [
+      [`${id}.css`, cssFile, "text/css"],
+      ...Object.entries(codeThemeFiles).map(([side, file]) => [
+        `${id}.${side}.json`,
+        file,
+        "application/json",
+      ]),
+    ]);
+    const [, file = "", type] = files.find(([name]) => name === wanted) ?? [];
+    const content = await readFile(file).catch(() => null);
+    if (content === null || type === undefined) throw notFound();
+    const headers = { "content-type": type, "cache-control": "no-cache" };
     return c.body(new Uint8Array(content), 200, headers);
   });
 

@@ -1,9 +1,5 @@
-import { watch, type FSWatcher } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { appearance, plugins, server, type PluginServerApi } from "@bb/plugin";
+import { appearance, server, type PluginServerApi } from "@bb/plugin";
 import { builtInThemes } from "@bb/domain";
-import { z } from "zod";
 import { themePreview, type ThemeSwatch } from "./contract.js";
 import { BUILTIN_SWATCHES } from "./swatches.js";
 
@@ -90,68 +86,24 @@ export function parseThemeSwatches(css: string) {
   };
 }
 
-const manifestSchema = z.object({
-  bb: z
-    .object({
-      themes: z
-        .array(z.object({ id: z.string(), css: z.string().optional() }))
-        .optional(),
-    })
-    .optional(),
-});
-
-const PLUGIN_THEME = /^plugin:([^:]+):(.+)$/;
+function fileVersion(cssUrl: string | undefined): number {
+  return Number(/[?&]v=(\d+)/u.exec(cssUrl ?? "")?.[1] ?? 0);
+}
 
 export default function themePreviewServer(bb: PluginServerApi): void {
-  let revision = 0;
-  let watcher: FSWatcher | null = null;
-  let watchedPath: string | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  const cssPath = async (themeId: string) => {
-    const match = PLUGIN_THEME.exec(themeId);
-    if (!match) return null;
-    const described = await bb.call(plugins.describe, { id: match[1] });
-    if (!described) return null;
-    const raw = await readFile(resolve(described.directory, "package.json"));
-    const manifest = manifestSchema.parse(JSON.parse(raw.toString()));
-    const css = manifest.bb?.themes?.find(({ id }) => id === match[2])?.css;
-    return css ? resolve(described.directory, css) : null;
-  };
+  let changes = 0;
 
   const readCss = async (themeId: string) => {
     try {
-      const path = await cssPath(themeId);
-      return path ? { path, css: await readFile(path, "utf8") } : null;
+      return (await bb.call(appearance.themeCss, { themeId })).css || null;
     } catch (error) {
       bb.log.warn(`theme-preview: could not read ${themeId}: ${error}`);
       return null;
     }
   };
 
-  const watchActive = (path: string | null) => {
-    if (path === watchedPath) return;
-    watcher?.close();
-    watcher = null;
-    watchedPath = path;
-    if (!path) return;
-    try {
-      watcher = watch(path, () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-          revision += 1;
-          watchActive(null);
-          bb.changed(themePreview.catalog);
-        }, 120);
-      });
-      watcher.on("error", () => watchActive(null));
-    } catch (error) {
-      bb.log.warn(`theme-preview: cannot watch ${path}: ${error}`);
-    }
-  };
-
   bb.on(appearance.changed, () => {
-    revision += 1;
+    changes += 1;
     bb.changed(themePreview.catalog);
   });
 
@@ -164,30 +116,20 @@ export default function themePreviewServer(bb: PluginServerApi): void {
     ];
     if (!entries.some(({ id }) => id === activeThemeId))
       entries.unshift({ id: activeThemeId, name: activeThemeId });
+    const active = config.themes.find(({ id }) => id === activeThemeId);
+    const revision = changes + fileVersion(active?.cssUrl);
     let activeCss: string | null = null;
     const themes = await Promise.all(
       entries.map(async (entry) => {
-        const read = await readCss(entry.id);
-        if (entry.id === activeThemeId) {
-          activeCss = read?.css ?? null;
-          watchActive(read?.path ?? null);
-        }
-        const swatches = read
-          ? parseThemeSwatches(read.css)
-          : (BUILTIN_SWATCHES[entry.id] ?? { light: null, dark: null });
+        const builtIn = BUILTIN_SWATCHES[entry.id];
+        const css = builtIn ? null : await readCss(entry.id);
+        if (entry.id === activeThemeId) activeCss = css;
+        const swatches = css
+          ? parseThemeSwatches(css)
+          : (builtIn ?? { light: null, dark: null });
         return { ...entry, ...swatches };
       }),
     );
     return { activeThemeId, themes, revision, activeCss };
-  });
-
-  bb.background.service("theme-watch", {
-    async start(signal) {
-      await new Promise((done) =>
-        signal.addEventListener("abort", done, { once: true }),
-      );
-      clearTimeout(timer);
-      watchActive(null);
-    },
   });
 }

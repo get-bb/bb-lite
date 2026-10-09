@@ -86,7 +86,6 @@ export class PluginHost extends PluginRegistry {
     if (id !== undefined) await this.load(this.record(id));
     else await this.inOrder(() => this.loadAll());
     await this.announce();
-    this.options.kernel.changed(serverContract.config);
   }
 
   private async loadAll(): Promise<void> {
@@ -160,6 +159,7 @@ export class PluginHost extends PluginRegistry {
   private async announce(): Promise<void> {
     await this.restyle();
     this.options.hub.system(["plugins-changed"]);
+    this.options.kernel.changed(serverContract.config);
     this.onChanged();
   }
 
@@ -387,15 +387,32 @@ export class PluginHost extends PluginRegistry {
         record.external && serverEntry !== null
           ? await importServerEntry(serverEntry, cacheDir, fallbacks)
           : record.server;
-      for (const { id: themeId, cssFile, ...theme } of record.manifest.themes) {
-        const version = statSync(cssFile, { throwIfNoEntry: false });
+      for (const declared of record.manifest.themes) {
+        const { id: themeId, cssFile, codeThemeFiles, ...theme } = declared;
+        const base = `/api/v1/plugins/${id}/themes/${themeId}`;
+        const versioned = (file: string, suffix: string) => {
+          const stat = statSync(file, { throwIfNoEntry: false });
+          if (record.external && !record.watch) this.watchTheme(id, file);
+          if (stat === undefined) return undefined;
+          return `${base}${suffix}?v=${Math.trunc(stat.mtimeMs)}`;
+        };
+        const files = Object.entries(codeThemeFiles);
+        const urls = files.map(([side, file]) => [
+          side,
+          versioned(file, `.${side}.json`),
+        ]);
+        const codeTheme =
+          theme.codeTheme === null
+            ? null
+            : { ...theme.codeTheme, ...Object.fromEntries(urls) };
         api.add(appearance.theme, {
           ...theme,
+          codeTheme,
+          cssFile,
           id: pluginThemeId(id, themeId),
           pluginId: id,
-          cssUrl: `/api/v1/plugins/${id}/themes/${themeId}.css?v=${Math.trunc(version?.mtimeMs ?? 0)}`,
+          cssUrl: versioned(cssFile, ".css") ?? `${base}.css?v=0`,
         });
-        if (record.external && !record.watch) this.watchTheme(id, cssFile);
       }
       await entry?.(api);
       record.instance = instance;
