@@ -22,6 +22,8 @@ const SCREEN = ["thread-list", "navigation"];
 const PRODUCT = ["connect", "account-pool", "tasks", "concurrency-limit"];
 const SCREEN = ["thread-list", "navigation"];
 const PRODUCT = ["connect", "account-pool", "tasks", "keep-awake"];
+const SCREEN = ["thread-list", "navigation"];
+const PRODUCT = ["connect", "account-pool", "tasks", "prompt-library"];
 
 export const profiles: Record<string, Profile> = {
   default: {

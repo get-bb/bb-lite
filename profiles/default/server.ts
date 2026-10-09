@@ -8,6 +8,7 @@ import bbGuide from "../../plugins/bb-guide/server.js";
 import askUserQuestion from "../../plugins/ask-user-question/src/server.js";
 import audit from "../../plugins/audit/server.js";
 import concurrencyLimit from "../../plugins/concurrency-limit/server.js";
+import promptLibrary from "../../plugins/prompt-library/server.js";
 import connect from "../../plugins/connect/src/server.js";
 import customInstructions from "../../plugins/custom-instructions/server.js";
 import providerRetry from "../../plugins/provider-retry/server.js";
@@ -91,6 +92,7 @@ export const serverPlugins: BuiltinPlugin[] = [
     server: concurrencyLimit,
   },
   { directory: pluginDirectory("keep-awake"), server: keepAwake },
+  { directory: pluginDirectory("prompt-library"), server: promptLibrary },
 ];
 
 export function profilePlugins(name: string): BuiltinPlugin[] {

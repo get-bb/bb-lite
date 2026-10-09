@@ -19,6 +19,7 @@
 @source "../../../../plugins/navigation/app.tsx";
 @source "../../../../plugins/navigation/app";
 @source "../../../../plugins/pdf-preview/app.tsx";
+@source "../../../../plugins/prompt-library/app.tsx";
 @source "../../../../plugins/secrets/app.tsx";
 @source "../../../../plugins/scheduled-send/app.tsx";
 @source "../../../../plugins/settings/app.tsx";
