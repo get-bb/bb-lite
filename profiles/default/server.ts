@@ -7,6 +7,7 @@ import drafts from "../../plugins/drafts/server.js";
 import bbGuide from "../../plugins/bb-guide/server.js";
 import askUserQuestion from "../../plugins/ask-user-question/src/server.js";
 import audit from "../../plugins/audit/server.js";
+import concurrencyLimit from "../../plugins/concurrency-limit/server.js";
 import connect from "../../plugins/connect/src/server.js";
 import customInstructions from "../../plugins/custom-instructions/server.js";
 import providerRetry from "../../plugins/provider-retry/server.js";
@@ -82,6 +83,9 @@ export const serverPlugins: BuiltinPlugin[] = [
   {
     directory: pluginDirectory("plugin-api-tester"),
     server: pluginApiTester,
+  {
+    directory: pluginDirectory("concurrency-limit"),
+    server: concurrencyLimit,
   },
 ];
 

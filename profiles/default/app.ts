@@ -69,5 +69,7 @@ export const appPlugins: readonly BuiltinAppPlugin[] = [
   {
     id: "pdf-preview",
     load: () => import("../../plugins/pdf-preview/app"),
+    id: "concurrency-limit",
+    load: () => import("../../plugins/concurrency-limit/app"),
   },
 ];

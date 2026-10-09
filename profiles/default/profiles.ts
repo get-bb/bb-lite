@@ -17,6 +17,8 @@ const AGENT_FEATURES = [
 ];
 const SCREEN = ["thread-list", "navigation", "pdf-preview", "inline-vis"];
 const PRODUCT = ["connect", "account-pool", "tasks"];
+const SCREEN = ["thread-list", "navigation"];
+const PRODUCT = ["connect", "account-pool", "tasks", "concurrency-limit"];
 
 export const profiles: Record<string, Profile> = {
   default: {

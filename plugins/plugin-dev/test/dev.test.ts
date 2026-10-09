@@ -174,6 +174,7 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
   expect(ctx.plugins.utilities).toBeNull();
   const parts = await ctx.plugins.runnerParts();
   expect(parts.map(({ id }) => id).sort()).toEqual([
+    "concurrency-limit",
     "provider-claude-code",
     "provider-codex",
     "provider-echo",
