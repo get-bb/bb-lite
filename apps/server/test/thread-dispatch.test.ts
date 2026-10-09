@@ -86,6 +86,18 @@ it("holds messages on time, interactions, hosts and provisioning", async () => {
   expect(lastSubmit()).toEqual(["also this", "auto"]);
 });
 
+it("refuses a message to a thread whose machine was removed", async () => {
+  const server = await createThreadServer();
+  const id = await server.spawn();
+  await server.runTurn(id, "t1");
+  server.ctx.runners.disconnect(server.hostId);
+  const removed = "UPDATE hosts SET destroyed_at = 1 WHERE id = ?";
+  server.ctx.db.run(removed, server.hostId);
+  const refused = [409, "machine_removed"];
+  expect(await server.send(id, "auto", "anyone?")).toEqual(refused);
+  expect(server.queued(id)).toEqual([]);
+});
+
 it("stops a running turn and pauses the turn-bound queue", async () => {
   const server = await createThreadServer();
   const { eventData, ingest, lastSubmit, queued, thread } = server;

@@ -8,6 +8,7 @@ import { getEnvironment } from "@bb/server-kit/db/environments";
 import { isQueueAutoSendPaused } from "@bb/server-kit/db/events";
 import { findHost } from "@bb/server-kit/db/hosts";
 import { newId } from "@bb/server-kit/db/index";
+import { ApiError } from "@bb/server-kit/http/errors";
 import { hasTurnBoundInteraction } from "@bb/server-kit/db/pending-interactions";
 import * as queue from "@bb/server-kit/db/queued-messages";
 import {
@@ -185,8 +186,15 @@ function currentWait(
       : getEnvironment(db, thread.environmentId);
   if (environment !== undefined && !runners.isConnected(environment.hostId)) {
     const host = findHost(db, "id", environment.hostId);
-    const hostName = host?.name ?? environment.hostId;
-    return { kind: "host-offline", hostName };
+    if (host === undefined) {
+      throw new ApiError(
+        409,
+        "machine_removed",
+        `Machine ${environment.hostId} was removed; ` +
+          "this thread can no longer run",
+      );
+    }
+    return { kind: "host-offline", hostName: host.name };
   }
   if (active && mode === "queue-if-active") return { kind: "thread-busy" };
   if (active && thread.activeTurnId === null) return { kind: "turn-starting" };
