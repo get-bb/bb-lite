@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { shapeBehind, type ContractMember, type Op } from "./contract.js";
+import type { Kernel, KernelInspection } from "./kernel.js";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
@@ -69,6 +70,74 @@ function memberOf(member: ContractMember): Json {
     return { type: "live", value: shapeOf(member.value) };
   }
   return { type: "slot", key: member.key, pick: member.pick };
+}
+
+export function explainMember(member: ContractMember): Json {
+  const described = memberOf(member) as { [key: string]: Json };
+  if (member.type !== "op") return described;
+  const { agent, cli, http } = member.doors;
+  const doors: { [key: string]: Json } = {};
+  if (agent !== undefined) {
+    const { name = member.name, description } = agent;
+    doors.agent = { name, description };
+  }
+  if (cli !== undefined) {
+    doors.cli = {
+      path: cli.path,
+      summary: cli.summary,
+      positionals: [...(cli.positionals ?? [])],
+      aliases: [...(cli.aliases ?? [])],
+    };
+  }
+  if (http !== undefined) {
+    const { method, path, aliases = [] } = http;
+    doors.http = { method, path, aliases: [...aliases] };
+  }
+  return { ...described, doors };
+}
+
+type Described = { [key: string]: Json };
+
+export interface KernelDescription {
+  api: string;
+  contracts: {
+    id: string;
+    plugin: string;
+    members: Record<string, Described>;
+  }[];
+}
+
+function stateOf(seen: KernelInspection, name: string): Described {
+  const op = seen.ops.find((entry) => entry.name === name);
+  if (op !== undefined) {
+    const hookedBy = op.chain.map(({ plugin }) => plugin);
+    return { implementedBy: op.owner, hookedBy };
+  }
+  const heard = seen.events.find((entry) => entry.name === name);
+  if (heard !== undefined) return { listeners: heard.listeners };
+  const slot = seen.slots.find((entry) => entry.name === name);
+  if (slot !== undefined) return { filledBy: slot.entries };
+  const live = seen.live.find((entry) => entry.name === name);
+  return live === undefined ? {} : { providedBy: live.owner };
+}
+
+export function describeKernel(
+  kernel: Pick<Kernel, "inspect" | "contracts">,
+  contractId?: string,
+): KernelDescription {
+  const seen = kernel.inspect();
+  const wanted = kernel
+    .contracts()
+    .filter(({ id }) => contractId === undefined || id === contractId);
+  const contracts = wanted.map(({ id, plugin, members }) => {
+    const described: Record<string, Described> = {};
+    for (const [key, member] of Object.entries(members)) {
+      const shape = explainMember(member) as Described;
+      described[key] = { ...shape, ...stateOf(seen, member.name) };
+    }
+    return { id, plugin, members: described };
+  });
+  return { api: seen.api, contracts };
 }
 
 export function describeApi(exported: Record<string, unknown>): ApiDescription {
@@ -160,15 +229,32 @@ function listOf(value: Json | undefined): string[] {
   return Array.isArray(value) ? value.map(String) : [];
 }
 
-function onlyAdds(before: Json | undefined, after: Json | undefined): boolean {
+function onlyAdds(
+  before: Json | undefined,
+  after: Json | undefined,
+  deep = false,
+): boolean {
   if (same(before, after)) return true;
+  const grew = (old: Json | undefined, next: Json | undefined) =>
+    deep ? onlyAdds(old, next, deep) : same(old, next);
+  const sameType = same(field(before, "type"), field(after, "type"));
+  for (const union of deep ? ["anyOf", "oneOf"] : []) {
+    const [was, now] = [field(before, union), field(after, union)];
+    if (!Array.isArray(was) || !Array.isArray(now)) continue;
+    const paired = was.length === now.length;
+    return paired && was.every((each, index) => grew(each, now[index]));
+  }
+  const [items, nextItems] = [field(before, "items"), field(after, "items")];
+  if (deep && items !== undefined && nextItems !== undefined) {
+    return sameType && grew(items, nextItems);
+  }
   const [was, now] = [field(before, "properties"), field(after, "properties")];
   if (was === undefined || now === undefined)
     return keysOf(before).length === 0;
   const kept = keysOf(was).every((key) =>
-    same(field(was, key), field(now, key)),
+    grew(field(was, key), field(now, key)),
   );
-  return kept && same(field(before, "type"), field(after, "type"));
+  return kept && sameType;
 }
 
 function inputChange(before: Json, after: Json): "same" | "adds" | "breaks" {
@@ -191,8 +277,9 @@ function opChanges(name: string, before: Json, after: Json, out: ApiChanges) {
   if (input === "adds") out.additive.push(`${name}: new optional input`);
   const [was, now] = [read(before, "output"), read(after, "output")];
   if (!same(was, now)) {
-    if (onlyAdds(was, now)) out.additive.push(`${name}: more in the output`);
-    else out.breaking.push(`${name}: the output changed`);
+    if (onlyAdds(was, now, true)) {
+      out.additive.push(`${name}: more in the output`);
+    } else out.breaking.push(`${name}: the output changed`);
   }
   const rank = (scale: string[], source: Json, key: string) =>
     scale.indexOf(String(read(source, key)));
@@ -262,7 +349,7 @@ export function compareApi(
         out.breaking.push(`${name}: the slot's key or pick changed`);
       } else {
         const part = field(old, "type") === "event" ? "payload" : "value";
-        const grew = onlyAdds(field(old, part), field(next, part));
+        const grew = onlyAdds(field(old, part), field(next, part), true);
         (grew ? out.additive : out.breaking).push(
           `${name}: the ${part} changed`,
         );

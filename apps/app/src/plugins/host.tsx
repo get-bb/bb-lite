@@ -1,4 +1,4 @@
-import { threads } from "@bb/plugin/app";
+import { describeKernel, threads } from "@bb/plugin/app";
 import {
   createElement,
   useCallback,
@@ -228,6 +228,7 @@ export const pluginAppHost: PluginAppHost = {
   useLive,
   useChanged,
   callOp,
+  describeApp: (contractId) => describeKernel(appKernel(), contractId),
   SlotMount,
   Icon,
   ProviderIcon,

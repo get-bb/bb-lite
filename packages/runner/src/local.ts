@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import type { Caller, Op } from "@bb/plugin";
 import type { z } from "zod";
@@ -13,12 +14,34 @@ import { workspacePart } from "./workspace/part.js";
 export type MachineCall = <O extends Op>(
   op: O,
   input: z.input<O["input"]>,
-  options?: { timeoutMs?: number; caller?: Caller },
+  options?: { timeoutMs?: number; caller?: Caller; signal?: AbortSignal },
 ) => Promise<z.output<O["output"]>>;
 
 export type Runner = SessionApi & { call: MachineCall };
 
-export function opCaller(callOp: SessionApi["callOp"]): MachineCall {
+type OpTransport = Pick<SessionApi, "callOp" | "cancelOp">;
+
+async function cancellable(
+  { callOp, cancelOp }: OpTransport,
+  sent: Parameters<SessionApi["callOp"]>[0],
+  signal: AbortSignal | undefined,
+): Promise<unknown> {
+  if (signal === undefined) return callOp(sent);
+  signal.throwIfAborted();
+  const callId = randomUUID();
+  const stopped = new Promise<never>((_resolve, reject) => {
+    const stop = () => {
+      void cancelOp({ callId }).catch(() => {});
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", stop, { once: true });
+  });
+  return Promise.race([callOp({ ...sent, callId }), stopped]);
+}
+
+export function opCaller(via: OpTransport | SessionApi["callOp"]): MachineCall {
+  const transport: OpTransport =
+    typeof via === "function" ? { callOp: via, cancelOp: async () => {} } : via;
   return async (op, input, options = {}) => {
     const parsed: unknown = await op.input.parseAsync(input);
     const declared = (op as { timeoutMs?: number }).timeoutMs;
@@ -27,7 +50,7 @@ export function opCaller(callOp: SessionApi["callOp"]): MachineCall {
     const { caller } = options;
     const from = caller === undefined ? {} : { caller };
     const sent = { name: op.name, input: parsed, ...budget, ...from };
-    const result = await callOp(sent);
+    const result = await cancellable(transport, sent, options.signal);
     return (await op.output.parseAsync(result)) as never;
   };
 }
@@ -75,13 +98,16 @@ export function createLocalRunner(options: LocalRunnerOptions): LocalRunner {
     adapters: plugins.adapters,
     terminalIds: workspace.terminalIds,
   });
-  const callOp: SessionApi["callOp"] = ({ name, input, caller }) =>
-    plugins.callOp(name, input, caller);
+  const callOp: SessionApi["callOp"] = ({ name, input, caller, callId }) =>
+    plugins.callOp(name, input, caller, callId);
+  const cancelOp: SessionApi["cancelOp"] = async ({ callId }) =>
+    plugins.cancelOp(callId);
   return {
     ...sessions,
     loadPlugins: (args) => plugins.sync(args.plugins),
     callOp,
-    call: opCaller(callOp),
+    cancelOp,
+    call: opCaller({ callOp, cancelOp }),
     outbox,
     shutdown: async () => {
       await sessions.shutdown();

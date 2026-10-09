@@ -49,6 +49,7 @@ const COMMON: BuildOptions = {
   logLevel: "silent",
   alias: { "@bb/plugin": hostRequire.resolve("@bb/plugin") },
   nodePaths: [HOST_NODE_MODULES],
+  loader: { ".ttf": "dataurl", ".woff": "dataurl", ".woff2": "dataurl" },
 };
 let importCount = 0;
 

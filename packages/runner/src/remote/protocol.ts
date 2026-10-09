@@ -33,6 +33,7 @@ const REQUEST_TIMEOUT_MS = {
   deleteThreadStorage: STANDARD_MS,
   loadPlugins: STANDARD_MS,
   callOp: LONG_MS,
+  cancelOp: QUICK_MS,
 } as const satisfies Record<keyof SessionApi, number>;
 
 export type RunnerMethod = keyof SessionApi;

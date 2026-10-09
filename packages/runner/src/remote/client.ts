@@ -83,7 +83,10 @@ export function connectRemoteRunner(
   const runner = {
     ...Object.fromEntries(methods),
     ackEvents: async ({ seq }) => link.send({ t: "ack", seq }),
-    call: opCaller((args) => call("callOp", args)),
+    call: opCaller({
+      callOp: (args) => call("callOp", args),
+      cancelOp: async (args) => void (await call("cancelOp", args)),
+    }),
   } as Runner;
 
   return {

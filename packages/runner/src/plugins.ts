@@ -46,7 +46,13 @@ export interface RunnerPlugins {
   load(part: RunnerPart): void;
   sync(bundles: RunnerPartBundle[]): Promise<LoadPluginsResult>;
   adapters(): ProviderAdapter[];
-  callOp(name: string, input: unknown, caller?: Caller): Promise<unknown>;
+  callOp(
+    name: string,
+    input: unknown,
+    caller?: Caller,
+    callId?: string,
+  ): Promise<unknown>;
+  cancelOp(callId: string): void;
   dispose(): void;
 }
 
@@ -69,6 +75,7 @@ export function createRunnerPlugins(options: {
 }): RunnerPlugins {
   const log = options.log ?? (() => {});
   const callers = new AsyncLocalStorage<Caller>();
+  const inFlight = new Map<string, AbortController>();
   const kernel = createKernel({
     currentCaller: () => callers.getStore() ?? SYSTEM,
     enter: (next, work) => callers.run(next, work),
@@ -192,13 +199,28 @@ export function createRunnerPlugins(options: {
       return result;
     },
     adapters: () => kernel.read(runner.provider),
-    async callOp(name, input, caller = SYSTEM) {
+    async callOp(name, input, caller = SYSTEM, callId = undefined) {
       const op = kernel.op(name);
       if (op === null) {
         const message = `No runner part implements "${name}" on this machine`;
         throw new RunnerError("unavailable", message);
       }
-      return callers.run(caller, () => kernel.call(op, input));
+      if (callId === undefined) {
+        return callers.run(caller, () => kernel.call(op, input));
+      }
+      const running = new AbortController();
+      inFlight.set(callId, running);
+      const { signal } = running;
+      try {
+        return await callers.run(caller, () =>
+          kernel.call(op, input, { signal }),
+        );
+      } finally {
+        inFlight.delete(callId);
+      }
+    },
+    cancelOp(callId) {
+      inFlight.get(callId)?.abort(new RunnerError("failed", "Cancelled"));
     },
     dispose() {
       for (const scope of scopes.values()) scope.dispose();

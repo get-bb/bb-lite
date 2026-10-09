@@ -1,12 +1,15 @@
 import type { z } from "zod";
-import type {
-  Allow,
-  EventDef,
-  HookPower,
-  Live,
-  Op,
-  OpKind,
-  Slot,
+import {
+  contractOf,
+  type Allow,
+  type ContractMember,
+  type DoorContext,
+  type EventDef,
+  type HookPower,
+  type Live,
+  type Op,
+  type OpKind,
+  type Slot,
 } from "./contract.js";
 import { API_VERSION } from "./version.js";
 
@@ -65,6 +68,7 @@ export class OpError extends Error {
     readonly plugin: string | null = null,
     cause?: unknown,
     readonly reason: string | null = null,
+    readonly hint: string | null = null,
   ) {
     super(message, { cause });
     this.name = "OpError";
@@ -76,14 +80,15 @@ class Refusal extends Error {
     readonly code: OpErrorCode,
     message: string,
     readonly reason: string | null = null,
+    readonly hint: string | null = null,
   ) {
     super(message);
   }
 }
 
 function attributed(error: Refusal, plugin: string): OpError {
-  const { code, message, reason } = error;
-  return new OpError(code, message, plugin, undefined, reason);
+  const { code, message, reason, hint } = error;
+  return new OpError(code, message, plugin, undefined, reason, hint);
 }
 
 export class ToolFailure extends Error {}
@@ -99,10 +104,11 @@ export function deny(reason: string): never {
 export function fail(
   code: FailureCode,
   message: string,
-  options: { reason?: string } = {},
+  options: { reason?: string; hint?: string } = {},
 ): never {
   const known = code === "invalid" ? "invalid_input" : code;
-  throw new Refusal(known, message, options.reason ?? null);
+  const { reason = null, hint = null } = options;
+  throw new Refusal(known, message, reason, hint);
 }
 
 type MaybePromise<T> = T | Promise<T>;
@@ -166,10 +172,15 @@ export interface OpCalls {
   changed(member: Op | Live): void;
 }
 
+export interface ImplementOptions {
+  offered?(context: DoorContext): boolean;
+}
+
 export interface PluginVerbs extends OpCalls {
   implement<O extends Op>(
     op: O,
     run: Implementation<In<O>, z.input<O["output"]>>,
+    options?: ImplementOptions,
   ): void;
   on<O extends Op>(op: O, hook: Hook<In<O>, Out<O>>): Registration;
   on<O extends Op>(
@@ -213,12 +224,24 @@ export interface KernelInspection {
   slots: { name: string; pick: "one" | "many"; entries: string[] }[];
   live: { name: string; owner: string }[];
   plugins: { id: string; tier: Tier }[];
+  contracts: { id: string; plugin: string; members: string[] }[];
+}
+
+export interface KnownContract {
+  id: string;
+  plugin: string;
+  members: Readonly<Record<string, ContractMember>>;
 }
 
 export interface Kernel extends OpCalls {
   scope(plugin: string, tier: Tier): PluginScope;
   op(name: string): Op | null;
-  ops(): { op: Op; owner: string | null }[];
+  ops(): {
+    op: Op;
+    owner: string | null;
+    offered: ((context: DoorContext) => boolean) | null;
+  }[];
+  contracts(): KnownContract[];
   live(name: string): Live | null;
   watch(listener: () => void): () => void;
   version(): number;
@@ -257,7 +280,11 @@ interface HookEntry {
 
 interface OpState {
   op: Op;
-  owner: { plugin: string; run: Implementation<unknown, unknown> } | null;
+  owner: {
+    plugin: string;
+    run: Implementation<unknown, unknown>;
+    offered: ((context: DoorContext) => boolean) | null;
+  } | null;
   chain: HookEntry[];
 }
 
@@ -398,6 +425,22 @@ export function createKernel(options: KernelOptions): Kernel {
   let order = 0;
   let version = 0;
   let implemented = 0;
+
+  const contracts = new Map<string, KnownContract>();
+  const learn = (
+    plugin: string,
+    member: ContractMember,
+    undo: (() => void)[],
+  ): void => {
+    const members = contractOf(member);
+    const [id = ""] = member.name.split(".");
+    if (members === null || contracts.has(id)) return;
+    const known = { id, plugin, members };
+    contracts.set(id, known);
+    undo.push(() => {
+      if (contracts.get(id) === known) contracts.delete(id);
+    });
+  };
 
   const stateOf = (op: Op): OpState => {
     const known = ops.get(op.name);
@@ -705,10 +748,12 @@ export function createKernel(options: KernelOptions): Kernel {
       },
       emit(event, payload) {
         alive();
+        learn(plugin, event, undo);
         own.emit(event, payload);
       },
-      implement(op, implementation) {
+      implement(op, implementation, { offered = null } = {}) {
         alive();
+        learn(plugin, op, undo);
         const state = stateOf(op);
         if (state.owner !== null) {
           const holder = state.owner.plugin;
@@ -717,6 +762,7 @@ export function createKernel(options: KernelOptions): Kernel {
         const owner = {
           plugin,
           run: implementation as Implementation<unknown, unknown>,
+          offered,
         };
         state.owner = owner;
         implemented += 1;
@@ -801,6 +847,7 @@ export function createKernel(options: KernelOptions): Kernel {
       },
       provide<L extends Live>(definition: L, initial: z.input<L["value"]>) {
         alive();
+        learn(plugin, definition, undo);
         const held = lives.get(definition.name);
         if (held !== undefined) {
           const message = `${definition.name} is already provided`;
@@ -845,8 +892,10 @@ export function createKernel(options: KernelOptions): Kernel {
     op: (name) => ops.get(name)?.op ?? null,
     ops: () =>
       [...ops.values()].map(({ op, owner }) => {
-        return { op, owner: owner?.plugin ?? null };
+        const offered = owner?.offered ?? null;
+        return { op, owner: owner?.plugin ?? null, offered };
       }),
+    contracts: () => [...contracts.values()],
     live: (name) => lives.get(name)?.live ?? null,
     watch(listener) {
       watchers.add(listener);
@@ -886,6 +935,9 @@ export function createKernel(options: KernelOptions): Kernel {
         }),
         plugins: [...scopes].map(([id, { tier: held }]) => {
           return { id, tier: held };
+        }),
+        contracts: [...contracts.values()].map(({ id, plugin, members }) => {
+          return { id, plugin, members: Object.keys(members) };
         }),
       };
     },

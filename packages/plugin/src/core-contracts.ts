@@ -1121,8 +1121,32 @@ export const sections = contract("sections", {
   }),
 });
 
+const pluginUsesSchema = z.object({
+  declares: z.array(z.string()),
+  implements: z.array(z.string()),
+  hooks: z.array(z.string()),
+  listens: z.array(z.string()),
+  fills: z.array(z.string()),
+  provides: z.array(z.string()),
+});
+export type PluginUses = z.infer<typeof pluginUsesSchema>;
+
+const describedContractSchema = z.object({
+  id: z.string(),
+  plugin: z.string(),
+  members: z.record(z.string(), z.record(z.string(), z.json())),
+});
+export type DescribedContract = z.infer<typeof describedContractSchema>;
+
 export const plugins = contract("plugins", {
   inspect: op({ input: none, output: z.custom<KernelInspection>() }),
+  contracts: op({
+    input: z.object({ contractId: z.string().optional() }),
+    output: z.object({
+      api: z.string(),
+      contracts: z.array(describedContractSchema),
+    }),
+  }),
   describe: op({
     input: z.object({ id: z.string() }),
     output: z
@@ -1131,6 +1155,7 @@ export const plugins = contract("plugins", {
         directory: z.string(),
         builtin: z.boolean(),
         original: z.string().nullable(),
+        uses: pluginUsesSchema.optional(),
       })
       .nullable(),
   }),

@@ -40,6 +40,17 @@ const notes = contract("notes", {
       cli: { path: "note show", summary: "Show", positionals: ["noteId"] },
     },
   }),
+  check: op({
+    input: z.object({}),
+    output: z.object({ problems: z.number() }),
+    doors: {
+      cli: {
+        path: "note check",
+        summary: "Check the notes",
+        exitCode: ({ problems }) => (problems > 0 ? 4 : 0),
+      },
+    },
+  }),
 });
 
 function cli() {
@@ -61,8 +72,12 @@ function cli() {
   const scope = kernel.scope("notes", "product");
   scope.implement(notes.create, (input) => input);
   scope.implement(notes.get, ({ noteId }) =>
-    fail("not_found", `No note ${noteId}`),
+    fail("not_found", `No note ${noteId}`, {
+      reason: "note_missing",
+      hint: "Run `bb note list` to see the notes.",
+    }),
   );
+  scope.implement(notes.check, () => ({ problems: 2 }));
   const registration = doorCli(kernel, "notes", "Notes");
   const signal = new AbortController().signal;
   const context = { signal, cwd: "/repo", projectId: "proj_1" };
@@ -96,6 +111,13 @@ it("reports a refused call with its code", async () => {
   expect(missing?.exitCode).toBe(1);
   expect(JSON.parse(missing?.stdout ?? "")).toMatchObject({
     ok: false,
-    error: { code: "not_found", message: "No note n1" },
+    error: {
+      code: "note_missing",
+      message: "No note n1",
+      hint: "Run `bb note list` to see the notes.",
+    },
   });
+  const checked = await cli()("check");
+  expect(checked?.exitCode).toBe(4);
+  expect(JSON.parse(checked?.stdout ?? "")).toEqual({ problems: 2 });
 });

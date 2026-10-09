@@ -49,6 +49,7 @@ export interface CliDoor<Input = unknown, Output = unknown> {
   from?: { readonly [Field in keyof Input & string]?: CliContextField };
   constraints?: readonly CliDoorConstraint<keyof Input & string>[];
   print?(output: Output, input: Input): string;
+  exitCode?(output: Output, input: Input): number;
 }
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -203,5 +204,14 @@ export function contract<const Members extends Record<string, ContractMember>>(
     key,
     Object.freeze({ ...member, name: `${id}.${key}` }),
   ]);
-  return Object.freeze(Object.fromEntries(named)) as Members;
+  const whole = Object.freeze(Object.fromEntries(named)) as Members;
+  for (const member of Object.values(whole)) homes.set(member, whole);
+  return whole;
+}
+
+type Members = Readonly<Record<string, ContractMember>>;
+const homes = new WeakMap<object, Members>();
+
+export function contractOf(member: object): Members | null {
+  return homes.get(member) ?? null;
 }

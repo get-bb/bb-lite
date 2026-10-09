@@ -198,6 +198,35 @@ it("names the plugin and the kind of failure when an owner refuses", async () =>
   ]);
 });
 
+it("learns a whole contract from the plugin that implements part of it", async () => {
+  const { kernel } = harness();
+  const garden = contract("garden", {
+    water: op({ input: z.object({}), output: z.void(), kind: "write" }),
+    wilted: event(z.object({ plant: z.string() })),
+    bed: slot<{ id: string }>(),
+  });
+  const scope = kernel.scope("gardener", "product");
+  expect(kernel.contracts().map(({ id }) => id)).toEqual(["demo"]);
+  scope.implement(garden.water, () => {}, {
+    offered: ({ threadId }) => threadId === "thr_1",
+  });
+  const known = kernel.contracts().find(({ id }) => id === "garden");
+  expect(known?.plugin).toBe("gardener");
+  expect(Object.keys(known?.members ?? {})).toEqual(["water", "wilted", "bed"]);
+  expect(kernel.inspect().contracts).toContainEqual({
+    id: "garden",
+    plugin: "gardener",
+    members: ["water", "wilted", "bed"],
+  });
+  const { offered } =
+    kernel.ops().find(({ op: each }) => each === garden.water) ?? {};
+  const context = { projectId: "p", providerId: "echo", hostId: null };
+  expect(offered?.({ ...context, threadId: "thr_1" })).toBe(true);
+  expect(offered?.({ ...context, threadId: "thr_2" })).toBe(false);
+  scope.dispose();
+  expect(kernel.contracts().map(({ id }) => id)).toEqual(["demo"]);
+});
+
 it("checks who may call and what goes in and out", async () => {
   const { kernel, state } = harness();
   state.caller = { ...state.caller, user: "usr_bo", role: "member" };

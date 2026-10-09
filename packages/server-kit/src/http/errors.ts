@@ -94,8 +94,12 @@ export function toApiError(error: unknown): ApiError | null {
   }
   if (error instanceof OpError) {
     const [status, code] = OP_ERROR_RESPONSES[error.code];
-    const details =
-      error.plugin === null ? undefined : { plugin: error.plugin };
+    const { plugin, hint } = error;
+    const told = {
+      ...(plugin === null ? {} : { plugin }),
+      ...(hint === null ? {} : { hint }),
+    };
+    const details = Object.keys(told).length === 0 ? undefined : told;
     return new ApiError(status, error.reason ?? code, error.message, {
       details,
     });

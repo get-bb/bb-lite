@@ -279,7 +279,7 @@ export interface Runners {
     hostId: string,
     op: O,
     input: z.input<O["input"]>,
-    options?: { timeoutMs?: number },
+    options?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<z.output<O["output"]>>;
 }
 

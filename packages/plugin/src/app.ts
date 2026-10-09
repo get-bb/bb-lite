@@ -7,6 +7,7 @@ import { threadView } from "./app/thread-view.js";
 import type { PluginBase } from "./base.js";
 import type { RemoteCallOptions } from "./client.js";
 import type { Live, Op, Slot } from "./contract.js";
+import type { KernelDescription } from "./describe.js";
 import type { SlotEntryView } from "./kernel.js";
 
 export type * from "./app-types.js";
@@ -19,6 +20,7 @@ export * from "./app/side-panel.js";
 export * from "./app/thread-view.js";
 export * from "./contract.js";
 export * from "./core-contracts.js";
+export { describeKernel, type KernelDescription } from "./describe.js";
 export { createKernel, deny, fail, OpError } from "./kernel.js";
 export type * from "./kernel.js";
 export * from "./shared-modules.js";
@@ -68,6 +70,7 @@ export interface PluginAppHost {
     input: OpInput<O>,
     options?: RemoteCallOptions,
   ): Promise<OpOutput<O>>;
+  describeApp(contractId?: string): KernelDescription;
   SlotMount: ComponentType<T.SlotMountProps>;
   Icon: ComponentType<T.IconProps>;
   ProviderIcon: ComponentType<T.ProviderIconProps>;
@@ -120,6 +123,7 @@ export const useCall = hook("useCall");
 export const useLive = hook("useLive");
 export const useChanged = hook("useChanged");
 export const callOp = hook("callOp");
+export const describeApp = hook("describeApp");
 export const SlotMount = component((h) => h.SlotMount);
 export const Icon = component((h) => h.Icon);
 export const ProviderIcon = component((h) => h.ProviderIcon);

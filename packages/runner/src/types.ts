@@ -251,5 +251,7 @@ export interface SessionApi {
     input: unknown;
     timeoutMs?: number;
     caller?: Caller;
+    callId?: string;
   }): Promise<unknown>;
+  cancelOp(args: { callId: string }): Promise<void>;
 }

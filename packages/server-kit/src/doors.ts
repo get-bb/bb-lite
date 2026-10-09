@@ -51,10 +51,12 @@ function shapeOf(op: Op): JsonObject {
 }
 
 function offered(kernel: Kernel, context: DoorContext): Op[] {
-  return kernel.ops().flatMap(({ op, owner }) => {
+  return kernel.ops().flatMap(({ op, owner, offered: wanted }) => {
     const door = op.doors.agent;
     if (door === undefined || owner === null) return [];
-    return door.enabledFor?.(context) === false ? [] : [op];
+    const hidden =
+      door.enabledFor?.(context) === false || wanted?.(context) === false;
+    return hidden ? [] : [op];
   });
 }
 
@@ -224,12 +226,17 @@ function doorCommand(kernel: Kernel, op: Op, door: CliDoor): CliCommand {
         output = await kernel.call(op, input);
       } catch (error) {
         if (!(error instanceof OpError)) throw error;
-        throw new PluginCliError(error.message, { code: error.code });
+        const { reason, code, hint } = error;
+        throw new PluginCliError(error.message, {
+          code: reason ?? code,
+          ...(hint === null ? {} : { hint }),
+        });
       }
+      const exitCode = door.exitCode?.(output, input) ?? 0;
       if (parsed.options.json === true) {
-        return { exitCode: 0, stdout: JSON.stringify(output ?? null, null, 2) };
+        return { exitCode, stdout: JSON.stringify(output ?? null, null, 2) };
       }
-      return { exitCode: 0, stdout: printed(door, output, input) };
+      return { exitCode, stdout: printed(door, output, input) };
     },
   };
 }

@@ -1,5 +1,11 @@
 import { resolve } from "node:path";
-import { plugins, type PluginVerbs } from "@bb/plugin";
+import {
+  describeKernel,
+  plugins,
+  type KernelInspection,
+  type PluginUses,
+  type PluginVerbs,
+} from "@bb/plugin";
 import { actorUserId } from "@bb/server-kit/auth/actor";
 import { dataPaths } from "@bb/server-kit/config";
 import {
@@ -10,6 +16,25 @@ import {
 import { requireOwner } from "@bb/server-kit/http/trust";
 import type { HostContext } from "../host-context.js";
 import { readManifest, writeExternalPluginEntry } from "./manifest.js";
+
+function usesOf(seen: KernelInspection, id: string): PluginUses {
+  const named = <Entry extends { name: string }>(
+    list: Entry[],
+    mine: (entry: Entry) => boolean,
+  ) => list.filter(mine).map(({ name }) => name);
+  return {
+    declares: seen.contracts
+      .filter(({ plugin }) => plugin === id)
+      .map((contract) => contract.id),
+    implements: named(seen.ops, ({ owner }) => owner === id),
+    hooks: named(seen.ops, ({ chain }) =>
+      chain.some(({ plugin }) => plugin === id),
+    ),
+    listens: named(seen.events, ({ listeners }) => listeners.includes(id)),
+    fills: named(seen.slots, ({ entries }) => entries.includes(id)),
+    provides: named(seen.live, ({ owner }) => owner === id),
+  };
+}
 
 export function hostOps(ctx: HostContext, bb: PluginVerbs): void {
   const { kernel } = ctx;
@@ -31,7 +56,14 @@ export function hostOps(ctx: HostContext, bb: PluginVerbs): void {
     },
   );
   bb.implement(plugins.skillDirs, () => ctx.plugins.skillDirs());
-  bb.implement(plugins.describe, ({ id }) => ctx.plugins.locate(id));
+  bb.implement(plugins.describe, ({ id }) => {
+    const located = ctx.plugins.locate(id);
+    if (located === null) return null;
+    return { ...located, uses: usesOf(kernel.inspect(), id) };
+  });
+  bb.implement(plugins.contracts, ({ contractId }) =>
+    describeKernel(kernel, contractId),
+  );
   bb.implement(plugins.list, () => ({ plugins: ctx.plugins.list() }));
   bb.implement(plugins.contributions, () => ctx.plugins.contributions());
   bb.implement(plugins.reload, async ({ id }) => {

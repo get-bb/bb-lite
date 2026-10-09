@@ -46,7 +46,10 @@ export interface SessionApiOptions {
   timing?: Partial<SessionTiming>;
 }
 
-export type ManagedSessionApi = Omit<SessionApi, "loadPlugins" | "callOp"> & {
+export type ManagedSessionApi = Omit<
+  SessionApi,
+  "loadPlugins" | "callOp" | "cancelOp"
+> & {
   shutdown(): Promise<void>;
 };
 

@@ -281,6 +281,18 @@ it("serves operations and the live chain over HTTP", async () => {
   });
   const unknown = await server.http("POST", "/ops/nope.nothing", {});
   expect(unknown.status).toBe(404);
+  const described = await server.http("POST", "/ops/plugins.contracts", {
+    contractId: "tasks",
+  });
+  expect(described.body).toMatchObject({
+    result: { contracts: [{ id: "tasks", plugin: "tasks" }] },
+  });
+  const located = await server.http("POST", "/ops/plugins.describe", {
+    id: "tasks",
+  });
+  expect(located.body).toMatchObject({
+    result: { uses: { declares: ["tasks"] } },
+  });
   for (const name of ["threads.hold", "threads.addRow", "files.write"]) {
     const closed = await server.http("POST", `/ops/${name}`, {});
     expect([name, closed.status]).toEqual([name, 403]);

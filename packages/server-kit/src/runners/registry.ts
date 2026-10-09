@@ -155,7 +155,7 @@ export class RunnerRegistry<R extends Runner> {
     hostId: string,
     op: O,
     input: z.input<O["input"]>,
-    options?: { timeoutMs?: number },
+    options?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<z.output<O["output"]>> {
     return this.get(hostId).call(op, input, options);
   }

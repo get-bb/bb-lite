@@ -22,7 +22,7 @@ import {
   type RunnerPart,
   type RunnerServing,
 } from "@bb/runner";
-import { contract, deny, event, type Caller } from "@bb/plugin";
+import { contract, deny, event, op, type Caller } from "@bb/plugin";
 import { z } from "zod";
 import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { until } from "./kit.js";
@@ -168,6 +168,38 @@ it("runs a machine operation as the caller and sends a part's events on", async 
     ...sent,
     payload: { freeBytes: 12 },
   });
+});
+
+it("stops a machine operation when the caller gives up", async () => {
+  const slow = contract("slow", {
+    wait: op({ input: z.object({}), output: z.string() }),
+  });
+  const stopped: unknown[] = [];
+  let started = false;
+  const sleeper: RunnerPart = {
+    id: "sleeper",
+    entry(bb) {
+      bb.implement(
+        slow.wait,
+        (_input, { signal }) =>
+          new Promise<string>((_resolve, reject) => {
+            started = true;
+            signal.addEventListener("abort", () => {
+              stopped.push(signal.reason);
+              reject(signal.reason);
+            });
+          }),
+      );
+    },
+  };
+  const { runner } = startLocalRunner([sleeper]);
+  const giveUp = new AbortController();
+  const waiting = runner.call(slow.wait, {}, { signal: giveUp.signal });
+  await until(() => started);
+  giveUp.abort(new Error("changed my mind"));
+  await expect(waiting).rejects.toThrow("changed my mind");
+  await until(() => stopped.length === 1);
+  expect(stopped[0]).toMatchObject({ message: "Cancelled" });
 });
 
 it("rejects pending and later requests when the socket drops", async () => {
