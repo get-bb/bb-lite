@@ -150,8 +150,8 @@ export class Hub implements Realtime {
     userId: string | null = null,
   ): number {
     const message: ThreadOpenSignal = { type: "thread-open", ...signal };
-    const own = userId === null ? [] : this.socketsOf(userId);
-    return this.send(own.length > 0 ? own : this.keysBySocket.keys(), message);
+    if (userId !== null) return this.send(this.socketsOf(userId), message);
+    return this.send(this.keysBySocket.keys(), message);
   }
 
   presence(): domain.UserPresence[] {

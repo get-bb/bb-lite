@@ -286,6 +286,31 @@ it("tells everyone who is viewing which thread", async () => {
   expect(status).toBe(401);
 });
 
+it("opens a thread only in the caller's own app", async () => {
+  const server = await createThreadServer();
+  const threadId = await server.spawn();
+  const bo = await invite(server, "Bo");
+  const owner = await server.socket();
+  const heard: string[] = [];
+  owner.socket.on("message", (data) => {
+    const { type } = JSON.parse(String(data)) as { type: string };
+    if (type === "thread-open") heard.push(type);
+  });
+  const opened = await bo.call("POST", `/threads/${threadId}/open`, {
+    file: null,
+  });
+  expect(opened.body).toEqual({ delivered: 0 });
+  const member = await bo.socket();
+  await vi.waitFor(async () => {
+    const again = await bo.call("POST", `/threads/${threadId}/open`, {
+      file: null,
+    });
+    expect(again.body).toEqual({ delivered: 1 });
+  });
+  await member.next((message) => message.type === "thread-open");
+  expect(heard).toEqual([]);
+});
+
 it("hands an existing single-user database to the first owner", () => {
   const path = join(scratch(), "bb.db");
   const schema = new URL(
