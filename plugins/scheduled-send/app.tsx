@@ -1,8 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
-  callOp,
   composer as composerSlots,
-  threads,
   type ComposerContext,
   type ComposerHandle,
   type PluginAppApi,
@@ -43,13 +41,7 @@ function subscribe(listener: () => void): () => void {
 
 function canSchedule(context: ComposerContext): boolean {
   const handle = context.composer;
-  return (
-    context.surface === "follow-up" &&
-    handle !== null &&
-    !handle.isEmpty &&
-    !handle.isSubmittingBlocked &&
-    handle.attachmentCount === 0
-  );
+  return handle !== null && !handle.isEmpty && !handle.isSubmittingBlocked;
 }
 
 function resolve(
@@ -68,35 +60,20 @@ function SendLaterPicker({ composer }: { composer: ComposerHandle }) {
   const open = useSyncExternalStore(subscribe, () => openKey === composer.key);
   const [option, setOption] = useState<string>(DEFAULT_SCHEDULE_PRESET_ID);
   const [custom, setCustom] = useState(() => defaultCustomSchedule(Date.now()));
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (open && composer.isEmpty) setOpenKey(null);
   }, [open, composer.isEmpty]);
-  if (!open || composer.threadId === null) return null;
-  const threadId = composer.threadId;
+  if (!open) return null;
+  const busy = composer.isSubmittingBlocked;
   const now = Date.now();
   const preview = resolve(option, custom, now);
-  const schedule = async () => {
+  const schedule = () => {
     const resolved = resolve(option, custom, Date.now());
     if (!resolved.ok) return setError(resolved.message);
-    setBusy(true);
     setError(null);
-    try {
-      await callOp(threads.send, {
-        threadId,
-        input: composer.input(),
-        mode: "queue-if-active",
-        sendAt: resolved.at,
-        ...composer.selection,
-      });
-      composer.clear();
-      setOpenKey(null);
-    } catch (failure: unknown) {
-      setError(failure instanceof Error ? failure.message : String(failure));
-    } finally {
-      setBusy(false);
-    }
+    composer.submit({ sendAt: resolved.at });
+    setOpenKey(null);
   };
   return (
     <Dialog open onOpenChange={(next) => !next && setOpenKey(null)}>
@@ -111,7 +88,8 @@ function SendLaterPicker({ composer }: { composer: ComposerHandle }) {
           className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault();
-            void schedule();
+            event.stopPropagation();
+            schedule();
           }}
         >
           <Label htmlFor="scheduled-send-when">When</Label>
