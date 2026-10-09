@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import { join, resolve } from "node:path";
 import {
   environments,
@@ -19,6 +21,7 @@ import {
   type LaunchOptions,
 } from "./contract.js";
 import type { ModalClient } from "./modal-api.js";
+import { createModalApi } from "./modal-client.js";
 
 export const PROVIDER_ID = "modal-sandbox";
 const HOME = "/home/node";
@@ -28,6 +31,19 @@ const MAX_IDLE_MINUTES = 24 * 60;
 const DOCKERFILE_KEY = "dockerfile-override";
 const PRESETS_KEY = "sandbox-size-presets";
 const IMAGES_KEY = "named-images";
+const RETRY_LIMIT = 3;
+const RETRY_MS = 1_000;
+const DEBUG_LIFETIME_MS = 30 * 60_000;
+const allocationSchema = z.object({
+  accountIdentity: z.string(),
+  appName: z.string(),
+  key: z.string(),
+});
+const debugSchema = z.object({
+  accountIdentity: z.string(),
+  appName: z.string(),
+  key: z.string(),
+});
 
 const SETTINGS = {
   tokenId: {
@@ -113,6 +129,24 @@ const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
 export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
   const settings = bb.settings.define(SETTINGS);
   const kv = bb.storage.kv;
+  const realApi = createModalApi();
+  bb.add(modal.api, realApi);
+  bb.onDispose(realApi.close);
+
+  async function retry<T>(
+    attempt: () => Promise<T>,
+    signal: AbortSignal,
+  ): Promise<T> {
+    for (let count = 1; ; count += 1) {
+      try {
+        return await attempt();
+      } catch (error) {
+        signal.throwIfAborted();
+        if (count >= RETRY_LIMIT) throw error;
+        await sleep(RETRY_MS * count, undefined, { signal });
+      }
+    }
+  }
 
   async function requireSettings(): Promise<Resolved> {
     const resolved = resolveSettings(await settings.get());
@@ -180,6 +214,48 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
   }
 
   const resourceKey = (hostId: string) => `resource/${hostId}`;
+  const allocationKey = (sandboxId: string) => `allocations/${sandboxId}`;
+
+  async function track(
+    sandboxId: string,
+    owner: z.infer<typeof allocationSchema>,
+  ) {
+    const { accountIdentity, appName, key } = owner;
+    await kv.set(allocationKey(sandboxId), { accountIdentity, appName, key });
+  }
+
+  async function sweepAllocations() {
+    const keys = await kv.list("allocations/");
+    if (keys.length === 0) return;
+    const { api } = await client();
+    const accountIdentity = await api.accountIdentity();
+    const owners = new Map<string, { phase: string; resource: Resource }>();
+    for (const host of await bb.call(machines.list, {})) {
+      if (host.machineProviderId !== PROVIDER_ID) continue;
+      const resource = await storedResource(host.id);
+      if (resource === null) continue;
+      owners.set(resource.key, { phase: host.lifecycle.phase, resource });
+    }
+    for (const entry of keys) {
+      const sandboxId = entry.slice("allocations/".length);
+      const allocation = allocationSchema.parse(await kv.get<unknown>(entry));
+      if (allocation.accountIdentity !== accountIdentity) continue;
+      if (!(await api.running(sandboxId))) {
+        await kv.delete(entry);
+        continue;
+      }
+      const owner = owners.get(allocation.key);
+      if (owner?.resource.sandboxId === sandboxId) continue;
+      if (owner === undefined || owner.resource.snapshotImageId === null) {
+        bb.log.warn(
+          `Tracked Modal sandbox ${sandboxId} has no matching machine; retaining it for inspection`,
+        );
+        continue;
+      }
+      await api.terminate(sandboxId);
+      await kv.delete(entry);
+    }
+  }
   const idleKey = (hostId: string) => `idle/${hostId}`;
 
   async function saveResource(hostId: string, resource: Resource) {
@@ -242,29 +318,45 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
   async function create(context: EnvironmentContext) {
     const { api, settings: resolved } = await client();
     const { preset, image } = await selection(context.inputs);
-    const accountIdentity = await api.accountIdentity();
-    context.report(`Preparing the ${image.name} Modal image`);
+    const { signal } = context;
+    const accountIdentity = await retry(() => api.accountIdentity(), signal);
+    const step = { key: "modal-image" };
+    context.report(`Preparing the ${image.name} Modal image`, "started", step);
     const imageId =
       image.source === "image-id"
         ? image.imageId
-        : await api.ensureImage({
-            appName: resolved.appName,
-            dockerfile: image.dockerfile,
-            signal: context.signal,
-          });
-    context.signal.throwIfAborted();
+        : await retry(
+            () =>
+              api.ensureImage({
+                appName: resolved.appName,
+                dockerfile: image.dockerfile,
+                signal,
+                log: (line) => {
+                  const text = line.trim();
+                  if (text) context.report(text, "started", step);
+                },
+              }),
+            signal,
+          );
+    context.report(`${image.name} Modal image ready`, "completed", step);
+    signal.throwIfAborted();
     context.report("Creating the sandbox");
     const key = `bb-${context.thread.id}`;
     const size = preset ?? DEFAULT_SIZE;
-    const sandboxId = await api.create({
-      appName: resolved.appName,
-      name: key,
-      imageId,
-      timeoutMs: SANDBOX_LIFETIME_MS,
-      cpu: size.cpu,
-      memoryMiB: size.memoryMiB,
-      tags: { bbMachineKey: key },
-    });
+    const sandboxId = await retry(
+      () =>
+        api.create({
+          appName: resolved.appName,
+          name: key,
+          imageId,
+          timeoutMs: SANDBOX_LIFETIME_MS,
+          cpu: size.cpu,
+          memoryMiB: size.memoryMiB,
+          tags: { bbMachineKey: key },
+        }),
+      signal,
+    );
+    await track(sandboxId, { accountIdentity, appName: resolved.appName, key });
     const resource: Resource = {
       key,
       sandboxId,
@@ -343,6 +435,7 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
         memoryMiB: current.memoryMiB,
         tags: { bbMachineKey: current.key },
       });
+      await track(sandboxId, current);
       await saveResource(hostId, { ...current, sandboxId });
       const { command } = await bb.call(machines.createReconnectCommand, {
         hostId,
@@ -412,7 +505,11 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
 
   bb.background.schedule("pause-idle-machines", "* * * * *", async () => {
     const resolved = resolveSettings(await settings.get());
-    if (!resolved.ok || resolved.settings.idleMs === null) return;
+    if (!resolved.ok) return;
+    await sweepAllocations().catch((error) => {
+      bb.log.warn(`Modal allocation sweep failed: ${errorMessage(error)}`);
+    });
+    if (resolved.settings.idleMs === null) return;
     const idleMs = resolved.settings.idleMs;
     for (const host of await bb.call(machines.list, {})) {
       if (host.machineProviderId !== PROVIDER_ID) continue;
@@ -487,6 +584,89 @@ export default async function modalSandbox(bb: PluginServerApi): Promise<void> {
     await kv.set(PRESETS_KEY, parsed.presets);
     await kv.set(IMAGES_KEY, extra);
     return launchOptions();
+  });
+
+  async function buildImage(signal: AbortSignal) {
+    const { api, settings: resolved } = await client();
+    let logs = "";
+    const log = (line: string) => {
+      logs = `${logs}${line}\n`.slice(-65_536);
+    };
+    try {
+      const { dockerfile } = await imageDefinition();
+      const imageId = await api.ensureImage({
+        appName: resolved.appName,
+        dockerfile,
+        signal,
+        log,
+      });
+      return { api, resolved, imageId, logs };
+    } catch (error) {
+      throw new Error(`${logs}${errorMessage(error)}`);
+    }
+  }
+
+  async function debugSandbox(sandboxId: string) {
+    const stored = await kv.get<unknown>(`debug/${sandboxId}`);
+    if (stored === undefined) {
+      throw new Error(
+        "Unknown debug sandbox; use an ID returned by bb modal sandbox run",
+      );
+    }
+    const record = debugSchema.parse(stored);
+    const { api } = await client();
+    if (record.accountIdentity !== (await api.accountIdentity())) {
+      throw new Error(
+        "Restore the Modal account that created this debug sandbox",
+      );
+    }
+    return { api, running: await api.running(sandboxId) };
+  }
+
+  bb.implement(modal.createImage, async (_input, { signal }) => {
+    const { imageId, logs } = await buildImage(signal);
+    return { imageId, logs };
+  });
+  bb.implement(modal.createSandbox, async (_input, { signal }) => {
+    const { api, resolved, imageId, logs } = await buildImage(signal);
+    const accountIdentity = await api.accountIdentity();
+    signal.throwIfAborted();
+    const key = `bb-debug-${randomUUID()}`;
+    const expiresAt = bb.now() + DEBUG_LIFETIME_MS;
+    const sandboxId = await api.create({
+      appName: resolved.appName,
+      name: key,
+      imageId,
+      timeoutMs: DEBUG_LIFETIME_MS,
+      ...DEFAULT_SIZE,
+      tags: { bbDebug: "true", bbMachineKey: key },
+    });
+    try {
+      signal.throwIfAborted();
+      const record = { accountIdentity, appName: resolved.appName, key };
+      await kv.set(`debug/${sandboxId}`, record);
+      return { imageId, logs, sandboxId, expiresAt };
+    } catch (error) {
+      await api.terminate(sandboxId);
+      throw error;
+    }
+  });
+  bb.implement(modal.createSandboxCommand, async ({ sandboxId, command }) => {
+    const { api, running } = await debugSandbox(sandboxId);
+    if (!running) {
+      throw new Error(
+        "Debug sandbox has stopped or expired; run a new sandbox",
+      );
+    }
+    return api.exec(sandboxId, command, {
+      timeoutMs: 60_000,
+      maxOutputBytes: 131_072,
+    });
+  });
+  bb.implement(modal.deleteSandbox, async ({ sandboxId }) => {
+    const { api, running } = await debugSandbox(sandboxId);
+    if (running) await api.terminate(sandboxId);
+    return { sandboxId };
   });
 
   const loaded = resolveSettings(await settings.get());

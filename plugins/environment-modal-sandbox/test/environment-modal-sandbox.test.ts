@@ -12,6 +12,7 @@ import * as helpers from "../../../apps/server/test/helpers.js";
 import { text } from "../../../apps/server/test/thread-harness.js";
 import { modal } from "../contract.js";
 import type { ModalClient, ModalSandboxSpec } from "../modal-api.js";
+import { parseDockerfile } from "../modal-client.js";
 
 const WAIT = { timeout: 10_000 };
 const PLUGIN = "environment-modal-sandbox";
@@ -39,7 +40,10 @@ async function modalWorld() {
   };
   const client: ModalClient = {
     accountIdentity: async () => "workspace-1",
-    ensureImage: async () => "im-standard",
+    async ensureImage({ log }) {
+      log?.("Step 1/1 : RUN true");
+      return "im-standard";
+    },
     async create(spec) {
       created.push(spec);
       const id = `sb-${created.length}`;
@@ -84,7 +88,7 @@ async function modalWorld() {
       { values: { tokenId: "ak-1", tokenSecret: "as-1" } },
       "PUT",
     );
-  return { server, scope, log, created, home, plugin, configure };
+  return { server, scope, log, created, running, home, plugin, configure };
 }
 
 it("needs configuration until the Modal token is set", async () => {
@@ -103,6 +107,90 @@ it("needs configuration until the Modal token is set", async () => {
     available: true,
     message: "Connected to Modal (bb-sandboxes)",
   });
+});
+
+async function startThread(server: helpers.TestServer) {
+  const repo = join(helpers.scratch(), "repo");
+  helpers.write(repo, { "README.md": "# demo\n" });
+  helpers.commitAll(repo);
+  const project = await helpers.createProject(server, "demo", repo);
+  const machine = { type: "existing", hostId: server.ctx.config.hostId };
+  const response = await server.api.threads.$post({
+    json: {
+      projectId: project.id,
+      input: text("hi"),
+      environment: {
+        type: "provider",
+        environmentProviderId: "modal-sandbox",
+        machine: { ...machine, type: "existing" },
+        inputs: {},
+      },
+      origin: "app",
+      providerId: "echo",
+      startedOnBehalfOf: null,
+    },
+  });
+  const { id } = await response.json();
+  await vi.waitFor(
+    () => expect(getThread(server.ctx.db, id)?.status).toBe("idle"),
+    WAIT,
+  );
+  const environmentId = getThread(server.ctx.db, id)?.environmentId ?? "";
+  return getEnvironment(server.ctx.db, environmentId)?.hostId ?? "";
+}
+
+it("builds the image and runs, execs in and stops a debug sandbox", async () => {
+  const { scope, created, configure } = await modalWorld();
+  await configure();
+  expect(await scope.call(modal.createImage, {})).toEqual({
+    imageId: "im-standard",
+    logs: "Step 1/1 : RUN true\n",
+  });
+  const run = await scope.call(modal.createSandbox, {});
+  expect(run).toMatchObject({ sandboxId: "sb-1", imageId: "im-standard" });
+  expect(created[0]?.tags).toMatchObject({ bbDebug: "true" });
+  const command = ["sh", "-lc", "echo hi"];
+  expect(
+    await scope.call(modal.createSandboxCommand, {
+      sandboxId: "sb-1",
+      command,
+    }),
+  ).toEqual({ exitCode: 0, stdout: "hi\n", stderr: "" });
+  expect(await scope.call(modal.deleteSandbox, { sandboxId: "sb-1" })).toEqual({
+    sandboxId: "sb-1",
+  });
+  await expect(
+    scope.call(modal.createSandboxCommand, { sandboxId: "sb-1", command }),
+  ).rejects.toThrow("Debug sandbox has stopped or expired");
+});
+
+it("terminates a sandbox left running after its machine was suspended", async () => {
+  vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2026, 0, 1, 0, 0, 59) });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const { server, scope, log, running, configure } = await modalWorld();
+  await configure();
+  const hostId = await startThread(server);
+  await scope.call(machines.suspend, { hostId });
+  running.add("sb-1");
+  await vi.waitFor(
+    () =>
+      expect(log.filter((line) => line === "terminate sb-1")).toHaveLength(2),
+    WAIT,
+  );
+});
+
+it("reads a Dockerfile as a registry image and build commands", () => {
+  const dockerfile =
+    "FROM node:22\n# note\nRUN apt-get update \\\n  && true\nUSER node\n";
+  expect(parseDockerfile(dockerfile)).toMatchObject({
+    reference: "node:22",
+    commands: ["RUN apt-get update    && true", "USER node"],
+  });
+  expect(() => parseDockerfile("FROM a\nCOPY . .")).toThrow(
+    "requires one FROM",
+  );
 });
 
 it("runs a thread in a Modal sandbox and snapshots, restores and deletes it", async () => {

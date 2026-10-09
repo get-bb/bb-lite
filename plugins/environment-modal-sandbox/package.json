@@ -27,6 +27,7 @@
   "dependencies": {
     "@bb/plugin": "workspace:*",
     "@bb/shared-ui": "workspace:*",
+    "modal": "0.10.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

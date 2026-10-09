@@ -19,16 +19,26 @@ export interface ModalExecResult {
   stderr: string;
 }
 
+export interface ModalExecOptions {
+  timeoutMs?: number;
+  maxOutputBytes?: number;
+}
+
 export interface ModalClient {
   accountIdentity(): Promise<string>;
   ensureImage(request: {
     appName: string;
     dockerfile: string;
     signal: AbortSignal;
+    log?: (line: string) => void;
   }): Promise<string>;
   create(spec: ModalSandboxSpec): Promise<string>;
   running(sandboxId: string): Promise<boolean>;
-  exec(sandboxId: string, command: string[]): Promise<ModalExecResult>;
+  exec(
+    sandboxId: string,
+    command: string[],
+    options?: ModalExecOptions,
+  ): Promise<ModalExecResult>;
   snapshot(sandboxId: string): Promise<string>;
   terminate(sandboxId: string): Promise<void>;
   deleteSnapshot(imageId: string): Promise<void>;

@@ -1,6 +1,6 @@
 ---
 name: modal-sandboxes
-description: Connect Modal and create reusable cloud machines with the bundled standard image, on-demand daemon installation, and snapshot lifecycle.
+description: Connect Modal and create reusable cloud machines with the bundled standard image, debug sandboxes, and snapshot lifecycle.
 ---
 
 # Modal machines
@@ -76,9 +76,40 @@ authorization before allocating them during testing.
 
 ## Debug an image
 
-The debug commands of earlier versions (`bb modal image build`, `bb modal sandbox
-run|exec|stop`) are not available in this version. Create a machine with the
-image instead and inspect it.
+```sh
+bb modal image build --json
+bb modal sandbox run --json
+bb modal sandbox exec SANDBOX -- bash -lc 'node --version && which git'
+bb modal sandbox stop SANDBOX --json
+```
+
+Everything after `--` belongs to `sandbox exec` and is never parsed as an option.
+
+Build uses the saved Dockerfile and the same account-wide image cache as machine
+creation. It returns the image ID and the final 65,536 characters of build logs
+when finished; failures include captured logs and the vendor error. Build logs
+are collected through Modal 0.10's gRPC middleware because its image builder does
+not forward them. Output is not streamed to the CLI. An already submitted build
+can finish after CLI cancellation.
+
+Run builds or reuses that image and returns `sandboxId`, `imageId`, `expiresAt`
+and build `logs`. Debug sandboxes expire after 30 minutes, reserve 1 CPU and
+2 GiB, and contain no injected BB credentials, runner, project clone or setup
+hook. They are separate from BB machines and do not snapshot. Files and running
+processes remain between exec calls until stop or expiry. Copy successful fixes
+into the Dockerfile, save it, and run a new sandbox to verify them.
+
+Exec passes arguments literally; use `bash -lc` for shell expressions. Commands
+have a 60-second timeout and output is capped at 128 KiB per stream with a
+truncation marker. Plain output prints stdout, stderr and, when it is not 0,
+`Exit code N`; the CLI itself exits 0 when the command ran. `--json` returns
+`{exitCode,stdout,stderr}`. Stopping is idempotent for known debug sandboxes.
+Exec/stop only accept sandboxes created by this plugin's debug workflow in the
+original Modal account. Stop removes compute without deleting the cached image.
+
+Other callers use the operations `modal.createImage({})`, `modal.createSandbox({})`,
+`modal.createSandboxCommand({ sandboxId, command })` and
+`modal.deleteSandbox({ sandboxId })`. Build/run incur Modal usage.
 
 `bb modal machine inspect HOST_ID [--json]` and the operation `modal.machine({ hostId })` read the saved sandbox, size, image and snapshot of a machine.
 

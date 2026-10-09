@@ -48,6 +48,17 @@ const imageDefinition = z.object({
   customized: z.boolean(),
 });
 
+const sandboxId = z
+  .string()
+  .min(1)
+  .describe("Debug sandbox started by bb modal sandbox run");
+const builtImage = z.object({ imageId: z.string(), logs: z.string() });
+const execResult = z.object({
+  exitCode: z.number(),
+  stdout: z.string(),
+  stderr: z.string(),
+});
+
 export const modal = contract("modal", {
   api: service<ModalApi>(),
   account: op({
@@ -125,5 +136,67 @@ export const modal = contract("modal", {
     input: launchOptionsSchema,
     output: launchOptionsSchema,
     kind: "write",
+  }),
+  createImage: op({
+    input: z.object({}),
+    output: builtImage,
+    kind: "write",
+    doors: {
+      cli: {
+        path: "modal image build",
+        summary: "Build or reuse the saved image",
+        print: (output) => `${output.logs}${output.imageId}`,
+      },
+    },
+  }),
+  createSandbox: op({
+    input: z.object({}),
+    output: builtImage.extend({ sandboxId: z.string(), expiresAt: z.number() }),
+    kind: "write",
+    doors: {
+      cli: {
+        path: "modal sandbox run",
+        summary: "Run the saved image in a 30-minute debug sandbox",
+        print: (output) => `${output.logs}${output.sandboxId}`,
+      },
+    },
+  }),
+  createSandboxCommand: op({
+    input: z.object({
+      sandboxId,
+      command: z
+        .array(z.string().max(65_536))
+        .min(1)
+        .max(128)
+        .describe("Command to run, written after --"),
+    }),
+    output: execResult,
+    kind: "write",
+    doors: {
+      cli: {
+        path: "modal sandbox exec",
+        summary: "Execute a command in a debug sandbox",
+        positionals: ["sandboxId", "command"],
+        print: (output) =>
+          [
+            output.stdout,
+            output.stderr,
+            output.exitCode === 0 ? "" : `Exit code ${output.exitCode}\n`,
+          ].join(""),
+      },
+    },
+  }),
+  deleteSandbox: op({
+    input: z.object({ sandboxId }),
+    output: z.object({ sandboxId: z.string() }),
+    kind: "write",
+    doors: {
+      cli: {
+        path: "modal sandbox stop",
+        summary: "Stop a debug sandbox",
+        positionals: ["sandboxId"],
+        print: (output) => `Stopped ${output.sandboxId}`,
+      },
+    },
   }),
 });
