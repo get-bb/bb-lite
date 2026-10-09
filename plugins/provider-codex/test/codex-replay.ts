@@ -21,8 +21,9 @@ import {
   type ProviderSession,
   type RunnerThreadEvent,
   type SessionHost,
+  type SessionSpec,
 } from "@bb/runner";
-import { settle } from "../../../packages/runner/test/kit.js";
+import { settle, until } from "../../../packages/runner/test/kit.js";
 
 const record = z.record(z.string(), z.unknown());
 const optionsSchema = z.object({
@@ -78,7 +79,7 @@ export function readOriginalEvents(scenario: string) {
   return events as RunnerThreadEvent[];
 }
 
-class FakeAppServer extends EventEmitter {
+export class FakeAppServer extends EventEmitter {
   readonly stdin = new PassThrough();
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
@@ -263,4 +264,50 @@ export async function replayCodexRecording(scenario: string) {
   await close();
   if (failures.length > 0) throw failures[0];
   return { events, mismatches };
+}
+
+export function createCodexFake() {
+  const server = new FakeAppServer();
+  const events: RunnerThreadEvent[] = [];
+  const spawn = () => server as unknown as AppServerChild;
+  const adapter = createCodexAdapter({ command: "codex-fake", spawn });
+  const execution = {
+    model: "gpt-test",
+    reasoningLevel: "medium" as const,
+    serviceTier: "default" as const,
+    permissionMode: "full" as const,
+    permissionEscalation: "ask" as const,
+    providerOptions: {},
+  };
+  const host: SessionHost = {
+    events: new EventBuilder({ emit: (e) => events.push(e), textFlushMs: 0 }),
+    env: {},
+    processEnv: {},
+    threadStorageDir: "/unused",
+    writableRoots: [],
+    callTool: () => Promise.reject(new Error("no tools")),
+    requestInteraction: () => Promise.reject(new Error("no interactions")),
+    onExit: () => undefined,
+  };
+  const spec = {
+    threadId: "thr_fake",
+    providerId: "codex" as const,
+    cwd: "/work",
+    providerThreadId: null,
+    instructions: "",
+    dynamicTools: [],
+    env: {},
+    skillDirs: [],
+  };
+  const write = (message: object) =>
+    server.stdout.write(`${JSON.stringify(message)}\n`);
+  async function reply(method: string, result: unknown) {
+    const found = () => server.written.find((m) => m.method === method);
+    const request = await until(found, method);
+    write({ id: request.id, result });
+    return request;
+  }
+  const open = (changes: Partial<SessionSpec> = {}) =>
+    adapter.open({ ...spec, ...changes }, execution, host);
+  return { events, execution, open, reply, notify: write };
 }

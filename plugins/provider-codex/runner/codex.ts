@@ -84,7 +84,8 @@ class CodexSession implements ProviderSession {
     this.signature = this.signatureOf(spec, options);
     const toEntry = (t: DynamicTool) => [t.name, t.presentation] as const;
     const tools = spec.dynamicTools.map(toEntry);
-    const resumed = spec.providerThreadId !== null;
+    const resumed =
+      spec.providerThreadId !== null || spec.forkFrom !== undefined;
     const rootThreadId = () => this.providerThreadId || null;
     const onTerminalError = (category: string, detail: string) => {
       const account = category === "unauthorized" || category === "rate-limit";
@@ -120,7 +121,13 @@ class CodexSession implements ProviderSession {
       const shared = await this.constructionParams(options);
       const resumeId = spec.providerThreadId;
       if (resumeId !== null) host.events.identity(resumeId);
+      const fork = resumeId === null ? spec.forkFrom : undefined;
       const construct = () => {
+        if (fork !== undefined) {
+          const { providerThreadId: threadId, checkpointId } = fork;
+          const params = { threadId, lastTurnId: checkpointId, ...shared };
+          return rpc.request("thread/fork", params);
+        }
         if (resumeId !== null) {
           const params = { threadId: resumeId, excludeTurns: true, ...shared };
           return rpc.request("thread/resume", params);

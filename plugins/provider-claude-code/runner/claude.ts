@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { TransformStream } from "node:stream/web";
 import { promisify } from "node:util";
 import {
+  forkSession,
   query,
   type HookCallback,
   type Options,
@@ -41,6 +42,7 @@ export type ClaudeQueryInput = AsyncIterable<SDKUserMessage>;
 type QueryArgs = { prompt: string | ClaudeQueryInput; options: Options };
 export interface ClaudeAdapterOptions {
   query?: (args: QueryArgs) => ClaudeQuery;
+  fork?: typeof forkSession;
 }
 
 const MISSING_CLI =
@@ -121,7 +123,14 @@ class ClaudeSession implements ProviderSession {
     const { spec, host, adapter } = this;
     const { events } = host;
     try {
-      const resume = spec.providerThreadId ?? undefined;
+      const fork = spec.providerThreadId === null ? spec.forkFrom : undefined;
+      const forked =
+        fork === undefined
+          ? undefined
+          : await adapter.fork(fork.providerThreadId, {
+              upToMessageId: fork.checkpointId,
+            });
+      const resume = spec.providerThreadId ?? forked?.sessionId;
       const sessionId = resume ?? randomUUID();
       const tools = spec.dynamicTools;
       const names = tools.map((tool) => `mcp__${BB_MCP_SERVER}__${tool.name}`);
@@ -292,7 +301,7 @@ class ClaudeSession implements ProviderSession {
 export function createClaudeAdapter(
   options: ClaudeAdapterOptions = {},
 ): ProviderAdapter {
-  const adapter = { query, ...options };
+  const adapter = { query, fork: forkSession, ...options };
   const baseEnv = loginShellEnv();
   return {
     id: "claude-code",

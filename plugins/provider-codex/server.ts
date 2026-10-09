@@ -70,6 +70,7 @@ export default function plugin(bb: PluginServerApi): void {
       supportsServiceTier: true,
       supportsNativeUserQuestion: false,
       supportsSessionRewind: true,
+      fork: "checkpoint",
     },
     optional: {
       strings: {

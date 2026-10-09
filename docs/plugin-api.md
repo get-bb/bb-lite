@@ -344,8 +344,10 @@ search(query, signal) }`) to offer installable skills, as its built-in registry 
   and `capabilities.fork: "checkpoint"` (a fork-origin thread's session gets `SessionSpec.forkFrom:
 { providerThreadId, checkpointId }` from the source's latest checkpoint at or before the fork's
   `sourceSeqEnd`). The echo provider declares it: its checkpoints are `turn-<n>` and a forked
-  session continues counting turns from the checkpoint.
-  { providerThreadId, checkpointId }` from the source thread's last checkpoint).
+  session continues counting turns from the checkpoint. Codex declares it too: its checkpoint is the
+  Codex turn id and a fork opens with app-server `thread/fork { threadId, lastTurnId }`. So does
+  Claude Code: its checkpoint is the turn's last message uuid and a fork copies the transcript with
+  the SDK's `forkSession(providerThreadId, { upToMessageId })`, then resumes the copy.
 - The runner part's `ProviderSession.compact?()` is called by `threads.compact` instead of sending
   `/compact` as a prompt; it must open and close a turn. `ProviderStatus` may carry `minimumVersion`,
   `versionUnsupported` and `installAction: { kind: "install" | "update", command }`.

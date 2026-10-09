@@ -300,4 +300,27 @@ describe("claude adapter", () => {
       "PREVIEW_CONFIG_URL",
     );
   });
+
+  it("reports each recorded turn's last message as its checkpoint", async () => {
+    const { events } = await claude.replayClaudeRecording("turn-tools");
+    const done = events.filter((e) => e.type === "turn/completed");
+    expect(done.length).toBeGreaterThan(0);
+    for (const event of done) {
+      expect(event).toMatchObject({ providerCheckpointId: expect.any(String) });
+    }
+  });
+
+  it("forks the source session at the checkpoint and resumes the copy", async () => {
+    const harness = claude.createClaudeHarness();
+    const forkFrom = { providerThreadId: "sess-src", checkpointId: "msg-4" };
+    const spec = { providerThreadId: null, forkFrom };
+    const live = await harness.open(spec);
+    expect(harness.forks).toEqual([["sess-src", { upToMessageId: "msg-4" }]]);
+    expect(live.query.args.options.resume).toBe("sess-src-fork");
+    expect(live.query.args.options).not.toHaveProperty("sessionId");
+    expect(live.session.providerThreadId).toBe("sess-src-fork");
+    const resumed = claude.createClaudeHarness();
+    await resumed.open({ providerThreadId: "sess-own", forkFrom });
+    expect(resumed.forks).toEqual([]);
+  });
 });

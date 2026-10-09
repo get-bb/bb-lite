@@ -104,7 +104,12 @@ export function createClaudeHarness() {
   const interactions: Pending[] = [];
   const toolCalls: Parameters<SessionHost["callTool"]>[0][] = [];
   const queries: FakeQuery[] = [];
+  const forks: [string, object | undefined][] = [];
   const adapter = createClaudeAdapter({
+    fork: async (sessionId, options) => {
+      forks.push([sessionId, options]);
+      return { sessionId: `${sessionId}-fork` };
+    },
     query: (args) => {
       const query = new FakeQuery(args);
       queries.push(query);
@@ -155,7 +160,7 @@ export function createClaudeHarness() {
     };
     return { session, query, builder, turn, decide };
   }
-  return { events, interactions, toolCalls, open };
+  return { events, interactions, toolCalls, forks, open };
 }
 
 export async function replayClaudeRecording(scenario: string) {
