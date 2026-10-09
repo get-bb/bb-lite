@@ -303,13 +303,15 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
     body: JSON.stringify({ values: { instructions: "Use pnpm" } }),
   });
   const scope = { threadId: "t", projectId: "p", hostId: null };
-  const sections = await op("sessions.instructions", {
-    ...scope,
-    providerId: "codex",
-  });
-  expect(sections.result).toContainEqual({
-    source: "custom-instructions",
-    text: "Use pnpm",
+  await vi.waitFor(async () => {
+    const sections = await op("sessions.instructions", {
+      ...scope,
+      providerId: "codex",
+    });
+    expect(sections.result).toContainEqual({
+      source: "custom-instructions",
+      text: "Use pnpm",
+    });
   });
   const tsc = fileURLToPath(
     new URL("../../../node_modules/.bin/tsc", import.meta.url),
