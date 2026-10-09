@@ -366,6 +366,9 @@ export function registerTasksCli(ctx: TasksContext): void {
           const added = labelIds(current.projectId, options["add-label"]);
           const kept = current.labelIds.filter((id) => !removed.includes(id));
           const relabel = removed.length + added.length > 0;
+          if (options.parent && options["no-parent"]) {
+            fail("cannot combine --parent and --no-parent", "usage");
+          }
           const parent = options.parent ? task(options.parent).id : undefined;
           const { title, description, status, priority } = options;
           const changes = {
@@ -579,6 +582,11 @@ export function registerTasksCli(ctx: TasksContext): void {
             options.environment === undefined
               ? base?.environmentKind === "new-worktree"
               : options.environment === "worktree";
+          for (const name of ["base-branch", "machine"] as const) {
+            if (options[name] !== undefined && !worktree) {
+              fail(`--${name} requires --environment worktree`, "usage");
+            }
+          }
           const branch = options["base-branch"] ?? base?.baseBranch ?? null;
           const machine = options.machine ?? base?.machineId ?? null;
           const fields = {

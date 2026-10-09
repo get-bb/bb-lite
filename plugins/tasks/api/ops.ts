@@ -1,4 +1,4 @@
-import { OpError, projects } from "@bb/plugin";
+import { fail, OpError, projects } from "@bb/plugin";
 import { deleteAttachment } from "../attachments/index.js";
 import { detachThread, dispatch } from "../delegate/index.js";
 import { tasks } from "../shared/contract.js";
@@ -27,6 +27,19 @@ export function registerTasksOps(ctx: TasksContext): void {
       }
     });
   const projectsChanged = (): void => publish(ctx, "projects");
+  const uniquePrefix = (prefix: string): void => {
+    const taken = store
+      .listProjects()
+      .some((project) => project.prefix.toUpperCase() === prefix.toUpperCase());
+    if (taken) fail("conflict", `Project prefix is already in use: ${prefix}`);
+  };
+  const uniqueLabel = (projectId: string, name: string, id?: string): void => {
+    const wanted = name.toLowerCase();
+    const taken = store
+      .listLabels(projectId)
+      .some((label) => label.id !== id && label.name.toLowerCase() === wanted);
+    if (taken) fail("conflict", `Label already exists: ${name}`);
+  };
   implement(tasks.overview, () => ({
     projects: store.listProjects(),
     summaries: store.summaries(),
@@ -34,6 +47,7 @@ export function registerTasksOps(ctx: TasksContext): void {
     openTaskCount: store.openTaskCount(),
   }));
   implement(tasks.createProject, (input) => {
+    uniquePrefix(input.prefix);
     const project = store.createProject(input);
     projectsChanged();
     return { project };
@@ -68,11 +82,16 @@ export function registerTasksOps(ctx: TasksContext): void {
     labels: store.listLabels(projectId),
   }));
   implement(tasks.createLabel, (input) => {
+    uniqueLabel(input.projectId, input.name);
     const label = store.createLabel(input);
     projectsChanged();
     return { label };
   });
   implement(tasks.updateLabel, ({ labelId, ...patch }) => {
+    const current = store.getLabel(labelId);
+    if (current && patch.name !== undefined) {
+      uniqueLabel(current.projectId, patch.name, labelId);
+    }
     const label = store.updateLabel(labelId, patch);
     projectsChanged();
     return { label };

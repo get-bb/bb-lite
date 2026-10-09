@@ -388,3 +388,32 @@ it("dispatches to a new thread, follows it and notifies its agent", async () => 
     `Thread "BB-1 · Fix it" completed — final message posted · ${threadId}`,
   ]);
 });
+
+it("answers conflicts and contradictory flags with clear errors", async () => {
+  const { rpc, cli, seed } = await tasksServer();
+  const { project, label } = await seed();
+  const again = { name: "Again", prefix: "BB", color: "teal" };
+  await expect(rpc("createProject", again)).rejects.toThrow("already in use");
+  const twin = { projectId: project.id, name: "BUG", color: "teal" };
+  await expect(rpc("createLabel", twin)).rejects.toThrow("already exists");
+  const other = { projectId: project.id, name: "ui", color: "teal" };
+  const { label: ui } = await rpc<{ label: Label }>("createLabel", other);
+  const rename = { labelId: ui.id, name: "Bug" };
+  await expect(rpc("updateLabel", rename)).rejects.toThrow("already exists");
+  const recolor = { labelId: label.id, name: "bug", color: "red" };
+  const recolored = { label: { id: label.id, color: "red" } };
+  expect(await rpc("updateLabel", recolor)).toMatchObject(recolored);
+
+  const both = await cli("update BB-1 --parent BB-1 --no-parent");
+  expect(both.exitCode).not.toBe(0);
+  expect(both.stderr).toContain("cannot combine --parent and --no-parent");
+  const preset = "preset set P --provider echo --model echo";
+  const flags = `${preset} --reasoning low --permission auto`;
+  const stray = await cli(`${flags} --base-branch main`);
+  expect(stray.exitCode).not.toBe(0);
+  expect(stray.stderr).toContain("--base-branch requires --environment");
+  const placed = await cli(
+    `${flags} --environment worktree --base-branch main`,
+  );
+  expect(placed.exitCode).toBe(0);
+});
