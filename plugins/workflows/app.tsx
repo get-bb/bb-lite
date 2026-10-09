@@ -49,7 +49,8 @@ function summary(run: WorkflowRun): string {
 }
 
 function preview(value: unknown): string {
-  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const text =
+    typeof value === "string" ? value : (JSON.stringify(value) ?? "");
   return text.length > 400 ? `${text.slice(0, 400)}…` : text;
 }
 
@@ -196,6 +197,7 @@ function RunOutcome({ run }: { run: WorkflowRun }) {
     return <p className="text-xs text-destructive">{run.error}</p>;
   }
   if (run.status !== "succeeded") return null;
+  if (run.result === null || run.result === undefined) return null;
   return (
     <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs whitespace-pre-wrap">
       {preview(run.result)}
