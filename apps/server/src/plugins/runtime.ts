@@ -1,4 +1,4 @@
-import * as plugin from "@bb/plugin";
+import * as sdk from "@bb/plugin";
 import * as runner from "@bb/runner";
 import * as authActor from "@bb/server-kit/auth/actor";
 import * as authPasswords from "@bb/server-kit/auth/passwords";
@@ -49,11 +49,12 @@ import * as services from "@bb/server-kit/services";
 import * as threadsSerial from "@bb/server-kit/threads/serial";
 import * as threadsThreadDisplay from "@bb/server-kit/threads/thread-display";
 import * as wsHub from "@bb/server-kit/ws/hub";
+import * as zod from "zod";
 
 export const SERVER_RUNTIME_GLOBAL = "__bbServerRuntime";
 
 export const SERVER_RUNTIME_MODULES: Record<string, object> = {
-  "@bb/plugin": plugin,
+  "@bb/plugin": sdk,
   "@bb/runner": runner,
   "@bb/server-kit/auth/actor": authActor,
   "@bb/server-kit/auth/passwords": authPasswords,
@@ -104,4 +105,5 @@ export const SERVER_RUNTIME_MODULES: Record<string, object> = {
   "@bb/server-kit/threads/serial": threadsSerial,
   "@bb/server-kit/threads/thread-display": threadsThreadDisplay,
   "@bb/server-kit/ws/hub": wsHub,
+  zod,
 };

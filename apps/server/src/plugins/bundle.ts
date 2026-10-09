@@ -159,8 +159,7 @@ export async function utilitiesWith(
   const added = await tailwind.compile(UTILITIES_SHEET, options);
   if (!added.build([...classes]).includes("{")) return null;
   const provided = await classesOfHost(tailwind);
-  const whole = await tailwind.compile(UTILITIES_SHEET, options);
-  return whole.build([...provided, ...classes]);
+  return added.build([...provided]);
 }
 
 const RUNNER_NAMESPACE = "bb-runner-shared";
@@ -220,9 +219,29 @@ const ownLocation: Plugin = {
 
 const SERVER_NAMESPACE = "bb-server-shared";
 
+const HOST_ZOD = packageRoot(hostRequire.resolve("zod"), "zod");
+
+function packageRoot(file: string, name: string): string {
+  const marker = `${sep}node_modules${sep}${name}${sep}`;
+  return file.slice(0, file.lastIndexOf(marker) + marker.length);
+}
+
 const hostServerModules: Plugin = {
   name: "bb-host-server-modules",
   setup(esbuild) {
+    esbuild.onResolve({ filter: /^zod$/ }, async (args) => {
+      if (args.pluginData === SERVER_NAMESPACE) return null;
+      const found = await esbuild.resolve(args.path, {
+        kind: args.kind,
+        resolveDir: args.resolveDir,
+        importer: args.importer,
+        pluginData: SERVER_NAMESPACE,
+      });
+      const own = found.errors.length > 0 ? "" : found.path;
+      return packageRoot(own, "zod") === HOST_ZOD
+        ? { path: args.path, namespace: SERVER_NAMESPACE }
+        : null;
+    });
     esbuild.onResolve({ filter: /^@bb\// }, ({ path }) =>
       path in SERVER_RUNTIME_MODULES
         ? { path, namespace: SERVER_NAMESPACE }

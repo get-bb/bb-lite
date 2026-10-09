@@ -2,6 +2,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   statSync,
   writeFileSync,
@@ -28,7 +29,7 @@ import type { InstalledPlugin, ThreadResponse } from "@bb/server-contract";
 import { transform } from "esbuild";
 import { expect, it, vi } from "vitest";
 import { z } from "zod";
-import { bundleApp } from "../src/plugins/bundle.js";
+import { bundleApp, importServerEntry } from "../src/plugins/bundle.js";
 import { cronMatches, parseCron } from "../src/plugins/cron.js";
 import { insertRow } from "@bb/server-kit/db/index";
 import { runAs } from "@bb/server-kit/auth/actor";
@@ -897,4 +898,23 @@ it("names the manifest field that is wrong", async () => {
   await expect(readManifest(directory)).rejects.toThrow(
     "package.json: bb.skills: Invalid input: expected array, received string",
   );
+});
+
+it("shares the host's SDK and zod with a server entry", async () => {
+  const directory = scratch();
+  writeFileSync(
+    join(directory, "server.ts"),
+    [
+      'import { z } from "zod";',
+      'import { shapeBehind } from "@bb/plugin";',
+      "export default () => ({ z, shapeBehind });",
+    ].join("\n"),
+  );
+  const cacheDir = join(directory, ".cache");
+  const entry = await importServerEntry(join(directory, "server.ts"), cacheDir);
+  const shared = entry as unknown as () => Record<string, unknown>;
+  const { shapeBehind } = await import("@bb/plugin");
+  expect(shared()).toEqual({ z, shapeBehind });
+  const [file = ""] = readdirSync(cacheDir);
+  expect(statSync(join(cacheDir, file)).size).toBeLessThan(10_000);
 });
