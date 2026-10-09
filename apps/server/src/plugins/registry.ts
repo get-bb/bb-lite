@@ -50,12 +50,17 @@ export class PluginRegistry {
     if (own === null || doors === null) return own ?? doors;
     const offered = doors.commands ?? [];
     const first = new Set(offered.map(({ name }) => name.split(" ")[0]));
+    const commands = [...(own.commands ?? []), ...offered];
+    const listing = { name: own.name, summary: own.summary, commands };
     return {
-      name: own.name,
-      summary: own.summary,
-      commands: [...(own.commands ?? []), ...offered],
-      run: (argv, context) =>
-        first.has(argv[0]) ? doors.run(argv, context) : own.run(argv, context),
+      ...listing,
+      run: (argv, context) => {
+        if (first.has(argv[0])) return doors.run(argv, context);
+        const top = argv.length === 0 || argv[0].startsWith("-");
+        const help = argv.includes("--help") || argv.includes("-h");
+        if (top && help) return { exitCode: 0, stdout: mergedHelp(listing) };
+        return own.run(argv, context);
+      },
     };
   }
 
@@ -87,4 +92,30 @@ export class PluginRegistry {
       instance === null ? [] : [[id, instance]],
     );
   }
+}
+
+function mergedHelp({
+  name,
+  summary,
+  commands,
+}: {
+  name: string;
+  summary: string;
+  commands: { name: string; summary: string }[];
+}): string {
+  const rows = commands
+    .map((command) => [`bb ${name} ${command.name}`, command.summary])
+    .sort(([a], [b]) => a.localeCompare(b));
+  const width = Math.max(...rows.map(([left]) => left.length));
+  return [
+    `bb ${name} — ${summary}`,
+    "",
+    `Usage:\n  bb ${name} <command> [options]`,
+    "",
+    "Commands:",
+    ...rows.map(([left, right]) => `  ${left.padEnd(width)}  ${right}`),
+    "",
+    `Run \`bb ${name} <command> --help\` for arguments and options.`,
+    "",
+  ].join("\n");
 }

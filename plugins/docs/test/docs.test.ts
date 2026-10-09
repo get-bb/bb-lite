@@ -158,3 +158,14 @@ it("refreshes the app when a document changes on disk", async () => {
   });
   expect(signal).toBeTruthy();
 }, 15_000);
+
+it("creates the Personal vault folder and lists every command in help", async () => {
+  const { cli, op } = await docsServer();
+  const vaults = await op<Row[]>("vaults");
+  const personal = vaults.find((v) => v.vaultId === "personal");
+  expect(existsSync(String(personal?.rootPath))).toBe(true);
+  const help = await cli("--help");
+  expect(help.exitCode).toBe(0);
+  for (const command of ["propose", "list", "read", "pull", "push", "status"])
+    expect(help.stdout).toContain(`bb docs ${command} `);
+});

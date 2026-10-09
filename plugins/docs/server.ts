@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { posix } from "node:path";
 import { homedir } from "node:os";
 import { fail, sessions, type PluginServerApi } from "@bb/plugin";
@@ -34,12 +35,19 @@ export default function docsServer(bb: PluginServerApi): void {
     `CREATE TABLE ${entryOrder} (vault_id TEXT NOT NULL, folder TEXT NOT NULL, names TEXT NOT NULL, PRIMARY KEY (vault_id, folder))`,
   ]);
   tables.publish(docs.vaultRows, "vaults");
-  if (!bb.db.get(`SELECT 1 AS one FROM ${vaults}`))
+  if (!bb.db.get(`SELECT 1 AS one FROM ${vaults}`)) {
+    const personal = posix.join(homedir(), "Notes");
     bb.db.run(
       `INSERT INTO ${vaults} VALUES ('personal', 'Personal', NULL, ?, ?)`,
-      posix.join(homedir(), "Notes"),
+      personal,
       bb.now(),
     );
+    try {
+      mkdirSync(personal, { recursive: true });
+    } catch (error) {
+      bb.log.warn(`could not create the Personal vault: ${String(error)}`);
+    }
+  }
 
   const allVaults = () =>
     bb.db.all<Vault>(`SELECT * FROM ${vaults} ORDER BY created_at`);
