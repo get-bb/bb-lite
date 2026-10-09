@@ -1,3 +1,4 @@
+import { API_VERSION } from "@bb/plugin";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -40,6 +41,13 @@ it("scaffolds, loads, reloads on change, validates and inspects a plugin", async
   const { op, cli, ctx } = await world();
   const cwd = scratch();
   const made = await cli("plugin-dev", ["new", "hello-there"], cwd);
+  const scaffold = readFileSync(
+    join(cwd, "hello-there", "package.json"),
+    "utf8",
+  );
+  expect(JSON.parse(scaffold).engines.bb).toBe(
+    `^${API_VERSION.split(".").slice(0, 2).join(".")}`,
+  );
   const directory = join(cwd, "hello-there");
   expect(made.stdout).toContain(`Created ${directory}`);
   expect(existsSync(join(directory, ".bb", "tsconfig.json"))).toBe(true);
