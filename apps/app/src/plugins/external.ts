@@ -131,6 +131,7 @@ async function loadBuiltin(plugin: BuiltinPlugin): Promise<void> {
   try {
     const module = await plugin.load();
     if (!disabledBuiltinIds.has(plugin.id)) {
+      if (externalHashes.has(plugin.id)) dropExternal(plugin.id);
       registerPluginApp(plugin.id, module.default);
     }
   } catch (error) {
