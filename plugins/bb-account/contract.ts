@@ -1,4 +1,4 @@
-import { contract, event, op, service } from "@bb/plugin";
+import { contract, event, op } from "@bb/plugin";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -16,13 +16,6 @@ export const accountStatusSchema = z.object({
   login: loginSchema.nullable(),
 });
 export type AccountStatus = z.infer<typeof accountStatusSchema>;
-
-export interface AccountLink {
-  baseUrl: string;
-  serverUrl: string;
-  credential: string;
-}
-export type CredentialSource = () => AccountLink | null;
 
 export const FETCH_TIMEOUT_MS = { min: 1_000, default: 15_000, max: 65_000 };
 
@@ -113,5 +106,4 @@ export const bbAccount = contract("bb-account", {
     internal: true,
   }),
   changed: event(accountStatusSchema),
-  credential: service<CredentialSource>(),
 });

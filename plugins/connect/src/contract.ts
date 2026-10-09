@@ -1,4 +1,4 @@
-import { contract, op } from "@bb/plugin";
+import { contract, event, op, service } from "@bb/plugin";
 import { z } from "zod";
 
 const loginViewSchema = z.object({
@@ -22,6 +22,13 @@ const statusSchema = z.object({
 });
 export type ConnectStatus = z.infer<typeof statusSchema>;
 
+export interface AccountLink {
+  baseUrl: string;
+  serverUrl: string;
+  credential: string;
+}
+export type AccountLinkSource = () => AccountLink | null;
+
 const noInput = z.object({}).strict();
 const portInput = z.object({ port: z.number() }).strict();
 const enabledInput = z.object({ enabled: z.boolean() }).strict();
@@ -33,4 +40,6 @@ export const connect = contract("connect", {
   logout: op({ input: noInput, ...write }),
   setEnabled: op({ input: enabledInput, ...write }),
   unexpose: op({ input: portInput, ...write }),
+  changed: event(statusSchema),
+  link: service<AccountLinkSource>(),
 });

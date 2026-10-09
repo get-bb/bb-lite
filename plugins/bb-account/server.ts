@@ -40,7 +40,7 @@ export function createBbAccount(options: BbAccountOptions) {
 
     const status = async (): Promise<AccountStatus> => {
       const current = await bb.call(connect.status, {});
-      const source = bb.pick(bbAccount.credential);
+      const source = bb.pick(connect.link);
       return {
         signedIn: current.paired,
         handle: current.handle,
@@ -83,7 +83,7 @@ export function createBbAccount(options: BbAccountOptions) {
     });
 
     bb.implement(bbAccount.fetch, async (input, { signal }) => {
-      const link = bb.pick(bbAccount.credential)?.() ?? null;
+      const link = bb.pick(connect.link)?.() ?? null;
       if (link === null) return SIGNED_OUT;
       const origin = input.target === "gate" ? link.serverUrl : link.baseUrl;
       const timeout = AbortSignal.timeout(input.timeoutMs);
@@ -99,6 +99,10 @@ export function createBbAccount(options: BbAccountOptions) {
         signal: AbortSignal.any([signal, timeout]),
       });
       return { status: response.status, body: await readJson(response) };
+    });
+
+    bb.on(connect.changed, () => {
+      void refresh().catch(() => {});
     });
 
     bb.background.service("refresh", {

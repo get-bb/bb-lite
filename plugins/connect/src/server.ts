@@ -78,7 +78,10 @@ export default async function connectPlugin(
   let publicUrl: string | null = null;
   let removePublicUrl: (() => void) | null = null;
 
-  const publish = (): void => bb.changed(connect.status);
+  const publish = (): void => {
+    bb.changed(connect.status);
+    bb.emit(connect.changed, status());
+  };
   const account = new ConnectAccount({
     file: join(bb.server.dataDir, "connect.json"),
     provisioned: process.env.BB_CONNECT_LINK,
@@ -108,6 +111,12 @@ export default async function connectPlugin(
           log: bb.log,
         });
   const activeLink = (): Link | null => (enabled ? account.link : null);
+  bb.add(connect.link, () => {
+    const { link } = account;
+    if (link === null) return null;
+    const { baseUrl, serverUrl, credential } = link;
+    return { baseUrl, serverUrl, credential };
+  });
 
   function advertise(url: string | null): void {
     if (url === publicUrl) return;

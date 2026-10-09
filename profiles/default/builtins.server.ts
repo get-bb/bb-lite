@@ -3,6 +3,7 @@ import accountPool from "../../plugins/account-pool/src/server.js";
 import askUserQuestion from "../../plugins/ask-user-question/src/server.js";
 import audit from "../../plugins/audit/server.js";
 import auditLog from "../../plugins/audit-log/server.js";
+import automations from "../../plugins/automations/server.js";
 import bbAccount from "../../plugins/bb-account/server.js";
 import bbAi from "../../plugins/bb-ai/server.js";
 import bbGuide from "../../plugins/bb-guide/server.js";
@@ -11,6 +12,7 @@ import connect from "../../plugins/connect/src/server.js";
 import customInstructions from "../../plugins/custom-instructions/server.js";
 import drafts from "../../plugins/drafts/server.js";
 import environmentGitWorktree from "../../plugins/environment-git-worktree/server.js";
+import environmentModalSandbox from "../../plugins/environment-modal-sandbox/server.js";
 import environmentPersonalWorkspace from "../../plugins/environment-personal-workspace/server.js";
 import environmentProjectCheckout from "../../plugins/environment-project-checkout/server.js";
 import environments from "../../plugins/environments/server.js";
@@ -47,6 +49,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "ask-user-question": askUserQuestion,
   audit: audit,
   "audit-log": auditLog,
+  automations: automations,
   "bb-account": bbAccount,
   "bb-ai": bbAi,
   "bb-guide": bbGuide,
@@ -56,6 +59,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "custom-instructions": customInstructions,
   drafts: drafts,
   "environment-git-worktree": environmentGitWorktree,
+  "environment-modal-sandbox": environmentModalSandbox,
   "environment-personal-workspace": environmentPersonalWorkspace,
   "environment-project-checkout": environmentProjectCheckout,
   environments: environments,

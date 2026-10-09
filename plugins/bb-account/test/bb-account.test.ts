@@ -39,7 +39,7 @@ async function setup(withCredential = true) {
   });
   if (withCredential) {
     await harness.load("connect", (bb) => {
-      bb.add(bbAccount.credential, () => (paired ? LINK : null));
+      bb.add(connect.link, () => (paired ? LINK : null));
     });
   }
   const fetch: typeof globalThis.fetch = async (url, init) => {

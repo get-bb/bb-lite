@@ -6,6 +6,7 @@ import providerClaudeCode from "../../plugins/provider-claude-code/runner.js";
 import providerCodex from "../../plugins/provider-codex/runner.js";
 import providerEcho from "../../plugins/provider-echo/runner.js";
 import providerPi from "../../plugins/provider-pi/runner.js";
+import storageRetention from "../../plugins/storage-retention/runner.js";
 
 export const runnerEntries: Record<string, PluginRunnerEntry> = {
   "concurrency-limit": concurrencyLimit,
@@ -15,4 +16,5 @@ export const runnerEntries: Record<string, PluginRunnerEntry> = {
   "provider-codex": providerCodex,
   "provider-echo": providerEcho,
   "provider-pi": providerPi,
+  "storage-retention": storageRetention,
 };
