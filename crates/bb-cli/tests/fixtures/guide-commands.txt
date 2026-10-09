@@ -225,6 +225,13 @@ Delete a section; its threads become unsectioned
 Options:
   --yes  Skip the confirmation prompt
 
+Usage: bb prompt-history list [options]
+List prompt history newest first
+Options:
+  --cursor <cursor>  Continue from an earlier page
+  --limit <number>   Maximum entries to return
+JSON (--json): {entries: [{id, text, threadId, projectId, scope, sentAt}], nextCursor}
+
 Usage: bb project list [options]
 List projects
 Options:

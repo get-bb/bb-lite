@@ -166,6 +166,11 @@ thread section rename <id> <name>  Rename a sidebar section
 thread section delete <id>  Delete a section; its threads become unsectioned
 ${YES}
 
+prompt-history list  List prompt history newest first
+  --cursor <cursor>  Continue from an earlier page
+  --limit <number>  Maximum entries to return
+  > {entries: [{id, text, threadId, projectId, scope, sentAt}], nextCursor}
+
 project list  List projects
   --include-personal  Include the personal project
   > [{id, kind, name, gitRemoteUrl, sources: [{id, hostId, path}]}]
@@ -429,6 +434,7 @@ export const table: Table = {
     "thread interactions": "Approvals, questions and plugin forms of a thread",
     "thread queue": "Messages waiting to be sent to a thread",
     "thread section": "Sidebar sections",
+    "prompt-history": "List prompt history across threads and projects",
     project: "Projects and the directories that hold them on each machine",
     "project source": "Where a project lives on a machine",
     "project attachment": "Files attached to prompts",

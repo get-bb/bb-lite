@@ -199,6 +199,26 @@ pub fn locale_date(ms: f64) -> String {
     )
 }
 
+pub fn iso_date(ms: f64) -> String {
+    let seconds = (ms / 1000.0).floor() as libc::time_t;
+    // SAFETY: gmtime_r writes only into the zeroed tm we pass it.
+    let tm = unsafe {
+        let mut tm: libc::tm = std::mem::zeroed();
+        libc::gmtime_r(&seconds, &mut tm);
+        tm
+    };
+    format!(
+        "{}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+        tm.tm_year + 1900,
+        tm.tm_mon + 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec,
+        ms.rem_euclid(1000.0) as u32
+    )
+}
+
 pub struct Call<'a> {
     pub table: &'a Table,
     pub spec: &'a CommandSpec,

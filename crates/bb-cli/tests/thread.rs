@@ -393,3 +393,17 @@ fn remaining_actions_post_to_their_routes() {
 fn unimplemented() -> String {
     json!({ "code": "unimplemented", "message": "Nothing implements it" }).to_string()
 }
+
+#[test]
+fn prompt_history_lists_pages() {
+    let fake = Fake::json(json!({
+        "entries": [{ "id": "p1", "text": "hello", "threadId": "thr_a", "projectId": "proj_1",
+            "scope": "thread", "sentAt": 1_700_000_000_123_u64 }],
+        "nextCursor": "c1",
+    }));
+    let out = ok(&fake.url, None, &["prompt-history", "list", "--limit", "1"]);
+    assert_eq!(fake.only(), request("GET", "/threads/prompt-history", "limit=1", None));
+    let expected = "\nCREATED                   THREAD  PROMPT\n2023-11-14T22:13:20.123Z  thr_a   \
+                    hello\n\nNext page: bb prompt-history list --cursor c1 --limit 1\n";
+    assert_eq!(out, expected);
+}

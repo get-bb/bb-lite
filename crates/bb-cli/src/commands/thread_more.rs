@@ -1,8 +1,8 @@
 use serde_json::{Map, Value, json};
 
 use crate::call::{
-    Call, CliResult, Handler, Output, clip, confirm, parse_json, thread_target, usage_error,
-    valid_id,
+    Call, CliResult, Handler, Output, clip, confirm, iso_date, parse_json, thread_target,
+    usage_error, valid_id,
 };
 use crate::http::encode;
 use crate::render::{queue_wait, shown, text};
@@ -11,6 +11,7 @@ use crate::render::{queue_wait, shown, text};
 pub fn handlers() -> Vec<(&'static str, Handler)> {
     vec![
         ("threadInteractionsList", thread_interactions_list),
+        ("promptHistoryList", prompt_history_list),
         ("threadInteractionsShow", thread_interactions_show),
         ("threadInteractionsResolve", thread_interactions_resolve),
         ("threadQueueList", thread_queue_list),
@@ -302,4 +303,49 @@ fn thread_section_delete(call: &mut Call) -> CliResult<Output> {
     let moved = format!("{} thread(s) unsectioned", field(&result, "updatedThreadCount"));
     let text = format!("Section {} deleted; {moved}", field(&result, "id"));
     Ok(Output::text(result, text))
+}
+
+fn prompt_history_list(call: &mut Call) -> CliResult<Output> {
+    let cursor = call.flag("cursor")?;
+    let limit = call.flag("limit")?;
+    let mut query = Vec::new();
+    if let Some(cursor) = &cursor {
+        query.push(("cursor", cursor.as_str()));
+    }
+    if let Some(limit) = &limit {
+        query.push(("limit", limit.as_str()));
+    }
+    let result = call.http.get("/threads/prompt-history", &query)?;
+    if call.json() {
+        return Ok(Output::json(result));
+    }
+    let next = match result["nextCursor"].as_str() {
+        Some(next) => {
+            let limit = limit.map(|limit| format!(" --limit {limit}")).unwrap_or_default();
+            vec![format!("Next page: bb prompt-history list --cursor {next}{limit}")]
+        }
+        None => Vec::new(),
+    };
+    let entries = result["entries"].as_array().cloned().unwrap_or_default();
+    if entries.is_empty() {
+        let mut lines = vec!["No prompt history found".to_string()];
+        lines.extend(next);
+        return Ok(Output::lines(result, &lines));
+    }
+    let rows: Vec<Value> = entries
+        .iter()
+        .map(|entry| {
+            json!({
+                "created": iso_date(entry["sentAt"].as_f64().unwrap_or(0.0)),
+                "thread": entry["threadId"],
+                "prompt": entry["text"],
+            })
+        })
+        .collect();
+    match Output::rows(&rows, &["created", "thread", "prompt"], result.clone()) {
+        Output::Data { text: Some(table), .. } if !next.is_empty() => {
+            Ok(Output::text(result, format!("{table}\n{}", next.join("\n"))))
+        }
+        table => Ok(table),
+    }
 }

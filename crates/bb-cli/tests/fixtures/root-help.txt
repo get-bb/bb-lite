@@ -1,22 +1,23 @@
 Usage: bb <command> [options]
 
 Commands:
-  status         Show the current project, thread, environment and server
-  guide          Explain bb: concepts, threads, machines, commands, …
-  whoami         Show the user this CLI acts as
-  thread         Create, message, wait on and read threads
-  project        Projects and the directories that hold them on each machine
-  env            Environments: the checkouts and worktrees threads run in
-  machine        Machines that run threads
-  user           People who can sign in, their invites and sign-in links
-  provider       Agent providers and their models
-  terminal       Terminals in a thread, an environment or on a machine
-  file           Read and write files on any machine
-  settings       General settings, theme, keybindings and UI preferences
-  plugin         Plugins and the commands they add
-  server         Run the bb server in the foreground
-  import-legacy  Copy projects, sections, settings and threads from an old bb
-  runner         Join this machine to a server and run its runner
+  status          Show the current project, thread, environment and server
+  guide           Explain bb: concepts, threads, machines, commands, …
+  whoami          Show the user this CLI acts as
+  thread          Create, message, wait on and read threads
+  prompt-history  List prompt history across threads and projects
+  project         Projects and the directories that hold them on each machine
+  env             Environments: the checkouts and worktrees threads run in
+  machine         Machines that run threads
+  user            People who can sign in, their invites and sign-in links
+  provider        Agent providers and their models
+  terminal        Terminals in a thread, an environment or on a machine
+  file            Read and write files on any machine
+  settings        General settings, theme, keybindings and UI preferences
+  plugin          Plugins and the commands they add
+  server          Run the bb server in the foreground
+  import-legacy   Copy projects, sections, settings and threads from an old bb
+  runner          Join this machine to a server and run its runner
 
 Run `bb <command> --help` for details and `bb guide` for concepts. Enabled plugins add commands such as `bb tasks`; see `bb plugin list`.
 

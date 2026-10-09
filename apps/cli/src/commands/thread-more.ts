@@ -191,3 +191,30 @@ export const threadSectionDelete: Run = async (c) => {
   const moved = `${result.updatedThreadCount} thread(s) unsectioned`;
   c.out(result, `Section ${result.id} deleted; ${moved}`);
 };
+
+export const promptHistoryList: Run = async (c) => {
+  const limit = c.flag("limit");
+  const result = await c.op(c.ops.threads.recentPrompts, {
+    cursor: c.flag("cursor"),
+    limit,
+  });
+  if (c.json) return c.out(result);
+  const next =
+    result.nextCursor === null
+      ? []
+      : [
+          `Next page: bb prompt-history list --cursor ${result.nextCursor}${
+            limit === undefined ? "" : ` --limit ${limit}`
+          }`,
+        ];
+  if (result.entries.length === 0) {
+    return c.out(result, ["No prompt history found", ...next]);
+  }
+  const rows = result.entries.map((entry) => ({
+    created: new Date(entry.sentAt).toISOString(),
+    thread: entry.threadId,
+    prompt: entry.text,
+  }));
+  c.rows(rows, ["created", "thread", "prompt"]);
+  if (next.length > 0) c.out(result, next);
+};
