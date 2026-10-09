@@ -7,6 +7,7 @@
 @source "../../../../plugins/connect";
 @source "../../../../plugins/drafts";
 @source "../../../../plugins/environment-modal-sandbox";
+@source "../../../../plugins/github";
 @source "../../../../plugins/inline-vis";
 @source "../../../../plugins/keep-awake";
 @source "../../../../plugins/memory";

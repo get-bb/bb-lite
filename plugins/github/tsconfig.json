@@ -13,5 +13,12 @@
     "types": ["node", "vitest/globals"],
     "customConditions": ["source"]
   },
-  "include": ["*.ts", "test/**/*.ts", "app.tsx"]
+  "include": [
+    "*.ts",
+    "*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "test/**/*.ts",
+    "../../apps/app/src/vite-env.d.ts"
+  ]
 }

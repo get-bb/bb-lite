@@ -13,6 +13,7 @@ export const appLoaders: Record<string, Load> = {
   drafts: () => import("../../plugins/drafts/app"),
   "environment-modal-sandbox": () =>
     import("../../plugins/environment-modal-sandbox/app"),
+  github: () => import("../../plugins/github/app"),
   "inline-vis": () => import("../../plugins/inline-vis/app"),
   "keep-awake": () => import("../../plugins/keep-awake/app"),
   memory: () => import("../../plugins/memory/app"),

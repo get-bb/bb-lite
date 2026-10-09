@@ -1585,12 +1585,18 @@ importers:
 
   plugins/github:
     dependencies:
+      '@bb/app-kit':
+        specifier: workspace:*
+        version: link:../../packages/app-kit
       '@bb/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
       '@bb/runner':
         specifier: workspace:*
         version: link:../../packages/runner
+      '@bb/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -1598,6 +1604,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.10
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.13
       typescript:
         specifier: npm:@typescript/typescript6@^6.0.2
         version: '@typescript/typescript6@6.0.2'
