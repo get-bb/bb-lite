@@ -543,22 +543,43 @@ it("refuses a Pi older than the supported minimum", async () => {
   ).rejects.toThrow(/older than the supported minimum 0.84.0/);
 });
 
-it("retries a prompt while Pi has not loaded its API key yet", async () => {
-  let failures = 2;
-  const { session, children } = await openSession((pi, command) => {
-    if (command.type !== "prompt" || failures === 0) {
-      return pi.reply(command.id);
-    }
-    failures -= 1;
-    const error = "No API key found for anthropic";
+async function failPrompts(error: string, failures: number) {
+  let left = failures;
+  const opened = await openSession((pi, command) => {
+    if (command.type !== "prompt" || left === 0) return pi.reply(command.id);
+    left -= 1;
     pi.send({ type: "response", id: command.id, success: false, error });
   });
-  await session.startTurn(prompt("Hello"));
+  await opened.session.startTurn(prompt("Hello"));
   await settle(8);
-  await new Promise((resolve) => setTimeout(resolve, 700));
-  const prompts = children[0]?.received.filter((c) => c.type === "prompt");
-  expect(prompts).toHaveLength(3);
-});
+  const prompts = opened.children[0]?.received.filter(
+    (c) => c.type === "prompt",
+  );
+  const errors = opened.events.filter((e) => e.type === "provider/error");
+  return { prompts, errors };
+}
+
+it("retries a prompt while Pi has not loaded its API key yet", async () => {
+  const missingKey = "No API key found for anthropic";
+  const loaded = await failPrompts(missingKey, 2);
+  expect(loaded.prompts).toHaveLength(3);
+  expect(new Set(loaded.prompts?.map((c) => c.message))).toEqual(
+    new Set(["Hello"]),
+  );
+  expect(loaded.errors).toEqual([]);
+
+  const other = await failPrompts("Model not found", 1);
+  expect(other.prompts).toHaveLength(1);
+  expect(other.errors).toMatchObject([
+    { message: expect.stringContaining("Model not found") },
+  ]);
+
+  const never = await failPrompts(missingKey, Number.POSITIVE_INFINITY);
+  expect(never.prompts).toHaveLength(9);
+  expect(never.errors).toMatchObject([
+    { message: expect.stringContaining(missingKey) },
+  ]);
+}, 10_000);
 
 it("compacts on request and closes the turn when Pi finishes", async () => {
   const { session, events, children } = await openSession(
