@@ -7,6 +7,7 @@ pub mod log_text;
 pub mod paths;
 pub mod plugin_proxy;
 pub mod render;
+pub mod sha256;
 pub mod table;
 
 use serde_json::{Map, Value, json};

@@ -42,6 +42,7 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("threadUnarchive", thread_unarchive),
         ("threadCompact", thread_compact),
         ("threadClear", thread_clear),
+        ("threadRetry", thread_retry),
         ("threadPin", thread_pin),
         ("threadUnpin", thread_unpin),
         ("threadRead", thread_read),
@@ -619,6 +620,25 @@ fn thread_unarchive(call: &mut Call) -> CliResult<Output> {
 
 fn thread_compact(call: &mut Call) -> CliResult<Output> {
     action(call, "/compact", true, "compaction requested")
+}
+
+fn thread_retry(call: &mut Call) -> CliResult<Output> {
+    let thread_id = thread_target(call)?;
+    let mut body = Map::new();
+    put(&mut body, "sendAt", send_at(call)?);
+    let response = call.http.post(&at(&thread_id, "/retry"), &Value::Object(body))?;
+    let outcome = if text(&response, "delivery") == Some("queued") {
+        let queued = response.get("queuedMessage").cloned().unwrap_or(Value::Null);
+        format!("retry queued ({})", queue_wait(&queued))
+    } else {
+        "retry sent".into()
+    };
+    let mut data = Map::new();
+    data.insert("threadId".into(), json!(thread_id));
+    if let Value::Object(fields) = response {
+        data.extend(fields);
+    }
+    Ok(Output::text(Value::Object(data), format!("Thread {thread_id} {outcome}")))
 }
 
 fn thread_clear(call: &mut Call) -> CliResult<Output> {

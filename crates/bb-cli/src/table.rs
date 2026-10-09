@@ -194,6 +194,11 @@ thread clear [id]  Clear the model context of an idle thread
 "#,
     self_flag!(),
     r#"
+thread retry [id]  Send the failed turn of a thread again
+"#,
+    self_flag!(),
+    r#"
+  --send-at <when>  ISO time (2026-08-25T09:00) or delay (30s, 10m, 2h)
 thread pin [id]  Pin a thread
 "#,
     self_flag!(),
@@ -456,7 +461,7 @@ file write <path>  Write a UTF-8 file on a machine
   --stdin  Read the content from stdin
   --root <path>  Refuse paths outside this directory
   --create-parents  Create missing parent directories
-  --expected-sha256 <hash>  Only write when the current hash matches
+  --expected-sha256 <hash>  Only write when the current hash matches (else exit 1, code conflict)
 file list <path>  List files under a directory on a machine
 "#,
     machine!(),
@@ -484,6 +489,12 @@ plugin remove <path>  Stop loading a plugin directory
 "#,
     yes!(),
     r#"
+plugin config <id> [action] [key] [value]  Show or change a plugin's settings
+  --project <id>  Read or write the value for one project
+  $ bb plugin config marketplace
+  $ bb plugin config marketplace set catalogs ./catalog.json
+  $ bb plugin config github unset token
+  > {ok, schema: {<key>: {type, label, …}}, values: {<key>: value}}
 
 server  Run the bb server in the foreground
 server status  Check that the server answers and show its data directory

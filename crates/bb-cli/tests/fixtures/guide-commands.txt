@@ -133,6 +133,12 @@ Clear the model context of an idle thread
 Options:
   --self  Target the current thread (BB_THREAD_ID)
 
+Usage: bb thread retry [id] [options]
+Send the failed turn of a thread again
+Options:
+  --self            Target the current thread (BB_THREAD_ID)
+  --send-at <when>  ISO time (2026-08-25T09:00) or delay (30s, 10m, 2h)
+
 Usage: bb thread pin [id] [options]
 Pin a thread
 Options:
@@ -524,7 +530,7 @@ Options:
   --stdin                   Read the content from stdin
   --root <path>             Refuse paths outside this directory
   --create-parents          Create missing parent directories
-  --expected-sha256 <hash>  Only write when the current hash matches
+  --expected-sha256 <hash>  Only write when the current hash matches (else exit 1, code conflict)
 
 Usage: bb file list <path> [options]
 List files under a directory on a machine
@@ -567,6 +573,12 @@ Usage: bb plugin remove <path> [options]
 Stop loading a plugin directory
 Options:
   --yes  Skip the confirmation prompt
+
+Usage: bb plugin config <id> [action] [key] [value] [options]
+Show or change a plugin's settings
+Options:
+  --project <id>  Read or write the value for one project
+JSON (--json): {ok, schema: {<key>: {type, label, …}}, values: {<key>: value}}
 
 Usage: bb server [options]
 Run the bb server in the foreground

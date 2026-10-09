@@ -16,6 +16,7 @@ Commands:
   unarchive     Unarchive a thread
   compact       Compact the context of an idle thread
   clear         Clear the model context of an idle thread
+  retry         Send the failed turn of a thread again
   pin           Pin a thread
   unpin         Unpin a thread
   read          Mark a thread read

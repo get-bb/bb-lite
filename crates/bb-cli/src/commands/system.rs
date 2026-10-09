@@ -1,4 +1,7 @@
-use std::io::Write;
+use std::io::{Read, Write};
+
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use std::path::Path;
 
 use serde_json::{Map, Value, json};
@@ -11,6 +14,7 @@ use crate::call::{
 use crate::commands::workspace::{resolve_path, text};
 use crate::http::encode;
 use crate::render::{pending_todos_of, shown, thread_lines, todo_lines};
+use crate::sha256::sha256_hex;
 
 const KEYBINDING: &str = "keybinding.";
 const UI: &str = "ui.";
@@ -30,6 +34,7 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("pluginReload", plugin_reload),
         ("pluginAdd", plugin_add),
         ("pluginRemove", plugin_remove),
+        ("pluginConfig", plugin_config),
         ("serverStatus", server_status),
         ("settingsSet", settings_set),
         ("settingsReset", settings_reset),
@@ -158,7 +163,10 @@ fn write_out(call: &mut Call, bytes: &[u8]) -> CliResult<()> {
 fn file_read(call: &mut Call) -> CliResult<Output> {
     let mut body = host_path(call)?;
     put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
-    let file = call.http.post("/machines/files/read", &Value::Object(body))?;
+    let file = match call.http.post("/machines/files/read", &Value::Object(body.clone())) {
+        Err(error) if error.code == "file_too_large" => return stream_file(call, &body),
+        other => other?,
+    };
     if call.json() {
         return Ok(Output::json(file));
     }
@@ -182,10 +190,52 @@ fn file_write(call: &mut Call) -> CliResult<Output> {
     put_some(&mut body, "createParents", call.on("create-parents")?.then_some(json!(true)));
     put_some(&mut body, "expectedSha256", call.flag("expected-sha256")?.map(Value::String));
     let result = call.http.post("/machines/files/write", &Value::Object(body))?;
-    let outcome =
-        if text(&result, "outcome") == "written" { "Wrote" } else { "Write conflict for" };
-    let line = format!("{outcome} {}", call.arg("path")?);
-    Ok(Output::text(result, line))
+    let path = call.arg("path")?;
+    if text(&result, "outcome") == "written" {
+        return Ok(Output::text(result, format!("Wrote {path}")));
+    }
+    let current = result["currentSha256"].as_str().unwrap_or("none (the file does not exist)");
+    Err(CliError::new(format!("Write conflict for {path}"))
+        .code("conflict")
+        .hint(format!("The file's current SHA-256 is {current}.")))
+}
+
+fn stream_file(call: &mut Call, target: &Map<String, Value>) -> CliResult<Output> {
+    let path = call.arg("path")?.to_string();
+    let query: Vec<(&str, &str)> =
+        target.iter().filter_map(|(key, value)| Some((key.as_str(), value.as_str()?))).collect();
+    let failed = |status: u16| {
+        CliError::new(format!("Could not read {path} ({status})")).code("read_failed")
+    };
+    let mut response = match call.http.send("GET", "/machines/files/raw", &query, None) {
+        Err(error) => return Err(error.status.map_or(error, failed)),
+        Ok(response) => response,
+    };
+    let mime_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .map(String::from);
+    let mut reader = response.body_mut().as_reader();
+    if !call.json() {
+        std::io::copy(&mut reader, &mut call.stdout).map_err(|e| CliError::new(e.to_string()))?;
+        call.stdout.flush().map_err(|e| CliError::new(e.to_string()))?;
+        return Ok(Output::Done);
+    }
+    let mut bytes = Vec::new();
+    reader.read_to_end(&mut bytes).map_err(|e| CliError::new(e.to_string()))?;
+    let (content, encoding) = match String::from_utf8(bytes.clone()) {
+        Ok(content) => (content, "utf8"),
+        Err(_) => (STANDARD.encode(&bytes), "base64"),
+    };
+    let mut data = Map::new();
+    data.insert("path".into(), json!(path));
+    data.insert("content".into(), json!(content));
+    data.insert("contentEncoding".into(), json!(encoding));
+    put_some(&mut data, "mimeType", mime_type.map(Value::String));
+    data.insert("sizeBytes".into(), json!(bytes.len()));
+    data.insert("sha256".into(), json!(sha256_hex(&bytes)));
+    Ok(Output::json(Value::Object(data)))
 }
 
 fn file_list(call: &mut Call) -> CliResult<Output> {
@@ -473,4 +523,85 @@ fn server_status(call: &mut Call) -> CliResult<Output> {
         "primaryHostId": config["primaryHostId"],
     });
     Ok(Output::text(data, line))
+}
+
+fn plugin_setting_value(kind: &str, key: &str, raw: &str) -> CliResult<Value> {
+    match kind {
+        "number" => match raw.trim().parse::<f64>() {
+            Ok(value) if value.fract() == 0.0 && value.abs() < 9e15 => Ok(json!(value as i64)),
+            Ok(value) if value.is_finite() => Ok(json!(value)),
+            _ => Err(usage_error(format!("Setting '{key}' needs a number, not '{raw}'."))),
+        },
+        "boolean" => match raw {
+            "true" => Ok(json!(true)),
+            "false" => Ok(json!(false)),
+            _ => Err(usage_error(format!("Setting '{key}' needs true or false, not '{raw}'."))),
+        },
+        _ => Ok(json!(raw)),
+    }
+}
+
+fn setting_line(value: &Value) -> String {
+    match value {
+        Value::Null => "(unset)".into(),
+        Value::Object(fields) if fields.contains_key("set") => {
+            if fields["set"] == json!(true) { "(secret, set)" } else { "(secret, unset)" }.into()
+        }
+        other => other.to_string(),
+    }
+}
+
+fn plugin_config(call: &mut Call) -> CliResult<Output> {
+    let plugin_id = call.arg("id")?.to_string();
+    let action = call.args("action").map(String::from);
+    let key = call.args("key").map(String::from);
+    let value = call.args("value").map(String::from);
+    let project_id = call.id("project")?;
+    let route = format!("/plugins/{}/settings", encode(&plugin_id));
+    let query: Vec<(&str, &str)> =
+        project_id.as_deref().map(|id| vec![("projectId", id)]).unwrap_or_default();
+    let current = call.http.get(&route, &query)?;
+    let usage = "Usage: bb plugin config <id> [set <key> <value> | unset <key>]";
+    let mut result = current.clone();
+    if let Some(action) = action {
+        if action != "set" && action != "unset" {
+            return Err(usage_error(format!("Unknown action '{action}'.")).hint(usage));
+        }
+        let missing = action == "set" && value.is_none();
+        let Some(key) = key.filter(|_| !missing) else {
+            return Err(usage_error(usage));
+        };
+        if action == "unset"
+            && let Some(value) = &value
+        {
+            return Err(usage_error(format!("Unexpected argument '{value}'.")).hint(usage));
+        }
+        let schema = current["schema"].as_object().cloned().unwrap_or_default();
+        let Some(descriptor) = schema.get(&key) else {
+            let names: Vec<&str> = schema.keys().map(String::as_str).collect();
+            let known = if names.is_empty() { "none".into() } else { names.join(", ") };
+            return Err(
+                usage_error(format!("Unknown setting '{key}'.")).hint(format!("Known: {known}"))
+            );
+        };
+        let next = match &value {
+            None => Value::Null,
+            Some(raw) => plugin_setting_value(&text(descriptor, "type"), &key, raw)?,
+        };
+        let mut values = Map::new();
+        values.insert(key, next);
+        let mut body = Map::new();
+        body.insert("values".into(), Value::Object(values));
+        put_some(&mut body, "projectId", project_id.map(Value::String));
+        result = call.http.put(&route, &Value::Object(body))?;
+    }
+    let schema = result["schema"].as_object().cloned().unwrap_or_default();
+    let lines: Vec<String> = schema
+        .keys()
+        .map(|name| format!("{name} = {}", setting_line(&result["values"][name])))
+        .collect();
+    if lines.is_empty() {
+        return Ok(Output::text(result, format!("{plugin_id} has no settings")));
+    }
+    Ok(Output::lines(result, &lines))
 }
