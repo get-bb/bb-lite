@@ -62,6 +62,39 @@ const REACHES: [what: string, pattern: RegExp][] = [
   ["environment variables", /\b(process\.env)\b/gu],
 ];
 
+const IMPORTS =
+  /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*["']@bb\/plugin(?:\/[\w-]+)?["']/gu;
+const CONTRACTS =
+  /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:\w+\.)?contract\(\s*["']([^"']+)["']/gu;
+
+function contractNames(sources: string[]): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const source of sources) {
+    for (const match of source.matchAll(CONTRACTS)) {
+      if (match[1] && match[2]) names.set(match[1], match[2]);
+    }
+  }
+  return names;
+}
+
+function importedNames(source: string): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const match of source.matchAll(IMPORTS)) {
+    for (const part of (match[1] ?? "").split(",")) {
+      const alias = /^\s*(?:type\s+)?([\w$]+)\s+as\s+([\w$]+)\s*$/u.exec(part);
+      if (alias?.[1] && alias[2]) names.set(alias[2], alias[1]);
+    }
+  }
+  return names;
+}
+
+function canonical(target: string, names: Map<string, string>): string {
+  const dot = target.indexOf(".");
+  const head = target.slice(0, dot);
+  const name = names.get(head);
+  return name === undefined ? target : `${name}${target.slice(dot)}`;
+}
+
 function pluginId(name: string): string {
   const unscoped = name.replace(/^@[^/]+\//u, "");
   return unscoped.replace(/^bb-plugin-/u, "").toLowerCase();
@@ -170,16 +203,22 @@ export async function validatePlugin(path: string): Promise<Report> {
       "The plugin has no server, app or runner part, skill or theme.",
     );
   }
-  for (const path of await sourceFiles(directory)) {
+  const files = await sourceFiles(directory);
+  const sources = await Promise.all(
+    files.map((path) => readFile(path, "utf8")),
+  );
+  const contracts = contractNames(sources);
+  for (const [index, path] of files.entries()) {
     const file = relative(directory, path);
-    const source = await readFile(path, "utf8");
+    const source = sources[index] ?? "";
+    const names = new Map([...contracts, ...importedNames(source)]);
     for (const [field, verb] of Object.entries(VERBS)) {
       const pattern = new RegExp(
         String.raw`\b\w+\.${verb}\(\s*${TARGET}`,
         "gu",
       );
       for (const match of source.matchAll(pattern)) {
-        const target = match[1] ?? "";
+        const target = canonical(match[1] ?? "", names);
         report[field as keyof typeof VERBS].push({ target, file });
       }
     }

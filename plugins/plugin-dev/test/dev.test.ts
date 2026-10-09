@@ -84,7 +84,7 @@ it("scaffolds, loads, reloads on change, validates and inspects a plugin", async
   const checked = await cli("plugin-dev", ["validate", directory]);
   expect(checked.stdout).toContain("Hello There (hello-there)");
   expect(checked.stdout).toContain("parts: server, app");
-  expect(checked.stdout).toContain("helloThere.greet  (server.ts)");
+  expect(checked.stdout).toContain("hello-there.greet  (server.ts)");
   expect(checked.stdout).toContain("No problems found.");
   writeFileSync(
     join(directory, "extra.ts"),
