@@ -24,6 +24,7 @@ import promptLibrary from "../../plugins/prompt-library/server.js";
 import providerClaudeCode from "../../plugins/provider-claude-code/server.js";
 import providerCodex from "../../plugins/provider-codex/server.js";
 import providerEcho from "../../plugins/provider-echo/server.js";
+import providerPi from "../../plugins/provider-pi/server.js";
 import providerRetry from "../../plugins/provider-retry/server.js";
 import providerUsage from "../../plugins/provider-usage/server.js";
 import secrets from "../../plugins/secrets/src/server.js";
@@ -64,6 +65,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "provider-claude-code": providerClaudeCode,
   "provider-codex": providerCodex,
   "provider-echo": providerEcho,
+  "provider-pi": providerPi,
   "provider-retry": providerRetry,
   "provider-usage": providerUsage,
   "scheduled-send": null,
