@@ -596,7 +596,10 @@ Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills
 
 - An entry's component is always `view`. Entries with an `id` are checked when added: the id must
   match `[a-zA-Z0-9_-]+`, be unique within the plugin and come with its `view` (or `run`, for a
-  command).
+  command). In a slot keyed by `id` (the composer's `popup`, `menuItem`, `footerControl`,
+  `sendMenuItem`, `textEffect`), two plugins' entries with the same id are one entry: only the
+  winner is shown (higher tier, then the later added) and `openPopup(id)` opens it. Prefix ids with
+  your plugin id unless you mean to replace another plugin's entry.
 - For example `bb.wrap(threadView.row, { kind: "work" }, (item) => ({ ...item, view: Wrapped }))`.
 - Wrap what a slot's owner draws in `<SlotMount pluginId slot id fallback?>` so a crash in one entry
   is contained.
@@ -898,9 +901,6 @@ changing a manifest's entries; `node scripts/gen-builtins.mjs --check` fails whe
 plugin API (this bb's by default) and lists each member the plugin uses that changed since,
 `breaking` or `additive` (owner only). `--dry-run` prints the same report without rewriting
 `package.json`.
-`--machine <hostId>` lists the runner parts loaded on that machine instead.
-`bb dev upgrade <dir> [--to <version>] [--dry-run]` moves a plugin's `engines.bb` to a newer API and lists what
-it uses that changed.
 `bb dev new <id>` writes a working plugin. `bb dev watch <dir>` loads a directory and reloads it when
 a file changes (`bb plugin add <dir>` loads it without watching; `bb plugin remove <dir> --yes`
 stops loading a directory, including an installed copy under `<dataDir>/plugins-src/<id>`). Removing a
