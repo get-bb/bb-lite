@@ -3,10 +3,16 @@ import { join, resolve, sep } from "node:path";
 import { derivePluginId } from "@bb/domain";
 import { z } from "zod";
 
+const OLD_SDK = "@get-bb/plugin-sdk";
+const packages = z.record(z.string(), z.unknown()).optional();
+
 const packageSchema = z.object({
   name: z.string().min(1),
   version: z.string().optional(),
   engines: z.looseObject({ bb: z.string().optional() }).optional(),
+  dependencies: packages,
+  peerDependencies: packages,
+  devDependencies: packages,
   bb: z.object({
     name: z.string().min(1),
     description: z.string().default(""),
@@ -123,6 +129,18 @@ export async function readManifest(path: string): Promise<PluginManifest> {
     ? bb.requires
     : Object.keys(ranged);
   const runner = bb.runner ?? bb.host;
+  const code = [bb.server, bb.app, runner].some((entry) => entry !== undefined);
+  const needs = [
+    parsed.dependencies,
+    parsed.peerDependencies,
+    parsed.devDependencies,
+  ].some((listed) => listed !== undefined && OLD_SDK in listed);
+  if (code && needs) {
+    throw new Error(
+      `This plugin was written for the original bb plugin SDK (${OLD_SDK}). ` +
+        "Port it to this bb with `bb dev port <directory>`.",
+    );
+  }
   const inside = (entry: string) => {
     const resolved = resolveInside(directory, entry);
     if (resolved !== null) return resolved;

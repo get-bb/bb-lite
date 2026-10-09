@@ -690,6 +690,9 @@ it("offers the themes a plugin's manifest declares", async () => {
     JSON.stringify({ ...manifest, bb: { ...manifest.bb, themes: [escaping] } }),
   );
   await expect(readManifest(directory)).rejects.toThrow("outside");
+  const old = { dependencies: { "@get-bb/plugin-sdk": "^0.44.0" } };
+  writeFileSync(file, JSON.stringify({ ...manifest, ...old }));
+  await expect(readManifest(directory)).rejects.toThrow("bb dev port");
   writeFileSync(file, JSON.stringify(manifest));
   const started = await serverWithEcho(directory);
   const { request, read, server, configFile, ctx } = started;
