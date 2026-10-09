@@ -356,6 +356,12 @@ plugin reload [id]  Reload one plugin, or rediscover and reload all of them
 plugin add <path>  Load a plugin directory (adds it to <dataDir>/config.json)
 plugin remove <path>  Stop loading a plugin directory
 ${YES}
+plugin config <id> [action] [key] [value]  Show or change a plugin's settings
+  --project <id>  Read or write the value for one project
+  $ bb plugin config marketplace
+  $ bb plugin config marketplace set catalogs ./catalog.json
+  $ bb plugin config github unset token
+  > {ok, schema: {<key>: {type, label, …}}, values: {<key>: value}}
 
 server  Run the bb server in the foreground
 server status  Check that the server answers and show its data directory

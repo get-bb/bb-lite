@@ -343,6 +343,73 @@ export const pluginReload: Run = async (c) => {
   c.out(result, `Reloaded ${pluginId ?? `${result.plugins.length} plugins`}`);
 };
 
+function pluginSettingValue(
+  type: string,
+  key: string,
+  raw: string,
+): string | number | boolean {
+  if (type === "number") {
+    const value = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(value)) {
+      throw usageError(`Setting '${key}' needs a number, not '${raw}'.`);
+    }
+    return value;
+  }
+  if (type === "boolean") {
+    if (raw === "true" || raw === "false") return raw === "true";
+    throw usageError(`Setting '${key}' needs true or false, not '${raw}'.`);
+  }
+  return raw;
+}
+
+function settingLine(value: unknown): string {
+  if (value === null || value === undefined) return "(unset)";
+  if (typeof value === "object" && "set" in value) {
+    return value.set === true ? "(secret, set)" : "(secret, unset)";
+  }
+  return JSON.stringify(value);
+}
+
+export const pluginConfig: Run = async (c) => {
+  const pluginId = c.arg("id");
+  const { action, key, value } = c.args;
+  const projectId = c.id("project");
+  const scope = projectId === undefined ? {} : { projectId };
+  const current = await c.op(c.ops.plugins.settings, { pluginId, ...scope });
+  const usage =
+    "Usage: bb plugin config <id> [set <key> <value> | unset <key>]";
+  let result = current;
+  if (action !== undefined) {
+    if (action !== "set" && action !== "unset") {
+      throw usageError(`Unknown action '${action}'.`, usage);
+    }
+    const missing = action === "set" ? value === undefined : false;
+    if (key === undefined || missing) throw usageError(usage);
+    if (action === "unset" && value !== undefined) {
+      throw usageError(`Unexpected argument '${value}'.`, usage);
+    }
+    const descriptor = current.schema[key];
+    if (descriptor === undefined) {
+      const known = Object.keys(current.schema).join(", ") || "none";
+      throw usageError(`Unknown setting '${key}'.`, `Known: ${known}`);
+    }
+    const next =
+      value === undefined
+        ? null
+        : pluginSettingValue(descriptor.type, key, value);
+    const values = { [key]: next };
+    result = await c.op(c.ops.plugins.updateSettings, {
+      pluginId,
+      values,
+      ...scope,
+    });
+  }
+  const shown = Object.keys(result.schema).map(
+    (name) => `${name} = ${settingLine(result.values[name])}`,
+  );
+  c.out(result, shown.length === 0 ? `${pluginId} has no settings` : shown);
+};
+
 async function editPluginConfig(c: Call, add: boolean): Promise<void> {
   const path = resolve(c.arg("path"));
   const { dataDir } = await c.op(c.ops.server.config, {});
