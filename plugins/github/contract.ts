@@ -275,6 +275,25 @@ export const pullRequests = contract("pullRequests", {
     output: pullRequest,
     kind: "write",
   }),
+  update: op({
+    input: z
+      .object({ environmentId: z.string().min(1), draft: z.boolean() })
+      .strict(),
+    output: pullRequest,
+    kind: "write",
+    description: "Mark the environment's pull request ready or draft",
+  }),
+  merge: op({
+    input: z
+      .object({
+        environmentId: z.string().min(1),
+        method: z.enum(["merge", "squash", "rebase"]).default("squash"),
+      })
+      .strict(),
+    output: pullRequest,
+    kind: "write",
+    description: "Merge the environment's pull request",
+  }),
   details: op({ input: itemRef, output: pullRequestDetails }),
   forThread: op({
     input: z.object({ threadId: z.string().min(1) }).strict(),

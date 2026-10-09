@@ -54,8 +54,10 @@ async function githubServer(options: { signedIn?: boolean } = {}) {
     if (verb === "pr" && sub === "view") {
       if (input.cwd === "/checkouts/none")
         throw new Error('no pull requests found for branch "x"');
-      return pull;
+      const conflicted = input.cwd === "/checkouts/conflicted";
+      return { ...pull, mergeable: conflicted ? "CONFLICTING" : "MERGEABLE" };
     }
+    if (verb === "pr" && (sub === "ready" || sub === "merge")) return "";
     throw new Error(`unexpected gh ${input.args.join(" ")}`);
   };
   const previous = server.runner.script.callOp;
@@ -165,6 +167,35 @@ it("finds the pull request of an environment on its machine", async () => {
   expect(await op("pullRequests.get", { environmentId: "env_none" })).toBe(
     null,
   );
+  const args = () => calls.map((call) => call.args.join(" "));
+  await op("pullRequests.update", { environmentId: "env_pr", draft: true });
+  expect(args()).toContain("pr ready --undo");
+  await op("pullRequests.update", { environmentId: "env_pr", draft: false });
+  expect(args()).toContain("pr ready");
+  const merged = await op("pullRequests.merge", { environmentId: "env_pr" });
+  expect(merged).toMatchObject({ number: 7 });
+  expect(args()).toContain("pr merge --squash");
+  insertEnvironment(testServer, {
+    id: "env_conflicted",
+    projectId: "proj_1",
+    hostId,
+    path: "/checkouts/conflicted",
+  });
+  const refused = server.http("POST", "/ops/pullRequests.merge", {
+    environmentId: "env_conflicted",
+    method: "rebase",
+  });
+  expect(await refused).toMatchObject({
+    status: 409,
+    body: { code: "pull_request_not_mergeable" },
+  });
+  const missing = server.http("POST", "/ops/pullRequests.merge", {
+    environmentId: "env_none",
+  });
+  expect(await missing).toMatchObject({
+    status: 404,
+    body: { code: "pull_request_not_found" },
+  });
 });
 
 it("starts an agent thread on an issue and links it", async () => {

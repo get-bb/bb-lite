@@ -514,6 +514,42 @@ export default function githubServer(bb: PluginServerApi): void {
       );
     },
   );
+  const openPull = async (environmentId: string) => {
+    const where = await checkout(environmentId);
+    if (where === null) fail("invalid", "This environment has no checkout");
+    const view = ["pr", "view", "--json", `${PR_FIELDS},mergeable`];
+    const raw = await json(view, where).catch((error: unknown) => {
+      if (!/no (open )?pull requests? found/i.test(messageOf(error))) {
+        throw error;
+      }
+      return fail("not_found", "This environment has no pull request", {
+        reason: "pull_request_not_found",
+      });
+    });
+    const refresh = async () =>
+      toPull(await json(["pr", "view", "--json", PR_FIELDS], where));
+    const { mergeable } = z
+      .object({ mergeable: z.string().catch("UNKNOWN") })
+      .parse(raw);
+    return { where, mergeable, refresh };
+  };
+  bb.implement(pullRequests.update, async ({ environmentId, draft }) => {
+    const { where, refresh } = await openPull(environmentId);
+    await gh(["pr", "ready", ...(draft ? ["--undo"] : [])], where);
+    bb.changed(pullRequests.get);
+    return refresh();
+  });
+  bb.implement(pullRequests.merge, async ({ environmentId, method }) => {
+    const { where, mergeable, refresh } = await openPull(environmentId);
+    if (mergeable === "CONFLICTING") {
+      fail("conflict", "Pull request is not currently mergeable", {
+        reason: "pull_request_not_mergeable",
+      });
+    }
+    await gh(["pr", "merge", `--${method}`], where);
+    bb.changed(pullRequests.get);
+    return refresh();
+  });
   bb.implement(pullRequests.details, ({ repo, number }) =>
     pullRequestDetails((args) => json(args), repo, number),
   );
