@@ -50,10 +50,14 @@ const MODELS: AvailableModel[] = ["echo-1", "echo-2"].map((id, index) => ({
   isDefault: index === 0,
 }));
 
-function directive(text: string, name: string) {
+function rawDirective(text: string, name: string) {
   const pattern = new RegExp(`(?:^|\\s)${name}(?::(\\S+))?(?=\\s|$)`, "u");
   const match = pattern.exec(text);
-  return match === null ? undefined : (match[1] ?? "").replaceAll("_", " ");
+  return match === null ? undefined : (match[1] ?? "");
+}
+
+function directive(text: string, name: string) {
+  return rawDirective(text, name)?.replaceAll("_", " ");
 }
 
 function promptText(input: readonly PromptInput[]) {
@@ -216,7 +220,7 @@ class EchoSession implements ProviderSession {
       const given = parts.filter((part) => part.length > 0).join(", ");
       return `Question answered: ${given || "no answer"}`;
     }
-    const tool = directive(text, "call_tool");
+    const tool = rawDirective(text, "call_tool");
     if (tool === undefined) return undefined;
     const encoded = directive(text, "tool_input") ?? "{}";
     const input = toolInputSchema.parse(JSON.parse(encoded));
