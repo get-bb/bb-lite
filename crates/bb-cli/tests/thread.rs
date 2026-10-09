@@ -53,6 +53,10 @@ fn show_prints_thread_environment_and_todos() {
                 found
             }
             "/environments/env_1" => json!({ "id": "env_1", "hostId": "host_1", "path": "/w" }),
+            "/ops/pullRequests.get" => return (501, unimplemented()),
+            "/environments/env_1/status" => {
+                json!({ "outcome": "not_applicable", "message": "No git" })
+            }
             "/threads/thr_a/timeline" => json!({ "pendingTodos": { "items": [
                 { "status": "completed", "text": "one" },
                 { "status": "in_progress", "text": "two" },
@@ -63,8 +67,12 @@ fn show_prints_thread_environment_and_todos() {
     });
     let out = ok(&fake.url, Some("thr_a"), &["thread", "show", "--self"]);
     let paths: Vec<String> = fake.requests().into_iter().map(|r| r.path + "?" + &r.query).collect();
-    let expected_paths =
-        ["/threads/thr_a?", "/environments/env_1?", "/threads/thr_a/timeline?summaryOnly=true"];
+    let expected_paths = [
+        "/threads/thr_a?",
+        "/environments/env_1?",
+        "/threads/thr_a/timeline?summaryOnly=true",
+        "/ops/pullRequests.get?",
+    ];
     assert_eq!(paths, expected_paths);
     let expected = format!(
         "Thread: thr_a\n  Status: idle\n  Title: Fix it\n  Project: proj_1\n  Environment: env_1 \
@@ -74,6 +82,14 @@ fn show_prints_thread_environment_and_todos() {
         locale_date(1_700_000_100_000.0)
     );
     assert_eq!(out, expected);
+    let out = ok(&fake.url, None, &["thread", "show", "thr_a", "--work-status", "--json"]);
+    let data: Value = serde_json::from_str(&out).expect("json");
+    let pull = json!({ "status": "unavailable", "pullRequest": null,
+        "message": "The github plugin is not enabled." });
+    assert_eq!(data["environment"]["pullRequest"], pull);
+    assert_eq!(data["workStatus"], Value::Null);
+    let out = ok(&fake.url, None, &["thread", "show", "thr_a", "--work-status"]);
+    assert!(out.ends_with("two\n\nWork status: No git\n"));
     let error = fail(&fake.url, None, &["thread", "show"]);
     assert_eq!(error.message, "Missing thread ID. Pass <id> or use --self.");
     assert_eq!(error.code, "missing_required");
@@ -372,4 +388,8 @@ fn remaining_actions_post_to_their_routes() {
         assert_eq!(fake.only(), request("POST", &format!("/threads/thr_a{tail}"), "", None));
         assert_eq!(serde_json::from_str::<Value>(&out).expect("json"), thread("thr_a", "idle"));
     }
+}
+
+fn unimplemented() -> String {
+    json!({ "code": "unimplemented", "message": "Nothing implements it" }).to_string()
 }

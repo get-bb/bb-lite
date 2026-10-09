@@ -869,7 +869,7 @@ fn env_archive_threads(call: &mut Call) -> CliResult<Output> {
     Ok(Output::text(result, message))
 }
 
-fn pull_request_op(call: &Call, name: &str, body: Value) -> CliResult<Value> {
+pub(crate) fn pull_request_op(call: &Call, name: &str, body: Value) -> CliResult<Value> {
     match call.http.post(&format!("/ops/pullRequests.{name}"), &body) {
         Ok(answer) => Ok(answer.get("result").cloned().unwrap_or(Value::Null)),
         Err(error) if error.code == "unimplemented" => {

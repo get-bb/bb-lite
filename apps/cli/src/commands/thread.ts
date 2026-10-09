@@ -1,4 +1,6 @@
 import {
+  githubDisabled,
+  pullRequestOps,
   ThreadWaitTimeoutError,
   ThreadWaitUnreachableError,
   uploadAttachment,
@@ -8,7 +10,10 @@ import { readFile } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PromptInput, ThreadEventRow } from "@bb/domain";
-import type { CreateThreadEnvironmentArgs } from "@bb/server-contract";
+import type {
+  CreateThreadEnvironmentArgs,
+  EnvironmentStatusResponse,
+} from "@bb/server-contract";
 import {
   confirm,
   durationMs,
@@ -254,10 +259,65 @@ export const threadShow: Run = async (c) => {
         .catch(() => null)
     : null;
   const pendingTodos = await pendingTodosOf(remote, threadId);
-  const lines = threadLines(thread, environment);
-  const data = { thread, environment, pendingTodos };
-  c.out(data, [...lines, ...todoLines(pendingTodos)]);
+  const lines = [
+    ...threadLines(thread, environment),
+    ...todoLines(pendingTodos),
+  ];
+  const data = {
+    thread,
+    environment: environment && {
+      ...environment,
+      pullRequest: await pullRequestOf(c, environment.id),
+    },
+    pendingTodos,
+  };
+  if (!environmentId || !c.on("work-status")) return c.out(data, lines);
+  const status = await c.op(c.ops.environments.status, { environmentId });
+  const workStatus = status.outcome === "available" ? status.workspace : null;
+  c.out({ ...data, workStatus }, [...lines, "", ...workLines(status)]);
 };
+
+async function pullRequestOf(c: Call, environmentId: string) {
+  try {
+    const pullRequest = await c
+      .op(pullRequestOps().get, { environmentId })
+      .catch(githubDisabled);
+    return pullRequest
+      ? { status: "available", pullRequest }
+      : { status: "none", pullRequest: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { status: "unavailable", pullRequest: null, message };
+  }
+}
+
+function workLines(status: EnvironmentStatusResponse): string[] {
+  if (status.outcome === "not_applicable") {
+    return [`Work status: ${status.message}`];
+  }
+  if (status.outcome !== "available") {
+    return [`Work status: ${status.failure.message}`];
+  }
+  const { workingTree, branch, mergeBase } = status.workspace;
+  return [
+    "Work status:",
+    `  State:    ${workingTree.state}`,
+    ...(branch.currentBranch ? [`  Branch:   ${branch.currentBranch}`] : []),
+    `  Changed files: ${workingTree.files.length}`,
+    ...(workingTree.lineStatsComplete
+      ? [
+          `  Insertions:    +${workingTree.insertions}`,
+          `  Deletions:     -${workingTree.deletions}`,
+        ]
+      : ["  Line stats: unavailable for untracked files"]),
+    ...(mergeBase
+      ? [
+          `  Merge base:   ${mergeBase.mergeBaseBranch}`,
+          `  Ahead: ${mergeBase.aheadCount}  Behind: ${mergeBase.behindCount}`,
+        ]
+      : []),
+  ];
+}
 
 async function logEvents(c: Call, threadId: string) {
   const wanted = c.on("all")

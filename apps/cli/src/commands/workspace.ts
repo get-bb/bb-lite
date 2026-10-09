@@ -1,4 +1,9 @@
-import { uploadAttachment } from "../remote.js";
+import {
+  githubDisabled,
+  MERGE_METHODS,
+  pullRequestOps,
+  uploadAttachment,
+} from "../remote.js";
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
@@ -12,9 +17,7 @@ import {
   type Call,
   type Remote,
 } from "../call.js";
-import { z } from "zod";
-import { loaded } from "../call.js";
-import { CliError, usageError, type Run } from "../engine.js";
+import { usageError, type Run } from "../engine.js";
 
 const ENVIRONMENT_STATUSES = ["ready", "destroyed"] as const;
 const MANUAL_MACHINE_PROVIDER = "manual";
@@ -621,46 +624,6 @@ export const envArchiveThreads: Run = async (c) => {
   const count = result.archivedThreadIds.length;
   c.out(result, `Archived ${count} thread(s) in environment ${environmentId}`);
 };
-
-const MERGE_METHODS = ["merge", "squash", "rebase"] as const;
-
-function pullRequestOps() {
-  const { contract, op } = loaded().plugin;
-  const environment = { environmentId: z.string() };
-  const pull = z.object({
-    number: z.number(),
-    title: z.string(),
-    state: z.string(),
-    isDraft: z.boolean(),
-    url: z.string(),
-    headRefName: z.string(),
-    baseRefName: z.string(),
-  });
-  return contract("pullRequests", {
-    get: op({ input: z.object(environment), output: pull.nullable() }),
-    update: op({
-      input: z.object({ ...environment, draft: z.boolean() }),
-      output: pull,
-      kind: "write",
-    }),
-    merge: op({
-      input: z.object({ ...environment, method: z.enum(MERGE_METHODS) }),
-      output: pull,
-      kind: "write",
-    }),
-  });
-}
-
-function githubDisabled(error: unknown): never {
-  const { CallError: Failure } = loaded().plugin;
-  if (error instanceof Failure && error.code === "unimplemented") {
-    throw new CliError("The github plugin is not enabled.", {
-      code: "plugin_disabled",
-      hint: "Enable it with: bb plugin enable github",
-    });
-  }
-  throw error;
-}
 
 async function setDraft(c: Call, draft: boolean, done: string) {
   const pull = await c

@@ -77,7 +77,8 @@ thread wait <id>  Block until a thread reaches a status (default idle) or event
     request, 4 when the thread cannot reach the status
 thread show|get|view|status [id]  Show a thread, its environment and its TODOs
 ${SELF}
-  > {thread, environment, pendingTodos} (thread fields are under .thread)
+  --work-status  Include work status (git state)
+  > {thread, environment: {..., pullRequest}, pendingTodos, workStatus?}
 thread log|messages|timeline [id]  Print the timeline, or raw events as JSON
 ${SELF}
   --format <format>  minimal (default), verbose or json

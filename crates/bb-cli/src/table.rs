@@ -134,7 +134,8 @@ thread show|get|view|status [id]  Show a thread, its environment and its TODOs
 "#,
     self_flag!(),
     r#"
-  > {thread, environment, pendingTodos} (thread fields are under .thread)
+  --work-status  Include work status (git state)
+  > {thread, environment: {..., pullRequest}, pendingTodos, workStatus?}
 thread log|messages|timeline [id]  Print the timeline, or raw events as JSON
 "#,
     self_flag!(),

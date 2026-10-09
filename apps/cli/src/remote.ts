@@ -3,7 +3,9 @@ import type {
   ThreadResponse,
   UploadedPromptAttachment,
 } from "@bb/server-contract";
-import type { Remote } from "./call.js";
+import { z } from "zod";
+import { loaded, type Remote } from "./call.js";
+import { CliError } from "./engine.js";
 
 const MAX_EVENT_WAIT_MS = 30_000;
 
@@ -105,4 +107,44 @@ export async function uploadAttachment(
   const path = `/api/v1/projects/${encodeURIComponent(projectId)}/attachments`;
   const response = await remote.request(path, { method: "POST", body });
   return (await response.json()) as UploadedPromptAttachment;
+}
+
+export const MERGE_METHODS = ["merge", "squash", "rebase"] as const;
+
+export function pullRequestOps() {
+  const { contract, op } = loaded().plugin;
+  const environment = { environmentId: z.string() };
+  const pull = z.object({
+    number: z.number(),
+    title: z.string(),
+    state: z.string(),
+    isDraft: z.boolean(),
+    url: z.string(),
+    headRefName: z.string(),
+    baseRefName: z.string(),
+  });
+  return contract("pullRequests", {
+    get: op({ input: z.object(environment), output: pull.nullable() }),
+    update: op({
+      input: z.object({ ...environment, draft: z.boolean() }),
+      output: pull,
+      kind: "write",
+    }),
+    merge: op({
+      input: z.object({ ...environment, method: z.enum(MERGE_METHODS) }),
+      output: pull,
+      kind: "write",
+    }),
+  });
+}
+
+export function githubDisabled(error: unknown): never {
+  const { CallError: Failure } = loaded().plugin;
+  if (error instanceof Failure && error.code === "unimplemented") {
+    throw new CliError("The github plugin is not enabled.", {
+      code: "plugin_disabled",
+      hint: "Enable it with: bb plugin enable github",
+    });
+  }
+  throw error;
 }
