@@ -1,5 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { projects, useCall, useOp, useProviders } from "@bb/plugin/app";
+import {
+  projects,
+  sessions,
+  useCall,
+  useOp,
+  useProviders,
+} from "@bb/plugin/app";
 import {
   permissionModeValues,
   reasoningLevelValues,
@@ -121,6 +127,21 @@ export function AutomationForm({
   }));
   const chosenProject = projectId || projectOptions[0]?.value || "";
   const chosenProvider = providerId || available[0]?.id || "";
+  const executionOptions = useOp(
+    sessions.executionOptions,
+    { providerId: chosenProvider },
+    { enabled: chosenProvider !== "" },
+  );
+  const modelOptions = [
+    { value: "", label: "Default" },
+    ...(executionOptions.data?.models ?? []).map((option) => ({
+      value: option.model,
+      label: option.displayName,
+    })),
+  ];
+  if (!modelOptions.some((option) => option.value === model)) {
+    modelOptions.push({ value: model, label: model });
+  }
 
   const submit = async () => {
     setError(null);
@@ -236,9 +257,12 @@ export function AutomationForm({
           }))}
           onChange={setProviderId}
         />
-        <Field label="Model">
-          <Input value={model} onChange={(e) => setModel(e.target.value)} />
-        </Field>
+        <Choice
+          label="Model"
+          value={model}
+          options={modelOptions}
+          onChange={setModel}
+        />
         <Choice
           label="Reasoning"
           value={reasoningLevel}

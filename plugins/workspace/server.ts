@@ -1,9 +1,12 @@
 import { machineFiles } from "@bb/runner";
-import { isAbsolute, resolve } from "node:path";
-import { files, threads, type PluginServerApi } from "@bb/plugin";
+import { isAbsolute, posix, resolve } from "node:path";
+import { files, OpError, threads, type PluginServerApi } from "@bb/plugin";
 import { RunnerError } from "@bb/runner";
 import { implementMachineFiles, registerFileRoutes } from "./routes.js";
 import { startWorkspaceWatch } from "./watch.js";
+
+const served = (path: string) =>
+  path.replace(/^\/+/u, "").split("/").map(encodeURIComponent).join("/");
 
 export default function workspace(bb: PluginServerApi): void {
   const { runners } = bb;
@@ -30,6 +33,26 @@ export default function workspace(bb: PluginServerApi): void {
     if (file === null || !("content" in file)) return null;
     const bytes = Buffer.from(file.content, file.contentEncoding);
     return { content: bytes.toString(encoding), sha256: file.sha256 };
+  });
+  bb.implement(files.url, async ({ threadId, path, source }) => {
+    const kind = source ?? (isAbsolute(path) ? "host" : "workspace");
+    if (kind === "workspace") {
+      const { id } = await workspaceOf(threadId);
+      return {
+        url: `/api/v1/environments/${encodeURIComponent(id)}/files/${served(path)}`,
+      };
+    }
+    let absolute = path;
+    if (kind === "thread-storage") {
+      const storage = await bb.call(threads.storageLocation, { threadId });
+      if (storage === null) {
+        throw new OpError("not_found", "This thread has no storage directory.");
+      }
+      absolute = posix.join(storage.path, path);
+    }
+    return {
+      url: `/api/v1/threads/${encodeURIComponent(threadId)}/host-files/${served(absolute)}`,
+    };
   });
   bb.implement(files.write, async (args) => {
     const { threadId, encoding: contentEncoding, ...file } = args;

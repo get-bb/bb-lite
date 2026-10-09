@@ -18,6 +18,7 @@ import type {
   WorkspaceFilePreviewStatusLabel,
 } from "@bb/client-core";
 import { buildMarkdownFileImageRouting } from "../ui/markdown-file-image-routing";
+import { matchesFileViewer } from "../../lib/file-viewer-match";
 import { getAbsoluteDirname } from "@bb/app-kit/lib/absolute-file-path";
 import { FilePreview, resolveFilePreviewState } from "./FilePreview";
 
@@ -36,6 +37,8 @@ interface QueryFilePreviewProps extends Omit<
 > {
   query: UseQueryResult<FilePreviewData>;
   statusLabel?: WorkspaceFilePreviewStatusLabel | null;
+  threadId: string | null;
+  source: "workspace" | "host";
 }
 
 function QueryFilePreview({
@@ -46,11 +49,12 @@ function QueryFilePreview({
   onOpenInEditor,
   query,
   statusLabel,
+  threadId,
+  source,
 }: QueryFilePreviewProps) {
   const viewers = useSlotEntries(sidePanel.fileViewer);
-  const extension = activePath.split(".").at(-1)?.toLowerCase() ?? "";
   const viewer = viewers
-    .filter(({ item }) => item.extensions.includes(extension))
+    .filter(({ item }) => matchesFileViewer(item, activePath))
     .at(-1);
   const { data } = query;
   if (viewer !== undefined && data?.path === activePath) {
@@ -63,6 +67,8 @@ function QueryFilePreview({
       >
         <View
           path={activePath}
+          threadId={threadId}
+          source={source}
           name={data.name ?? activePath}
           url={data.url ?? null}
           mimeType={data.mimeType ?? null}
@@ -113,6 +119,8 @@ export function WorkspaceFilePreviewTabContent({
     <QueryFilePreview
       {...props}
       query={query}
+      threadId={threadId}
+      source="workspace"
       markdownLinkRouting={buildMarkdownFileImageRouting({
         path: activePath,
         rootPath: environmentQuery.data?.path ?? null,
@@ -144,6 +152,8 @@ export function HostFilePreviewTabContent({
     <QueryFilePreview
       {...props}
       query={query}
+      threadId={threadId}
+      source="host"
       markdownLinkRouting={buildMarkdownFileImageRouting({
         path: activePath,
         rootPath:

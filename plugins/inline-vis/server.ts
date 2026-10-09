@@ -45,29 +45,27 @@ export function relativePreviewFile(value: string): string {
   return normalized;
 }
 
-const encodePath = (value: string) =>
-  value.replace(/^\/+/u, "").split("/").map(encodeURIComponent).join("/");
-
 export default function inlineVisServer(bb: PluginServerApi): void {
   const locate = async (threadId: string, file: string, source: string) => {
     if (source === "workspace") {
-      const workspace = await bb.call(threads.workspace, { threadId });
-      const environment = encodeURIComponent(workspace.id);
-      return {
-        readPath: file,
-        url: `/api/v1/environments/${environment}/files/${encodePath(file)}`,
-      };
+      const { url } = await bb.call(files.url, {
+        threadId,
+        path: file,
+        source: "workspace",
+      });
+      return { readPath: file, url };
     }
     const storage = await bb.call(threads.storageLocation, { threadId });
     if (storage === null) {
       throw new Error("This thread has no storage directory.");
     }
-    const absolute = path.posix.join(storage.path, file);
-    const thread = encodeURIComponent(threadId);
-    return {
-      readPath: absolute,
-      url: `/api/v1/threads/${thread}/host-files/${encodePath(absolute)}`,
-    };
+    const readPath = path.posix.join(storage.path, file);
+    const { url } = await bb.call(files.url, {
+      threadId,
+      path: readPath,
+      source: "host",
+    });
+    return { readPath, url };
   };
 
   bb.implement(inlineVis.preview, async ({ threadId, file: raw, source }) => {

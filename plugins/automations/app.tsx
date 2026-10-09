@@ -14,7 +14,19 @@ export default function automationsApp(bb: PluginAppApi): void {
     id: "automation",
     label: "Automation",
     icon: "Repeat",
-    run: ({ composer: handle }) =>
-      handle?.updateText(withCreateAutomationPrompt),
+    run: ({ composer: handle }) => {
+      if (handle === null) return;
+      const text = withCreateAutomationPrompt(handle.text);
+      const shift = text.length - handle.text.length;
+      handle.setDraft({
+        text,
+        mentions: handle.mentions.map((mention) => ({
+          ...mention,
+          start: mention.start + shift,
+          end: mention.end + shift,
+        })),
+      });
+      handle.focus();
+    },
   });
 }

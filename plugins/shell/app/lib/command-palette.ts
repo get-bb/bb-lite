@@ -84,6 +84,7 @@ export function buildPluginPaletteActions(args: {
   slots: readonly Owned<ShellCommand>[];
   threadId: string | null;
   projectId: string | null;
+  composerKey: string | null;
   openThreadPanel: PluginThreadPanelOpenHandler | null;
 }): PaletteAction[] {
   return args.slots.flatMap((slot): PaletteAction[] => {
@@ -95,6 +96,7 @@ export function buildPluginPaletteActions(args: {
     const context: CommandContext = {
       threadId: args.threadId,
       projectId: args.projectId,
+      composerKey: args.composerKey,
       openPanel: (options) => {
         if (args.openThreadPanel !== null) {
           return args.openThreadPanel({ ...options, pluginId: slot.pluginId });

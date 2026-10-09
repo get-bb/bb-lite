@@ -169,26 +169,6 @@ export function CommentBox({
   );
 }
 
-export function DiffBlock({ patch }: { patch: string }) {
-  return (
-    <pre className="overflow-x-auto bg-muted/30 py-1 font-mono text-[11px] leading-4">
-      {patch.split("\n").map((line, index) => (
-        <div
-          key={index}
-          className={cn(
-            "px-2 whitespace-pre",
-            line.startsWith("+") && "bg-emerald-500/10",
-            line.startsWith("-") && "bg-rose-500/10",
-            line.startsWith("@@") && "text-muted-foreground",
-          )}
-        >
-          {line || " "}
-        </div>
-      ))}
-    </pre>
-  );
-}
-
 export function PickList({
   options,
   selected,

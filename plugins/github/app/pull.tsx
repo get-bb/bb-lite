@@ -1,4 +1,4 @@
-import { callOp, useBbNavigate, useOp } from "@bb/plugin/app";
+import { callOp, Diff, FileLink, useBbNavigate, useOp } from "@bb/plugin/app";
 import type { SidePanelPanelProps } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { cn } from "@bb/shared-ui/lib/utils";
@@ -10,7 +10,6 @@ import {
   Chips,
   CommentBox,
   CommentView,
-  DiffBlock,
   Section,
   StateBadge,
   ThreadLinks,
@@ -166,10 +165,12 @@ export function PullDetail({
           {data.reviewThreads.map((thread, index) => (
             <div key={index} className="rounded-md border border-border">
               <div className="px-3 py-1.5 font-mono text-xs">
-                {thread.path}
-                {thread.line !== null && `:${thread.line}`}
+                <FileLink path={thread.path} threadId={threadId}>
+                  {thread.path}
+                  {thread.line !== null && `:${thread.line}`}
+                </FileLink>
               </div>
-              <DiffBlock patch={thread.diffHunk} />
+              <Diff patch={thread.diffHunk} path={thread.path} />
               <div className="flex flex-col gap-2 p-2">
                 {thread.comments.map((comment, at) => (
                   <CommentView key={at} {...comment} />
@@ -206,9 +207,14 @@ export function PullDetail({
                 </Button>
               )}
             </div>
-            {openFile === file.path && (
-              <DiffBlock patch={file.patch ?? "No textual diff."} />
-            )}
+            {openFile === file.path &&
+              (file.patch === null ? (
+                <p className="px-3 py-1.5 text-xs text-muted-foreground">
+                  No textual diff.
+                </p>
+              ) : (
+                <Diff patch={file.patch} path={file.path} />
+              ))}
           </div>
         ))}
       </Section>

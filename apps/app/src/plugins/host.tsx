@@ -23,7 +23,11 @@ import type {
 import { Icon } from "@bb/shared-ui/icon";
 import { useQuestionFormHost } from "@bb/shared-ui/question-form-host";
 import { ImageLightbox } from "@bb/app-kit/components/ui/image-lightbox";
-import { MarkdownPreview } from "@bb/app-kit/components/ui/markdown-preview";
+import {
+  PluginDiff,
+  PluginFileLink,
+  PluginMarkdown,
+} from "@bb/app-kit/components/plugin/PluginContent";
 import { ThreadViewers } from "@bb/app-kit/components/users/ThreadViewers";
 import { PluginUrlLink } from "@bb/app-kit/components/plugin/PluginUrlLink";
 import { ProviderIcon } from "@bb/app-kit/components/plugin/ProviderIcon";
@@ -203,7 +207,8 @@ function useBbNavigate(): BbNavigate {
       openThreadPanel: (options) =>
         openThreadPanelHandler?.({ ...options, pluginId }) ?? false,
       openUrl: (url) => appNavigation.openUrl({ url }),
-      openFile: ({ threadId, path }) => requestFileOpen(threadId, path),
+      openFile: ({ threadId, path, source }) =>
+        requestFileOpen(threadId, path, source),
     }),
     [appNavigation, navigate, openThreadPanelHandler, pluginId],
   );
@@ -235,5 +240,7 @@ export const pluginAppHost: PluginAppHost = {
   UrlLink: PluginUrlLink,
   ThreadViewers,
   ImageLightbox,
-  Markdown: MarkdownPreview,
+  Markdown: PluginMarkdown,
+  Diff: PluginDiff,
+  FileLink: PluginFileLink,
 };

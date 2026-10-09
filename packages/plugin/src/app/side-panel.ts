@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import type { ThreadTab } from "@bb/server-contract";
 import { identified } from "../app-contracts.js";
-import type { SidePanelPanel } from "../app-types.js";
+import type { FileSource, SidePanelPanel } from "../app-types.js";
 import { contract, slot } from "../contract.js";
 
 export type SidePanelTab = ThreadTab;
@@ -28,6 +28,8 @@ export interface SidePanelTabKind {
 
 export interface FileViewerProps {
   path: string;
+  threadId: string | null;
+  source: FileSource;
   name: string;
   url: string | null;
   mimeType: string | null;
@@ -38,6 +40,7 @@ export interface FileViewerProps {
 export interface FileViewer {
   id: string;
   extensions: readonly string[];
+  names?: readonly string[];
   view: ComponentType<FileViewerProps>;
 }
 

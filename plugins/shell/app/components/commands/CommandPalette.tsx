@@ -1,5 +1,5 @@
-import { settings, shell } from "@bb/plugin/app";
-import { useOwned } from "@bb/app-kit/plugins/slots";
+import { composer, settings, shell } from "@bb/plugin/app";
+import { useOwned, useSlot } from "@bb/app-kit/plugins/slots";
 import { lazy, Suspense, useId, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -72,6 +72,7 @@ export function CommandPalette({
   >([]);
   const [recents, setRecents] = useState<readonly string[]>(readPaletteRecents);
   const commands = useOwned(shell.command);
+  const composerApis = useSlot(composer.api);
   const settingsSections = useOwned(settings.section);
   const navPanels = useOwned(shell.navPanel);
   const settingsPages = useSettingsPages();
@@ -86,6 +87,7 @@ export function CommandPalette({
       slots,
       threadId,
       projectId,
+      composerKey: composerApis.at(-1)?.active()?.key ?? null,
       openThreadPanel: getActiveThreadPanelOpener(),
     });
   useIndexedAppCommandHandlers(pluginCommandIds, (index) => {

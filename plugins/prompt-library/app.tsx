@@ -25,7 +25,7 @@ import {
   type PromptSnippet,
 } from "./contract";
 
-type Target = { threadId: string | null } | null;
+type Target = { composerKey: string | null; threadId: string | null } | null;
 
 let openTarget: Target = null;
 const listeners = new Set<() => void>();
@@ -272,7 +272,12 @@ function PromptPicker({ composer: handle }: { composer: ComposerHandle }) {
 
 function PromptBanner({ composer: handle }: { composer: ComposerHandle }) {
   const target = useTarget();
-  if (target === null || target.threadId !== handle.threadId) return null;
+  if (target === null) return null;
+  const mine =
+    target.composerKey === null
+      ? target.threadId === handle.threadId
+      : target.composerKey === handle.key;
+  if (!mine) return null;
   return <PromptPicker composer={handle} />;
 }
 
@@ -282,12 +287,20 @@ export default function promptLibraryApp(bb: PluginAppApi): void {
     id: "prompts",
     label: "Prompts…",
     icon: "Clock",
-    run: (context) => setTarget({ threadId: context.threadId }),
+    run: (context) =>
+      setTarget({
+        composerKey: context.composer?.key ?? null,
+        threadId: context.threadId,
+      }),
   });
   bb.add(shell.command, {
     id: "search-prompts",
     title: "Search prompts",
     defaultShortcut: { key: "r", control: true },
-    run: (context) => setTarget({ threadId: context.threadId }),
+    run: (context) =>
+      setTarget({
+        composerKey: context.composerKey,
+        threadId: context.threadId,
+      }),
   });
 }

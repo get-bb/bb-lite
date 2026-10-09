@@ -1,4 +1,5 @@
-import { sidePanel } from "@bb/plugin/app";
+import { sidePanel, threads, type FileSource } from "@bb/plugin/app";
+import { callOp } from "@bb/app-kit/plugins/registry";
 import { useOwned } from "@bb/app-kit/plugins/slots";
 import {
   useCallback,
@@ -209,14 +210,20 @@ export function useThreadPanel({
       },
       replaceNewTab,
     );
-  const openRequested = useEffectEvent((path: string) =>
-    previewWorkspaceFile(path),
-  );
-  useEffect(() => onFileOpenRequest(threadId, openRequested), [threadId]);
   const openHostFile = (file: HostFileTabState) => {
     if (environmentId !== null)
       open(hostFileTab(file, environmentId, threadId));
   };
+  const openRequested = useEffectEvent((path: string, source?: FileSource) => {
+    if (source === "host") return openHostFile({ path, lineRange: null });
+    if (source !== "thread-storage") return previewWorkspaceFile(path);
+    void callOp(threads.storageLocation, { threadId }).then((storage) => {
+      if (storage === null) return;
+      const root = storage.path.replace(/\/+$/u, "");
+      openHostFile({ path: `${root}/${path}`, lineRange: null });
+    });
+  });
+  useEffect(() => onFileOpenRequest(threadId, openRequested), [threadId]);
   const openNewTab = useCallback(() => {
     open(NEW_TAB);
     setFocusRequest("new-tab");

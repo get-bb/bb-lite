@@ -257,12 +257,14 @@ function InlineVisDirective({
       </Notice>
     );
   }
-  const open =
-    preview.source === "workspace"
-      ? () => {
-          navigate.openFile({ threadId: message.threadId, path: preview.file });
-        }
-      : null;
+  const document = {
+    threadId: message.threadId,
+    path: preview.file,
+    source: preview.source,
+  };
+  const open = () => {
+    navigate.openFile(document);
+  };
   return (
     <PreviewCard
       file={preview.file}
@@ -270,7 +272,7 @@ function InlineVisDirective({
     >
       {preview.kind === "markdown" ? (
         <div style={{ height }} className="overflow-auto p-3">
-          <Markdown content={preview.content} allowHtml />
+          <Markdown content={preview.content} allowHtml document={document} />
         </div>
       ) : (
         <iframe

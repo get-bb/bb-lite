@@ -35,11 +35,26 @@ export interface ImageLightboxProps {
   title: string;
 }
 
+export type FileSource = "workspace" | "thread-storage" | "host";
+
 export interface MarkdownProps {
   content: string;
   className?: string;
   allowHtml?: boolean;
   sourcePrefix?: string;
+  document?: { threadId: string; path: string; source?: FileSource };
+}
+
+export interface DiffProps {
+  patch: string;
+  path?: string;
+}
+
+export interface FileLinkProps {
+  path: string;
+  threadId?: string;
+  environmentId?: string;
+  children?: ReactNode;
 }
 
 export interface ShellNavPanelProps {
@@ -236,6 +251,7 @@ export interface SidePanelPanel {
 
 export interface CommandContext {
   threadId: string | null;
+  composerKey: string | null;
   projectId: string | null;
   openPanel(options: TargetedPanelOpenOptions): boolean;
 }
@@ -443,7 +459,11 @@ export interface BbNavigate {
   toCompose(options?: { initialPrompt?: string; focusPrompt?: boolean }): void;
   openThreadPanel(options: TargetedPanelOpenOptions): boolean;
   openUrl(url: string): boolean;
-  openFile(options: { threadId: string; path: string }): boolean;
+  openFile(options: {
+    threadId: string;
+    path: string;
+    source?: FileSource;
+  }): boolean;
 }
 
 export interface IconProps {

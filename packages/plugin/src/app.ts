@@ -78,6 +78,8 @@ export interface PluginAppHost {
   ThreadViewers: ComponentType<T.ThreadViewersProps>;
   ImageLightbox: ComponentType<T.ImageLightboxProps>;
   Markdown: ComponentType<T.MarkdownProps>;
+  Diff: ComponentType<T.DiffProps>;
+  FileLink: ComponentType<T.FileLinkProps>;
 }
 
 let installedHost: PluginAppHost | null = null;
@@ -131,6 +133,8 @@ export const UrlLink = component((h) => h.UrlLink);
 export const ThreadViewers = component((h) => h.ThreadViewers);
 export const ImageLightbox = component((h) => h.ImageLightbox);
 export const Markdown = component((h) => h.Markdown);
+export const Diff = component((h) => h.Diff);
+export const FileLink = component((h) => h.FileLink);
 
 function provided<Api extends object, Name extends keyof Api>(
   slot: Slot<Api>,

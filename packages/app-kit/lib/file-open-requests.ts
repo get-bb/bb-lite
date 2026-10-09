@@ -1,4 +1,6 @@
-type Open = (path: string) => void;
+import type { FileSource } from "@bb/plugin/app";
+
+type Open = (path: string, source?: FileSource) => void;
 
 const panels = new Map<string, Open>();
 
@@ -9,8 +11,12 @@ export function onFileOpenRequest(threadId: string, open: Open): () => void {
   };
 }
 
-export function requestFileOpen(threadId: string, path: string): boolean {
+export function requestFileOpen(
+  threadId: string,
+  path: string,
+  source?: FileSource,
+): boolean {
   const open = panels.get(threadId);
-  open?.(path);
+  open?.(path, source);
   return open !== undefined;
 }

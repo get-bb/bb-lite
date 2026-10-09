@@ -807,6 +807,15 @@ export const files = contract("files", {
     kind: "write",
     internal: true,
   }),
+  url: op({
+    input: z.object({
+      threadId: z.string(),
+      path: z.string(),
+      source: z.enum(["workspace", "thread-storage", "host"]).optional(),
+    }),
+    output: z.object({ url: z.string() }),
+    doors: { http: { method: "GET", path: "/files/url" } },
+  }),
 });
 
 export interface ProjectTableRow {
