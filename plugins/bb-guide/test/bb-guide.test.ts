@@ -5,15 +5,15 @@ import { expect, it } from "vitest";
 import { createThreadServer } from "../../../apps/server/test/thread-harness.js";
 import { withCreatePluginPrompt } from "../app.js";
 
-const context = {
-  threadId: "thr_1",
-  projectId: "proj_1",
-  hostId: "host_1",
-  providerId: "codex",
-};
-
 it("sends the introduction and skills until they are turned off", async () => {
-  const { ctx } = await createThreadServer();
+  const server = await createThreadServer();
+  const { ctx } = server;
+  const context = {
+    threadId: await server.spawn(),
+    projectId: "proj_1",
+    hostId: "host_1",
+    providerId: "codex",
+  };
   const { kernel } = ctx;
   const intro = async () =>
     (await kernel.call(sessions.instructions, context)).some(({ text }) =>

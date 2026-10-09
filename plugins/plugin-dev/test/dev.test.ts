@@ -195,6 +195,22 @@ it("installs a version range from tagged subdirectories of a repository", async 
   expect(refused.body).toMatchObject({ code: "engine_mismatch" });
   const none = await op("plugin-dev.install", { ...newer, version: "^3" });
   expect(none.status).toBe(404);
+  const listed = await op("plugin-dev.versions", wanted);
+  expect(listed.result).toEqual(
+    expect.arrayContaining(["1.0.0", "1.2.0", "2.0.0"]),
+  );
+  const gone = join(scratch(), "gone");
+  const unreachable = await op("plugin-dev.versions", {
+    source: `git:file://${gone}`,
+  });
+  expect(unreachable.status).toBe(503);
+  expect(unreachable.body).toMatchObject({
+    code: "unavailable",
+    message: expect.stringContaining(
+      `Could not read versions of file://${gone}`,
+    ),
+    details: { hint: expect.stringContaining("Check the URL") },
+  });
   const pinned = `git:file://${repo}#greeter/v1.0.0:plugins/greeter`;
   const again = await op("plugin-dev.install", {
     source: pinned,
@@ -290,7 +306,12 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
   const providers = await ctx.runners.get(ctx.config.hostId).listProviders();
   expect(providers.map(({ providerId }) => providerId)).toContain("echo");
   const again = await op("plugin-dev.fork", { id: "tasks", cwd });
-  expect(again.status).toBe(500);
+  expect(again.status).toBe(409);
+  expect(again.body).toMatchObject({
+    code: "conflict",
+    message: `${join(cwd, "tasks")} already exists`,
+    details: { hint: expect.stringContaining("--as") },
+  });
   const core = ctx.plugins.list().filter((plugin) => plugin.core);
   expect(core.map(({ id }) => id)).toContain("threads");
   const directory = join(ctx.config.dataDir, "repo");
@@ -323,7 +344,7 @@ it("forks every built-in plugin into a copy that runs in its place", async () =>
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ values: { instructions: "Use pnpm" } }),
   });
-  const scope = { threadId: "t", projectId: "p", hostId: null };
+  const scope = { threadId, projectId: "p", hostId: null };
   await vi.waitFor(async () => {
     const sections = await op("sessions.instructions", {
       ...scope,
@@ -399,6 +420,12 @@ it("copies a plugin under a new id that runs beside the original", async () => {
   expect(taken.message).toContain("already installed");
   const invalid = await fork({ id: "audit", as: "Not Valid" });
   expect(invalid.message).toContain("lower-case");
+  const twice = await fork({ id: "tasks", as: "more-tasks", path: "my-tasks" });
+  expect(twice).toMatchObject({
+    code: "conflict",
+    message: `${join(cwd, "my-tasks")} already exists`,
+    details: { hint: expect.stringContaining("--path") },
+  });
 }, 120_000);
 
 it("reports what a plugin written for the original bb uses and what each call is now", async () => {

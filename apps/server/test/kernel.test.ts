@@ -263,7 +263,7 @@ it("serves operations and the live chain over HTTP", async () => {
   const cli = { argv: set, cwd: "/" };
   await server.http("POST", "/plugins/custom-instructions/cli", cli);
   const context = {
-    threadId: "thr_1",
+    threadId: await server.spawn(),
     projectId: "proj_1",
     hostId: null,
     providerId: "codex",
@@ -280,6 +280,15 @@ it("serves operations and the live chain over HTTP", async () => {
       result: [{ source: "custom-instructions", text: "Always use pnpm" }],
     },
   });
+  const scoped = [sessions.instructions, sessions.env, sessions.skillDirs];
+  for (const { name } of scoped) {
+    const missing = { ...context, threadId: "thr_missing" };
+    const absent = await server.http("POST", `/ops/${name}`, missing);
+    expect(absent.status).toBe(404);
+    const wrong = { ...context, providerCapabilities: "yes" };
+    const invalid = await server.http("POST", `/ops/${name}`, wrong);
+    expect(invalid.status).toBe(400);
+  }
   const unknown = await server.http("POST", "/ops/nope.nothing", {});
   expect(unknown.status).toBe(404);
   const described = await server.http("POST", "/ops/plugins.contracts", {

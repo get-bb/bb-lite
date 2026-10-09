@@ -9,6 +9,7 @@ import {
 } from "@bb/server-kit/providers/catalog";
 import { resolveExecutionOptions } from "@bb/server-kit/providers/models";
 import { ApiError } from "@bb/server-kit/http/errors";
+import { requireThread } from "@bb/server-kit/db/threads";
 import { requireOwner } from "@bb/server-kit/http/trust";
 import { resolveLookupHostId } from "@bb/server-kit/runners/hosts";
 import { pickTranscriber } from "@bb/server-kit/providers/inference";
@@ -20,17 +21,27 @@ export default function sessionsPlugin(bb: PluginServerApi): void {
   const { db } = bb;
   bindProviderCatalog(db, bb);
   bb.http.api((app) => registerProviderRoutes(app, bb));
-  bb.implement(sessions.instructions, (context) =>
-    bb.call(plugins.agentInstructions, context),
-  );
-  bb.implement(sessions.env, () => []);
+  const known = ({ threadId }: { threadId: string }) => {
+    requireThread(db, threadId);
+  };
+  bb.implement(sessions.instructions, (context) => {
+    known(context);
+    return bb.call(plugins.agentInstructions, context);
+  });
+  bb.implement(sessions.env, (context) => {
+    known(context);
+    return [];
+  });
   bb.implement(sessions.tools, (context) =>
     bb.call(plugins.agentTools, context),
   );
-  bb.implement(sessions.skillDirs, async () => [
-    join(bb.server.cliDir, "skills"),
-    ...(await bb.call(plugins.skillDirs, {})),
-  ]);
+  bb.implement(sessions.skillDirs, async (context) => {
+    known(context);
+    return [
+      join(bb.server.cliDir, "skills"),
+      ...(await bb.call(plugins.skillDirs, {})),
+    ];
+  });
   bb.implement(sessions.searchMentions, (input) => {
     const { trigger, projectId = null, threadId = null } = input;
     const query = input.query.trim();

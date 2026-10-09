@@ -30,7 +30,11 @@ const threadContextSchema = z.object({
   projectId: z.string(),
   hostId: z.string().nullable(),
   providerId: z.string(),
-  providerCapabilities: z.custom<Domain.ProviderCapabilities>().optional(),
+  providerCapabilities: z
+    .custom<Domain.ProviderCapabilities>(
+      (value) => Domain.providerCapabilitiesSchema.safeParse(value).success,
+    )
+    .optional(),
 });
 
 export interface ProviderToggle {

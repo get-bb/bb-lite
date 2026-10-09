@@ -36,7 +36,12 @@ import { runAs } from "@bb/server-kit/auth/actor";
 import { PluginHost } from "../src/plugins/host.js";
 import { readManifest } from "../src/plugins/manifest.js";
 import { PluginSettings } from "../src/plugins/settings.js";
-import { createProject, createTestServer, scratch } from "./helpers.js";
+import {
+  createProject,
+  createTestServer,
+  insertThread,
+  scratch,
+} from "./helpers.js";
 
 type Listing = { plugins: InstalledPlugin[] };
 type Contributions = { cliCommands: unknown[] };
@@ -322,7 +327,9 @@ it("compiles the classes an external app adds into one sheet with the host's", a
 });
 
 it("answers the thread engine's queries from what plugins register", async () => {
-  const { ctx } = await createTestServer();
+  const testServer = await createTestServer();
+  const { ctx } = testServer;
+  insertThread(testServer, "thr_1");
   const directory = scratch();
   const manifest = { name: "bb-plugin-probe", bb: { name: "Probe" } };
   writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));

@@ -161,9 +161,9 @@ it("saves, searches, reads, updates and forgets memories through the CLI", async
 });
 
 it("adds the memory index to a project thread's instructions and edits from settings", async () => {
-  const { cli, ctx } = await memoryServer();
+  const { cli, ctx, spawn } = await memoryServer();
   const context = {
-    threadId: "thr_1",
+    threadId: await spawn(),
     projectId: "proj_1",
     hostId: null,
     providerId: "echo",

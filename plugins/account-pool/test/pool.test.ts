@@ -6,7 +6,10 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { writePluginRow } from "../../../packages/server-kit/src/db/plugins.js";
-import { createTestServer } from "../../../apps/server/test/helpers.js";
+import {
+  createTestServer,
+  insertThread,
+} from "../../../apps/server/test/helpers.js";
 import { HUB_PATH } from "../src/contract.js";
 
 interface Seen {
@@ -82,6 +85,7 @@ function stored(n: number, provider: Provider) {
 
 async function seed(server: TestServer, upstream: string, accounts: object[]) {
   const { ctx, url } = server;
+  insertThread(server, "thr_1");
   const dataDir = join(ctx.config.dataDir, "plugins", "account-pool");
   const secrets = join(dataDir, "secrets", "accounts");
   fs.mkdirSync(secrets, { recursive: true });
