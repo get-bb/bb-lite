@@ -494,6 +494,13 @@ function FollowUpPromptBoxWithComposer({
                   context={footerContext}
                 />
               }
+              footerEnd={
+                <ComposerFooterControls
+                  row="actions"
+                  side="end"
+                  context={footerContext}
+                />
+              }
             />
             {isPromptBoxCompact ? null : (
               <div

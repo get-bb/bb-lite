@@ -514,6 +514,10 @@ Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills
 - An entry's component is always `view`. Entries with an `id` are checked when added: the id must
   match `[a-zA-Z0-9_-]+`, be unique within the plugin and come with its `view` (or `run`, for a
   command).
+- `bb.add(composer.footerControl, { id, row, side, view })`: `row: "actions"` draws the control in
+  the composer's toolbar (`side: "start"` after the "+" menu, `side: "end"` next to the send
+  button, as `voice-input`'s microphone does); `row: "status"` (the default) draws it in the line
+  under the composer.
 - `bb.add(shell.threadRowStatus, { threadId, icon, label, tone? })` shows a status on a thread's row
   in the sidebar; call the function it returns to clear it.
 - `bb.add(sidePanel.fileViewer, { id, extensions: ["pdf"], names?: ["Dockerfile"], view })` draws

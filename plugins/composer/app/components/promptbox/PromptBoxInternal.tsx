@@ -239,6 +239,7 @@ interface PromptBoxInternalProps {
   placeholder?: string;
   autoFocus?: boolean;
   footerStart?: ReactNode;
+  footerEnd?: ReactNode;
   composerScope: ComposerScope;
   pickers?: Pick<ComposerFooterHost, "model" | "permission">;
   submission?: PromptBoxSubmissionConfig;
@@ -722,6 +723,7 @@ export function PromptBoxInternal({
     expandedPlaceholder = "Ask anything. @ to mention files, folders, or sections",
   autoFocus = true,
   footerStart,
+  footerEnd,
   composerScope,
   pickers,
   submission = {},
@@ -1707,6 +1709,7 @@ export function PromptBoxInternal({
                   showCompactLayout && "min-w-0 flex-1",
                 )}
               >
+<<<<<<< HEAD
                 {showCompactLayout ? null : (
                   <div data-promptbox-expanded-only="">
                     <AppCommandShortcutHint
@@ -1715,6 +1718,9 @@ export function PromptBoxInternal({
                     />
                   </div>
                 )}
+=======
+                {showCompactLayout ? null : footerEnd}
+>>>>>>> e39f692d (Add voice input to the composer as a plugin)
                 <div
                   ref={scrollRef}
                   data-promptbox-editor-scroll=""

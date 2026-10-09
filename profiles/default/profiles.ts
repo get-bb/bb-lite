@@ -13,6 +13,7 @@ const SCREEN = [
   "thread-list",
   "navigation",
   "pdf-preview",
+  "voice-input",
   "theme-preview",
   "inline-vis",
   "scheduled-send",

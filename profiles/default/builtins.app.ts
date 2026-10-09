@@ -38,5 +38,6 @@ export const appLoaders: Record<string, Load> = {
   "theme-preview": () => import("../../plugins/theme-preview/app"),
   "thread-list": () => import("../../plugins/thread-list/app"),
   "thread-view": () => import("../../plugins/thread-view/app"),
+  "voice-input": () => import("../../plugins/voice-input/app"),
   workflows: () => import("../../plugins/workflows/app"),
 };

@@ -106,6 +106,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "thread-list": threadList,
   "thread-view": null,
   threads: threads,
+  "voice-input": null,
   workflows: workflows,
   workspace: workspace,
 };
