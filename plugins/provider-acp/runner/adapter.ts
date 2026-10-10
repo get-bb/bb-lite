@@ -15,7 +15,6 @@ import {
 import type { AcpRunnerAgent } from "../src/launch-spec.js";
 import * as engine from "./engine.js";
 import type { AcpSkillRoot } from "./session-params.js";
-import { createDeltaSink } from "./thread-delta.js";
 
 const LAUNCH_FAILURE = /^Failed to launch ACP agent/u;
 
@@ -190,7 +189,6 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
         host,
         toExecution,
       );
-      const sink = createDeltaSink(host.events);
       const identify = (providerThreadId: string) => {
         if (session.providerThreadId === providerThreadId) return;
         session.providerThreadId = providerThreadId;
@@ -198,7 +196,7 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
       };
       const turnId = () => host.events.activeTurnId;
       const output: engine.AcpSessionOutput = {
-        deltas: (deltas) => sink.apply(deltas),
+        events: host.events,
         identity: identify,
         replaced: identify,
         failed(message) {
