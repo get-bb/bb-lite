@@ -202,6 +202,7 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
       );
       const sink = createDeltaSink(host.events);
       const identify = (providerThreadId: string) => {
+        if (session.providerThreadId === providerThreadId) return;
         session.providerThreadId = providerThreadId;
         host.events.identity(providerThreadId);
       };

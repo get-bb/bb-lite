@@ -1,8 +1,20 @@
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
-import type { ProviderSession, SessionSpec } from "@bb/runner";
+import { pendingInteractionResolutionSchema } from "@bb/domain";
+import type {
+  ExecutionOptions,
+  ProviderSession,
+  SessionSpec,
+} from "@bb/runner";
+import type { AcpLaunchSpec } from "../src/launch-spec.js";
 import { afterEach, vi } from "vitest";
-import { createHarness, type HarnessOptions } from "./adapter-harness.js";
+import {
+  createHarness,
+  FAKE_AGENT,
+  text,
+  type HarnessOptions,
+} from "./adapter-harness.js";
 
 export type Harness = ReturnType<typeof createHarness>;
 
@@ -110,5 +122,114 @@ export function spawnMcpServer(config: McpServerConfig) {
     call: async (method: string, params: Record<string, unknown> = {}) =>
       response(request(method, params)),
     stop: () => child.kill(),
+  };
+}
+
+export const permissionCli = {
+  full: ["--full"],
+  workspaceWrite: ["--workspace"],
+  insertAfterArgs: 1,
+};
+
+export function fakeLaunch(
+  env: Record<string, string>,
+  extra: Partial<AcpLaunchSpec> = {},
+) {
+  return {
+    launch: {
+      displayName: "Fake agent",
+      command: process.execPath,
+      args: [FAKE_AGENT],
+      env,
+      ...extra,
+    },
+  };
+}
+
+let requests = 0;
+
+export function nextRequestId() {
+  requests += 1;
+  return `creq_port_${requests}`;
+}
+
+export function completions(harness: Harness) {
+  return harness.events.filter((event) => event.type === "turn/completed")
+    .length;
+}
+
+export async function waitForCompletions(harness: Harness, count: number) {
+  await vi.waitFor(
+    () => {
+      harness.host.events.flush();
+      if (completions(harness) < count) throw new Error("turn running");
+    },
+    { timeout: 10_000, interval: 20 },
+  );
+}
+
+export async function startTurn(
+  harness: Harness,
+  session: ProviderSession,
+  prompt: string,
+  overrides: Partial<ExecutionOptions> = {},
+) {
+  const options = { ...harness.execution, ...overrides };
+  const clientRequestId = nextRequestId();
+  await session.startTurn({ clientRequestId, input: text(prompt), options });
+  return clientRequestId;
+}
+
+export async function runTurn(
+  harness: Harness,
+  session: ProviderSession,
+  prompt: string,
+  overrides: Partial<ExecutionOptions> = {},
+) {
+  const before = completions(harness);
+  await startTurn(harness, session, prompt, overrides);
+  await waitForCompletions(harness, before + 1);
+}
+
+export function steer(
+  harness: Harness,
+  session: ProviderSession,
+  prompt: string,
+  overrides: Partial<ExecutionOptions> = {},
+  clientRequestId = nextRequestId(),
+) {
+  return session.steer({
+    clientRequestId,
+    input: text(prompt),
+    options: { ...harness.execution, ...overrides },
+    expectedTurnId: harness.host.events.activeTurnId,
+  });
+}
+
+export function accepted(harness: Harness) {
+  return harness.events.flatMap((event) =>
+    event.type === "turn/input/accepted" ? [event.clientRequestId] : [],
+  );
+}
+
+export function loggedPrompts(path: string): string[] {
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const value: unknown = JSON.parse(line);
+      return typeof value === "string" ? value : JSON.stringify(value);
+    });
+}
+
+export function answerWith(harness: Harness, decision: string) {
+  const resolution = pendingInteractionResolutionSchema.parse(
+    decision === "deny" ? { decision } : { decision, grantedPermissions: null },
+  );
+  harness.host.requestInteraction = async ({ payload }) => {
+    harness.interactions.push(payload);
+    return resolution;
   };
 }
