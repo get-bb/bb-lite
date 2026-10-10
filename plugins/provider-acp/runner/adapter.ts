@@ -63,6 +63,17 @@ async function skillRoots(dirs: string[]): Promise<AcpSkillRoot[]> {
   return roots;
 }
 
+function abortable<T>(work: Promise<T>, signal: AbortSignal) {
+  return new Promise<T>((resolve, reject) => {
+    const cancel = () => reject(new Error("ACP dynamic tool call cancelled"));
+    if (signal.aborted) return cancel();
+    signal.addEventListener("abort", cancel, { once: true });
+    work
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener("abort", cancel));
+  });
+}
+
 function describe(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -203,7 +214,8 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
           if (engine.acpSessionIsLive(threadId)) return;
           host.onExit({ message, stderrTail: "" });
         },
-        callTool: (call) => host.callTool({ ...call, turnId: turnId() }),
+        callTool: (call, signal) =>
+          abortable(host.callTool({ ...call, turnId: turnId() }), signal),
         requestInteraction: (payload) =>
           host.requestInteraction({ payload, turnId: turnId() }),
       };
