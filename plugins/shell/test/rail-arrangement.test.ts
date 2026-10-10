@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   arrangeRailItems,
   moveRailItem,
+  moveRailItemTo,
   setRailItemVisible,
 } from "../app/lib/rail-arrangement";
 
@@ -73,6 +74,23 @@ describe("rail arrangement", () => {
       hidden: [SEARCH],
     });
     expect(moveRailItem(preferences, order, SEARCH, -1)).toEqual({
+      order: [],
+      hidden: [SEARCH],
+    });
+  });
+
+  it("moves a dragged item onto the slot of the item it was dropped on", () => {
+    const order = [SEARCH, "a/panel", "b/panel"];
+    const preferences = { order: [], hidden: [SEARCH] };
+    expect(moveRailItemTo(preferences, order, "b/panel", SEARCH)).toEqual({
+      order: ["b/panel", SEARCH, "a/panel"],
+      hidden: [SEARCH],
+    });
+    expect(moveRailItemTo(preferences, order, SEARCH, "b/panel")).toEqual({
+      order: ["a/panel", "b/panel", SEARCH],
+      hidden: [SEARCH],
+    });
+    expect(moveRailItemTo(preferences, order, "a/panel", "gone")).toEqual({
       order: [],
       hidden: [SEARCH],
     });

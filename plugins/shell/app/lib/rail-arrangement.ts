@@ -63,3 +63,17 @@ export function moveRailItem(
   order.splice(to, 0, id);
   return { order, hidden: [...preferences.hidden] };
 }
+
+export function moveRailItemTo(
+  preferences: RailItemPreferences,
+  orderedIds: readonly string[],
+  id: string,
+  overId: string,
+): StoredRailItems {
+  const from = orderedIds.indexOf(id);
+  const to = orderedIds.indexOf(overId);
+  if (from < 0 || to < 0) {
+    return { order: [...preferences.order], hidden: [...preferences.hidden] };
+  }
+  return moveRailItem(preferences, orderedIds, id, to - from);
+}

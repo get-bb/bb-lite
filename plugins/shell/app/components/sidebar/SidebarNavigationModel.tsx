@@ -25,6 +25,7 @@ import { createSyncedPreferenceAtom } from "@bb/app-kit/lib/ui-preferences";
 import {
   arrangeRailItems,
   moveRailItem,
+  moveRailItemTo,
   setRailItemVisible,
 } from "../../lib/rail-arrangement";
 import {
@@ -43,6 +44,7 @@ interface SidebarNavigationEntry {
 export interface SidebarNavigationArrangement {
   setVisible(itemId: string, isVisible: boolean): void;
   move(itemId: string, offset: number): void;
+  moveTo(itemId: string, overId: string): void;
 }
 
 export interface SidebarNavigationModel {
@@ -201,6 +203,9 @@ export function SidebarNavigationModelProvider({
     },
     move(itemId, offset) {
       setRailItems(moveRailItem(railItems, arrangeableIds, itemId, offset));
+    },
+    moveTo(itemId, overId) {
+      setRailItems(moveRailItemTo(railItems, arrangeableIds, itemId, overId));
     },
   };
   const find = (itemId: string) =>
