@@ -368,6 +368,7 @@ async function submitTurn(
       bb.db,
       thread.providerId,
       message,
+      thread.id,
     );
     const turn = { session, clientRequestId: requestId, input, options };
     const submit = { ...turn, mode: runnerMode };

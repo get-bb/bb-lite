@@ -29,6 +29,7 @@ import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
 import { assertHostUsable, defaultHostId } from "@bb/server-kit/runners/access";
 import type { Engine } from "./engine.js";
 import { resolveCreateExecution } from "./execution.js";
+import { modelFittingOptions, seedSelections } from "./session-options.js";
 import { deriveTitleFallback, type StartupContext } from "./provisioning.js";
 
 type EnvironmentArgs = CreateThreadRequest["environment"];
@@ -195,12 +196,29 @@ export async function createThread(
   const hostId = intentHostId(db, intent);
   assertHostUsable(bb, hostId);
   const createdByUserId = actorUserId();
-  const { providerId, execution } = await resolveCreateExecution(bb, {
+  const resolved = await resolveCreateExecution(bb, {
     request,
     projectId,
     hostId,
     parent,
   });
+  const selections = request.sessionOptions ?? {};
+  const fitting = await modelFittingOptions(bb, {
+    hostId,
+    providerId: resolved.providerId,
+    model: resolved.execution.model,
+    named: request.model !== undefined,
+    selections,
+  });
+  const { providerId, execution } =
+    fitting === null
+      ? resolved
+      : await resolveCreateExecution(bb, {
+          request: { ...request, model: fitting },
+          projectId,
+          hostId,
+          parent,
+        });
   const startup: StartupContext = {
     intent,
     titleProvided: title !== undefined,
@@ -222,6 +240,7 @@ export async function createThread(
       visibility: request.visibility ?? parent?.visibility ?? "visible",
       pinned: request.pinned === true,
     });
+    seedSelections(engine, out, row, selections);
     out.thread(row.id, ["thread-created"], { projectId });
     out.project(projectId, ["threads-changed"]);
     const response = engine.respond(row.id);

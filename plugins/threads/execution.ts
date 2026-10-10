@@ -13,6 +13,7 @@ import {
   listProviderDefinitions,
 } from "@bb/server-kit/providers/catalog";
 import { providerOptionsFor } from "@bb/server-kit/providers/settings";
+import { pendingSelections } from "./session-options.js";
 
 export type ExecutionTuple = Omit<
   domain.ResolvedThreadExecutionOptions,
@@ -219,10 +220,13 @@ export function toRunnerOptions(
   db: Db,
   providerId: string,
   { execution, initiator }: TurnOptionsSource,
+  threadId: string,
 ): ExecutionOptions {
+  const sessionOptions = pendingSelections(db, threadId);
   return {
     ...execution,
     permissionEscalation: initiator === "user" ? "ask" : "deny",
     providerOptions: providerOptionsFor(db, providerId),
+    ...(Object.keys(sessionOptions).length > 0 ? { sessionOptions } : {}),
   };
 }

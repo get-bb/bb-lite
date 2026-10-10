@@ -164,6 +164,10 @@ const queuedRef = z.object({
   queuedMessageId: z.string(),
 });
 const nothing = z.void();
+const sessionOptionsResult = z.object({
+  options: z.array(Domain.threadSessionOptionSchema),
+  selections: Domain.sessionOptionSelectionsSchema,
+});
 
 function at<Schema extends z.ZodType, const Param extends string>(
   schema: Schema,
@@ -745,6 +749,33 @@ export const threads = contract("threads", {
     kind: "write",
     audit: false,
     doors: { http: { method: "POST", path: "/threads/:threadId/unread" } },
+  }),
+  providerCommands: op({
+    input: ref("threadId"),
+    output: z.object({
+      commands: z.array(Domain.threadProviderCommandSchema),
+    }),
+    doors: {
+      http: { method: "GET", path: "/threads/:threadId/provider-commands" },
+    },
+  }),
+  sessionOptions: op({
+    input: ref("threadId"),
+    output: sessionOptionsResult,
+    doors: {
+      http: { method: "GET", path: "/threads/:threadId/session-options" },
+    },
+  }),
+  updateSessionOptions: op({
+    input: threadRef.extend({
+      set: Domain.sessionOptionSelectionsSchema.optional(),
+      clear: z.array(z.string().min(1)).optional(),
+    }),
+    output: sessionOptionsResult,
+    kind: "write",
+    doors: {
+      http: { method: "PATCH", path: "/threads/:threadId/session-options" },
+    },
   }),
   timeline: op({
     input: at(Contract.threadTimelineQuerySchema, "threadId"),
