@@ -166,3 +166,17 @@ it("prints the registry through the bb acp CLI", async () => {
   );
   expect(body.stdout).toContain("amp-acp  Amp 0.7.0  [available]");
 });
+
+it("starts a thread in a permission mode the agent has when the default is not one of them", async () => {
+  const server = await acpServer();
+  await server.settle(() => server.configured().length > 0);
+  await server.spawn({ providerId: "acp-cursor", model: "acp-default" });
+  expect(server.submitted.at(-1)?.options.permissionMode).toBe("full");
+
+  await server.spawn({
+    providerId: "acp-cursor",
+    model: "acp-default",
+    permissionMode: "accept-edits",
+  });
+  expect(server.submitted.at(-1)?.options.permissionMode).toBe("accept-edits");
+});
