@@ -292,11 +292,13 @@ describe("acp native selection", () => {
       },
     });
     const session = await openWith(harness, { model: "pinme" });
+    const { providerThreadId } = session;
     expect(
       await completeTurnWith(harness, session, "echo-argv", { model: "other" }),
     ).toBe("argv:--model other");
+    expect(session.providerThreadId).toBe(providerThreadId);
     const identities = harness.types().filter((t) => t === "thread/identity");
-    expect(identities.length).toBeGreaterThan(1);
+    expect(identities).toHaveLength(1);
   });
 
   it("selects ACP-native reasoning with session/set_config_option before the first prompt", async () => {
