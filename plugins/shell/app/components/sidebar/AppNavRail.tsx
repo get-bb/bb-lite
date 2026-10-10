@@ -373,7 +373,10 @@ export function AppNavRail({
   return (
     <div
       data-testid="app-nav-rail"
-      className={cn("flex shrink-0 flex-col", NAV_RAIL_WIDTH_CLASS)}
+      className={cn(
+        "relative z-10 flex shrink-0 flex-col",
+        NAV_RAIL_WIDTH_CLASS,
+      )}
     >
       <div
         aria-hidden="true"

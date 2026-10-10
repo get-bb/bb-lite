@@ -12,6 +12,8 @@ const BROWSER_HEADER_SLOT_START_CLASS =
 
 export const NAV_RAIL_WIDTH_CLASS =
   "w-[calc(var(--bb-sidebar-control-size)_+_24px)]";
+export const NAV_RAIL_COLLAPSED_SIDEBAR_WIDTH =
+  "calc(var(--bb-sidebar-control-size) + 24px + env(safe-area-inset-left) + 1px)";
 const NAV_RAIL_HEADER_SLOT_START_CLASS = "pl-0";
 
 const HISTORY_NAV_BUTTON_CLASS = cn(

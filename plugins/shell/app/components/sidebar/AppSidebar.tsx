@@ -8,6 +8,7 @@ import { Icon, type IconName } from "@bb/shared-ui/icon";
 import { OverflowFade } from "@bb/app-kit/components/ui/overflow-fade";
 import {
   Sidebar,
+  SidebarCollapsibleBody,
   SidebarContent,
   SidebarFooter,
   SidebarMenu,
@@ -265,14 +266,16 @@ export function AppSidebar({
         <Sidebar ref={sidebarRef}>
           <div className="flex min-h-0 flex-1">
             {navRail.rail}
-            <div
-              data-testid="app-sidebar-body"
-              hidden={navRail.hidden}
-              className="flex min-h-0 min-w-0 flex-1 flex-col"
-            >
-              {body}
-            </div>
-            {navRail.alternateBody}
+            <SidebarCollapsibleBody data-testid="nav-rail-sidebar-body">
+              <div
+                data-testid="app-sidebar-body"
+                hidden={navRail.hidden}
+                className="flex min-h-0 min-w-0 flex-1 flex-col"
+              >
+                {body}
+              </div>
+              {navRail.alternateBody}
+            </SidebarCollapsibleBody>
           </div>
         </Sidebar>
       </SidebarNavigationModelProvider>

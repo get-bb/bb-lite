@@ -22,6 +22,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@bb/app-kit/components/ui/sidebar";
+import { NAV_RAIL_COLLAPSED_SIDEBAR_WIDTH } from "@bb/app-kit/components/sidebar/SidebarChrome";
 import {
   COMPACT_SHELF_HIDDEN_FIXED_CHROME_CLASS,
   usePanelShelfState,
@@ -124,6 +125,7 @@ function SidebarStateBridge({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider
       width={`${sidebarLiveWidth ?? sidebarWidth}px`}
+      collapsedRailWidth={NAV_RAIL_COLLAPSED_SIDEBAR_WIDTH}
       data-testid="app-layout-root"
       open={open}
       onOpenChange={setOpen}
