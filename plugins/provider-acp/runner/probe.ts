@@ -4,7 +4,7 @@ import {
   AcpAgentExitedError,
   createAcpAgentConnection,
   requestAcpInitialize,
-} from "./bridge/agent-connection.js";
+} from "./agent/agent-connection.js";
 
 const PROBE_TIMEOUT_MS = 10_000;
 

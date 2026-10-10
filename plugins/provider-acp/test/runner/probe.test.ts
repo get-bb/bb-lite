@@ -29,7 +29,7 @@ describe("probeAcpAgent", () => {
     });
   });
 
-  it("strips the bridge runtime environment the way a real launch does", async () => {
+  it("strips the runner environment the way a real launch does", async () => {
     const previous = process.env.ELECTRON_RUN_AS_NODE;
     process.env.ELECTRON_RUN_AS_NODE = "1";
     try {

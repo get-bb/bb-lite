@@ -2,7 +2,7 @@ import { createConnection } from "node:net";
 import type { ToolCallResponse } from "@bb/domain";
 import type { DynamicTool } from "@bb/domain";
 import { expect, it, vi } from "vitest";
-import { ACP_BRIDGE_MCP_SERVER_NAME } from "../runner/bridge/tool-proxy-mcp.js";
+import { ACP_TOOL_PROXY_SERVER_NAME } from "../runner/agent/tool-proxy-mcp.js";
 import {
   closeSessionsAfterEach,
   echoedMcpConfig,
@@ -28,7 +28,7 @@ async function proxyFor(harness: Harness) {
   const [config, ...rest] = echoedMcpConfig(harness);
   expect(rest).toEqual([]);
   if (config === undefined) throw new Error("no MCP server config");
-  expect(config.name).toBe(ACP_BRIDGE_MCP_SERVER_NAME);
+  expect(config.name).toBe(ACP_TOOL_PROXY_SERVER_NAME);
   const server = spawnMcpServer(config);
   const init = await server.call("initialize", {
     protocolVersion: "2024-11-05",

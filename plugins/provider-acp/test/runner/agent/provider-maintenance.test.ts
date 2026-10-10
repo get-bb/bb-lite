@@ -4,7 +4,7 @@ import {
   __testing,
   getAcpProviderStatus,
   type AcpMaintenanceDialect,
-} from "../../../runner/bridge/provider-maintenance.js";
+} from "../../../runner/agent/provider-maintenance.js";
 
 function missingAgent(maintenance: AcpMaintenanceDialect | undefined) {
   return {

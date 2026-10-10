@@ -10,7 +10,7 @@ import {
   findAcpThoughtLevelConfigOption,
   parseAgentModelLines,
   splitPrimaryModels,
-} from "../../../runner/bridge/model-catalog.js";
+} from "../../../runner/agent/model-catalog.js";
 
 function catalogFromSample() {
   const catalog = buildAgentModelCatalog(parseAgentModelLines(SAMPLE_LIST));

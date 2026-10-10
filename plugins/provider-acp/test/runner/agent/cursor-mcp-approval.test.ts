@@ -6,8 +6,8 @@ import {
   approveCursorSessionMcpServer,
   buildCursorMcpApprovalIdentifier,
   revokeCursorSessionMcpServer,
-} from "../../../runner/bridge/cursor-mcp-approval.js";
-import type { AcpMcpServerConfig } from "../../../runner/bridge/tool-proxy-mcp.js";
+} from "../../../runner/agent/cursor-mcp-approval.js";
+import type { AcpMcpServerConfig } from "../../../runner/agent/tool-proxy-mcp.js";
 
 const tempDirs: string[] = [];
 

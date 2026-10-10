@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAgentModelCatalog,
   parseAgentModelLines,
-} from "../../runner/bridge/model-catalog.js";
+} from "../../runner/agent/model-catalog.js";
 import { buildCursorParameterizedModelCatalog } from "../../runner/cursor-model-selection.js";
 
 describe("Cursor parameterized model selection", () => {

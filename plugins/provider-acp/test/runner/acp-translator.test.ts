@@ -85,7 +85,7 @@ function completedItems(events: ThreadEvent[]) {
   );
 }
 
-describe("acp delta translation (bridge-shared invariants)", () => {
+describe("acp translation (shared invariants)", () => {
   it("does not synthesize a turn for updates that arrive after turn completion", () => {
     const harness = createHarness();
     harness.translate(turnStartedEvent());
@@ -1047,7 +1047,7 @@ describe("acp delta translation (moved from the legacy adapter suite)", () => {
     );
   });
 
-  it("translates bridge warnings", () => {
+  it("translates warnings", () => {
     const harness = createHarness();
 
     expect(
@@ -1066,7 +1066,7 @@ describe("acp delta translation (moved from the legacy adapter suite)", () => {
     ]);
   });
 
-  it("fails the open turn on bridge errors", () => {
+  it("fails the open turn on errors", () => {
     const harness = startedHarness();
     const turnId = harness.openTurnId();
     expect(

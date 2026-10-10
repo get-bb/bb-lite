@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import {
-  ACP_BRIDGE_MCP_SERVER_NAME,
+  ACP_TOOL_PROXY_SERVER_NAME,
   type AcpMcpServerConfig,
 } from "./tool-proxy-mcp.js";
 
@@ -193,7 +193,7 @@ export async function approveCursorSessionMcpServer(args: {
 }): Promise<CursorMcpApproval | undefined> {
   if (
     !cursorAgentCommand(args.agentCommand) ||
-    args.config.name !== ACP_BRIDGE_MCP_SERVER_NAME
+    args.config.name !== ACP_TOOL_PROXY_SERVER_NAME
   ) {
     return undefined;
   }

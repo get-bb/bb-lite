@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UsageReading } from "@bb/plugin";
-import { readOpenCodeGoUsage } from "../../../runner/bridge/opencode-usage.js";
+import { readOpenCodeGoUsage } from "../../../runner/agent/opencode-usage.js";
 
 const providerUsageResultSchema = {
   parse: (value: UsageReading) => value,

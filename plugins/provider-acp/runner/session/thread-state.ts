@@ -53,8 +53,8 @@ function selectValues(
     });
 }
 
-const BRIDGE_MANAGED_OPTION_CATEGORIES = new Set(["model", "thought_level"]);
-const BRIDGE_MANAGED_SERVICE_TIER_OPTION_ID = "fast";
+const PICKER_MANAGED_OPTION_CATEGORIES = new Set(["model", "thought_level"]);
+const PICKER_MANAGED_SERVICE_TIER_OPTION_ID = "fast";
 
 export function isUserSelectableSessionOption(
   option: AcpConfigOption,
@@ -63,11 +63,11 @@ export function isUserSelectableSessionOption(
     option.type !== "unsupported" &&
     !(
       option.category !== undefined &&
-      BRIDGE_MANAGED_OPTION_CATEGORIES.has(option.category)
+      PICKER_MANAGED_OPTION_CATEGORIES.has(option.category)
     ) &&
     !(
       option.type === "select" &&
-      option.id === BRIDGE_MANAGED_SERVICE_TIER_OPTION_ID
+      option.id === PICKER_MANAGED_SERVICE_TIER_OPTION_ID
     )
   );
 }

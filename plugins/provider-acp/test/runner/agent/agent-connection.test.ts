@@ -10,7 +10,7 @@ import {
   formatAgentError,
   type AcpAgentConnection,
   type AcpAgentExitInfo,
-} from "../../../runner/bridge/agent-connection.js";
+} from "../../../runner/agent/agent-connection.js";
 
 const EPIPE_PAYLOAD_SIZE = 1024 * 1024;
 

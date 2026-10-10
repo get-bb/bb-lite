@@ -131,7 +131,7 @@ export function parseCustomAcpAgents(args: {
     );
     if (!launch.success) {
       problems.push(
-        `agent "${parsed.data.id}" does not produce a launch the bridge accepts: ${launch.error.message}`,
+        `agent "${parsed.data.id}" does not produce a launch the adapter accepts: ${launch.error.message}`,
       );
       continue;
     }

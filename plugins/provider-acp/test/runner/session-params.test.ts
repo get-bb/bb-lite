@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildAgentModelCatalog,
   parseAgentModelLines,
-} from "../../runner/bridge/model-catalog.js";
-import { SAMPLE_LIST } from "./bridge/model-catalog.fixture.js";
+} from "../../runner/agent/model-catalog.js";
+import { SAMPLE_LIST } from "./agent/model-catalog.fixture.js";
 import {
   acpLaunchSpecSchema,
   type AcpLaunchSpec,
@@ -311,10 +311,7 @@ gemini-3.5-flash claude-sonnet-4 gpt-5-mini gemini-2.5-flash kimi-k3 kimi-k2.7-c
       [
         SAMPLE_LIST,
         readFileSync(
-          new URL(
-            "./bridge/issue-1688-cursor-list-models.txt",
-            import.meta.url,
-          ),
+          new URL("./agent/issue-1688-cursor-list-models.txt", import.meta.url),
           "utf8",
         ),
       ].flatMap(

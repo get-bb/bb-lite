@@ -47,7 +47,7 @@ import {
   resolveAcpDialect,
   type AcpDialect,
 } from "./dialect.js";
-import type { AcpMaintenanceDialect } from "./bridge/provider-maintenance.js";
+import type { AcpMaintenanceDialect } from "./agent/provider-maintenance.js";
 import { describeAcpSignIn } from "./auth-guidance.js";
 import { planAcpElicitation } from "./elicitation.js";
 import {
@@ -70,7 +70,7 @@ import {
   getAcpProviderStatus,
   getAcpProviderUsage,
   type AcpStatusTarget,
-} from "./bridge/provider-maintenance.js";
+} from "./agent/provider-maintenance.js";
 import {
   type AcpConfigOption,
   acpConfigStateResultSchema,
@@ -99,7 +99,7 @@ import {
   requestAcpInitialize,
   type AcpAgentConnection,
   type AcpAgentRequestResponder,
-} from "./bridge/agent-connection.js";
+} from "./agent/agent-connection.js";
 import type { AcpAgentCapabilities } from "./client/capabilities.js";
 import {
   createAcpSessionModel,
@@ -116,7 +116,7 @@ import {
   approveCursorSessionMcpServer,
   revokeCursorSessionMcpServer,
   type CursorMcpApproval,
-} from "./bridge/cursor-mcp-approval.js";
+} from "./agent/cursor-mcp-approval.js";
 import {
   ACP_NATIVE_REASONING_EFFORTS,
   buildAgentModelCatalog,
@@ -130,17 +130,17 @@ import {
   splitPrimaryModels,
   type AcpNativeReasoningSupport,
   type AgentModelCatalog,
-} from "./bridge/model-catalog.js";
+} from "./agent/model-catalog.js";
 import {
   decodeToolCallResponsePayload,
-  type BridgeToolCallContent,
-  type BridgeToolCallImage,
-  ACP_BRIDGE_MCP_SERVER_NAME,
+  type ToolProxyContent,
+  type ToolProxyImage,
+  ACP_TOOL_PROXY_SERVER_NAME,
   buildAcpMcpServerConfig,
-  dynamicToolBridgeRequestSchema,
+  toolProxyRequestSchema,
   ensureMcpProxyScript,
   type AcpMcpServerConfig,
-} from "./bridge/tool-proxy-mcp.js";
+} from "./agent/tool-proxy-mcp.js";
 
 export interface AcpExecutionOptions {
   model?: string | undefined;
@@ -337,8 +337,8 @@ async function forwardDynamicToolCall(
   | {
       ok: true;
       content: string;
-      contentBlocks: BridgeToolCallContent[];
-      images: BridgeToolCallImage[];
+      contentBlocks: ToolProxyContent[];
+      images: ToolProxyImage[];
       isError?: boolean;
     }
   | { ok: false; error: string }
@@ -402,7 +402,7 @@ function handleToolProxySocket(proxy: AcpToolProxy, socket: Socket): void {
       socket.end(`${JSON.stringify({ ok: false, error: "Invalid JSON" })}\n`);
       return;
     }
-    const request = dynamicToolBridgeRequestSchema.safeParse(parsed);
+    const request = toolProxyRequestSchema.safeParse(parsed);
     if (!request.success || request.data.token !== proxy.token) {
       socket.end(
         `${JSON.stringify({ ok: false, error: "Invalid dynamic tool request" })}\n`,
@@ -411,7 +411,7 @@ function handleToolProxySocket(proxy: AcpToolProxy, socket: Socket): void {
     }
     if (request.data.kind === "initialized") {
       log(
-        `acp provider: "${ACP_BRIDGE_MCP_SERVER_NAME}" answered initialize for thread "${request.data.threadId}" (${request.data.toolCount} tools)\n`,
+        `acp provider: "${ACP_TOOL_PROXY_SERVER_NAME}" answered initialize for thread "${request.data.threadId}" (${request.data.toolCount} tools)\n`,
       );
       socket.end(`${JSON.stringify({ ok: true, content: "" })}\n`);
       return;
@@ -466,7 +466,7 @@ async function buildSessionMcpServers(
   }
   const proxy = await ensureToolProxy();
   const config = buildAcpMcpServerConfig({
-    bridgeArgs: await toolProxyScriptArgs(),
+    scriptArgs: await toolProxyScriptArgs(),
     command: process.execPath,
     dynamicTools,
     host: proxy.host,

@@ -68,7 +68,7 @@ describe("registerAcpDialect", () => {
     );
   });
 
-  it("refuses an empty id and every id the bridge ships", () => {
+  it("refuses an empty id and every id the adapter ships", () => {
     expect(() => registerAcpDialect({ id: " " })).toThrow("non-empty id");
     for (const id of ["acp", "cursor", "grok", "omp", "opencode"]) {
       expect(() => registerAcpDialect({ id })).toThrow(

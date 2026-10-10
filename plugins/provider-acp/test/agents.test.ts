@@ -76,7 +76,7 @@ describe("parseCustomAcpAgents", () => {
     expect(parsed.problems[0]).toContain("is not a valid agent");
   });
 
-  it("only accepts entries whose launch spec the bridge will parse", () => {
+  it("only accepts entries whose launch spec the adapter will parse", () => {
     const parsed = parseCustomAcpAgents({
       entries: [
         {

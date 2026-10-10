@@ -5,7 +5,7 @@ import { toolCallResponseSchema, type DynamicTool } from "@bb/domain";
 import { z } from "zod";
 import { MCP_PROXY_SOURCE } from "./mcp-proxy-source.js";
 
-export const ACP_BRIDGE_MCP_SERVER_NAME = "bb-bridge";
+export const ACP_TOOL_PROXY_SERVER_NAME = "bb-bridge";
 
 const ENV_HOST = "BB_ACP_DYNAMIC_TOOL_HOST";
 const ENV_PORT = "BB_ACP_DYNAMIC_TOOL_PORT";
@@ -21,7 +21,7 @@ export interface AcpMcpServerConfig {
 }
 
 interface BuildAcpMcpServerConfigArgs {
-  bridgeArgs: string[];
+  scriptArgs: string[];
   command: string;
   dynamicTools: readonly DynamicTool[];
   host: string;
@@ -31,7 +31,7 @@ interface BuildAcpMcpServerConfigArgs {
   token: string;
 }
 
-export const dynamicToolBridgeRequestSchema = z.discriminatedUnion("kind", [
+export const toolProxyRequestSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("initialized"),
     threadId: z.string().min(1),
@@ -52,9 +52,9 @@ export function buildAcpMcpServerConfig(
   args: BuildAcpMcpServerConfigArgs,
 ): AcpMcpServerConfig {
   return {
-    name: ACP_BRIDGE_MCP_SERVER_NAME,
+    name: ACP_TOOL_PROXY_SERVER_NAME,
     command: args.command,
-    args: args.bridgeArgs,
+    args: args.scriptArgs,
     env: [
       ...args.runtimeEnv,
       { name: ENV_HOST, value: args.host },
@@ -77,12 +77,12 @@ export async function ensureMcpProxyScript(directory: string): Promise<string> {
   return path;
 }
 
-export interface BridgeToolCallImage {
+export interface ToolProxyImage {
   data: string;
   mimeType: string;
 }
 
-export type BridgeToolCallContent =
+export type ToolProxyContent =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mimeType: string };
 
@@ -90,19 +90,19 @@ const IMAGE_DATA_URL = /^data:(.+);base64,(.+)$/s;
 
 export function decodeToolCallResponsePayload(result: unknown): {
   content: string;
-  contentBlocks: BridgeToolCallContent[];
-  images: BridgeToolCallImage[];
+  contentBlocks: ToolProxyContent[];
+  images: ToolProxyImage[];
   isError: boolean;
 } {
   const parsed = toolCallResponseSchema.safeParse(result);
   if (!parsed.success) {
     const text = "Invalid tool call response";
-    const contentBlocks: BridgeToolCallContent[] = [{ type: "text", text }];
+    const contentBlocks: ToolProxyContent[] = [{ type: "text", text }];
     return { content: text, contentBlocks, images: [], isError: true };
   }
   const texts: string[] = [];
-  const contentBlocks: BridgeToolCallContent[] = [];
-  const images: BridgeToolCallImage[] = [];
+  const contentBlocks: ToolProxyContent[] = [];
+  const images: ToolProxyImage[] = [];
   for (const item of parsed.data.contentItems) {
     if (item.type === "inputText") {
       texts.push(item.text);

@@ -1,7 +1,7 @@
 import { readFileSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { ACP_BRIDGE_MCP_SERVER_NAME } from "../runner/bridge/tool-proxy-mcp.js";
+import { ACP_TOOL_PROXY_SERVER_NAME } from "../runner/agent/tool-proxy-mcp.js";
 import { createHarness, FAKE_AGENT } from "./adapter-harness.js";
 import {
   agentTexts,
@@ -147,7 +147,7 @@ it("approves Cursor session MCP servers for the session lifetime (#2018)", async
   );
   const approvals = JSON.parse(readFileSync(approvalPath, "utf8")) as unknown;
   expect(approvals).toEqual([
-    expect.stringMatching(`^${ACP_BRIDGE_MCP_SERVER_NAME}-[a-f0-9]{16}$`),
+    expect.stringMatching(`^${ACP_TOOL_PROXY_SERVER_NAME}-[a-f0-9]{16}$`),
   ]);
   await session.close();
   expect(JSON.parse(readFileSync(approvalPath, "utf8")) as unknown).toEqual([]);

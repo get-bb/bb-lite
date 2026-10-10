@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   CURSOR_ACP_MAINTENANCE,
   type AcpMaintenanceDialect,
-} from "./bridge/provider-maintenance.js";
+} from "./agent/provider-maintenance.js";
 import { delegationPresentation } from "./presentation.js";
 import {
   commandRawOutputSchema,
