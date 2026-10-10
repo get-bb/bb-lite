@@ -257,7 +257,9 @@ function VoiceButton({ handle }: { handle: ComposerHandle }) {
             <Icon
               name={state.status === "transcribing" ? "Spinner" : "Mic"}
               className={
-                state.status === "transcribing" ? "animate-spin" : undefined
+                state.status === "transcribing"
+                  ? "size-4 animate-spin"
+                  : "size-4"
               }
             />
           </Button>

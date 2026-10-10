@@ -155,7 +155,10 @@ export function ComposerBanners({
     .filter(({ item }) => item.isAvailable?.(handle) ?? true);
   if (shown.length === 0) return null;
   return (
-    <div data-promptbox-banners="" className="border-b border-border">
+    <div
+      data-promptbox-banners=""
+      className="border-border has-[[data-bb-plugin]>*]:border-b"
+    >
       {shown.map(({ plugin, item }) => (
         <SlotMount
           key={`${plugin}/${item.id}`}
