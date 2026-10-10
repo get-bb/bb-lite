@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useId,
   useRef,
@@ -47,6 +48,10 @@ import {
   OPTION_TRIGGER_CONTENT_CLASS_NAME,
 } from "@bb/shared-ui/option-display";
 import { type PickerOption } from "@bb/app-kit/components/pickers/OptionPicker";
+import type {
+  SessionOptionChoice,
+  SessionOptionMenuSection,
+} from "./SessionOptionsMenu";
 import {
   PickerLoadingRows,
   searchPickerOptions,
@@ -151,6 +156,25 @@ function cycleReasoningValue(
   return next === undefined || next === current ? null : next;
 }
 
+const NO_AGENT_SECTIONS: readonly SessionOptionMenuSection[] = [];
+function ignoreAgentOptionChange(): void {}
+
+const SINGLE_ROW_REASONING_LEVELS = 6;
+const WIDE_REASONING_LABEL_LENGTH = 12;
+
+function reasoningLadderClassName(
+  options: readonly PickerOption<ReasoningLevel>[],
+): string {
+  if (options.length <= SINGLE_ROW_REASONING_LEVELS) {
+    return "flex flex-wrap gap-1";
+  }
+  return options.some(
+    (option) => option.label.length > WIDE_REASONING_LABEL_LENGTH,
+  )
+    ? "grid grid-cols-3 gap-1"
+    : "grid grid-cols-4 gap-1";
+}
+
 export interface ExecutionPermissionConfig {
   value?: PermissionMode;
   options: readonly PickerOption<PermissionMode>[];
@@ -186,6 +210,8 @@ export interface ExecutionControlsProps {
     options: readonly PickerOption<ReasoningLevel>[];
     onChange: (value: ReasoningLevel) => void;
   };
+  agentSections?: readonly SessionOptionMenuSection[];
+  onAgentOptionChange?: (optionId: string, value: SessionOptionChoice) => void;
   disabled?: boolean;
 }
 
@@ -194,6 +220,8 @@ export function ModelReasoningPicker({
   model,
   serviceTier,
   reasoning,
+  agentSections = NO_AGENT_SECTIONS,
+  onAgentOptionChange = ignoreAgentOptionChange,
   disabled = false,
   commandShortcutsEnabled = true,
   className,
@@ -772,7 +800,7 @@ export function ModelReasoningPicker({
                       );
                       if (option) selectReasoning(option.value);
                     }}
-                    className="flex gap-1"
+                    className={reasoningLadderClassName(reasoningOptions)}
                   >
                     {reasoningOptions.map((option) => (
                       <ToggleGroupItem
@@ -785,7 +813,9 @@ export function ModelReasoningPicker({
                           LIST_HOVER_TRANSITION,
                         )}
                       >
-                        {option.label}
+                        <span className="min-w-0 truncate" title={option.label}>
+                          {option.label}
+                        </span>
                       </ToggleGroupItem>
                     ))}
                   </ToggleGroup>
@@ -817,6 +847,86 @@ export function ModelReasoningPicker({
                 </div>
               </>
             ) : null}
+
+            {agentSections.map((section) => {
+              const note = section.appliesOnNextTurn ? (
+                <span className="ml-1.5 font-normal text-subtle-foreground">
+                  from the next turn
+                </span>
+              ) : null;
+              const on = section.items.find((item) => item.value === true);
+              if (on !== undefined) {
+                return (
+                  <Fragment key={section.id}>
+                    <div className="shrink-0 border-t border-border" />
+                    <div className="shrink-0 p-1">
+                      <div
+                        className="flex items-center justify-between gap-3 rounded-sm px-2 py-[0.3125rem] text-xs"
+                        title={section.description ?? undefined}
+                      >
+                        <span className="min-w-0 truncate">
+                          {section.label}
+                          {note}
+                        </span>
+                        <Switch
+                          checked={on.selected}
+                          onCheckedChange={(enabled) =>
+                            onAgentOptionChange(section.id, enabled)
+                          }
+                          aria-label={section.label}
+                          className={cn(
+                            LIST_HOVER_TRANSITION,
+                            "[&>span]:size-3.5",
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </Fragment>
+                );
+              }
+              return (
+                <Fragment key={section.id}>
+                  <div className="shrink-0 border-t border-border" />
+                  <div className="shrink-0 px-2 py-2.5">
+                    <MenuSectionLabel className="mb-2 px-1 py-0">
+                      {section.label}
+                      {note}
+                    </MenuSectionLabel>
+                    <ToggleGroup
+                      type="single"
+                      aria-label={section.label}
+                      value={
+                        section.items.find((item) => item.selected)?.key ?? ""
+                      }
+                      onValueChange={(key) => {
+                        const item = section.items.find(
+                          (candidate) => candidate.key === key,
+                        );
+                        if (item !== undefined) {
+                          onAgentOptionChange(section.id, item.value);
+                        }
+                      }}
+                      className="flex flex-wrap gap-1"
+                    >
+                      {section.items.map((item) => (
+                        <ToggleGroupItem
+                          key={item.key}
+                          value={item.key}
+                          title={item.description ?? undefined}
+                          className={cn(
+                            "h-6 min-w-0 flex-auto shrink-0 whitespace-nowrap rounded-sm px-1 text-xs font-normal shadow-none hover:bg-state-hover hover:text-foreground data-[state=on]:bg-state-active data-[state=on]:text-foreground data-[state=on]:hover:bg-state-active",
+                            isCompactViewport && "h-9 text-sm",
+                            LIST_HOVER_TRANSITION,
+                          )}
+                        >
+                          {item.label}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  </div>
+                </Fragment>
+              );
+            })}
           </div>
         </MenuHoverProvider>
       </PopoverContent>

@@ -91,6 +91,7 @@ export interface FollowUpPromptBoxProps {
     | ComponentProps<typeof ThreadContextWindowIndicator>["usage"]
     | null;
   execution: ExecutionControlsProps;
+  sessionOptionsControl?: ReactNode;
   permission: ExecutionPermissionConfig;
   executionReadOnly?: boolean;
   permissionReadOnly?: boolean;
@@ -143,6 +144,7 @@ function FollowUpPromptBoxWithComposer({
   environmentSummary,
   contextWindowUsage,
   execution,
+  sessionOptionsControl = null,
   permission,
   executionReadOnly = false,
   permissionReadOnly = false,
@@ -515,6 +517,7 @@ function FollowUpPromptBoxWithComposer({
                   />
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {sessionOptionsControl}
                   <ComposerFooterControls
                     row="status"
                     side="end"
