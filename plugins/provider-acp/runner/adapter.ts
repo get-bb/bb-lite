@@ -212,7 +212,9 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
         identity: identify,
         replaced: identify,
         failed(message) {
-          if (engine.acpSessionIsLive(threadId)) return;
+          if (engine.acpSessionIsLive(threadId)) {
+            return host.events.error({ message });
+          }
           host.onExit({ message, stderrTail: "" });
         },
         callTool: (call, signal) =>

@@ -202,7 +202,7 @@ export function steer(
     clientRequestId,
     input: text(prompt),
     options: { ...harness.execution, ...overrides },
-    expectedTurnId: harness.host.events.activeTurnId,
+    expectedTurnId: harness.host.events.activeTurnId ?? "",
   });
 }
 
