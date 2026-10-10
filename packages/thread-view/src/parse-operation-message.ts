@@ -87,7 +87,7 @@ function withThreadName(threadName: string, verb: string): string {
 const THREAD_INTERRUPTED_TITLES = {
   "host-removed": "Stopped because the machine was removed",
   "manual-stop": "Stopped manually",
-  "host-daemon-restarted": "Stopped — host daemon restarted",
+  "host-daemon-restarted": "Stopped — bb restarted while this was running",
   "provider-turn-idle": "Stopped — provider turn stopped responding",
 };
 

@@ -1,7 +1,7 @@
 import { threads } from "@bb/plugin";
 import type { PendingInteractionPayload } from "@bb/domain";
 import type { ThreadTimelineResponse as Timeline } from "@bb/server-contract";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { insertRow, openDatabase } from "@bb/server-kit/db/index";
 import { createServer } from "../src/server.js";
 import { FakeRunner } from "./helpers.js";
@@ -207,6 +207,26 @@ it("reconciles threads when a runner reconnects", async () => {
   await server.reconnect();
   expect(thread(kept)).toMatchObject({ status: "error", activeTurnId: null });
   expect(eventData(kept, interrupted)).toEqual([restarted]);
+});
+
+it("keeps a running turn when plugins are reloaded", async () => {
+  const server = await createThreadServer();
+  const { eventData, ingest, runner, thread } = server;
+  const [kept, lost] = [await server.spawn(), await server.spawn()];
+  await ingest(kept, events.identity(), events.started("k1"));
+  await ingest(lost, events.identity(), events.started("l1"));
+  const session = { providerId: "codex" as const, providerThreadId: "prov-1" };
+  const sessions = [{ ...session, threadId: kept, activeTurnId: "k1" }];
+  const idle = { pendingRequestIds: [], terminalIds: [], lastEventSeq: 0 };
+  runner.script.snapshot = async () => ({ sessions, ...idle });
+  await server.ctx.plugins.reload();
+  await vi.waitFor(() => expect(thread(lost).status).toBe("error"));
+  expect(thread(kept)).toMatchObject({ status: "active", activeTurnId: "k1" });
+  const interrupted = "system/thread/interrupted";
+  expect(eventData(kept, interrupted)).toEqual([]);
+  expect(eventData(lost, interrupted)).toEqual([
+    { reason: "host-daemon-restarted" },
+  ]);
 });
 
 it("interrupts threads that were running when the server stopped", async () => {

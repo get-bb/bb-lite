@@ -366,6 +366,29 @@ export function onHostDisconnected(engine: Engine, hostId: string): void {
   for (const { id } of active) engine.announceStatus(id);
 }
 
+const recovered = new WeakSet<object>();
+
+async function keepLiveTurns(engine: Engine): Promise<void> {
+  const { db, runners } = engine.bb;
+  const { localHostId } = runners;
+  const snapshot = await runners.get(localHostId).snapshot();
+  const live = snapshot.sessions
+    .filter((session) => session.activeTurnId !== null)
+    .map((session) => session.threadId);
+  const running = store.listThreadsOnHost(
+    db,
+    localHostId,
+    "active",
+    "stopping",
+  );
+  for (const { id } of running) {
+    engine.later(id, "reload recovery", () => {
+      if (live.includes(id)) engine.announceStatus(id);
+      else interruptThread(engine, id, RESTARTED);
+    });
+  }
+}
+
 export function recoverAfterRestart(engine: Engine): void {
   const { db } = engine.bb;
   const { localHostId } = engine.bb.runners;
@@ -374,6 +397,12 @@ export function recoverAfterRestart(engine: Engine): void {
       const reason = "server-restarted";
       interactions.cancelPluginInteraction(engine, threadId, id, reason);
     });
+  }
+  const reloaded = recovered.has(db);
+  recovered.add(db);
+  if (reloaded) {
+    engine.background("reload recovery", keepLiveTurns(engine));
+    return;
   }
   const interrupted = [
     ...store.listThreadsOnHost(db, localHostId, "active", "stopping"),

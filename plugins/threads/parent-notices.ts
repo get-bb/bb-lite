@@ -72,7 +72,7 @@ function interruptionCause(interruption: ChildOutcome["interruption"]) {
     return " because its host connection was lost";
   }
   const restarted = interruption?.reason === "host-daemon-restarted";
-  return restarted ? " because its host daemon restarted" : "";
+  return restarted ? " because bb restarted while it was running" : "";
 }
 
 function outcomeLabel(item: OutcomeItem) {
