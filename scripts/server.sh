@@ -99,7 +99,7 @@ healthy() {
 
 running_data_dir() {
   local config
-  config=$(curl -fsS -m 5 "$(server_url)/api/v1/system/config" 2>/dev/null || true)
+  config=$(curl -fsS -m 5 "$(server_url)/api/v1/server/config" 2>/dev/null || true)
   echo "$config" | sed -n 's/.*"dataDir":"\([^"]*\)".*/\1/p'
 }
 
