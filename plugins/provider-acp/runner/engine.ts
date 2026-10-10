@@ -31,9 +31,9 @@ import { z } from "zod";
 import {
   acpLaunchSpecSchema,
   type AcpLaunchSpec,
-  type AcpNativeReasoning as AcpBridgeNativeReasoning,
-  type AcpPermissionCli as AcpBridgePermissionCli,
-  type AcpReasoningCli as AcpBridgeReasoningCli,
+  type AcpNativeReasoning as AcpNativeReasoning,
+  type AcpPermissionCli as AcpPermissionCli,
+  type AcpReasoningCli as AcpReasoningCli,
 } from "../src/launch-spec.js";
 
 import {
@@ -167,8 +167,6 @@ export interface AcpSessionOutput {
   ): Promise<PendingInteractionResolution>;
 }
 
-type BridgeExecutionOptions = AcpExecutionOptions;
-
 interface TurnInputSettlement {
   resolve(): void;
   reject(error: Error): void;
@@ -195,7 +193,7 @@ interface AcpPendingTurnInput {
   clientRequestId: string;
   input: PromptInput[];
   settlement: TurnInputSettlement | null;
-  options: BridgeExecutionOptions;
+  options: AcpExecutionOptions;
 }
 
 interface AcpNativeConfigState {
@@ -250,7 +248,7 @@ type AcpDeferredStartEmitter = (
 
 const sessionsByBbThreadId = new Map<string, AcpThreadSession>();
 const bbThreadIdByProviderThreadId = new Map<string, string>();
-let dynamicToolBridgePromise: Promise<AcpDynamicToolBridge> | null = null;
+let toolProxyPromise: Promise<AcpToolProxy> | null = null;
 
 const THREAD_STOP_CANCEL_TIMEOUT_MS = 4_000;
 const AGENT_TURN_QUIET_MS = 5_000;
@@ -307,14 +305,14 @@ function emitSessionError(session: AcpThreadSession, message: string): void {
   outputsByBbThreadId.get(session.bbThreadId)?.failed(message);
 }
 
-async function resolveBridgeProcessArgsForMcpServer(): Promise<string[]> {
+async function toolProxyScriptArgs(): Promise<string[]> {
   if (mcpScriptDirectory === null) {
     throw new Error("The ACP adapter has no directory for its tool proxy");
   }
   return [await ensureMcpProxyScript(mcpScriptDirectory)];
 }
 
-function resolveBridgeProcessEnvForMcpServer(): AcpMcpServerConfig["env"] {
+function toolProxyScriptEnv(): AcpMcpServerConfig["env"] {
   const electronRunAsNode = process.env.ELECTRON_RUN_AS_NODE;
   if (electronRunAsNode === undefined) {
     return [];
@@ -377,8 +375,8 @@ async function forwardDynamicToolCall(
   }
 }
 
-function handleDynamicToolBridgeSocket(
-  bridge: AcpDynamicToolBridge,
+function handleToolProxySocket(
+  proxy: AcpToolProxy,
   socket: Socket,
 ): void {
   const controller = new AbortController();
@@ -404,7 +402,7 @@ function handleDynamicToolBridgeSocket(
       return;
     }
     const request = dynamicToolBridgeRequestSchema.safeParse(parsed);
-    if (!request.success || request.data.token !== bridge.token) {
+    if (!request.success || request.data.token !== proxy.token) {
       socket.end(
         `${JSON.stringify({ ok: false, error: "Invalid dynamic tool request" })}\n`,
       );
@@ -412,7 +410,7 @@ function handleDynamicToolBridgeSocket(
     }
     if (request.data.kind === "initialized") {
       log(
-        `acp bridge: "${ACP_BRIDGE_MCP_SERVER_NAME}" answered initialize for thread "${request.data.threadId}" (${request.data.toolCount} tools)\n`,
+        `acp provider: "${ACP_BRIDGE_MCP_SERVER_NAME}" answered initialize for thread "${request.data.threadId}" (${request.data.toolCount} tools)\n`,
       );
       socket.end(`${JSON.stringify({ ok: true, content: "" })}\n`);
       return;
@@ -426,29 +424,29 @@ function handleDynamicToolBridgeSocket(
   });
 }
 
-async function ensureDynamicToolBridge(): Promise<AcpDynamicToolBridge> {
-  if (dynamicToolBridgePromise) {
-    return dynamicToolBridgePromise;
+async function ensureToolProxy(): Promise<AcpToolProxy> {
+  if (toolProxyPromise) {
+    return toolProxyPromise;
   }
 
-  dynamicToolBridgePromise = new Promise((resolveBridge, rejectBridge) => {
+  toolProxyPromise = new Promise((resolveProxy, rejectProxy) => {
     const host = "127.0.0.1";
     const server = createServer((socket) => {
       socket.on("error", () => {});
-      void dynamicToolBridgePromise?.then((bridge) => {
-        handleDynamicToolBridgeSocket(bridge, socket);
+      void toolProxyPromise?.then((proxy) => {
+        handleToolProxySocket(proxy, socket);
       });
     });
-    server.once("error", rejectBridge);
+    server.once("error", rejectProxy);
     server.listen(0, host, () => {
       const address = server.address();
       if (!address || typeof address === "string") {
-        rejectBridge(
-          new Error("ACP dynamic tool bridge did not bind a TCP port"),
+        rejectProxy(
+          new Error("ACP tool proxy did not bind a TCP port"),
         );
         return;
       }
-      resolveBridge({
+      resolveProxy({
         host,
         port: address.port,
         server,
@@ -457,7 +455,7 @@ async function ensureDynamicToolBridge(): Promise<AcpDynamicToolBridge> {
     });
   });
 
-  return dynamicToolBridgePromise;
+  return toolProxyPromise;
 }
 
 async function buildSessionMcpServers(
@@ -467,19 +465,19 @@ async function buildSessionMcpServers(
   if (dynamicTools.length === 0) {
     return [];
   }
-  const bridge = await ensureDynamicToolBridge();
+  const proxy = await ensureToolProxy();
   const config = buildAcpMcpServerConfig({
-    bridgeArgs: await resolveBridgeProcessArgsForMcpServer(),
+    bridgeArgs: await toolProxyScriptArgs(),
     command: process.execPath,
     dynamicTools,
-    host: bridge.host,
-    port: bridge.port,
-    runtimeEnv: resolveBridgeProcessEnvForMcpServer(),
+    host: proxy.host,
+    port: proxy.port,
+    runtimeEnv: toolProxyScriptEnv(),
     threadId: params.threadId,
-    token: bridge.token,
+    token: proxy.token,
   });
   log(
-    `acp bridge: built "${config.name}" session MCP config for thread "${params.threadId}" (${dynamicTools.length} tools)\n`,
+    `acp provider: built "${config.name}" session MCP config for thread "${params.threadId}" (${dynamicTools.length} tools)\n`,
   );
   return [config];
 }
@@ -501,7 +499,7 @@ const AUTH_REQUIRED_MODEL_LIST_ERROR_MESSAGE =
 
 function reasoningSupportFromCli(
   reasoningCli:
-    | Pick<AcpBridgeReasoningCli, "supportedLevels" | "defaultLevel">
+    | Pick<AcpReasoningCli, "supportedLevels" | "defaultLevel">
     | undefined,
 ):
   | Pick<AvailableModel, "supportedReasoningEfforts" | "defaultReasoningEffort">
@@ -525,7 +523,7 @@ function reasoningSupportFromCli(
 
 function applyReasoningCliToModel(
   model: AvailableModel,
-  reasoningCli: AcpBridgeReasoningCli | undefined,
+  reasoningCli: AcpReasoningCli | undefined,
 ): AvailableModel {
   const reasoningSupport = reasoningSupportFromCli(reasoningCli);
   return reasoningSupport === undefined
@@ -546,7 +544,7 @@ function modelHasOnlyAgentManagedReasoning(model: AvailableModel): boolean {
 
 function applyNativeReasoningHintToModel(
   model: AvailableModel,
-  nativeReasoning: AcpBridgeNativeReasoning | undefined,
+  nativeReasoning: AcpNativeReasoning | undefined,
 ): AvailableModel {
   const reasoningSupport = reasoningSupportFromCli(nativeReasoning);
   return reasoningSupport === undefined ||
@@ -561,8 +559,8 @@ function applyNativeReasoningHintToModel(
 function applyConfiguredReasoningToModel(
   model: AvailableModel,
   args: {
-    reasoningCli: AcpBridgeReasoningCli | undefined;
-    nativeReasoning: AcpBridgeNativeReasoning | undefined;
+    reasoningCli: AcpReasoningCli | undefined;
+    nativeReasoning: AcpNativeReasoning | undefined;
   },
 ): AvailableModel {
   return args.reasoningCli !== undefined
@@ -573,15 +571,15 @@ function applyConfiguredReasoningToModel(
 function applyConfiguredReasoningToModels(
   models: readonly AvailableModel[],
   args: {
-    reasoningCli: AcpBridgeReasoningCli | undefined;
-    nativeReasoning: AcpBridgeNativeReasoning | undefined;
+    reasoningCli: AcpReasoningCli | undefined;
+    nativeReasoning: AcpNativeReasoning | undefined;
   },
 ): AvailableModel[] {
   return models.map((model) => applyConfiguredReasoningToModel(model, args));
 }
 
 function resolveHintReasoningValue(args: {
-  hint: Pick<AcpBridgeReasoningCli, "supportedLevels" | "levelValues">;
+  hint: Pick<AcpReasoningCli, "supportedLevels" | "levelValues">;
   reasoningLevel: ReasoningLevel;
 }): string | undefined {
   const override = args.hint.levelValues?.[args.reasoningLevel];
@@ -594,7 +592,7 @@ function resolveHintReasoningValue(args: {
 }
 
 function nativeReasoningToThoughtLevelOption(
-  nativeReasoning: AcpBridgeNativeReasoning | undefined,
+  nativeReasoning: AcpNativeReasoning | undefined,
 ): AcpConfigOption | undefined {
   if (nativeReasoning === undefined) {
     return undefined;
@@ -630,7 +628,7 @@ function nativeReasoningToThoughtLevelOption(
 }
 
 function permissionCliArgsForMode(
-  permissionCli: AcpBridgePermissionCli | undefined,
+  permissionCli: AcpPermissionCli | undefined,
   permissionMode: AcpSessionPolicy["permissionMode"],
 ): string[] {
   if (permissionCli === undefined) {
@@ -646,7 +644,7 @@ function permissionCliArgsForMode(
 
 function applyPermissionCliArgs(
   agentArgs: readonly string[],
-  permissionCli: AcpBridgePermissionCli | undefined,
+  permissionCli: AcpPermissionCli | undefined,
   permissionMode: AcpSessionPolicy["permissionMode"],
 ): string[] {
   const permissionArgs = permissionCliArgsForMode(
@@ -667,7 +665,7 @@ function applyPermissionCliArgs(
   ];
 }
 
-interface AcpDynamicToolBridge {
+interface AcpToolProxy {
   host: string;
   port: number;
   server: Server;
@@ -758,13 +756,13 @@ async function loadAgentModelCatalog(
   );
   const key = JSON.stringify(listCommand);
   if (stdout === null) {
-    log(`acp bridge: model list command "${listCommand.command}" failed\n`);
+    log(`acp provider: model list command "${listCommand.command}" failed\n`);
     return cachedModelCatalog?.key === key ? cachedModelCatalog.catalog : null;
   }
   const catalog = buildAgentModelCatalog(parseAgentModelLines(stdout));
   if (!catalog) {
     log(
-      `acp bridge: model list command "${listCommand.command}" printed no models\n`,
+      `acp provider: model list command "${listCommand.command}" printed no models\n`,
     );
     return cachedModelCatalog?.key === key ? cachedModelCatalog.catalog : null;
   }
@@ -873,7 +871,7 @@ async function loadDeclaredSessionOptions(
     ]);
   } catch (error) {
     log(
-      `acp bridge: ACP option discovery for "${agent.command}" failed: ${
+      `acp provider: ACP option discovery for "${agent.command}" failed: ${
         error instanceof Error ? error.message : String(error)
       }\n`,
     );
@@ -1010,7 +1008,7 @@ async function loadSessionDiscoveredModels(
     return models;
   } catch (error) {
     log(
-      `acp bridge: ACP-native model discovery for "${agent.command}" failed: ${
+      `acp provider: ACP-native model discovery for "${agent.command}" failed: ${
         error instanceof Error ? error.message : String(error)
       }\n`,
     );
@@ -1097,7 +1095,7 @@ async function discoverAcpNativeReasoningByModel(args: {
               break;
             }
             log(
-              `acp bridge: ACP-native reasoning discovery for model "${model.value}" failed: ${
+              `acp provider: ACP-native reasoning discovery for model "${model.value}" failed: ${
                 error instanceof Error ? error.message : String(error)
               }\n`,
             );
@@ -1274,7 +1272,7 @@ async function selectAcpNativeModel(args: {
   session: AcpThreadSession;
   sessionId: string;
   modelSelection: AcpSessionParams["modelSelection"];
-  nativeReasoning: AcpBridgeNativeReasoning | undefined;
+  nativeReasoning: AcpNativeReasoning | undefined;
 }): Promise<void> {
   const selection = args.modelSelection;
   if (!selection || !("modelId" in selection)) {
@@ -1396,7 +1394,7 @@ async function selectAcpNativeReasoning(args: {
     AcpSessionParams["modelSelection"],
     { modelId: string }
   >;
-  nativeReasoning: AcpBridgeNativeReasoning | undefined;
+  nativeReasoning: AcpNativeReasoning | undefined;
 }): Promise<void> {
   const reasoningLevel = args.modelSelection.reasoningLevel;
   if (reasoningLevel === undefined) {
@@ -1907,7 +1905,7 @@ async function releaseCursorMcpApproval(
     await revokeCursorSessionMcpServer(approval);
   } catch (error) {
     log(
-      `acp bridge: failed to remove Cursor session MCP approval for thread "${session.bbThreadId}": ${
+      `acp provider: failed to remove Cursor session MCP approval for thread "${session.bbThreadId}": ${
         error instanceof Error ? error.message : String(error)
       }\n`,
     );
@@ -2095,7 +2093,7 @@ async function startAgentSession(
       });
       if (session.cursorMcpApproval?.installedByBb) {
         log(
-          `acp bridge: installed Cursor session MCP approval for thread "${bbThreadId}"\n`,
+          `acp provider: installed Cursor session MCP approval for thread "${bbThreadId}"\n`,
         );
       }
     }
@@ -2807,7 +2805,7 @@ function runTurn(
 
 function reconcileExecutionSettings(
   session: AcpThreadSession,
-  options: BridgeExecutionOptions,
+  options: AcpExecutionOptions,
 ): AcpThreadSession | Promise<AcpThreadSession> {
   if (options.permissionMode === "auto") {
     throw new Error('ACP does not support permission mode "auto".');
@@ -3444,15 +3442,15 @@ export async function stopAcpSession(
 }
 
 export async function closeAcpToolProxy(): Promise<void> {
-  const bridge = dynamicToolBridgePromise
-    ? await dynamicToolBridgePromise.catch(() => null)
+  const proxy = toolProxyPromise
+    ? await toolProxyPromise.catch(() => null)
     : null;
-  dynamicToolBridgePromise = null;
+  toolProxyPromise = null;
   await new Promise<void>((resolveClose) => {
-    if (!bridge) {
+    if (!proxy) {
       resolveClose();
       return;
     }
-    bridge.server.close(() => resolveClose());
+    proxy.server.close(() => resolveClose());
   });
 }
