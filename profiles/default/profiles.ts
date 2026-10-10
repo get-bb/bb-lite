@@ -48,6 +48,7 @@ const PRODUCT = [
   "concurrency-limit",
   "keep-awake",
   "provider-pi",
+  "provider-acp",
   "push-notifications",
   "github",
   "storage-retention",
