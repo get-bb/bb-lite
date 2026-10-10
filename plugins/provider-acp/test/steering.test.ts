@@ -122,8 +122,9 @@ it("cancels a stacked steer prompt that also hangs", async () => {
   expect(count(harness, "turn/completed")).toBe(1);
 });
 
-async function compact(env: Record<string, string>) {
-  const { harness, session } = await started({ env });
+async function compact(env: Record<string, string>, dialect?: string) {
+  const agent = dialect === undefined ? {} : { dialect };
+  const { harness, session } = await started({ env, agent });
   await session.startTurn({
     clientRequestId: nextRequestId(),
     input: createStandaloneBuiltinCompactCommandInput(),
@@ -205,4 +206,61 @@ it("settles the interrupted turn itself when the agent ignores session/cancel", 
   expect(lastCompleted(harness)).toMatchObject({ status: "interrupted" });
   expect(completions(harness)).toBe(1);
   expect(harness.exits).toEqual([]);
+});
+
+it.each([
+  { dialect: "generic", id: undefined },
+  { dialect: "OpenCode", id: "opencode" },
+])("does not apply OMP compaction prose to $dialect ACP", async ({ id }) => {
+  const message =
+    "The first compaction failed, but retry succeeded and the context is now smaller.";
+  const harness = await compact(
+    { FAKE_ACP_COMPACT_AGENT_MESSAGE: message },
+    id,
+  );
+  expect(lastCompleted(harness)).toMatchObject({ status: "completed" });
+  expect(count(harness, "thread/compacted")).toBe(1);
+});
+
+it.each([
+  [
+    "fails the compaction turn when the agent reports the failure in an end-turn message",
+    "Compaction failed: summary model rejected the request",
+    "failed",
+  ],
+  [
+    "completes a no-op compaction turn without reporting a compacted context",
+    "Compaction failed: Nothing to compact (session too small)",
+    "skipped",
+  ],
+  [
+    "keeps classifying a no-op compaction when the agent rewords its prose",
+    "compaction failed: nothing to compact — the session is still small",
+    "skipped",
+  ],
+  [
+    "fails the compaction turn when the failure report is reworded or preceded by other text",
+    "Tried shrinking the context.\nCompaction failed: session is locked by another compaction",
+    "failed",
+  ],
+])("%s", async (_name, message, outcome) => {
+  const env = { FAKE_ACP_COMPACT_AGENT_MESSAGE: message };
+  const harness = await compact(env, "omp");
+  expect(count(harness, "thread/compacted")).toBe(0);
+  if (outcome === "failed") {
+    expect(lastCompleted(harness)).toMatchObject({
+      status: "failed",
+      error: { message },
+    });
+    return;
+  }
+  expect(lastCompleted(harness)).toMatchObject({ status: "completed" });
+  const warnings = harness.events.filter(
+    (event) => event.type === "provider/warning",
+  );
+  expect(warnings.at(-1)).toMatchObject({
+    category: "compaction-skipped",
+    summary: "Context compaction skipped",
+    details: message,
+  });
 });
