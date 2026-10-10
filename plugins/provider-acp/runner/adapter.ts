@@ -170,7 +170,9 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
     },
     async open(spec, execution, host) {
       const { threadId } = spec;
-      const env = { ...host.processEnv, ...host.env, BB_THREAD_ID: threadId };
+      const inherited = { ...host.processEnv };
+      delete inherited["ELECTRON_RUN_AS_NODE"];
+      const env = { ...inherited, ...host.env, BB_THREAD_ID: threadId };
       const roots = [...host.writableRoots, host.threadStorageDir];
       const options = providerOptions(agent, roots);
       const toExecution = (current: ExecutionOptions) => ({
