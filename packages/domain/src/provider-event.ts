@@ -262,11 +262,18 @@ export type ThreadEventTokenUsageBreakdown = z.infer<
   typeof threadEventTokenUsageBreakdownSchema
 >;
 
+export const threadUsageCostSchema = z.object({
+  amount: z.number().nonnegative(),
+  currency: z.string().min(1),
+});
+export type ThreadUsageCost = z.infer<typeof threadUsageCostSchema>;
+
 const threadEventContextWindowUsageSchema = z.object({
   snapshot: contextSnapshotSchema.optional(),
   usedTokens: z.number().nullable(),
   modelContextWindow: z.number().nullable(),
   estimated: z.boolean(),
+  cost: threadUsageCostSchema.optional(),
 });
 
 const threadEventTokenUsageSchema = z.object({
@@ -416,6 +423,7 @@ const unscopedProviderEventSchema = z.discriminatedUnion("type", [
     .strict(),
   providerEvent("thread/name/updated", {
     threadName: z.string(),
+    source: z.literal("agent").optional(),
   }),
   providerEvent("thread/compacted", {}),
   providerEvent("thread/context/cleared", {}),

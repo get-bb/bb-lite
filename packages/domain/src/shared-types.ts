@@ -10,8 +10,34 @@ export const reasoningLevelValues = [
   "max",
   "ultra",
 ] as const;
-export const reasoningLevelSchema = z.enum(reasoningLevelValues);
+export type StandardReasoningLevel = (typeof reasoningLevelValues)[number];
+export const reasoningLevelSchema = z.string().min(1);
 export type ReasoningLevel = z.infer<typeof reasoningLevelSchema>;
+
+export function isStandardReasoningLevel(
+  level: ReasoningLevel,
+): level is StandardReasoningLevel {
+  return (reasoningLevelValues as readonly string[]).includes(level);
+}
+
+export function standardReasoningLevelRank(
+  level: ReasoningLevel,
+): number | null {
+  const rank = (reasoningLevelValues as readonly string[]).indexOf(level);
+  return rank === -1 ? null : rank;
+}
+
+export function compareReasoningLevels(
+  a: ReasoningLevel,
+  b: ReasoningLevel,
+): number {
+  const aRank = standardReasoningLevelRank(a);
+  const bRank = standardReasoningLevelRank(b);
+  if (aRank === null || bRank === null) {
+    return aRank === bRank ? 0 : aRank === null ? 1 : -1;
+  }
+  return aRank - bRank;
+}
 
 export const serviceTierSchema = z.enum(["fast", "default"]);
 export type ServiceTier = z.infer<typeof serviceTierSchema>;

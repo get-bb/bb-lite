@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { SystemExecutionOptionsModelLoadError } from "@bb/server-contract";
 import {
-  reasoningLevelValues,
+  compareReasoningLevels,
   type PermissionMode,
   type ReasoningLevel,
   type ServiceTier,
@@ -132,19 +132,22 @@ function cycleReasoningValue(
   current: ReasoningLevel,
   step: 1 | -1,
 ): ReasoningLevel | null {
-  const supported = reasoningLevelValues.filter((level) =>
-    options.some((option) => option.value === level),
+  const supported = options
+    .map((option) => option.value)
+    .sort(compareReasoningLevels);
+  const index = supported.indexOf(current);
+  const offered = index !== -1;
+  const neighbour =
+    supported[(index + step + supported.length) % supported.length];
+  const higher = supported.find(
+    (level) => compareReasoningLevels(level, current) > 0,
   );
-  const rank = reasoningLevelValues.indexOf(current);
-  const next =
-    step > 0
-      ? (supported.find(
-          (level) => reasoningLevelValues.indexOf(level) > rank,
-        ) ?? supported[0])
-      : ([...supported]
-          .reverse()
-          .find((level) => reasoningLevelValues.indexOf(level) < rank) ??
-        supported.at(-1));
+  const lower = [...supported]
+    .reverse()
+    .find((level) => compareReasoningLevels(level, current) < 0);
+  const ranked =
+    step > 0 ? (higher ?? supported[0]) : (lower ?? supported.at(-1));
+  const next = offered ? neighbour : ranked;
   return next === undefined || next === current ? null : next;
 }
 
