@@ -295,11 +295,36 @@ function listOf(value: Json | undefined): string[] {
 
 const WIDER = ["enum", "anyOf", "oneOf", "required"];
 
-function widens(before: Json | undefined, after: Json | undefined): boolean {
+function listOfJson(value: Json | undefined): Json[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function opensStrings(
+  before: Json | undefined,
+  after: Json | undefined,
+): boolean {
   if (same(before, after)) return true;
+  if (Array.isArray(before) && Array.isArray(after)) {
+    const paired = before.length === after.length;
+    return paired && before.every((each, at) => opensStrings(each, after[at]));
+  }
   const plain = (value: Json | undefined): value is { [key: string]: Json } =>
     value !== null && typeof value === "object" && !Array.isArray(value);
   if (!plain(before) || !plain(after)) return false;
+  const closed = before.type === "string" && Array.isArray(before.enum);
+  if (closed) return after.type === "string" && after.enum === undefined;
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].every((key) => opensStrings(before[key], after[key]));
+}
+
+function widens(before: Json | undefined, after: Json | undefined): boolean {
+  if (same(before, after) || opensStrings(before, after)) return true;
+  const plain = (value: Json | undefined): value is { [key: string]: Json } =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
+  if (!plain(before) || !plain(after)) return false;
+  const joined = Array.isArray(after.anyOf) && !Array.isArray(before.anyOf);
+  if (joined)
+    return listOfJson(after.anyOf).some((each) => widens(before, each));
   return Object.entries(before).every(([key, old]) => {
     const next = after[key];
     if (!WIDER.includes(key)) return widens(old, next);
@@ -319,7 +344,7 @@ function onlyAdds(
   if (was === undefined || now === undefined)
     return keysOf(before).length === 0;
   const kept = keysOf(was).every((key) =>
-    same(field(was, key), field(now, key)),
+    opensStrings(field(was, key), field(now, key)),
   );
   return kept && same(field(before, "type"), field(after, "type"));
 }
@@ -396,7 +421,8 @@ function entryChange(
   if (before.type === "object" && after.type === "object") {
     return objectChange(before, after, given);
   }
-  return "breaks";
+  const opened = typeof before.const === "string" && after.type === "string";
+  return opened ? "adds" : "breaks";
 }
 
 function inputChange(before: Json, after: Json): "same" | "adds" | "breaks" {
