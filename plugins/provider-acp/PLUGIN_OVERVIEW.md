@@ -1,5 +1,3 @@
-This is a preview of bb's rebuilt ACP adapter. Turning it on turns the original "ACP providers" plugin off; turning it off brings the original back. Both register the same providers, so your threads and your custom agents carry over either way.
-
 Use one bb workspace with the coding agents you already run on your machine. This plugin connects bb to agents that speak the Agent Client Protocol (ACP). Each agent appears as a provider in the thread composer.
 
 ## What you get
@@ -13,7 +11,7 @@ Use one bb workspace with the coding agents you already run on your machine. Thi
 
 ## How it works
 
-The plugin launches the agent command on the host machine and talks to it over ACP. Cursor is always visible. The other agents appear after bb finds their command on a connected host. A background probe checks what each installed agent supports and updates the provider.
+The plugin launches the agent command on the host machine and talks to it over ACP. Cursor is always visible. The other agents appear after bb finds their command on a connected host. When a machine connects, bb checks which agents it can start and what each one supports, and updates the providers. Changing the custom agents or adding one from the registry updates every connected machine.
 
 ## Requirements
 
