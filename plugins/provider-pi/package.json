@@ -1,0 +1,37 @@
+{
+  "name": "bb-plugin-provider-pi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Run bb threads with Pi.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Pi provider",
+    "description": "Run bb threads with Pi.",
+    "icon": "./logo.svg",
+    "server": "./server.ts",
+    "runner": "./runner.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

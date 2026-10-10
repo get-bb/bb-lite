@@ -1,3 +1,4 @@
+import type { AuthSessionResponse } from "@bb/server-contract";
 import { validId, type Call } from "../call.js";
 import { CliError, usageError, type Run } from "../engine.js";
 
@@ -21,7 +22,8 @@ function date(at: number): string {
 }
 
 async function currentUser(c: Call) {
-  const { user } = await c.sdk.auth.session();
+  const session = await c.request("/api/v1/auth/session");
+  const { user } = (await session.json()) as AuthSessionResponse;
   if (user !== null) return user;
   const hint = "Run bb on the server machine, where it acts as the owner.";
   throw new CliError("Not signed in: the server sees no user for this CLI.", {
@@ -37,7 +39,7 @@ export const whoami: Run = async (c) => {
 };
 
 export const userList: Run = async (c) => {
-  const users = await c.sdk.users.list();
+  const users = await c.op(c.ops.users.list, {});
   const rows = users.map((user) => ({
     ...user,
     status: user.disabledAt === null ? "active" : "disabled",
@@ -46,7 +48,7 @@ export const userList: Run = async (c) => {
 };
 
 export const userInvite: Run = async (c) => {
-  const invite = await c.sdk.users.createInvite({
+  const invite = await c.op(c.ops.users.createInvite, {
     name: c.flag("name"),
     email: c.flag("email"),
     role: c.choice("role", ROLES),
@@ -57,14 +59,14 @@ export const userInvite: Run = async (c) => {
 };
 
 export const userInvites: Run = async (c) => {
-  const invites = await c.sdk.users.invites();
+  const invites = await c.op(c.ops.users.listInvites, {});
   c.rows(invites, ["id", "name", "email", "role", "expiresAt"]);
 };
 
 export const userRevokeInvite: Run = async (c) => {
   const inviteId = id(c, "id");
-  const result = await c.sdk.users.revokeInvite({ inviteId });
-  c.out({ ...result, inviteId }, `Invite ${inviteId} revoked`);
+  await c.op(c.ops.users.deleteInvite, { inviteId });
+  c.out({ ok: true, inviteId }, `Invite ${inviteId} revoked`);
 };
 
 export const userSignInLink: Run = async (c) => {
@@ -73,7 +75,7 @@ export const userSignInLink: Run = async (c) => {
     given === undefined
       ? (await currentUser(c)).id
       : validId(given, "<id> argument");
-  const link = await c.sdk.users.createSignInLink({ userId });
+  const link = await c.op(c.ops.users.createSignInLink, { userId });
   const expires = date(link.expiresAt);
   const text = `One-time sign-in link for ${userId}`;
   const lines = linkLines(`${text} (expires ${expires}):`, link.url);
@@ -87,13 +89,16 @@ export const userRole: Run = async (c) => {
     const expected = ROLES.join(", ");
     throw usageError(`Invalid role '${wanted}'. Expected: ${expected}.`);
   }
-  const user = await c.sdk.users.update({ userId: id(c, "id"), role });
+  const user = await c.op(c.ops.users.update, { userId: id(c, "id"), role });
   c.out(user, `User ${user.id} is now ${user.role}`);
 };
 
 function setDisabled(disabled: boolean): Run {
   return async (c) => {
-    const user = await c.sdk.users.update({ userId: id(c, "id"), disabled });
+    const user = await c.op(c.ops.users.update, {
+      userId: id(c, "id"),
+      disabled,
+    });
     const state = user.disabledAt === null ? "enabled" : "disabled";
     c.out(user, `User ${user.id} is ${state}`);
   };

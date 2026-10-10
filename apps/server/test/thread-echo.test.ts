@@ -3,8 +3,9 @@ import type {
   SidebarBootstrapResponse,
   ThreadTimelineResponse as Timeline,
 } from "@bb/server-contract";
+import { threads } from "@bb/plugin";
 import { expect, it, vi } from "vitest";
-import type { ThreadRow } from "../src/db/threads.js";
+import type { ThreadRow } from "@bb/server-kit/db/threads";
 import { createEchoServer } from "./helpers.js";
 import { text } from "./thread-harness.js";
 
@@ -22,7 +23,7 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   const row = () =>
     ctx.db.get<ThreadRow>("SELECT * FROM threads WHERE id = ?", id);
   const listed = async (): Promise<ThreadListEntry | undefined> => {
-    const sidebar = await get<SidebarBootstrapResponse>("/sidebar-bootstrap");
+    const sidebar = await get<SidebarBootstrapResponse>("/projects/sidebar");
     const entries = await get<ThreadListEntry[]>("/threads");
     const entry = entries.find((thread) => thread.id === id);
     expect(sidebar.projects[0]?.threads).toEqual([entry]);
@@ -72,12 +73,12 @@ it("runs an echo thread on the real local runner and steers it", async () => {
   expect(await prompts(path)).toEqual(steers);
   const started = ["delay:5000 first"];
   expect(await prompts(`/projects/${project.id}`)).toEqual(started);
-  const plugin = ctx.plugins.deps("probe").threads;
+  const plugin = ctx.kernel.scope("probe", "product");
   const query = { projectId: project.id };
-  expect(await plugin.list(query)).toEqual([await listed()]);
-  const types = (await plugin.events(id, timeline.maxSeq)).map(
-    ({ type }) => type,
-  );
+  expect(await plugin.call(threads.list, query)).toEqual([await listed()]);
+  const after = { threadId: id, afterSeq: timeline.maxSeq };
+  const recorded = await plugin.call(threads.events, after);
+  const types = recorded.map(({ type }) => type);
   expect(types).toContain("turn/completed");
   expect(types).not.toContain("client/thread/start");
 });

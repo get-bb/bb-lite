@@ -1,6 +1,8 @@
-import type {
-  PluginMessageDirectiveProps,
-  PluginThreadPanelProps,
+import { tasks } from "../../shared/contract.js";
+import {
+  callOp,
+  type MessageDirectiveProps,
+  type SidePanelPanelProps,
 } from "@bb/plugin/app";
 import { useBbNavigate } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
@@ -52,7 +54,7 @@ function TaskCard({
 }) {
   const navigate = useBbNavigate();
   const query = useTasksQuery(
-    async (rpc) => (await rpc.call("getTaskByKey", { taskKey })).task,
+    async () => (await callOp(tasks.getTaskByKey, { taskKey })).task,
     [taskKey],
   );
   const task = query.data;
@@ -160,7 +162,7 @@ function TaskCard({
   );
 }
 
-export function TaskDirectiveCard({ attributes }: PluginMessageDirectiveProps) {
+export function TaskDirectiveCard({ attributes }: MessageDirectiveProps) {
   const taskKey = attributes.key?.trim() ?? "";
   const title = attributes.title?.trim() || null;
   if (TASK_KEY_PATTERN.test(taskKey)) {
@@ -173,7 +175,7 @@ export function TaskDirectiveCard({ attributes }: PluginMessageDirectiveProps) {
   );
 }
 
-export function TaskEmbedPanel({ params }: PluginThreadPanelProps) {
+export function TaskEmbedPanel({ params }: SidePanelPanelProps) {
   const given: unknown =
     typeof params === "object" && params !== null
       ? Reflect.get(params, "taskKey")

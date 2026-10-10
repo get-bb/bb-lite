@@ -1,7 +1,7 @@
-import { defaultAdapters } from "@bb/runner";
-import { loadConfig, type ServerEnv } from "./config.js";
-import { codexTitle } from "./providers/title-service.js";
-import { localRunnerFor } from "./runners/local.js";
+import { runnerParts } from "@bb/profile-default/runner";
+import { profilePlugins } from "@bb/profile-default/server";
+import { loadConfig, type ServerEnv } from "@bb/server-kit/config";
+import { localRunnerFor } from "@bb/server-kit/runners/local";
 import { createServer, type BbServer } from "./server.js";
 
 export interface StartServerOptions {
@@ -15,13 +15,10 @@ export async function startServer(
   const env = options.env ?? process.env;
   const loaded = loadConfig(env);
   const config = { ...loaded, cliDir: options.cliDir ?? loaded.cliDir };
-  const dev = (env.BB_DEV_PROVIDERS ?? "").split(",");
-  const adapters = defaultAdapters().filter(
-    (adapter) => adapter.id !== "echo" || dev.includes("echo"),
-  );
-  const local = localRunnerFor(config, adapters);
-  const server = createServer({ config, localRunner: local.connect });
-  server.ctx.plugins.titleFallback = codexTitle;
+  const local = localRunnerFor(config, { parts: runnerParts });
+  const builtins = profilePlugins(config.profile);
+  const localRunner = local.connect;
+  const server = createServer({ config, localRunner, builtins });
   const { url } = await server.listen();
   const { dataDir, version } = config;
   server.ctx.log.info("bb server listening", { url, dataDir, version });

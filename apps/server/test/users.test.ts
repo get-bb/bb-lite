@@ -4,7 +4,7 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { WebSocket } from "ws";
-import { openDatabase } from "../src/db/index.js";
+import { openDatabase } from "@bb/server-kit/db/index";
 import { scratch, TestSocket, type Json } from "./helpers.js";
 import {
   createThreadServer,
@@ -63,7 +63,7 @@ function visitor(server: ThreadServer) {
 
 async function invite(server: ThreadServer, name: string) {
   const email = `${name.toLowerCase()}@example.test`;
-  const created = await server.http("POST", "/user-invites", { name, email });
+  const created = await server.http("POST", "/users/invites", { name, email });
   const token = new URL(String(created.body.url)).searchParams.get("token");
   const member = visitor(server);
   const account = { name, email, password: PASSWORD };
@@ -118,7 +118,7 @@ it("signs people in through invites, passwords and sign-in links", async () => {
   expect(users.body).toMatchObject([{ id: OWNER }, { id: bo.id }]);
 
   const forbidden = { status: 403 };
-  expect(await bo.call("POST", "/user-invites", {})).toMatchObject(forbidden);
+  expect(await bo.call("POST", "/users/invites", {})).toMatchObject(forbidden);
   const promote = { role: "owner" };
   expect(await bo.call("PATCH", `/users/${bo.id}`, promote)).toMatchObject(
     forbidden,
@@ -171,7 +171,7 @@ it("keeps a private machine to its owner and says who did what", async () => {
   const bo = await invite(server, "Bo");
   const notShared = { status: 403, body: { code: "machine_not_shared" } };
 
-  const hosts = await bo.call("GET", "/hosts");
+  const hosts = await bo.call("GET", "/machines");
   const local = { id: hostId, ownerUserId: OWNER, sharing: "private" };
   expect(hosts.body).toMatchObject([{ ...local, usable: false }]);
   expect(await bo.call("POST", "/threads", spawnRequest())).toMatchObject(
@@ -187,7 +187,7 @@ it("keeps a private machine to its owner and says who did what", async () => {
     status: 200,
   });
   const share = { sharing: "shared" };
-  const sharing = `/hosts/${hostId}/sharing`;
+  const sharing = `/machines/${hostId}/sharing`;
   expect(await bo.call("PATCH", sharing, share)).toMatchObject({ status: 403 });
   expect(await server.http("PATCH", sharing, share)).toMatchObject({
     body: { sharing: "shared", usable: true },
@@ -233,12 +233,12 @@ it("gives a machine to whoever adds it", async () => {
   const server = await createThreadServer();
   const bo = await invite(server, "Bo");
   const manual = { machineProviderId: "manual", inputs: null };
-  const added = await bo.call("POST", "/hosts", manual);
+  const added = await bo.call("POST", "/machines", manual);
   expect(added).toMatchObject({ status: 201, body: { ownerUserId: bo.id } });
-  const path = `/hosts/${String(added.body.id)}`;
+  const path = `/machines/${String(added.body.id)}`;
   const command = await bo.call("GET", `${path}/enrollment-command`);
   expect(String(command.body.command)).toContain("bb runner join ");
-  const all = "/hosts?includeCreating=true";
+  const all = "/machines?includeCreating=true";
   const seen = (await server.http<Json[]>("GET", all)).body;
   const usable = seen.map((host) => [host.id === added.body.id, host.usable]);
   expect(usable.sort()).toEqual([
@@ -269,7 +269,9 @@ it("tells everyone who is viewing which thread", async () => {
   ].sort((left, right) => left.userId.localeCompare(right.userId));
   await vi.waitFor(() => expect(latest(owner)).toEqual(both));
   expect(latest(member)).toEqual(both);
-  expect((await bo.call("GET", "/presence")).body).toEqual({ users: both });
+  expect((await bo.call("GET", "/users/presence")).body).toEqual({
+    users: both,
+  });
   member.socket.close();
   await vi.waitFor(() => expect(latest(owner)).toEqual(alone));
   const refused = new WebSocket(`${server.url.replace("http", "ws")}/ws`, {
@@ -284,9 +286,37 @@ it("tells everyone who is viewing which thread", async () => {
   expect(status).toBe(401);
 });
 
+it("opens a thread only in the caller's own app", async () => {
+  const server = await createThreadServer();
+  const threadId = await server.spawn();
+  const bo = await invite(server, "Bo");
+  const owner = await server.socket();
+  const heard: string[] = [];
+  owner.socket.on("message", (data) => {
+    const { type } = JSON.parse(String(data)) as { type: string };
+    if (type === "thread-open") heard.push(type);
+  });
+  const opened = await bo.call("POST", `/threads/${threadId}/open`, {
+    file: null,
+  });
+  expect(opened.body).toEqual({ delivered: 0 });
+  const member = await bo.socket();
+  await vi.waitFor(async () => {
+    const again = await bo.call("POST", `/threads/${threadId}/open`, {
+      file: null,
+    });
+    expect(again.body).toEqual({ delivered: 1 });
+  });
+  await member.next((message) => message.type === "thread-open");
+  expect(heard).toEqual([]);
+});
+
 it("hands an existing single-user database to the first owner", () => {
   const path = join(scratch(), "bb.db");
-  const schema = new URL("../src/db/schema.sql", import.meta.url);
+  const schema = new URL(
+    "../../../packages/server-kit/src/db/schema.sql",
+    import.meta.url,
+  );
   const before = new Database(path);
   before.exec(readFileSync(schema, "utf8"));
   before.pragma("user_version = 1");
@@ -338,4 +368,41 @@ it("hands an existing single-user database to the first owner", () => {
   expect(one("SELECT * FROM prompt_history_entries")).toMatchObject(owned);
   expect(one("PRAGMA foreign_key_check")).toBeUndefined();
   db.close();
+});
+
+it("keeps shared environments and providers owner-only", async () => {
+  const server = await createThreadServer();
+  const member = await invite(server, "Mo");
+  const variables = [{ name: "GIT_SSH_COMMAND", value: "touch /tmp/x" }];
+  const envPath = "/projects/proj_1/machine-environment";
+  const env = await member.call("PUT", envPath, { variables });
+  expect(env.status).toBe(403);
+  const viaOps = await member.call(
+    "POST",
+    "/ops/projects.updateMachineEnvironment",
+    { projectId: "proj_1", variables },
+  );
+  expect(viaOps.status).toBe(403);
+  const providerPath = "/sessions/providers/echo/enabled";
+  const provider = await member.call("PUT", providerPath, { enabled: false });
+  expect(provider.status).toBe(403);
+});
+
+it("refuses a member the server-wide connect and account pool", async () => {
+  const server = await createThreadServer();
+  const bo = await invite(server, "Bo");
+  const calls: [string, Json][] = [
+    ["connect.setEnabled", { enabled: false }],
+    ["connect.login", {}],
+    ["connect.logout", {}],
+    ["account-pool.configSet", { switchThreshold: 0.5 }],
+    ["account-pool.routingSet", { provider: "codex", enabled: true }],
+  ];
+  for (const [op, input] of calls) {
+    const reply = await bo.call("POST", `/ops/${op}`, input);
+    expect({ op, reply }).toMatchObject({
+      op,
+      reply: { status: 403, body: { code: "forbidden" } },
+    });
+  }
 });

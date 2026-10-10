@@ -1,0 +1,18 @@
+{
+  "name": "bb-plugin-nap-guard",
+  "version": "0.2.0",
+  "type": "module",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Nap Guard",
+    "description": "Keeps hosts awake (port test).",
+    "icon": "Coffee",
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}

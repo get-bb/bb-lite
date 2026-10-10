@@ -2,32 +2,32 @@ import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import type { Kernel, Tier } from "@bb/plugin";
 import type * as plugin from "@bb/plugin";
 import Database from "better-sqlite3";
-import type { Logger } from "../context.js";
-import type { Db } from "../db/index.js";
-import { readPluginRows, writePluginRow } from "../db/plugins.js";
-import { errorMessage } from "../http/errors.js";
-import type { Hub } from "../ws/hub.js";
-import type { PluginHostDeps } from "./deps.js";
+import type { Logger } from "@bb/server-kit/context";
+import type { Db } from "@bb/server-kit/db/index";
+import { readPluginRows, writePluginRow } from "@bb/server-kit/db/plugins";
+import { errorMessage } from "@bb/server-kit/http/errors";
+import { asPlugin, currentCaller } from "@bb/server-kit/kernel/caller";
+import type { Hub } from "@bb/server-kit/ws/hub";
+import { cronMatches, parseCron, type Cron } from "./cron.js";
 import { PluginSettings, type SettingRecord } from "./settings.js";
+import { createPluginTables } from "./tables.js";
 
-type MaybePromise<T> = T | Promise<T>;
-type Contributor<T> = (context: plugin.ThreadContext) => MaybePromise<T>;
-type EventHandler = (
-  payload: plugin.PluginEvents[keyof plugin.PluginEvents],
-) => unknown;
-type RpcHandler = (input: unknown) => unknown;
 type Service = Parameters<plugin.PluginServerApi["background"]["service"]>;
+type Starter = Parameters<plugin.PluginServerApi["onStart"]>[0];
 
 export interface PluginApiHost {
   db: Db;
   hub: Hub;
   log: Logger;
-  dataDir: string;
-  serverUrl: string;
-  tunnelToken: string;
-  deps: PluginHostDeps;
+  kernel: Kernel;
+  server: plugin.ServerInfo;
+  runners: plugin.Runners;
+  now(): number;
+  routes(routes: plugin.ApiRoutes, internal: boolean): () => void;
+  sockets(resolver: plugin.SocketResolver): () => void;
 }
 
 const KV_VALUE_MAX_BYTES = 256 * 1024;
@@ -37,36 +37,27 @@ const SERVICE_RESTART_BASE_MS = 1_000;
 const SERVICE_HEALTHY_MS = 60_000;
 
 export class PluginInstance {
-  readonly rpc = new Map<
-    string,
-    { contract: plugin.RpcMethodContract; handler: RpcHandler }
-  >();
   readonly routes = new Map<
     string,
     { handler: plugin.HttpHandler; auth: plugin.HttpAuth }
   >();
   cli: plugin.CliRegistration | null = null;
-  readonly tools: plugin.AgentTool[] = [];
-  readonly instructions: Contributor<string | null>[] = [];
-  readonly env: [providerId: string, Contributor<plugin.ProviderEnvEntry[]>][] =
-    [];
-  readonly mentionProviders: plugin.MentionProvider[] = [];
-  readonly environments: plugin.EnvironmentDefinition[] = [];
-  readonly inference: plugin.InferenceService[] = [];
-  readonly listeners: [name: string, handler: EventHandler][] = [];
   readonly services: Service[] = [];
+  readonly starters: Starter[] = [];
   readonly disposers: (() => unknown)[] = [];
   readonly stopping = new AbortController();
   needsConfiguration: string | null = null;
-  publicUrl: string | null = null;
-  machineAccess: plugin.MachineAccessProvider | null = null;
 
   constructor(
     readonly settings: PluginSettings,
     readonly log: plugin.PluginServerApi["log"],
   ) {}
 
-  startServices(): void {
+  async start(): Promise<void> {
+    for (const start of this.starters) {
+      const stop = await start();
+      if (typeof stop === "function") this.disposers.push(stop);
+    }
     for (const service of this.services) void this.supervise(service);
   }
 
@@ -98,6 +89,19 @@ export class PluginInstance {
       }
     }
   }
+}
+
+const MINUTE_MS = 60_000;
+
+function scheduled(cron: Cron, run: (signal: AbortSignal) => unknown) {
+  return async (signal: AbortSignal): Promise<void> => {
+    while (!signal.aborted) {
+      const untilNextMinute = MINUTE_MS - (Date.now() % MINUTE_MS);
+      await sleep(untilNextMinute, undefined, { signal }).catch(() => {});
+      if (signal.aborted) return;
+      if (cronMatches(cron, new Date())) await run(signal);
+    }
+  };
 }
 
 function collect<T>(list: T[]): (item: T) => void {
@@ -132,15 +136,43 @@ function migrate(database: Database.Database, statements: string[]) {
   })();
 }
 
+function runnersFor(runners: plugin.Runners, pluginId: string): plugin.Runners {
+  const acting = <Args extends unknown[], Result>(
+    run: (...args: Args) => Result,
+  ) => {
+    return (...args: Args) => asPlugin(pluginId, () => run(...args));
+  };
+  return new Proxy(runners, {
+    get(target, key) {
+      if (key === "call") return acting(target.call.bind(target));
+      if (key !== "get") {
+        const member: unknown = Reflect.get(target, key, target);
+        return typeof member === "function" ? member.bind(target) : member;
+      }
+      return (hostId: string) => {
+        const runner = target.get(hostId);
+        return new Proxy(runner, {
+          get: (machine, name, receiver) =>
+            name === "call"
+              ? acting(machine.call.bind(machine))
+              : (Reflect.get(machine, name, receiver) as unknown),
+        });
+      };
+    },
+  });
+}
+
 export function createPluginInstance(
   host: PluginApiHost,
   pluginId: string,
+  tier: Tier,
 ): { instance: PluginInstance; api: plugin.PluginServerApi } {
   const { db, hub } = host;
-  const dataDir = join(host.dataDir, "plugins", pluginId);
+  const dataDir = join(host.server.dataDir, "plugins", pluginId);
   mkdirSync(dataDir, { recursive: true });
-  const at = (level: keyof Logger) => (message: string) =>
-    host.log[level](message, { pluginId });
+  const at =
+    (level: keyof Logger) => (message: string, fields?: plugin.LogFields) =>
+      host.log[level](message, { pluginId, ...fields });
   const log = {
     debug: at("debug"),
     info: at("info"),
@@ -149,22 +181,41 @@ export function createPluginInstance(
   };
   const settings = new PluginSettings(db, pluginId, join(dataDir, "secrets"));
   const instance = new PluginInstance(settings, log);
-  const { requestInput, ...outward } = host.deps(pluginId);
+  const { dispose: release, ...verbs } = host.kernel.scope(pluginId, tier);
+  instance.disposers.push(release);
   let database: Database.Database | undefined;
 
   const api: plugin.PluginServerApi = {
-    ...outward,
+    ...verbs,
     pluginId,
     log,
     dataDir,
+    server: host.server,
+    db,
+    realtime: hub,
+    runners: runnersFor(host.runners, pluginId),
+    now: host.now,
     settings: {
-      define<D extends plugin.SettingDescriptors>(descriptors: D) {
-        settings.define(descriptors);
+      define<D extends plugin.SettingDescriptors>(
+        descriptors: D,
+        { scope = "workspace" }: { scope?: plugin.SettingScope } = {},
+      ) {
+        settings.define(descriptors, scope);
+        const user = () => currentCaller().user;
         const typed = (values: SettingRecord) =>
           values as plugin.SettingValues<D>;
         const handle: plugin.SettingsHandle<D> = {
-          get: async () => typed(await settings.read()),
-          set: async (values) => typed(await settings.write(values)),
+          get: async (options) =>
+            typed(
+              await settings.read(
+                options?.userId === undefined ? user() : options.userId,
+                options?.projectId ?? null,
+              ),
+            ),
+          set: async (values, options) =>
+            typed(
+              await settings.write(values, user(), options?.projectId ?? null),
+            ),
           onChange: (listener) => {
             settings.listeners.push((next, previous) => {
               try {
@@ -198,35 +249,37 @@ export function createPluginInstance(
           return [...readPluginRows(db, "plugin_kv", pluginId, prefix).keys()];
         },
       },
-      database() {
+      database(migrations) {
         if (database?.open) return database;
         const opened = new Database(join(dataDir, "data.db"));
         opened.pragma("journal_mode = WAL");
         opened.pragma("busy_timeout = 5000");
         instance.disposers.unshift(() => opened.close());
+        if (migrations !== undefined) migrate(opened, migrations);
         database = opened;
         return opened;
       },
-      migrate,
-    },
-    rpc: {
-      register(contract, handlers) {
-        for (const [method, methodContract] of Object.entries(contract)) {
-          const handler = handlers[method] as RpcHandler;
-          instance.rpc.set(method, { contract: methodContract, handler });
-        }
-      },
+      tables: createPluginTables(db, pluginId, verbs),
     },
     http: {
       route(method, path, handler, { auth = "local" } = {}) {
         const key = `${method.toUpperCase()} ${path}`;
         instance.routes.set(key, { handler, auth });
       },
+      api(routes, { internal = false } = {}) {
+        instance.disposers.push(host.routes(routes, internal));
+      },
+      socket(resolver) {
+        instance.disposers.push(host.sockets(resolver));
+      },
     },
-    realtime: { publish: hub.pluginSignal.bind(hub, pluginId) },
     background: {
       service: (...service) => {
         instance.services.push(service);
+      },
+      schedule(name, expression, run) {
+        const cron = parseCron(expression);
+        instance.services.push([name, { start: scheduled(cron, run) }]);
       },
     },
     cli: {
@@ -235,45 +288,18 @@ export function createPluginInstance(
         instance.cli = registration;
       },
     },
-    events: {
-      on: (name, handler) => {
-        instance.listeners.push([name, handler as EventHandler]);
-      },
-    },
-    agents: {
-      registerTool: collect(instance.tools),
-      contributeInstructions: collect(instance.instructions),
-    },
-    ui: {
-      requestInput,
-      registerMentionProvider: collect(instance.mentionProviders),
-    },
-    providers: {
-      contributeEnv: (providerId, contribute) => {
-        instance.env.push([providerId, contribute]);
-      },
-    },
-    environments: { register: collect(instance.environments) },
-    inference: { register: collect(instance.inference) },
     status: {
       needsConfiguration(message) {
         instance.needsConfiguration = message;
         hub.system(["plugins-changed"]);
       },
-    },
-    machines: {
-      setAccessProvider: (provider) => {
-        instance.machineAccess = provider;
+      ready() {
+        if (instance.needsConfiguration === null) return;
+        instance.needsConfiguration = null;
+        hub.system(["plugins-changed"]);
       },
     },
-    server: {
-      url: host.serverUrl,
-      dataDir: host.dataDir,
-      tunnelToken: host.tunnelToken,
-      setPublicUrl: (url) => {
-        instance.publicUrl = url;
-      },
-    },
+    onStart: collect(instance.starters),
     onDispose: collect(instance.disposers),
   };
   return { instance, api };

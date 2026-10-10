@@ -17,3 +17,36 @@ export const PLUGIN_SHARED_MODULES = [
   "@base-ui/react/select",
   "@base-ui/react/tooltip",
 ] as const;
+
+export const PLUGIN_HOST_MODULES = [
+  "@bb/client-core",
+  "@bb/core-ui",
+  "@tanstack/react-query",
+  "jotai",
+  "jotai/utils",
+  "react-router-dom",
+] as const;
+
+export const PLUGIN_ZOD_MODULES = [
+  "zod",
+  "zod/mini",
+  "zod/v4",
+  "zod/v4/core",
+  "zod/v4/mini",
+] as const;
+
+export const PLUGIN_HOST_MODULE_PREFIXES = [
+  "@bb/shared-ui/",
+  "@bb/app-kit/",
+] as const;
+
+export function isHostModule(specifier: string): boolean {
+  const names: readonly string[] = [
+    ...PLUGIN_SHARED_MODULES,
+    ...PLUGIN_HOST_MODULES,
+  ];
+  return (
+    names.includes(specifier) ||
+    PLUGIN_HOST_MODULE_PREFIXES.some((prefix) => specifier.startsWith(prefix))
+  );
+}

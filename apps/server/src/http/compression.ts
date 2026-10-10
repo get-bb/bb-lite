@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { brotliCompress, constants, gzip } from "node:zlib";
 import type { MiddlewareHandler } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { rememberRecent } from "../db/event-read.js";
+import { rememberRecent } from "@bb/server-kit/db/event-read";
 
 type Encoding = "br" | "gzip";
 type Effort = "fast" | "small";

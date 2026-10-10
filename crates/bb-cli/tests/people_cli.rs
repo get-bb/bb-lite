@@ -53,9 +53,9 @@ fn invites_are_created_listed_and_revoked() {
     let invite = json!({ "id": "inv_1", "name": "Bo", "email": null, "role": "member",
         "expiresAt": EXPIRES_AT, "url": "http://bb/invite/tok" });
     let server = FakeServer::start(vec![
-        ("POST", "/user-invites".into(), 201, invite.clone()),
-        route("GET", "/user-invites", json!([invite])),
-        route("DELETE", "/user-invites/inv_1", json!({ "ok": true })),
+        ("POST", "/users/invites".into(), 201, invite.clone()),
+        route("GET", "/users/invites", json!([invite])),
+        route("DELETE", "/users/invites/inv_1", json!({ "ok": true })),
     ]);
     let expires = locale_date(EXPIRES_AT);
     let printed = ok(&server, &["user", "invite", "--name", "Bo", "--role", "Member"]);
@@ -69,10 +69,10 @@ fn invites_are_created_listed_and_revoked() {
     );
     assert_eq!(ok(&server, &["user", "revoke-invite", "inv_1"]), "Invite inv_1 revoked\n");
     let sent = [
-        request("POST", "/user-invites", Some(json!({ "name": "Bo", "role": "member" }))),
-        request("POST", "/user-invites", Some(json!({}))),
-        request("GET", "/user-invites", None),
-        request("DELETE", "/user-invites/inv_1", None),
+        request("POST", "/users/invites", Some(json!({ "name": "Bo", "role": "member" }))),
+        request("POST", "/users/invites", Some(json!({}))),
+        request("GET", "/users/invites", None),
+        request("DELETE", "/users/invites/inv_1", None),
     ];
     assert_eq!(server.requests(), sent);
     let error = run(&server, &["user", "invite", "--role", "admin"], CliEnv::default()).0;
@@ -124,4 +124,11 @@ fn every_request_names_the_thread_it_is_sent_for() {
     run(&server, &["user", "list"], env).0.unwrap();
     ok(&server, &["user", "list"]);
     assert_eq!(*server.thread_ids.lock().unwrap(), [Some("thr_abc".to_string()), None]);
+}
+
+#[test]
+fn locale_date_separates_the_time_from_am_pm_with_a_plain_space_as_node_does() {
+    let shown = locale_date(0.0);
+    assert!(shown.ends_with(" AM") || shown.ends_with(" PM"), "{shown}");
+    assert!(!shown.contains('\u{202f}'), "{shown}");
 }

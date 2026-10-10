@@ -9,7 +9,7 @@ const ADA = { id: "usr_1", name: "Ada", email: null, role: "owner" };
 const ANSWERS: Record<string, unknown> = {
   "GET /api/v1/auth/session": { user: ADA },
   "GET /api/v1/users": [{ ...ADA, disabledAt: null }],
-  "POST /api/v1/user-invites": {
+  "POST /api/v1/users/invites": {
     id: "inv_1",
     role: "member",
     expiresAt: EXPIRES_AT,
@@ -19,7 +19,7 @@ const ANSWERS: Record<string, unknown> = {
     url: "http://bb/sign-in/tok",
     expiresAt: EXPIRES_AT,
   },
-  "PATCH /api/v1/hosts/host_1/sharing": { id: "host_1", sharing: "shared" },
+  "PATCH /api/v1/machines/host_1/sharing": { id: "host_1", sharing: "shared" },
 };
 
 async function fakeServer() {
@@ -75,10 +75,10 @@ it("manages people, invites, sign-in links and machine sharing", async () => {
   expect(seen.map(({ call }) => call)).toEqual([
     "GET /api/v1/auth/session",
     "GET /api/v1/users",
-    "POST /api/v1/user-invites",
+    "POST /api/v1/users/invites",
     "GET /api/v1/auth/session",
     "POST /api/v1/users/usr_1/sign-in-links",
-    "PATCH /api/v1/hosts/host_1/sharing",
+    "PATCH /api/v1/machines/host_1/sharing",
   ]);
   expect(seen[0]?.threadId).toBe("thr_abc");
   expect(seen[1]?.threadId).toBeUndefined();

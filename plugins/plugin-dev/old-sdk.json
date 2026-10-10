@@ -1,0 +1,2902 @@
+[
+  {
+    "id": "server.pluginId",
+    "pattern": "\\b(?:bb|api|plugin|pluginApi|ctx|context|host)\\s*[?!]?\\.\\s*pluginId\\b",
+    "manifest": false
+  },
+  {
+    "id": "server.log.debug",
+    "pattern": "\\blog\\s*[?!]?\\.\\s*debug\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.log.info",
+    "pattern": "\\blog\\s*[?!]?\\.\\s*info\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.log.warn",
+    "pattern": "\\blog\\s*[?!]?\\.\\s*warn\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.log.error",
+    "pattern": "\\blog\\s*[?!]?\\.\\s*error\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.settings.define",
+    "pattern": "\\bsettings\\s*[?!]?\\.\\s*define\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.storage.kv.get",
+    "pattern": "\\bkv\\s*[?!]?\\.\\s*get\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.storage.kv.set",
+    "pattern": "\\bkv\\s*[?!]?\\.\\s*set\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.storage.kv.delete",
+    "pattern": "\\bkv\\s*[?!]?\\.\\s*delete\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.storage.kv.list",
+    "pattern": "\\bkv\\s*[?!]?\\.\\s*list\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.storage.database",
+    "pattern": "\\bstorage\\s*[?!]?\\.\\s*database\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.storage.migrate",
+    "pattern": "\\bstorage\\s*[?!]?\\.\\s*migrate\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.http.route",
+    "pattern": "\\bhttp\\s*[?!]?\\.\\s*route\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.http.experimental_websocket",
+    "pattern": "\\bhttp\\s*[?!]?\\.\\s*experimental_websocket\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.rpc.register",
+    "pattern": "\\brpc\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.realtime.publish",
+    "pattern": "\\brealtime\\s*[?!]?\\.\\s*publish\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.background.service",
+    "pattern": "\\bbackground\\s*[?!]?\\.\\s*service\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.background.schedule",
+    "pattern": "\\bbackground\\s*[?!]?\\.\\s*schedule\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.cli.register",
+    "pattern": "\\bcli\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.agents.configure",
+    "pattern": "\\bagents\\s*[?!]?\\.\\s*configure\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.agents.registerTool",
+    "pattern": "\\bagents\\s*[?!]?\\.\\s*registerTool\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.agents.contributeInstructions",
+    "pattern": "\\bagents\\s*[?!]?\\.\\s*contributeInstructions\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.providers.register",
+    "pattern": "\\bproviders\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.providers.contributeEnv",
+    "pattern": "\\bproviders\\s*[?!]?\\.\\s*experimental_contributeEnv\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.providers.contributeEnvHealth",
+    "pattern": "\\bproviders\\s*[?!]?\\.\\s*experimental_contributeEnvHealth\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.ui.requestInput",
+    "pattern": "\\bui\\s*[?!]?\\.\\s*requestInput\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.ui.registerMentionProvider",
+    "pattern": "\\bui\\s*[?!]?\\.\\s*registerMentionProvider\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.hooks.recheck",
+    "pattern": "\\bexperimental_hooks\\s*[?!]?\\.\\s*recheck\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.environments.register",
+    "pattern": "\\bexperimental_environments\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.machines.getResource",
+    "pattern": "\\bexperimental_machines\\s*[?!]?\\.\\s*getResource\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.machines.register",
+    "pattern": "\\bexperimental_machines\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.machines.bootstrap",
+    "pattern": "\\bexperimental_machines\\s*[?!]?\\.\\s*bootstrap\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.serverAccess.register",
+    "pattern": "\\bexperimental_serverAccess\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.serverAccess.recheck",
+    "pattern": "\\bexperimental_serverAccess\\s*[?!]?\\.\\s*recheck\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.status.needsConfiguration",
+    "pattern": "\\bstatus\\s*[?!]?\\.\\s*needsConfiguration\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.server.appUrl",
+    "pattern": "\\bserver\\s*[?!]?\\.\\s*experimental_appUrl\\b",
+    "manifest": false
+  },
+  {
+    "id": "server.server.loopbackBaseUrl",
+    "pattern": "\\bserver\\s*[?!]?\\.\\s*loopbackBaseUrl\\b",
+    "manifest": false
+  },
+  {
+    "id": "server.server.dataDir",
+    "pattern": "\\bserver\\s*[?!]?\\.\\s*experimental_dataDir\\b",
+    "manifest": false
+  },
+  {
+    "id": "server.hosts.client",
+    "pattern": "\\bhosts\\s*[?!]?\\.\\s*experimental_client\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.hosts.ensureSharedPortTunnel",
+    "pattern": "\\bhosts\\s*[?!]?\\.\\s*ensureSharedPortTunnel\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.hosts.declareSharedPorts",
+    "pattern": "\\bhosts\\s*[?!]?\\.\\s*declareSharedPorts\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.aiServices.register",
+    "pattern": "\\bexperimental_aiServices\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.desktopBrowsers.openConnection",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*experimental_desktopBrowsers\\s*[?!]?\\.\\s*openConnection\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.desktopBrowsers.releaseControl",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*experimental_desktopBrowsers\\s*[?!]?\\.\\s*releaseControl\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.desktopBrowsers.revealTab",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*experimental_desktopBrowsers\\s*[?!]?\\.\\s*revealTab\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.promptHistory.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*experimental_promptHistory\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.commit",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*commit\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.diffFile",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*diffFile\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.diffFiles",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*diffFiles\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.diffPatch",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*diffPatch\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.listProviders",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*listProviders\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.delete",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*delete\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.pullRequest",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*pullRequest\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.markPullRequestDraft",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*markPullRequestDraft\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.markPullRequestReady",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*markPullRequestReady\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.mergePullRequest",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*mergePullRequest\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.paths",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*paths\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.environments.status",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*status\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.files.read",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*files\\s*[?!]?\\.\\s*read\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.files.write",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*files\\s*[?!]?\\.\\s*write\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.files.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*files\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.files.listPaths",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*files\\s*[?!]?\\.\\s*listPaths\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.files.mkdir",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*files\\s*[?!]?\\.\\s*mkdir\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.files.move",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*files\\s*[?!]?\\.\\s*move\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.files.remove",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*files\\s*[?!]?\\.\\s*remove\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.files.createPreview",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*files\\s*[?!]?\\.\\s*createPreview\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.createJoinCode",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*createJoinCode\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.delete",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*delete\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.directory",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*directory\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.pathsExist",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*pathsExist\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.pickFolder",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*pickFolder\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.providerCliStatus",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*providerCliStatus\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.resume",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*experimental_resume\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.suspend",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*experimental_suspend\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.hosts.reconcile",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*experimental_reconcile\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.machineEnvironment",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*machineEnvironment\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.setMachineEnvironmentVariable",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*setMachineEnvironmentVariable\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.deleteMachineEnvironmentVariable",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*deleteMachineEnvironmentVariable\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.attachments.upload",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*attachments\\s*[?!]?\\.\\s*upload\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.branches",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*branches\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.commands",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*commands\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.create",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*create\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.defaultExecutionOptions",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*defaultExecutionOptions\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.delete",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*delete\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.fileContent",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*fileContent\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.files",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*files\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.paths",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*paths\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.promptHistory",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*promptHistory\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.reorder",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*reorder\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.sources.add",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*sources\\s*[?!]?\\.\\s*add\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.sources.delete",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*sources\\s*[?!]?\\.\\s*delete\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.sources.update",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*sources\\s*[?!]?\\.\\s*update\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.projects.update",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*update\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.discoverRpc",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*experimental_discoverRpc\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.applyUpdate",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*applyUpdate\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.callRpc",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*callRpc\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.checkUpdates",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*checkUpdates\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.catalog.install",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*catalog\\s*[?!]?\\.\\s*install\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.catalog.installPlan",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*catalog\\s*[?!]?\\.\\s*installPlan\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.catalog.search",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*catalog\\s*[?!]?\\.\\s*search\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.marketplaces.add",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*marketplaces\\s*[?!]?\\.\\s*add\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.marketplaces.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*marketplaces\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.disable",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*disable\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.enable",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*enable\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.getSettings",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*getSettings\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.install",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*install\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.reload",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*reload\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.plugins.updateSettings",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*updateSettings\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.providers.catalog",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*providers\\s*[?!]?\\.\\s*catalog\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.providers.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*providers\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.providers.models",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*providers\\s*[?!]?\\.\\s*models\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.skills.getContent",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*skills\\s*[?!]?\\.\\s*getContent\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.skills.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*skills\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.skills.registry.detail",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*skills\\s*[?!]?\\.\\s*registry\\s*[?!]?\\.\\s*detail\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.skills.registry.entries",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*skills\\s*[?!]?\\.\\s*registry\\s*[?!]?\\.\\s*entries\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.skills.registry.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*skills\\s*[?!]?\\.\\s*registry\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.skills.registry.repositoryStars",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*skills\\s*[?!]?\\.\\s*registry\\s*[?!]?\\.\\s*repositoryStars\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.skills.registry.search",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*skills\\s*[?!]?\\.\\s*registry\\s*[?!]?\\.\\s*search\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.machineEnvironment",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*machineEnvironment\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.aiServices",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*aiServices\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.config",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*config\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.executionOptions",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*executionOptions\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.reloadConfig",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*reloadConfig\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.transcribeVoice",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*transcribeVoice\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.uiPreferences.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*uiPreferences\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.uiPreferences.set",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*uiPreferences\\s*[?!]?\\.\\s*set\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.updateExperiments",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*updateExperiments\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.updateGeneralSettings",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*updateGeneralSettings\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.updateKeyboardSettings",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*updateKeyboardSettings\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.providerStates",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*providerStates\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.usageLimits",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*usageLimits\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.system.version",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*system\\s*[?!]?\\.\\s*version\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.close",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*close\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.create",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*create\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.input",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*input\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.output",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*output\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.rename",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*rename\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.restart",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*restart\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.terminals.resize",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*terminals\\s*[?!]?\\.\\s*resize\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.theme.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*theme\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.theme.catalog",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*theme\\s*[?!]?\\.\\s*catalog\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.theme.set",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*theme\\s*[?!]?\\.\\s*set\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threadSections.create",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threadSections\\s*[?!]?\\.\\s*create\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threadSections.delete",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threadSections\\s*[?!]?\\.\\s*delete\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threadSections.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threadSections\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threadSections.update",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threadSections\\s*[?!]?\\.\\s*update\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.subscribe",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*subscribe\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.output",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*output\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.tabs.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*tabs\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.tabs.update",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*tabs\\s*[?!]?\\.\\s*update\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.archive",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*archive\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.childSummary",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*childSummary\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.compact",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*compact\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.clearContext",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*clearContext\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.conversationOutline",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*conversationOutline\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.count",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*count\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.defaultExecutionOptions",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*defaultExecutionOptions\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.delete",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*delete\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.editMessage",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*editMessage\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.events.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*events\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.events.wait",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*events\\s*[?!]?\\.\\s*wait\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.fork",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*fork\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.queue.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queue\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.interactions.get",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*get\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.interactions.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.interactions.resolve",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*resolve\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.interactions.respond",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*respond\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.listRunning",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*listRunning\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.markRead",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*markRead\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.markUnread",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*markUnread\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.open",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*open\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.paneAction",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*paneAction\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.pin",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*pin\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.promptHistory",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*promptHistory\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.queuedMessages.create",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*create\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.queuedMessages.delete",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*delete\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.queuedMessages.list",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*list\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.queuedMessages.reorder",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*reorder\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.queuedMessages.send",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*send\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.queuedMessages.setGroupBoundary",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*setGroupBoundary\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.queuedMessages.update",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*update\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.reorderPinned",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*reorderPinned\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.retry",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*retry\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.search",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*search\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.send",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*send\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.spawn",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*spawn\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.stop",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*stop\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.context",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*context\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.timeline",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*timeline\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.storageFiles",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*storageFiles\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.storageLocation",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*storageLocation\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.unarchive",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*unarchive\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.unpin",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*unpin\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.update",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*update\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.wait",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*wait\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.getPluginMetadata",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*getPluginMetadata\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.sdk.threads.updatePluginMetadata",
+    "pattern": "^(?![\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*updatePluginMetadata\\b)",
+    "manifest": false
+  },
+  {
+    "id": "server.onDispose",
+    "pattern": "\\b(?:bb|api|plugin|pluginApi|ctx|context|host)\\s*[?!]?\\.\\s*onDispose\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.onInstall",
+    "pattern": "\\b(?:bb|api|plugin|pluginApi|ctx|context|host)\\s*[?!]?\\.\\s*onInstall\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.events.thread.events",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]experimental_thread\\.events[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.terminal.input",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]experimental_terminal\\.input[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.host.deleted",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]experimental_host\\.deleted[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.thread.created",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]thread\\.created[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.thread.active",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]thread\\.active[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.thread.idle",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]thread\\.idle[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.thread.failed",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]thread\\.failed[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.thread.archived",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]thread\\.archived[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.thread.unarchived",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]thread\\.unarchived[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.thread.deleted",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]thread\\.deleted[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.interaction.pending",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]interaction\\.pending[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.message.queued",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]message\\.queued[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.message.dispatched",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]message\\.dispatched[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.turn.failed",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]turn\\.failed[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.events.message.cancelled",
+    "pattern": "\\bevents\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]message\\.cancelled[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.hooks.message.dispatch",
+    "pattern": "\\bexperimental_hooks\\s*[?!]?\\.\\s*on\\(\\s*[\"'`]message\\.dispatch[\"'`]",
+    "manifest": false
+  },
+  {
+    "id": "server.hosts.client.call",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_client\\()[\\s\\S]*?(?:\\.call\\()",
+    "manifest": false
+  },
+  {
+    "id": "server.hosts.client.onWorkerExit",
+    "pattern": "\\.\\s*experimental_onWorkerExit\\(",
+    "manifest": false
+  },
+  {
+    "id": "server.hosts.client.onSignal",
+    "pattern": "\\.\\s*experimental_onSignal\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.icons.register",
+    "pattern": "\\bexperimental_icons\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.commands.register",
+    "pattern": "\\bcommands\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.homepageSection",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*homepageSection\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.settingsSection",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*settingsSection\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.appOverlay",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_appOverlay\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.navPanel",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*navPanel\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.threadPanelAction",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*threadPanelAction\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.newThreadPanelAction",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_newThreadPanelAction\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.pendingInteraction",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*pendingInteraction\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.sidebarFooterAction",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*sidebarFooterAction\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.sidebarNavigation",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_sidebarNavigation\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.sidebarHeader",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_sidebarHeader\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.threadList",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_threadList\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.threadHeaderAction",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_threadHeaderAction\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.browserToolbarAction",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_browserToolbarAction\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.fileOpener",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*fileOpener\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.messageDirective",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*messageDirective\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.messageAction",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*messageAction\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.commandPaletteAction",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*commandPaletteAction\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.providerIcon",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_providerIcon\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.timelineRenderer",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_timelineRenderer\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.environmentProviderInputs",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_environmentProviderInputs\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.slots.machineProviderInputs",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_machineProviderInputs\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize",
+    "pattern": "\\bcomposer\\s*[?!]?\\.\\s*customize\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.registerCommand",
+    "pattern": "\\bcomposer\\s*[?!]?\\.\\s*experimental_registerCommand\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.contentScripts.register",
+    "pattern": "\\bcontentScripts\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarFooter.register",
+    "pattern": "\\bexperimental_sidebarFooter\\s*[?!]?\\.\\s*register\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.id",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\bid\\s*:)",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.scopes",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\bscopes\\s*:)",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.actions",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\bactions\\s*:)",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.banners",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\bbanners\\s*:)",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.plusMenu",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\bplusMenu\\s*:)",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.sendMenu",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\bsendMenu\\s*:)",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.richText.onDraftChange",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\bonDraftChange\\s*[:(])",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.popups",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\bexperimental_popups\\s*:)",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.customize.richText",
+    "pattern": "^(?=[\\s\\S]*\\bcomposer\\s*[?!]?\\.\\s*customize\\()[\\s\\S]*?(?:\\brichText\\s*:)",
+    "manifest": false
+  },
+  {
+    "id": "app.composer.commands",
+    "pattern": "\\bcomposer\\s*[?!]?\\.\\s*experimental_registerCommand\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.component.Icon",
+    "pattern": "\\bexperimental_Icon\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.component.ProviderIcon",
+    "pattern": "\\bexperimental_ProviderIcon\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.definePluginApp",
+    "pattern": "\\bdefinePluginApp\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useRpc",
+    "pattern": "\\buseRpc\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useRealtime",
+    "pattern": "\\buseRealtime\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useRealtimeConnectionState",
+    "pattern": "\\buseRealtimeConnectionState\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSettings",
+    "pattern": "\\buseSettings\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useBbContext",
+    "pattern": "\\buseBbContext\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.usePluginId",
+    "pattern": "\\bexperimental_usePluginId\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useBbNavigate",
+    "pattern": "\\buseBbNavigate\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useAppPanel",
+    "pattern": "\\bexperimental_useAppPanel\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useFixedTabTarget",
+    "pattern": "\\bexperimental_useFixedTabTarget\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useComposer",
+    "pattern": "\\buseComposer\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useComposers",
+    "pattern": "\\buseComposers\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreads",
+    "pattern": "\\bexperimental_useSidebarThreads\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreadActions",
+    "pattern": "\\bexperimental_useSidebarThreadActions\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreadPullRequest",
+    "pattern": "\\bexperimental_useSidebarThreadPullRequest\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreadSplit",
+    "pattern": "\\bexperimental_useSidebarThreadSplit\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarNavigation",
+    "pattern": "\\bexperimental_useSidebarNavigation\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarNavigationSplit",
+    "pattern": "\\bexperimental_useSidebarNavigationSplit\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.component.SidebarNavigationIcon",
+    "pattern": "\\bexperimental_SidebarNavigationIcon\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreadDraft",
+    "pattern": "\\buseSidebarThreadDraft\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreadDraftIds",
+    "pattern": "\\buseSidebarThreadDraftIds\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreadRowStatus",
+    "pattern": "\\buseSidebarThreadRowStatus\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreadRowStatuses",
+    "pattern": "\\buseSidebarThreadRowStatuses\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarSplitLayout",
+    "pattern": "\\buseSidebarSplitLayout\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSidebarThreadShortcut",
+    "pattern": "\\buseSidebarThreadShortcut\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.component.ThreadTitle",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bThreadTitle\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/app[\"']",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useEnvironmentProviders",
+    "pattern": "\\buseEnvironmentProviders\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useSdk",
+    "pattern": "\\buseSdk\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useProviders",
+    "pattern": "\\bexperimental_useProviders\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useCodeTheme",
+    "pattern": "\\bexperimental_useCodeTheme\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.component.ThreadChat",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bThreadChat\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/app[\"']",
+    "manifest": false
+  },
+  {
+    "id": "app.component.Markdown",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bMarkdown\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/app[\"']",
+    "manifest": false
+  },
+  {
+    "id": "app.component.UrlLink",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bUrlLink\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/app[\"']",
+    "manifest": false
+  },
+  {
+    "id": "app.component.FileLink",
+    "pattern": "\\bexperimental_FileLink\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.component.NewThreadComposer",
+    "pattern": "\\bexperimental_NewThreadComposer\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.component.VoiceInputTextarea",
+    "pattern": "\\bexperimental_VoiceInputTextarea\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.component.ProviderModelPicker",
+    "pattern": "\\bexperimental_ProviderModelPicker\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.component.PermissionModePicker",
+    "pattern": "\\bexperimental_PermissionModePicker\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.component.BranchPicker",
+    "pattern": "\\bexperimental_BranchPicker\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useBranches",
+    "pattern": "\\bexperimental_useBranches\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useCheckoutState",
+    "pattern": "\\bexperimental_useCheckoutState\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.component.SourceCode",
+    "pattern": "\\bexperimental_SourceCode\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.component.Diff",
+    "pattern": "\\bexperimental_Diff\\b",
+    "manifest": false
+  },
+  {
+    "id": "app.hook.useComposerView",
+    "pattern": "\\buseComposerView\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.openPopup",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_openPopup\\b|\\.\\s*experimental_openPopup\\(|\\{[^}=]*\\bexperimental_openPopup\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.closePopup",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_closePopup\\b|\\.\\s*experimental_closePopup\\(|\\{[^}=]*\\bexperimental_closePopup\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.scope",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*scope\\b|\\{[^}=]*\\bscope\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.key",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*key\\b|\\{[^}=]*\\bkey\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.layout",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*layout\\b|\\{[^}=]*\\blayout\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.isRunning",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*isRunning\\b|\\{[^}=]*\\bisRunning\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.isSubmittingBlocked",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*isSubmittingBlocked\\b|\\{[^}=]*\\bisSubmittingBlocked\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.isEmpty",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*isEmpty\\b|\\{[^}=]*\\bisEmpty\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.text",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*text\\b|\\{[^}=]*\\btext\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.draft",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*draft\\b|\\{[^}=]*\\bdraft\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.draft.text",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*draft\\s*[?!]?\\.\\s*text\\b|\\{[^}=]*\\btext\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.selection",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*selection\\b|\\{[^}=]*\\bselection\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.replace",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*replace\\b|\\{[^}=]*\\breplace\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.setText",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*setText\\b|\\.\\s*setText\\(|\\{[^}=]*\\bsetText\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.updateText",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*updateText\\b|\\.\\s*updateText\\(|\\{[^}=]*\\bupdateText\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.insert",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*insert\\b|\\{[^}=]*\\binsert\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.setTextEffect",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*setTextEffect\\b|\\.\\s*setTextEffect\\(|\\{[^}=]*\\bsetTextEffect\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.setInputLock",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*setInputLock\\b|\\.\\s*setInputLock\\(|\\{[^}=]*\\bsetInputLock\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.addQuote",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*addQuote\\b|\\.\\s*addQuote\\(|\\{[^}=]*\\baddQuote\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.insertMention",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*insertMention\\b|\\.\\s*insertMention\\(|\\{[^}=]*\\binsertMention\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.removeMention",
+    "pattern": "(?:^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*removeMention\\b|\\.\\s*removeMention\\(|\\{[^}=]*\\bremoveMention\\b[^}=]*\\}\\s*=\\s*useComposers?\\())|(?:^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_removeMention\\b|\\.\\s*experimental_removeMention\\(|\\{[^}=]*\\bexperimental_removeMention\\b[^}=]*\\}\\s*=\\s*useComposers?\\())",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.onSubmitted",
+    "pattern": "(?:^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*onSubmitted\\b|\\.\\s*onSubmitted\\(|\\{[^}=]*\\bonSubmitted\\b[^}=]*\\}\\s*=\\s*useComposers?\\())|(?:^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_onSubmitted\\b|\\.\\s*experimental_onSubmitted\\(|\\{[^}=]*\\bexperimental_onSubmitted\\b[^}=]*\\}\\s*=\\s*useComposers?\\())",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.focus",
+    "pattern": "^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*focus\\b|\\{[^}=]*\\bfocus\\b[^}=]*\\}\\s*=\\s*useComposers?\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.submit",
+    "pattern": "(?:^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*submit\\b|\\{[^}=]*\\bsubmit\\b[^}=]*\\}\\s*=\\s*useComposers?\\())|(?:^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_submit\\b|\\{[^}=]*\\bexperimental_submit\\b[^}=]*\\}\\s*=\\s*useComposers?\\())",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposer.setSelection",
+    "pattern": "(?:^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*setSelection\\b|\\.\\s*setSelection\\(|\\{[^}=]*\\bsetSelection\\b[^}=]*\\}\\s*=\\s*useComposers?\\())|(?:^(?=[\\s\\S]*\\buseComposers?\\()[\\s\\S]*?(?:\\b\\w*[cC]omposer\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_setSelection\\b|\\.\\s*experimental_setSelection\\(|\\{[^}=]*\\bexperimental_setSelection\\b[^}=]*\\}\\s*=\\s*useComposers?\\())",
+    "manifest": false
+  },
+  {
+    "id": "app.navigate.toThread",
+    "pattern": "^(?=[\\s\\S]*\\buseBbNavigate\\()[\\s\\S]*?(?:\\b\\w*[nN]av\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*toThread\\b|\\.\\s*toThread\\(|\\{[^}=]*\\btoThread\\b[^}=]*\\}\\s*=\\s*useBbNavigate\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.navigate.toProject",
+    "pattern": "^(?=[\\s\\S]*\\buseBbNavigate\\()[\\s\\S]*?(?:\\b\\w*[nN]av\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*toProject\\b|\\.\\s*toProject\\(|\\{[^}=]*\\btoProject\\b[^}=]*\\}\\s*=\\s*useBbNavigate\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.navigate.toPluginPanel",
+    "pattern": "^(?=[\\s\\S]*\\buseBbNavigate\\()[\\s\\S]*?(?:\\b\\w*[nN]av\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*toPluginPanel\\b|\\.\\s*toPluginPanel\\(|\\{[^}=]*\\btoPluginPanel\\b[^}=]*\\}\\s*=\\s*useBbNavigate\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.navigate.toCompose",
+    "pattern": "^(?=[\\s\\S]*\\buseBbNavigate\\()[\\s\\S]*?(?:\\b\\w*[nN]av\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*toCompose\\b|\\.\\s*toCompose\\(|\\{[^}=]*\\btoCompose\\b[^}=]*\\}\\s*=\\s*useBbNavigate\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.navigate.openThreadPanel",
+    "pattern": "^(?=[\\s\\S]*\\buseBbNavigate\\()[\\s\\S]*?(?:\\b\\w*[nN]av\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*openThreadPanel\\b|\\.\\s*openThreadPanel\\(|\\{[^}=]*\\bopenThreadPanel\\b[^}=]*\\}\\s*=\\s*useBbNavigate\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.navigate.openUrl",
+    "pattern": "^(?=[\\s\\S]*\\buseBbNavigate\\()[\\s\\S]*?(?:\\b\\w*[nN]av\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*openUrl\\b|\\.\\s*openUrl\\(|\\{[^}=]*\\bopenUrl\\b[^}=]*\\}\\s*=\\s*useBbNavigate\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.navigate.openFilePreview",
+    "pattern": "^(?=[\\s\\S]*\\buseBbNavigate\\()[\\s\\S]*?(?:\\b\\w*[nN]av\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_openFilePreview\\b|\\.\\s*experimental_openFilePreview\\(|\\{[^}=]*\\bexperimental_openFilePreview\\b[^}=]*\\}\\s*=\\s*useBbNavigate\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.navigate.openFileExternally",
+    "pattern": "^(?=[\\s\\S]*\\buseBbNavigate\\()[\\s\\S]*?(?:\\b\\w*[nN]av\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_openFileExternally\\b|\\.\\s*experimental_openFileExternally\\(|\\{[^}=]*\\bexperimental_openFileExternally\\b[^}=]*\\}\\s*=\\s*useBbNavigate\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.context.projectId",
+    "pattern": "^(?=[\\s\\S]*\\buseBbContext\\()[\\s\\S]*?(?:\\b\\w*(?:[cC]ontext|ctx)\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*projectId\\b|\\{[^}=]*\\bprojectId\\b[^}=]*\\}\\s*=\\s*useBbContext\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.context.threadId",
+    "pattern": "^(?=[\\s\\S]*\\buseBbContext\\()[\\s\\S]*?(?:\\b\\w*(?:[cC]ontext|ctx)\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*threadId\\b|\\{[^}=]*\\bthreadId\\b[^}=]*\\}\\s*=\\s*useBbContext\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposerView.scope",
+    "pattern": "^(?=[\\s\\S]*\\buseComposerView\\()[\\s\\S]*?(?:\\b\\w*[vV]iew\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*scope\\b|\\{[^}=]*\\bscope\\b[^}=]*\\}\\s*=\\s*useComposerView\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposerView.draft",
+    "pattern": "^(?=[\\s\\S]*\\buseComposerView\\()[\\s\\S]*?(?:\\b\\w*[vV]iew\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*draft\\b|\\{[^}=]*\\bdraft\\b[^}=]*\\}\\s*=\\s*useComposerView\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposerView.draft.text",
+    "pattern": "^(?=[\\s\\S]*\\buseComposerView\\()[\\s\\S]*?(?:\\b\\w*[vV]iew\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*draft\\s*[?!]?\\.\\s*text\\b|\\{[^}=]*\\btext\\b[^}=]*\\}\\s*=\\s*useComposerView\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposerView.draft.isEmpty",
+    "pattern": "^(?=[\\s\\S]*\\buseComposerView\\()[\\s\\S]*?(?:\\b\\w*[vV]iew\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*draft\\s*[?!]?\\.\\s*isEmpty\\b|\\{[^}=]*\\bisEmpty\\b[^}=]*\\}\\s*=\\s*useComposerView\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposerView.draft.attachmentCount",
+    "pattern": "^(?=[\\s\\S]*\\buseComposerView\\()[\\s\\S]*?(?:\\b\\w*[vV]iew\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*draft\\s*[?!]?\\.\\s*attachmentCount\\b|\\{[^}=]*\\battachmentCount\\b[^}=]*\\}\\s*=\\s*useComposerView\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposerView.run",
+    "pattern": "^(?=[\\s\\S]*\\buseComposerView\\()[\\s\\S]*?(?:\\b\\w*[vV]iew\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*run\\b|\\{[^}=]*\\brun\\b[^}=]*\\}\\s*=\\s*useComposerView\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposerView.run.isRunning",
+    "pattern": "^(?=[\\s\\S]*\\buseComposerView\\()[\\s\\S]*?(?:\\b\\w*[vV]iew\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*run\\s*[?!]?\\.\\s*isRunning\\b|\\{[^}=]*\\bisRunning\\b[^}=]*\\}\\s*=\\s*useComposerView\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.useComposerView.run.isSubmitting",
+    "pattern": "^(?=[\\s\\S]*\\buseComposerView\\()[\\s\\S]*?(?:\\b\\w*[vV]iew\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*run\\s*[?!]?\\.\\s*isSubmitting\\b|\\{[^}=]*\\bisSubmitting\\b[^}=]*\\}\\s*=\\s*useComposerView\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.appPanel.openFixedTab",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useAppPanel\\()[\\s\\S]*?(?:\\b\\w*[pP]anel\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*openFixedTab\\b|\\.\\s*openFixedTab\\(|\\{[^}=]*\\bopenFixedTab\\b[^}=]*\\}\\s*=\\s*experimental_useAppPanel\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarThreadActions.open",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useSidebarThreadActions\\()[\\s\\S]*?(?:\\b\\w*[aA]ctions\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*open\\b|\\{[^}=]*\\bopen\\b[^}=]*\\}\\s*=\\s*experimental_useSidebarThreadActions\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarThreadActions.openNewThread",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useSidebarThreadActions\\()[\\s\\S]*?(?:\\b\\w*[aA]ctions\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*openNewThread\\b|\\{[^}=]*\\bopenNewThread\\b[^}=]*\\}\\s*=\\s*experimental_useSidebarThreadActions\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarThreadActions.setPinned",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useSidebarThreadActions\\()[\\s\\S]*?(?:\\b\\w*[aA]ctions\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*setPinned\\b|\\{[^}=]*\\bsetPinned\\b[^}=]*\\}\\s*=\\s*experimental_useSidebarThreadActions\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarThreadActions.setRead",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useSidebarThreadActions\\()[\\s\\S]*?(?:\\b\\w*[aA]ctions\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*setRead\\b|\\{[^}=]*\\bsetRead\\b[^}=]*\\}\\s*=\\s*experimental_useSidebarThreadActions\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarThreadActions.rename",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useSidebarThreadActions\\()[\\s\\S]*?(?:\\b\\w*[aA]ctions\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*rename\\b|\\{[^}=]*\\brename\\b[^}=]*\\}\\s*=\\s*experimental_useSidebarThreadActions\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarThreadActions.archive",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useSidebarThreadActions\\()[\\s\\S]*?(?:\\b\\w*[aA]ctions\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*archive\\b|\\{[^}=]*\\barchive\\b[^}=]*\\}\\s*=\\s*experimental_useSidebarThreadActions\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarThreadActions.archiveEnvironmentThreads",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useSidebarThreadActions\\()[\\s\\S]*?(?:\\b\\w*[aA]ctions\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*experimental_archiveEnvironmentThreads\\b|\\{[^}=]*\\bexperimental_archiveEnvironmentThreads\\b[^}=]*\\}\\s*=\\s*experimental_useSidebarThreadActions\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sidebarThreadActions.requestDelete",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_useSidebarThreadActions\\()[\\s\\S]*?(?:\\b\\w*[aA]ctions\\w*(?:\\s*[?!]?\\.\\s*current)?\\s*[?!]?\\.\\s*requestDelete\\b|\\{[^}=]*\\brequestDelete\\b[^}=]*\\}\\s*=\\s*experimental_useSidebarThreadActions\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.environments.archiveThreads",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*archiveThreads\\b|\\benvironments\\s*[?!]?\\.\\s*archiveThreads\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.environments.update",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*environments\\s*[?!]?\\.\\s*update\\b|\\benvironments\\s*[?!]?\\.\\s*update\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.hosts.list",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*list\\b|\\bhosts\\s*[?!]?\\.\\s*list\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.hosts.update",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*hosts\\s*[?!]?\\.\\s*update\\b|\\bhosts\\s*[?!]?\\.\\s*update\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.projects.create",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*create\\b|\\bprojects\\s*[?!]?\\.\\s*create\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.projects.defaultExecutionOptions",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*defaultExecutionOptions\\b|\\bprojects\\s*[?!]?\\.\\s*defaultExecutionOptions\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.projects.delete",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*delete\\b|\\bprojects\\s*[?!]?\\.\\s*delete\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.projects.list",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*list\\b|\\bprojects\\s*[?!]?\\.\\s*list\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.projects.reorder",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*reorder\\b|\\bprojects\\s*[?!]?\\.\\s*reorder\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.projects.update",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*projects\\s*[?!]?\\.\\s*update\\b|\\bprojects\\s*[?!]?\\.\\s*update\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.plugins.callRpc",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*callRpc\\b|\\bplugins\\s*[?!]?\\.\\s*callRpc\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.plugins.catalog.search",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*catalog\\s*[?!]?\\.\\s*search\\b|\\bplugins\\s*[?!]?\\.\\s*catalog\\s*[?!]?\\.\\s*search\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.plugins.list",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*plugins\\s*[?!]?\\.\\s*list\\b|\\bplugins\\s*[?!]?\\.\\s*list\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.providers.list",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*providers\\s*[?!]?\\.\\s*list\\b|\\bproviders\\s*[?!]?\\.\\s*list\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.providers.models",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*providers\\s*[?!]?\\.\\s*models\\b|\\bproviders\\s*[?!]?\\.\\s*models\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threadSections.create",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threadSections\\s*[?!]?\\.\\s*create\\b|\\bthreadSections\\s*[?!]?\\.\\s*create\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threadSections.delete",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threadSections\\s*[?!]?\\.\\s*delete\\b|\\bthreadSections\\s*[?!]?\\.\\s*delete\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threadSections.update",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threadSections\\s*[?!]?\\.\\s*update\\b|\\bthreadSections\\s*[?!]?\\.\\s*update\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.subscribe",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*subscribe\\b|\\bsubscribe\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.archive",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*archive\\b|\\bthreads\\s*[?!]?\\.\\s*archive\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.get",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*get\\b|\\bthreads\\s*[?!]?\\.\\s*get\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.interactions.cancel",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*cancel\\b|\\bthreads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*cancel\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.interactions.list",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*list\\b|\\bthreads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*list\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.interactions.resolve",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*resolve\\b|\\bthreads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*resolve\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.interactions.respond",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*respond\\b|\\bthreads\\s*[?!]?\\.\\s*interactions\\s*[?!]?\\.\\s*respond\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.list",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*list\\b|\\bthreads\\s*[?!]?\\.\\s*list\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.markRead",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*markRead\\b|\\bthreads\\s*[?!]?\\.\\s*markRead\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.queuedMessages.create",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*create\\b|\\bthreads\\s*[?!]?\\.\\s*queuedMessages\\s*[?!]?\\.\\s*create\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.reorderPinned",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*reorderPinned\\b|\\bthreads\\s*[?!]?\\.\\s*reorderPinned\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.spawn",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*spawn\\b|\\bthreads\\s*[?!]?\\.\\s*spawn\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.stop",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*stop\\b|\\bthreads\\s*[?!]?\\.\\s*stop\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.unarchive",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*unarchive\\b|\\bthreads\\s*[?!]?\\.\\s*unarchive\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.unpin",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*unpin\\b|\\bthreads\\s*[?!]?\\.\\s*unpin\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "app.sdk.threads.update",
+    "pattern": "^(?=[\\s\\S]*\\buseSdk\\()[\\s\\S]*?(?:\\bsdk\\s*[?!]?\\.\\s*threads\\s*[?!]?\\.\\s*update\\b|\\bthreads\\s*[?!]?\\.\\s*update\\s*\\()",
+    "manifest": false
+  },
+  {
+    "id": "host.defineHostEntry",
+    "pattern": "\\bexperimental_defineHostEntry\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.filterResolvedNativeRoots",
+    "pattern": "\\bexperimental_filterResolvedNativeRoots\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.nativeRootsHostContract",
+    "pattern": "\\bexperimental_nativeRootsHostContract\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.resolveClaudePluginRoots",
+    "pattern": "\\bexperimental_resolveClaudePluginRoots\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.resolveVendorPluginRoots",
+    "pattern": "\\bexperimental_resolveVendorPluginRoots\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.killProcessesWithCwdUnder",
+    "pattern": "\\bexperimental_killProcessesWithCwdUnder\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.sanitizeInheritedChildProcessEnv",
+    "pattern": "\\bexperimental_sanitizeInheritedChildProcessEnv\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.spawnPortableOutputProcess",
+    "pattern": "\\bexperimental_spawnPortableOutputProcess\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.signal",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_defineHostEntry\\()[\\s\\S]*?(?:\\b(?:ctx|context|c)\\s*[?!]?\\.\\s*signal\\b|\\{[^}=]*\\bsignal\\b[^}=]*\\}\\s*\\))",
+    "manifest": false
+  },
+  {
+    "id": "host.lifecycle",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_defineHostEntry\\()[\\s\\S]*?(?:\\blifecycle\\b)",
+    "manifest": false
+  },
+  {
+    "id": "host.paths.dataDir",
+    "pattern": "\\bexperimental_paths\\s*[?!]?\\.\\s*dataDir\\b|\\{[^}=]*\\bdataDir\\b[^}=]*\\}\\s*=\\s*[\\w.?!]*experimental_paths\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.paths.tempDir",
+    "pattern": "\\bexperimental_paths\\s*[?!]?\\.\\s*tempDir\\b|\\{[^}=]*\\btempDir\\b[^}=]*\\}\\s*=\\s*[\\w.?!]*experimental_paths\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.emitSignal",
+    "pattern": "\\bexperimental_emitSignal\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.watch",
+    "pattern": "\\bexperimental_watch\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.retainWorker",
+    "pattern": "\\bexperimental_retainWorker\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.paths",
+    "pattern": "\\bexperimental_paths\\b",
+    "manifest": false
+  },
+  {
+    "id": "host.entry.contract",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_defineHostEntry\\()[\\s\\S]*?(?:\\bcontract\\s*[:,}])",
+    "manifest": false
+  },
+  {
+    "id": "host.entry.signals",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_defineHostEntry\\()[\\s\\S]*?(?:\\bexperimental_signals\\s*[:,}])",
+    "manifest": false
+  },
+  {
+    "id": "host.entry.handlers",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_defineHostEntry\\()[\\s\\S]*?(?:\\bhandlers\\s*[:,}])",
+    "manifest": false
+  },
+  {
+    "id": "host.entry.dispose",
+    "pattern": "^(?=[\\s\\S]*\\bexperimental_defineHostEntry\\()[\\s\\S]*?(?:\\bdispose\\s*[:,(}])",
+    "manifest": false
+  },
+  {
+    "id": "entry.root",
+    "pattern": "(?:from|import|require\\()\\s*[\"']@get-bb/plugin-sdk[\"']",
+    "manifest": false
+  },
+  {
+    "id": "server.export.PLUGIN_CLI_OUTPUT_MAX_BYTES",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bPLUGIN_CLI_OUTPUT_MAX_BYTES\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk[\"']",
+    "manifest": false
+  },
+  {
+    "id": "server.export.cliCommand",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bcliCommand\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk[\"']",
+    "manifest": false
+  },
+  {
+    "id": "server.export.defineCli",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bdefineCli\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk[\"']",
+    "manifest": false
+  },
+  {
+    "id": "server.export.PluginCliError",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bPluginCliError\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk[\"']",
+    "manifest": false
+  },
+  {
+    "id": "server.export.defineHostEntry",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_defineHostEntry\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk[\"']",
+    "manifest": false
+  },
+  {
+    "id": "server.export.defineRpcContract",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bdefineRpcContract\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk[\"']",
+    "manifest": false
+  },
+  {
+    "id": "entry.app",
+    "pattern": "(?:from|import|require\\()\\s*[\"']@get-bb/plugin-sdk/app[\"']",
+    "manifest": false
+  },
+  {
+    "id": "entry.host",
+    "pattern": "(?:from|import|require\\()\\s*[\"']@get-bb/plugin-sdk/host[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.import",
+    "pattern": "(?:from|import|require\\()\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.defineProviderBridge",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_defineProviderBridge\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.BRIDGE_INBOUND_REQUEST_METHODS",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bBRIDGE_INBOUND_REQUEST_METHODS\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.BRIDGE_JSON_RPC_ERRORS",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bBRIDGE_JSON_RPC_ERRORS\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.BRIDGE_NOTIFICATION_METHODS",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bBRIDGE_NOTIFICATION_METHODS\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.BRIDGE_REQUEST_METHODS",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bBRIDGE_REQUEST_METHODS\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.PROVIDER_BRIDGE_PROTOCOL_VERSION",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bPROVIDER_BRIDGE_PROTOCOL_VERSION\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.THREAD_DELTA_GRAMMAR_V3",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bTHREAD_DELTA_GRAMMAR_V3\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.THREAD_DELTA_NOTIFICATION_METHOD",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bTHREAD_DELTA_NOTIFICATION_METHOD\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadDeltaSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadDeltaSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.initializeParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\binitializeParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.modelListParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bmodelListParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.providerInstallationRunParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bproviderInstallationRunParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.providerInstallationStatusParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bproviderInstallationStatusParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.providerMaintenanceParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bproviderMaintenanceParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.skillsConfigureParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bskillsConfigureParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadArchiveParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadArchiveParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadDiscardParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadDiscardParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadForkParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadForkParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadGoalClearParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadGoalClearParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadNameSetParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadNameSetParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadResumeParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadResumeParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadStartParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadStartParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadStopParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadStopParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadUnarchiveParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadUnarchiveParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.turnStartParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bturnStartParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.turnSteerParamsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bturnSteerParamsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.COMPACTION_PRESENTATION",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_COMPACTION_PRESENTATION\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.REASONING_PRESENTATION",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_REASONING_PRESENTATION\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.ZERO_TOKEN_USAGE",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bZERO_TOKEN_USAGE\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.addTokenUsage",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\baddTokenUsage\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.bashArgsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bbashArgsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.BridgeRecoveryError",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_BridgeRecoveryError\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.clampPercent",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_clampPercent\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.commandOutput",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_commandOutput\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.compareVersions",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_compareVersions\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.bridgeRequestEnvelopeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bbridgeRequestEnvelopeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.buildBridgeToolCallContent",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_buildBridgeToolCallContent\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.buildShellEnvOverrides",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bbuildShellEnvOverrides\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.createBridgeIo",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bcreateBridgeIo\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.createBridgeLineHandler",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bcreateBridgeLineHandler\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.createPendingToolCallTracker",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bcreatePendingToolCallTracker\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.createProviderVisibilityMetadata",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bcreateProviderVisibilityMetadata\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.decodeBridgeJsonRpcResponse",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bdecodeBridgeJsonRpcResponse\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.decodeToolCallResponsePayload",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bdecodeToolCallResponsePayload\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.downloadedInstallerCommand",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_downloadedInstallerCommand\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.errorEnvelopeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\berrorEnvelopeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.isProviderBridgeRecording",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_isProviderBridgeRecording\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.recordProviderChildIo",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_recordProviderChildIo\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.extractResultText",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bextractResultText\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.fileReadPresentation",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_fileReadPresentation\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.formatCommand",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_formatCommand\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.getRawSdkMessage",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bgetRawSdkMessage\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.getRecordProperty",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bgetRecordProperty\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.getStringProperty",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bgetStringProperty\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.installationVerification",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_installationVerification\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.isRecord",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bisRecord\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.jsonRpcEnvelopeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bjsonRpcEnvelopeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.mimeTypeFromExtension",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bmimeTypeFromExtension\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.normalizeProviderCommandOutput",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bnormalizeProviderCommandOutput\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.npmCommand",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_npmCommand\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.npmGlobalInstallCommand",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_npmGlobalInstallCommand\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.npmGlobalInstallSource",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_npmGlobalInstallSource\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.npmLatestVersion",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_npmLatestVersion\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.planStepsPresentation",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_planStepsPresentation\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.presentationDetail",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_presentationDetail\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.presentationFileName",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_presentationFileName\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.presentationTitle",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_presentationTitle\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.probeNpmGlobalPackage",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_probeNpmGlobalPackage\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.readBoundedLines",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_readBoundedLines\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.readCliVersion",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_readCliVersion\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.resolveExecutablePath",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_resolveExecutablePath\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.runBridgeRequest",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\brunBridgeRequest\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.sdkMessageEnvelopeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bsdkMessageEnvelopeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.searchPresentation",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_searchPresentation\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.shouldAutoDenyInteractiveRequest",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bshouldAutoDenyInteractiveRequest\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.textBlockSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\btextBlockSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadContextWindowUsageEnvelopeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadContextWindowUsageEnvelopeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.threadIdentityEnvelopeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bthreadIdentityEnvelopeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.toNonNegativeNumber",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\btoNonNegativeNumber\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.toOptionalRecord",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\btoOptionalRecord\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.toOptionalString",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\btoOptionalString\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.toolPresentation",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_toolPresentation\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.versionFrom",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_versionFrom\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.webFetchPresentation",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_webFetchPresentation\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.webSearchPresentation",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_webSearchPresentation\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.withTitle",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_withTitle\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.withoutBridgeRuntimeEnv",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bwithoutBridgeRuntimeEnv\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.ProviderRequestDecodeError",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bProviderRequestDecodeError\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.ProviderResponseEncodeError",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bProviderResponseEncodeError\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.sanitizeInheritedChildProcessEnv",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bsanitizeInheritedChildProcessEnv\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.spawnPortableProcess",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_spawnPortableProcess\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.killPortableProcess",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_killPortableProcess\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.HIGH_REASONING_EFFORT",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bHIGH_REASONING_EFFORT\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.LOCAL_BASH_TASK_TYPE",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bLOCAL_BASH_TASK_TYPE\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.LOCAL_WORKFLOW_TASK_TYPE",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bLOCAL_WORKFLOW_TASK_TYPE\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.LOW_REASONING_EFFORT",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bLOW_REASONING_EFFORT\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.MAX_REASONING_EFFORT",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bMAX_REASONING_EFFORT\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.MEDIUM_REASONING_EFFORT",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bMEDIUM_REASONING_EFFORT\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.ULTRACODE_REASONING_EFFORT",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bULTRACODE_REASONING_EFFORT\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.USER_QUESTION_MAX_OPTIONS",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bUSER_QUESTION_MAX_OPTIONS\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.USER_QUESTION_MAX_QUESTIONS",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bUSER_QUESTION_MAX_QUESTIONS\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.XHIGH_REASONING_EFFORT",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bXHIGH_REASONING_EFFORT\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.backgroundTaskItemStatus",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bbackgroundTaskItemStatus\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.dynamicToolSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bdynamicToolSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.instructionModeValues",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\binstructionModeValues\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.approvalInteractionOutcomeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bapprovalInteractionOutcomeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.isApprovalInteractionOutcome",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bisApprovalInteractionOutcome\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.isBackgroundAgentTaskType",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bisBackgroundAgentTaskType\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.isSettledBackgroundTaskStatus",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bisSettledBackgroundTaskStatus\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.isStandaloneBuiltinCompactCommand",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bisStandaloneBuiltinCompactCommand\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.jsonValueSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bjsonValueSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.pendingInteractionCommandActionSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bpendingInteractionCommandActionSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.pendingInteractionFileSystemPermissionsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bpendingInteractionFileSystemPermissionsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.pendingInteractionMacOsPermissionsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bpendingInteractionMacOsPermissionsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.pendingInteractionNetworkPermissionsSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bpendingInteractionNetworkPermissionsSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.pendingInteractionRequestedPermissionProfileSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bpendingInteractionRequestedPermissionProfileSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.userQuestionInteractionOutcomeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\buserQuestionInteractionOutcomeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.permissionEscalationValues",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bpermissionEscalationValues\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.providerRawEventSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bproviderRawEventSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.reasoningEffortsForLevels",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\breasoningEffortsForLevels\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.reasoningLevelSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\breasoningLevelSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.reasoningLevelValues",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\breasoningLevelValues\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.removeCommandMentionsFromPromptInput",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bremoveCommandMentionsFromPromptInput\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.runtimePermissionScopeValues",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bruntimePermissionScopeValues\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.toPositiveNumber",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\btoPositiveNumber\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.hostDaemonAcpLaunchSpecSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bhostDaemonAcpLaunchSpecSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.contextSnapshotSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bcontextSnapshotSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.testing.import",
+    "pattern": "(?:from|import|require\\()\\s*[\"']@get-bb/plugin-sdk/provider-bridge/testing[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.testing.createDeltaAssembler",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_createDeltaAssembler\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge/testing[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.testing.createBridgeJsonRpcTestHarness",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_createBridgeJsonRpcTestHarness\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge/testing[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.acp.import",
+    "pattern": "(?:from|import|require\\()\\s*[\"']@get-bb/plugin-sdk/provider-bridge/acp[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.acp.acpProviderBridge",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_acpProviderBridge\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge/acp[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.acp.acpAgentProbeSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_acpAgentProbeSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge/acp[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.acp.probeAcpAgent",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_probeAcpAgent\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge/acp[\"']",
+    "manifest": false
+  },
+  {
+    "id": "providerBridge.acp.acpLaunchSpecSchema",
+    "pattern": "import\\s*(?:type\\s*)?\\{[^}]*\\bexperimental_acpLaunchSpecSchema\\b[^}]*\\}\\s*from\\s*[\"']@get-bb/plugin-sdk/provider-bridge/acp[\"']",
+    "manifest": false
+  },
+  {
+    "id": "environmentProvider.import",
+    "pattern": "(?:from|import|require\\()\\s*[\"']@get-bb/plugin-sdk/environment-provider[\"']",
+    "manifest": false
+  },
+  {
+    "id": "machineProvider.import",
+    "pattern": "(?:from|import|require\\()\\s*[\"']@get-bb/plugin-sdk/machine-provider[\"']",
+    "manifest": false
+  },
+  {
+    "id": "manifest.engines.bb",
+    "pattern": "(?:^|\\n)engines\\.bb(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.engines.bbPluginSdk",
+    "pattern": "(?:^|\\n)engines\\.bbPluginSdk(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.name",
+    "pattern": "(?:^|\\n)bb\\.name(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.description",
+    "pattern": "(?:^|\\n)bb\\.description(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.branding.icon",
+    "pattern": "(?:^|\\n)bb\\.branding\\.icon(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.branding.logo.light",
+    "pattern": "(?:^|\\n)bb\\.branding\\.logo\\.light(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.branding.logo.dark",
+    "pattern": "(?:^|\\n)bb\\.branding\\.logo\\.dark(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.branding.icons",
+    "pattern": "(?:^|\\n)bb\\.branding\\.experimental_icons(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.providers",
+    "pattern": "(?:^|\\n)bb\\.experimental_providers(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.server",
+    "pattern": "(?:^|\\n)bb\\.server(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.app",
+    "pattern": "(?:^|\\n)bb\\.app(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.host",
+    "pattern": "(?:^|\\n)bb\\.host(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.skills",
+    "pattern": "(?:^|\\n)bb\\.skills(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.themes",
+    "pattern": "(?:^|\\n)bb\\.themes(?:[.=\\[]|$)",
+    "manifest": true
+  },
+  {
+    "id": "manifest.themes.codeTheme",
+    "pattern": "(?:^|\\n)bb\\.themes\\[\\]\\.codeTheme(?:[.=\\[]|$)",
+    "manifest": true
+  }
+]

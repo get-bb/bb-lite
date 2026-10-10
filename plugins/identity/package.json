@@ -1,0 +1,25 @@
+{
+  "name": "bb-plugin-identity",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "People, sign-in, invites and who a request acts as.",
+  "bb": {
+    "name": "Identity",
+    "description": "People, sign-in, invites and who a request acts as.",
+    "server": "./server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0"
+  }
+}

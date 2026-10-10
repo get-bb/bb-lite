@@ -1,0 +1,41 @@
+{
+  "name": "bb-plugin-side-chat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reply to messages in hidden side-chat forks rendered in a thread panel.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Side chat",
+    "description": "Reply to messages in hidden side-chat forks rendered in a thread panel.",
+    "icon": "MessageSquarePlus",
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/app-kit": "workspace:*",
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

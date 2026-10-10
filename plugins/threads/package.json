@@ -1,0 +1,33 @@
+{
+  "name": "bb-plugin-threads",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Threads, turns, the message queue and the event log.",
+  "bb": {
+    "name": "Threads",
+    "description": "Threads, turns, the message queue and the event log.",
+    "server": "./server.ts",
+    "requires": [
+      "machines",
+      "projects"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "@bb/thread-view": "workspace:*",
+    "bb-plugin-environments": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0"
+  }
+}

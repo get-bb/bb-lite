@@ -1,10 +1,12 @@
+import { callOp } from "@bb/plugin/app";
 import { useState } from "react";
-import type {
-  Project,
-  TaskPriority,
-  TaskStatus,
+import {
+  tasks,
+  type Project,
+  type TaskPriority,
+  type TaskStatus,
 } from "../../shared/contract.js";
-import { errorMessage, useLabels, useTasksRpc } from "../../shell/data.js";
+import { errorMessage, useLabels } from "../../shell/data.js";
 import { useTasksNavigation } from "../../shell/routes.js";
 import { MarkdownEditor } from "../../editor/markdown.js";
 import { LabelPicker } from "../detail/rail.js";
@@ -52,7 +54,6 @@ export function NewTaskDialog({
   projects: Project[];
   projectId: string | null;
 }) {
-  const rpc = useTasksRpc();
   const navigation = useTasksNavigation();
   const [chosenProjectId, setChosenProjectId] = useState(projectId);
   const [draft, setDraft] = useState(BLANK);
@@ -74,8 +75,7 @@ export function NewTaskDialog({
     setSubmitting(true);
     setError(null);
     const input = { ...draft, title: draft.title.trim() };
-    rpc
-      .call("createTask", { projectId: project.id, ...input })
+    callOp(tasks.createTask, { projectId: project.id, ...input })
       .then(({ task }) => {
         onClose();
         navigation.go({ kind: "task", taskKey: task.key });

@@ -11,6 +11,8 @@ const KEPT_PACKAGES = [
   "@parcel/watcher",
   "esbuild",
   "@anthropic-ai/claude-agent-sdk",
+  "@tailwindcss/node",
+  "@tailwindcss/oxide",
 ];
 const KEPT_IN_NODE_MODULES = new RegExp(`^(${KEPT_PACKAGES.join("|")})([/]|$)`);
 const SOURCE_FILE = /[.](ts|tsx|mts|js|mjs)$/;

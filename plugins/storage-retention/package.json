@@ -1,0 +1,44 @@
+{
+  "name": "bb-plugin-storage-retention",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Inspect machine storage and automatically archive or delete old threads.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Storage & retention [Experimental]",
+    "description": "Inspect machine storage and automatically archive or delete old threads.",
+    "icon": "Archive",
+    "enabledByDefault": false,
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "runner": "./runner.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/app-kit": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "@hugeicons/core-free-icons": "^4.3.4",
+    "@hugeicons/react": "^1.1.6",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

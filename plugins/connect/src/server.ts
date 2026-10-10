@@ -1,9 +1,20 @@
+import type { Server } from "node:http";
 import { hostname } from "node:os";
 import { join, resolve } from "node:path";
-import { cliCommand, defineCli, PluginCliError } from "@bb/plugin";
+import {
+  cliCommand,
+  defineCli,
+  fail,
+  machines,
+  PluginCliError,
+  server,
+  sessions,
+  threads,
+} from "@bb/plugin";
+import { z } from "zod";
 import type * as Plugin from "@bb/plugin";
 import { ConnectAccount, legacyLink, shareUrl, type Link } from "./account.js";
-import { connectRpcContract, type ConnectStatus } from "./contract.js";
+import { connect, type ConnectStatus } from "./contract.js";
 import { FrpTunnel } from "./frp.js";
 import { watchActivity } from "./activity.js";
 import {
@@ -12,29 +23,41 @@ import {
   reportActivity,
   revokeMachine,
 } from "./hosted.js";
+import { listenRemote, type RemoteShare } from "./remote.js";
 import { ConnectTunnel } from "./tunnel.js";
 
 type Outcome = { text: string; json?: unknown };
-type Act = (port: number, context: Plugin.CliContext) => Promise<Outcome>;
+type Act = (
+  port: number,
+  context: Plugin.CliContext,
+  host: string | undefined,
+) => Promise<Outcome>;
 type StoredMachine = { machineId: string };
 
 const DEFAULT_BASE_URL = "https://getbb.dev";
-const STATUS_CHANNEL = "status";
 const SHARES_KEY = "shares";
 const ENABLED_KEY = "enabled";
 const JSON_OPTION = {
   type: "boolean",
   description: "Emit machine-readable JSON",
 } as const;
-const PORT = { name: "port", description: "TCP port on the server machine" };
+const PORT = {
+  name: "port",
+  description: "TCP port on the machine the command runs on",
+};
+const HOST_OPTION = {
+  type: "string",
+  description: "Machine id whose port to share (default: this machine)",
+} as const;
+const storedShare = z.union([
+  z.number(),
+  z.object({ hostId: z.string(), port: z.number() }),
+]);
 const LEGACY_WARNING =
   "STOP THE ORIGINAL bb SERVER FIRST. getbb.app allows one tunnel per " +
   "server label: while the original server runs, this one and that one " +
   "keep disconnecting each other and every machine with them.";
 const BUSY_STATUSES = ["starting", "active", "stopping"];
-const REMOTE_THREAD =
-  "This thread runs on another machine. bb connect only shares ports of " +
-  "the machine that runs the bb server.";
 
 function describe(status: ConnectStatus): string {
   const { login } = status;
@@ -62,14 +85,28 @@ export default async function connectPlugin(
 ): Promise<void> {
   const { kv } = bb.storage;
   let enabled = (await kv.get<boolean>(ENABLED_KEY)) ?? true;
-  const shares = new Set((await kv.get<number[]>(SHARES_KEY)) ?? []);
-  const hosts = await bb.hosts.list();
-  const serverHost = hosts.find((host) => host.machineProviderId === null);
-  const remoteThreads = new Set<string>();
+  const localHost = bb.server.hostId;
+  const saved = z
+    .array(storedShare)
+    .catch([])
+    .parse(await kv.get(SHARES_KEY));
+  const shares = new Map<number, RemoteShare>();
+  for (const entry of saved) {
+    const share =
+      typeof entry === "number" ? { hostId: localHost, port: entry } : entry;
+    shares.set(share.port, share);
+  }
+  const relays = new Map<number, Promise<{ server: Server; origin: string }>>();
+  const origins = new Map<number, string>();
   const grants = new Map<string, Promise<Plugin.MachineAccess>>();
   let grantsCredential: string | undefined;
+  let publicUrl: string | null = null;
+  let removePublicUrl: (() => void) | null = null;
 
-  const publish = (): void => bb.realtime.publish(STATUS_CHANNEL, null);
+  const publish = (): void => {
+    bb.changed(connect.status);
+    bb.emit(connect.changed, status());
+  };
   const account = new ConnectAccount({
     file: join(bb.server.dataDir, "connect.json"),
     provisioned: process.env.BB_CONNECT_LINK,
@@ -81,7 +118,12 @@ export default async function connectPlugin(
   const tunnel = new ConnectTunnel({
     loopbackUrl: bb.server.url,
     marker: bb.server.tunnelToken,
-    isShared: (port) => shares.has(port),
+    originOf: (port) => {
+      const share = shares.get(port);
+      if (share === undefined) return null;
+      if (share.hostId === localHost) return `http://127.0.0.1:${port}`;
+      return origins.get(port) ?? null;
+    },
     confirmRefused: (credential) => account.confirmRefused(credential),
     log: bb.log,
     onChange: publish,
@@ -99,6 +141,19 @@ export default async function connectPlugin(
           log: bb.log,
         });
   const activeLink = (): Link | null => (enabled ? account.link : null);
+  bb.add(connect.link, () => {
+    const { link } = account;
+    if (link === null) return null;
+    const { baseUrl, serverUrl, credential } = link;
+    return { baseUrl, serverUrl, credential };
+  });
+
+  function advertise(url: string | null): void {
+    if (url === publicUrl) return;
+    removePublicUrl?.();
+    publicUrl = url;
+    removePublicUrl = url === null ? null : bb.add(server.publicUrl, () => url);
+  }
 
   function sync(): void {
     const link = activeLink();
@@ -106,13 +161,14 @@ export default async function connectPlugin(
     grantsCredential = account.link?.credential;
     tunnel.set(link);
     frp?.set(link);
-    bb.server.setPublicUrl(link?.serverUrl ?? null);
+    advertise(link?.serverUrl ?? null);
     publish();
   }
 
   const status = (): ConnectStatus => {
     const { link, login } = account;
-    const ports = [...shares].sort((left, right) => left - right);
+    const listed = [...shares.values()];
+    listed.sort((left, right) => left.port - right.port);
     const urlOf = (port: number) => link && shareUrl(link, port);
     return {
       ...tunnel.status(),
@@ -121,7 +177,7 @@ export default async function connectPlugin(
       handle: link?.serverLabel ?? null,
       url: link?.serverUrl ?? null,
       login,
-      shares: ports.map((port) => ({ port, url: urlOf(port) })),
+      shares: listed.map((share) => ({ ...share, url: urlOf(share.port) })),
     };
   };
   const setEnabled = async (next: boolean): Promise<void> => {
@@ -129,33 +185,72 @@ export default async function connectPlugin(
     await kv.set(ENABLED_KEY, next);
     sync();
   };
+  const relay = async (share: RemoteShare): Promise<void> => {
+    if (share.hostId === localHost || relays.has(share.port)) return;
+    const started = listenRemote(bb.runners, share);
+    relays.set(share.port, started);
+    try {
+      origins.set(share.port, (await started).origin);
+    } catch (error) {
+      relays.delete(share.port);
+      bb.log.warn(`share relay failed: ${String(error)}`);
+    }
+  };
+  const unrelay = (port: number): void => {
+    const started = relays.get(port);
+    relays.delete(port);
+    origins.delete(port);
+    void started?.then(({ server }) => {
+      server.close();
+      server.closeAllConnections();
+    });
+  };
+  for (const share of shares.values()) void relay(share);
   const saveShares = async (): Promise<void> => {
-    await kv.set(SHARES_KEY, [...shares]);
+    await kv.set(SHARES_KEY, [...shares.values()]);
     publish();
   };
-  const expose = async (port: number, threadId?: string): Promise<string> => {
+  const expose = async (port: number, hostId = localHost): Promise<string> => {
     const { link } = account;
     const ownPort = Number(new URL(bb.server.url).port);
     const valid = Number.isInteger(port) && port >= 1 && port <= 65_535;
+    const local = hostId === localHost;
     if (link === null) {
       const message = "this bb isn't signed in; run `bb connect login` first";
       throw new PluginCliError(message, { code: "not_paired" });
     }
-    if (!valid || port === ownPort) {
+    if (!valid || (local && port === ownPort)) {
       const message = `Cannot share port ${port}: expected a TCP port other than bb's own`;
       throw new PluginCliError(message, { code: "invalid_port" });
     }
-    if (threadId !== undefined && remoteThreads.has(threadId)) {
-      throw new PluginCliError(REMOTE_THREAD, { code: "remote_machine" });
+    const hosts = local ? [] : await bb.call(machines.list, {});
+    if (!local && !hosts.some((host) => host.id === hostId)) {
+      const message = `Cannot share port ${port}: no machine ${hostId}`;
+      throw new PluginCliError(message, { code: "unknown_host" });
     }
-    shares.add(port);
+    const held = shares.get(port);
+    if (held !== undefined && held.hostId !== hostId) {
+      const message =
+        `Port ${port} is already shared from machine ${held.hostId}; ` +
+        "a share URL names only the port, so run `bb connect unexpose " +
+        `${port}\` first`;
+      throw new PluginCliError(message, { code: "port_taken" });
+    }
+    const share = { hostId, port };
+    shares.set(port, share);
+    await relay(share);
     await saveShares();
     return shareUrl(link, port);
   };
-  const unexpose = async (ports: number[]): Promise<Outcome> => {
-    const removed = ports.filter((port) => shares.delete(port)).length;
+  const held = (port: number, hostId?: string): boolean => {
+    const share = shares.get(port);
+    return share !== undefined && (hostId ?? share.hostId) === share.hostId;
+  };
+  const unexpose = async (port: number, hostId?: string): Promise<void> => {
+    if (!held(port, hostId)) return;
+    shares.delete(port);
+    unrelay(port);
     await saveShares();
-    return { text: `Revoked ${removed} shared ports.`, json: { removed } };
   };
 
   const grantMachine = async (link: Link, hostId: string) => {
@@ -165,7 +260,7 @@ export default async function connectPlugin(
     await kv.set(key, { machineId: machine.machineId });
     return { serverUrl, headers: { [MACHINE_HEADER]: machine.credential } };
   };
-  bb.machines.setAccessProvider({
+  bb.add(machines.access, {
     async grant(hostId) {
       const link = activeLink();
       if (link === null) return null;
@@ -189,26 +284,47 @@ export default async function connectPlugin(
     },
   });
 
-  bb.agents.contributeInstructions(({ threadId, hostId }) => {
-    const elsewhere = hostId !== null && hostId !== serverHost?.id;
-    if (elsewhere) remoteThreads.add(threadId);
-    else remoteThreads.delete(threadId);
+  const instructions = () => {
     const link = activeLink();
-    if (link === null || elsewhere) return null;
+    if (link === null) return null;
     return (
       `The user can reach this bb remotely at ${link.serverUrl}. When you ` +
       "start an HTTP server they should see, run `bb connect expose <port>` " +
       "and give them the URL it prints as a markdown link; a localhost URL " +
       "does not open remotely."
     );
+  };
+  bb.on(sessions.instructions, async (_input, next) => {
+    const text = instructions();
+    const rest = await next();
+    return text ? [{ source: bb.pluginId, text }, ...rest] : rest;
   });
 
-  bb.rpc.register(connectRpcContract, {
-    status,
-    login: async () => (await account.startLogin(), status()),
-    logout: async () => (await account.logout(), status()),
-    setEnabled: async (input) => (await setEnabled(input.enabled), status()),
-    unexpose: async ({ port }) => (await unexpose([port]), status()),
+  bb.implement(connect.status, status);
+  bb.implement(connect.login, async () => {
+    await account.startLogin();
+    return status();
+  });
+  bb.implement(connect.redeem, async ({ code }) => {
+    const refused = await account.redeem(code);
+    if (refused !== null) fail("invalid", refused);
+    return status();
+  });
+  bb.implement(connect.logout, async () => {
+    await account.logout();
+    return status();
+  });
+  bb.implement(connect.setEnabled, async (input) => {
+    await setEnabled(input.enabled);
+    return status();
+  });
+  bb.implement(connect.expose, async ({ port, hostId }) => {
+    await expose(port, hostId);
+    return status();
+  });
+  bb.implement(connect.unexpose, async ({ port, hostId }) => {
+    await unexpose(port, hostId);
+    return status();
   });
 
   const command = (
@@ -219,30 +335,44 @@ export default async function connectPlugin(
     cliCommand({
       summary,
       positionals: ports.map((port) => ({ ...port, required: true })),
-      options: { json: JSON_OPTION },
+      options: {
+        json: JSON_OPTION,
+        ...(ports.length > 0 ? { host: HOST_OPTION } : {}),
+      },
       async run(input, context) {
         const port = Number(input.positionals.port);
-        const { text, json = status() } = await act(port, context);
+        const { host } = input.options;
+        const { text, json = status() } = await act(port, context, host);
         return reply(input.options.json, json, text);
       },
     });
-  const after = (work: () => Promise<unknown>) => async () => {
-    await work();
-    return { text: describe(status()) };
+  const told = (current: ConnectStatus): Outcome => {
+    return { text: describe(current), json: current };
   };
-  const login = after(() => account.startLogin());
-  const logout = after(() => account.logout());
-  const show = after(async () => {});
-  const on = after(() => setEnabled(true));
-  const off = after(() => setEnabled(false));
-  const unshare: Act = (port) => unexpose([port]);
-  const unshareAll: Act = () => unexpose([...shares]);
-  const share: Act = async (port, { threadId }) => {
-    const url = await expose(port, threadId);
-    return { text: url, json: { port, url } };
+  const login = async () => told(await bb.call(connect.login, {}));
+  const logout = async () => told(await bb.call(connect.logout, {}));
+  const show = async () => told(await bb.call(connect.status, {}));
+  const turn = (enabled: boolean) => async () =>
+    told(await bb.call(connect.setEnabled, { enabled }));
+  const revoke = async (ports: number[], hostId?: string) => {
+    const owned = ports.filter((port) => held(port, hostId));
+    for (const port of owned) {
+      await bb.call(connect.unexpose, { port, hostId });
+    }
+    if (owned.length === 0) await saveShares();
+    const removed = owned.length;
+    return { text: `Revoked ${removed} shared ports.`, json: { removed } };
+  };
+  const unshare: Act = (port, _context, host) => revoke([port], host);
+  const unshareAll: Act = () => revoke([...shares.keys()]);
+  const share: Act = async (port, context, host) => {
+    const hostId = host ?? context.hostId ?? localHost;
+    const url = await expose(port, hostId);
+    return { text: url, json: { hostId, port, url } };
   };
   const list: Act = async () => {
-    return { text: describe(status()), json: status().shares };
+    const current = await bb.call(connect.status, {});
+    return { text: describe(current), json: current.shares };
   };
 
   bb.cli.register(
@@ -253,9 +383,9 @@ export default async function connectPlugin(
         login: command("Sign this bb in to your getbb.dev account", login),
         status: command("Show remote-access status", show),
         logout: command("Sign out and close the tunnel", logout),
-        on: command("Turn remote access on", on),
-        off: command("Turn remote access off and stay signed in", off),
-        expose: command("Share a port of the server machine", share, PORT),
+        on: command("Turn remote access on", turn(true)),
+        off: command("Turn remote access off and stay signed in", turn(false)),
+        expose: command("Share a port of this machine", share, PORT),
         unexpose: command("Stop sharing a port", unshare, PORT),
         "unexpose-all": command("Stop sharing every port", unshareAll),
         shares: command("List shared ports", list),
@@ -285,8 +415,8 @@ export default async function connectPlugin(
 
   if (process.env.BB_CONNECT_LINK !== undefined) {
     const busy = async () => {
-      const threads = await bb.threads.list({ archived: "false" });
-      return threads.some((thread) => BUSY_STATUSES.includes(thread.status));
+      const listed = await bb.call(threads.list, { archived: false });
+      return listed.some((thread) => BUSY_STATUSES.includes(thread.status));
     };
     const report = async () => {
       const link = activeLink();
@@ -302,6 +432,7 @@ export default async function connectPlugin(
     account.stop();
     tunnel.set(null);
     frp?.set(null);
+    for (const port of [...relays.keys()]) unrelay(port);
   });
   sync();
 }

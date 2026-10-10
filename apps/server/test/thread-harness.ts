@@ -1,3 +1,4 @@
+import { environmentRuntime } from "../../../plugins/environments/contract.js";
 import type { PendingInteractionPayload, PromptInput } from "@bb/domain";
 import type {
   RunnerEvent,
@@ -5,10 +6,10 @@ import type {
   SubmitTurnArgs,
 } from "@bb/runner";
 import type { CreateThreadRequest } from "@bb/server-contract";
-import { insertRow, type SqlValue } from "../src/db/index.js";
-import { insertTerminal } from "../src/db/terminals.js";
-import type { ThreadRow } from "../src/db/threads.js";
-import type { ThreadEnvironment } from "../src/environments/types.js";
+import { insertRow, type SqlValue } from "@bb/server-kit/db/index";
+import { insertTerminal } from "@bb/server-kit/db/terminals";
+import type { ThreadRow } from "@bb/server-kit/db/threads";
+import type { ThreadEnvironment } from "@bb/server-kit/environments/types";
 import { createTestServer, type Json, type TestSocket } from "./helpers.js";
 
 type TurnStatus = "completed" | "failed" | "interrupted";
@@ -187,7 +188,7 @@ export async function createThreadServer() {
   };
   const advance = async (ms: number) => {
     server.clock.now += ms;
-    ctx.threads.sweep();
+    await ctx.threads.sweep();
     await settle();
   };
   const reconnect = async () => {
@@ -199,11 +200,14 @@ export async function createThreadServer() {
   };
   const deferEnvironment = () => {
     let release = () => {};
-    const { ensureForThread } = ctx.environments;
-    ctx.environments.ensureForThread = (args) =>
-      new Promise<ThreadEnvironment>((resolve, reject) => {
-        release = () => void ensureForThread(args).then(resolve, reject);
-      });
+    const policy = ctx.kernel.scope("deferred-environments", "policy");
+    policy.on(
+      environmentRuntime.ensure,
+      (_job, next) =>
+        new Promise<ThreadEnvironment>((resolve, reject) => {
+          release = () => void next().then(resolve, reject);
+        }),
+    );
     return () => release();
   };
   const changes = async (client: TestSocket, kind?: string) => {

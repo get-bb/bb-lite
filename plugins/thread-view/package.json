@@ -1,0 +1,47 @@
+{
+  "name": "bb-plugin-thread-view",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "A thread on screen: the timeline, its rows and the thread page.",
+  "bb": {
+    "name": "Thread view",
+    "description": "A thread on screen: the timeline, its rows and the thread page.",
+    "app": "./app.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/app-kit": "workspace:*",
+    "@bb/client-core": "workspace:*",
+    "@bb/core-ui": "workspace:*",
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "@bb/text-utils": "workspace:*",
+    "@bb/thread-view": "workspace:*",
+    "@pierre/diffs": "^1.2.9",
+    "@tanstack/react-query": "^5.62.0",
+    "@xterm/addon-fit": "0.12.0-beta.292",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-web-links": "0.13.0-beta.292",
+    "@xterm/addon-webgl": "0.20.0-beta.291",
+    "@xterm/xterm": "6.1.0-beta.292",
+    "ansi-to-html": "^0.7.2",
+    "bb-plugin-composer": "workspace:*",
+    "bb-plugin-shell": "workspace:*",
+    "bb-plugin-side-panel": "workspace:*",
+    "jotai": "^2.19.0",
+    "react": "^19.0.0",
+    "react-router-dom": "^7.1.0",
+    "remend": "1.3.1"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}

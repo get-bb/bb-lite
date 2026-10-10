@@ -4,13 +4,10 @@ import net, { type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encodeClientTurnRequestIdNumber } from "@bb/domain";
-import {
-  createEchoAdapter,
-  joinServer,
-  runRunner,
-  type SubmitTurnArgs,
-} from "@bb/runner";
-import { expect, it, onTestFinished } from "vitest";
+import { joinServer, runRunner, type SubmitTurnArgs } from "@bb/runner";
+import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
+import { machines } from "@bb/plugin";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { createTestServer, type TestServer } from "./helpers.js";
 
 let turnCounter = 0;
@@ -77,8 +74,8 @@ async function enrollMachine(server: TestServer) {
   const relay = await startRelay(server.url);
   const dataDir = fs.mkdtempSync(join(tmpdir(), "bb-remote-machine-"));
   const json = { machineProviderId: "manual", inputs: null };
-  const { id: hostId } = await (await api.hosts.$post({ json })).json();
-  const issued = `${relay.url}/api/v1/hosts/${hostId}/enrollment-command`;
+  const { id: hostId } = await (await api.machines.$post({ json })).json();
+  const issued = `${relay.url}/api/v1/machines/${hostId}/enrollment-command`;
   const { command } = (await (await fetch(issued)).json()) as {
     command: string;
   };
@@ -179,4 +176,57 @@ it("keeps a turn alive across a dropped socket without duplicates", async () => 
   expectConsecutive(machine.seen);
   const lastSeq = machine.seen.at(-1)?.seq;
   await until(() => machine.row()?.lastEventSeq === lastSeq);
+});
+
+it("ships a plugin's runner part to a machine and calls it there", async () => {
+  const server = await createTestServer();
+  const { ctx } = server;
+  const machine = await enrollMachine(server);
+  await machine.run();
+  await machine.connected();
+  const fixture = new URL("./fixtures/machine-plugin", import.meta.url);
+  const plugins = [{ path: fixture.pathname }];
+  const configFile = join(ctx.config.dataDir, "config.json");
+  fs.writeFileSync(configFile, JSON.stringify({ plugins }));
+  await ctx.plugins.reload();
+  const providers = async () => {
+    const listed = await machine.remote().listProviders();
+    return listed.map(({ providerId }) => providerId);
+  };
+  const settled = async (wanted: string[]) => {
+    for (const deadline = Date.now() + 10_000; ;) {
+      const found = await providers();
+      if (JSON.stringify(found) === JSON.stringify(wanted)) return found;
+      if (Date.now() > deadline) return found;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  };
+  expect(await settled(["echo", "probe"])).toEqual(["echo", "probe"]);
+  const signals: unknown[] = [];
+  const listener = ctx.kernel.scope("listener", "installed");
+  listener.on(machines.signaled, (signal) => void signals.push(signal));
+  const asked = await server.send("/ops/machine-probe.where", {
+    hostId: machine.hostId,
+  });
+  await vi.waitFor(() =>
+    expect(signals).toEqual([
+      {
+        hostId: machine.hostId,
+        pluginId: "machine-probe",
+        name: "summed",
+        payload: { sum: 5 },
+      },
+    ]),
+  );
+  const cached = join(machine.dataDir, "plugins", "machine-probe");
+  expect(await asked.json()).toEqual({
+    ok: true,
+    result: { dataDir: cached, sum: 5 },
+  });
+  await ctx.plugins.setEnabled("machine-probe", false);
+  expect(await settled(["echo"])).toEqual(["echo"]);
+  const gone = await server.send("/ops/machine-probe.where", {
+    hostId: machine.hostId,
+  });
+  expect(gone.status).toBe(501);
 });

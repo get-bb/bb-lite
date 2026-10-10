@@ -1,3 +1,4 @@
+import { server as serverSlots } from "../../../packages/plugin/src/index.js";
 import dns from "node:dns";
 import { once } from "node:events";
 import { readdirSync, readFileSync } from "node:fs";
@@ -295,7 +296,7 @@ async function echoServer() {
 it("links a server and lets invited relay accounts in", async () => {
   const linked = await startLinkedServer();
   const { alice, apex, bee, ctx } = linked;
-  expect(ctx.plugins.publicUrl()).toBe(bee);
+  expect(ctx.kernel.pick(serverSlots.publicUrl)?.()).toBe(bee);
   const session = "/api/v1/auth/session";
 
   const stranger = browser();
@@ -315,7 +316,7 @@ it("links a server and lets invited relay accounts in", async () => {
   const again = await alice.visit(`${bee}${session}`);
   expect(again.body.user).toMatchObject({ avatarUrl: `${AVATARS}/alice.png` });
   const zipped = { headers: { "accept-encoding": "gzip" } };
-  const config = await alice.visit(`${bee}/api/v1/system/config`, zipped);
+  const config = await alice.visit(`${bee}/api/v1/server/config`, zipped);
   expect(config.headers.get("content-encoding")).toBe("gzip");
   expect(config.body).toMatchObject({ primaryHostId: ctx.config.hostId });
 
@@ -329,7 +330,7 @@ it("links a server and lets invited relay accounts in", async () => {
   const disguised = await bo.visit(`${bee}${session}`, { headers: forged });
   expect(disguised.body).toEqual({ user: null, identity });
 
-  const invite = await alice.visit(`${bee}/api/v1/user-invites`, { json: {} });
+  const invite = await alice.visit(`${bee}/api/v1/users/invites`, { json: {} });
   expect(invite.status, invite.text).toBe(201);
   const inviteUrl = new URL(String(invite.body.url));
   expect(inviteUrl.origin).toBe(bee);
@@ -401,8 +402,8 @@ it("keeps relay sessions away from servers and shares", async () => {
   expect(peeked).toMatchObject({ status: 403, body: { code: "forbidden" } });
 
   const manual = { machineProviderId: "manual", inputs: null };
-  const added = await alice.visit(`${bee}/api/v1/hosts`, { json: manual });
-  const enrollment = `${bee}/api/v1/hosts/${String(added.body.id)}`;
+  const added = await alice.visit(`${bee}/api/v1/machines`, { json: manual });
+  const enrollment = `${bee}/api/v1/machines/${String(added.body.id)}`;
   const command = await alice.visit(`${enrollment}/enrollment-command`);
   const [, blob = ""] = String(command.body.command).split("bb runner join ");
   const decoded = Buffer.from(blob, "base64url").toString();
@@ -410,13 +411,14 @@ it("keeps relay sessions away from servers and shares", async () => {
   expect(join.serverUrl).toBe(bee);
   const machine = browser();
   const asMachine = { headers: join.headers };
-  const listed = await machine.visit(`${bee}/api/v1/hosts`, asMachine);
-  expect(listed.status, listed.text).toBe(200);
+  const listed = await machine.visit(`${bee}/api/v1/machines`, asMachine);
+  expect(listed).toMatchObject({ status: 403, body: { code: "forbidden" } });
+  expect(listed.text).toContain("Machine credentials");
   const mutation = { method: "DELETE", ...asMachine };
   const removal = await machine.visit(enrollment, mutation);
   expect(removal).toMatchObject({ status: 403 });
   const impostor = { headers: { "x-bb-connect-machine": "bbcm_nope" } };
-  expect((await machine.visit(`${bee}/api/v1/hosts`, impostor)).status).toBe(
+  expect((await machine.visit(`${bee}/api/v1/machines`, impostor)).status).toBe(
     403,
   );
 
@@ -429,7 +431,7 @@ it("keeps relay sessions away from servers and shares", async () => {
     IncomingMessage,
   ];
   expect(rejection.statusCode).toBe(401);
-  expect(ctx.plugins.publicUrl()).toBe(bee);
+  expect(ctx.kernel.pick(serverSlots.publicUrl)?.()).toBe(bee);
 
   await cli("logout", "--json");
   await vi.waitFor(async () => {

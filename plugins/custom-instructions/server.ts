@@ -1,4 +1,16 @@
-import { cliCommand, defineCli, type PluginServerApi } from "@bb/plugin";
+import {
+  PluginCliError,
+  cliCommand,
+  defineCli,
+  sessions,
+  type PluginServerApi,
+} from "@bb/plugin";
+
+const MAX_LENGTH = 4096;
+const json = {
+  type: "boolean",
+  description: "Emit machine-readable JSON",
+} as const;
 
 export default function plugin(bb: PluginServerApi): void {
   const settings = bb.settings.define({
@@ -8,25 +20,39 @@ export default function plugin(bb: PluginServerApi): void {
       description:
         "Give agents extra instructions and context for tasks on this bb host.",
       multiline: true,
+      maxLength: MAX_LENGTH,
       default: "",
     },
   });
 
-  bb.agents.contributeInstructions(async () => {
-    const { instructions } = await settings.get();
-    return instructions.trim() === "" ? null : instructions;
+  bb.on(sessions.instructions, async (_context, next) => {
+    const { instructions: text } = await settings.get();
+    const rest = await next();
+    if (text.trim() === "") return rest;
+    return [{ source: bb.pluginId, text }, ...rest];
   });
 
-  const replace = async (instructions: string, done: string) => {
-    await settings.set({ instructions });
-    return { exitCode: 0, stdout: done };
+  const output = (instructions: string, asJson: boolean, done: string) => ({
+    exitCode: 0,
+    stdout: asJson ? JSON.stringify({ instructions }) : done,
+  });
+  const replace = async (text: string, asJson: boolean, done: string) => {
+    if (text.length > MAX_LENGTH) {
+      throw new PluginCliError(
+        `Custom instructions must be at most ${MAX_LENGTH} characters`,
+        { code: "invalid_instructions" },
+      );
+    }
+    await settings.set({ instructions: text });
+    return output(text, asJson, done);
   };
   const commands = {
     get: cliCommand({
       summary: "Print the current custom instructions",
-      async run() {
+      options: { json },
+      async run({ options }) {
         const { instructions } = await settings.get();
-        return { exitCode: 0, stdout: instructions };
+        return output(instructions, options.json === true, instructions);
       },
     }),
     set: cliCommand({
@@ -34,17 +60,24 @@ export default function plugin(bb: PluginServerApi): void {
       positionals: [
         {
           name: "text",
-          description: "Replacement instructions, joined with single spaces",
+          description: `Replacement instructions, joined with single spaces; at most ${MAX_LENGTH} characters`,
           required: true,
           variadic: true,
         },
       ],
-      run: ({ positionals }) =>
-        replace(positionals.text.join(" "), "Custom instructions updated"),
+      options: { json },
+      run: ({ positionals, options }) =>
+        replace(
+          positionals.text.join(" "),
+          options.json === true,
+          "Custom instructions updated",
+        ),
     }),
     clear: cliCommand({
       summary: "Clear the custom instructions",
-      run: () => replace("", "Custom instructions cleared"),
+      options: { json },
+      run: ({ options }) =>
+        replace("", options.json === true, "Custom instructions cleared"),
     }),
   };
   const summary =

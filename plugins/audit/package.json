@@ -1,0 +1,26 @@
+{
+  "name": "bb-plugin-audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "See who changed what on this bb, through which door and which plugin.",
+  "bb": {
+    "name": "Audit",
+    "description": "See who changed what on this bb, through which door and which plugin.",
+    "icon": "ListView",
+    "server": "./server.ts"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
+  }
+}

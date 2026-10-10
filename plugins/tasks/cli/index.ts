@@ -3,20 +3,19 @@ import { dirname, resolve } from "node:path";
 import {
   cliCommand,
   defineCli,
+  files,
   PluginCliError,
   type CliContext,
   type CliResult,
 } from "@bb/plugin";
 import {
   createComment,
-  createTask,
   displayComments,
   errorMessage,
-  updateTask,
   type TasksContext,
 } from "../api/index.js";
 import { readAttachment, saveAttachment } from "../attachments/index.js";
-import { attachThread, detachThread, dispatch } from "../delegate/index.js";
+import { attachThread } from "../delegate/index.js";
 import {
   attachmentDownloadUrl,
   createTaskInputSchema,
@@ -25,6 +24,7 @@ import {
   TASK_PRIORITIES,
   TASK_SORTS,
   TASK_STATUSES,
+  tasks,
   ULID_PATTERN,
   updateTaskInputSchema,
   type Preset,
@@ -194,7 +194,10 @@ export function registerTasksCli(ctx: TasksContext): void {
             cli.threadId ??
             fail("missing --thread outside a thread", "missing_required");
           if (verb === "attach") await attachThread(ctx, target.id, threadId);
-          else detachThread(ctx, target.id, threadId);
+          else {
+            const link = { taskId: target.id, threadId };
+            await bb.call(tasks.detachThread, link);
+          }
           const done =
             verb === "attach"
               ? `Attached ${threadId} to ${target.key}`
@@ -236,7 +239,7 @@ export function registerTasksCli(ctx: TasksContext): void {
         json: JSON_FLAG,
       },
       run: ({ options }, cli) =>
-        reply(options.json, () => {
+        reply(options.json, async () => {
           const { id: projectId } = project(options.project, cli);
           const { title, description, status, priority } = options;
           const input = createTaskInputSchema.parse({
@@ -245,7 +248,7 @@ export function registerTasksCli(ctx: TasksContext): void {
             parentTaskId: options.parent ? task(options.parent).id : null,
             labelIds: labelIds(projectId, options.label),
           });
-          const created = createTask(ctx, input);
+          const { task: created } = await bb.call(tasks.createTask, input);
           const attachments = { attachments: [], failedAttachments: [] };
           const done = `Created ${created.key}  ${created.title}`;
           return [{ task: created, ...attachments }, done];
@@ -357,12 +360,15 @@ export function registerTasksCli(ctx: TasksContext): void {
         json: JSON_FLAG,
       },
       run: ({ positionals, options }, cli) =>
-        reply(options.json, () => {
+        reply(options.json, async () => {
           const current = task(positionals["key-or-id"]);
           const removed = labelIds(current.projectId, options["remove-label"]);
           const added = labelIds(current.projectId, options["add-label"]);
           const kept = current.labelIds.filter((id) => !removed.includes(id));
           const relabel = removed.length + added.length > 0;
+          if (options.parent && options["no-parent"]) {
+            fail("cannot combine --parent and --no-parent", "usage");
+          }
           const parent = options.parent ? task(options.parent).id : undefined;
           const { title, description, status, priority } = options;
           const changes = {
@@ -374,8 +380,11 @@ export function registerTasksCli(ctx: TasksContext): void {
             fail("no task changes were provided", "no_changes");
           }
           const identity = { taskId: current.id, authorName: author(cli) };
-          const input = { ...changes, ...identity };
-          const updated = updateTask(ctx, updateTaskInputSchema.parse(input));
+          const input = updateTaskInputSchema.parse({
+            ...changes,
+            ...identity,
+          });
+          const { task: updated } = await bb.call(tasks.updateTask, input);
           return [
             { task: updated },
             `Updated ${updated.key}  ${updated.title}`,
@@ -455,7 +464,8 @@ export function registerTasksCli(ctx: TasksContext): void {
           const content =
             threadId === undefined
               ? await readFile(path, encoding).catch(() => null)
-              : (await bb.files.read({ threadId, path, encoding }))?.content;
+              : (await bb.call(files.read, { threadId, path, encoding }))
+                  ?.content;
           if (content == null)
             fail(`file not found: ${path}`, "file_not_found");
           const bytes = Buffer.from(content, encoding);
@@ -493,7 +503,8 @@ export function registerTasksCli(ctx: TasksContext): void {
             await writeFile(out, content);
           } else {
             const file = { content: content.toString("base64"), path: out };
-            await bb.files.write({ threadId, encoding: "base64", ...file });
+            const written = { threadId, encoding: "base64" as const, ...file };
+            await bb.call(files.write, written);
           }
           return [{ attachment, out }, `Saved ${attachment.fileName}  ${out}`];
         }),
@@ -517,7 +528,7 @@ export function registerTasksCli(ctx: TasksContext): void {
           const chosen =
             preset(options.preset) ??
             fail(`preset not found: ${options.preset}`, "preset_not_found");
-          const { threadId } = await dispatch(ctx, {
+          const { threadId } = await bb.call(tasks.dispatch, {
             taskId: target.id,
             presetId: chosen.id,
             extraInstructions: options.instructions,
@@ -555,7 +566,10 @@ export function registerTasksCli(ctx: TasksContext): void {
         reply(options.json, () => {
           const base = preset(positionals.name);
           if (options.delete) {
-            const deleted = base !== undefined && store.deletePreset(base.id);
+            if (base === undefined) {
+              fail(`preset not found: ${positionals.name}`, "preset_not_found");
+            }
+            const deleted = store.deletePreset(base.id);
             return [{ deleted, preset: base }, `Deleted: ${deleted}`];
           }
           const providerId = options.provider ?? base?.providerId;
@@ -571,6 +585,11 @@ export function registerTasksCli(ctx: TasksContext): void {
             options.environment === undefined
               ? base?.environmentKind === "new-worktree"
               : options.environment === "worktree";
+          for (const name of ["base-branch", "machine"] as const) {
+            if (options[name] !== undefined && !worktree) {
+              fail(`--${name} requires --environment worktree`, "usage");
+            }
+          }
           const branch = options["base-branch"] ?? base?.baseBranch ?? null;
           const machine = options.machine ?? base?.machineId ?? null;
           const fields = {

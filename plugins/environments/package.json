@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-environments",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "The directory a thread runs in: create, set up, retire.",
+  "bb": {
+    "name": "Environments",
+    "description": "The directory a thread runs in: create, set up, retire.",
+    "server": "./server.ts",
+    "requires": [
+      "threads"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0"
+  }
+}

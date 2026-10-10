@@ -1,0 +1,144 @@
+import { machineFiles } from "@bb/runner";
+import { isAbsolute, posix, resolve } from "node:path";
+import {
+  files,
+  OpError,
+  threads,
+  type FileSource,
+  type PluginServerApi,
+} from "@bb/plugin";
+import { RunnerError } from "@bb/runner";
+import { implementMachineFiles, registerFileRoutes } from "./routes.js";
+import { startWorkspaceWatch } from "./watch.js";
+
+const served = (path: string) =>
+  path.replace(/^\/+/u, "").split("/").map(encodeURIComponent).join("/");
+
+export default function workspace(bb: PluginServerApi): void {
+  const { runners } = bb;
+  const workspaceOf = (threadId: string) =>
+    bb.call(threads.workspace, { threadId });
+  const storageOf = async (threadId: string) => {
+    const storage = await bb.call(threads.storageLocation, { threadId });
+    if (storage === null) {
+      throw new OpError("not_found", "This thread has no storage directory.");
+    }
+    return storage;
+  };
+  const based = async (
+    threadId: string,
+    paths: string[],
+    source: FileSource = "workspace",
+  ) => {
+    if (source === "thread-storage") return storageOf(threadId);
+    const { hostId, path } = await workspaceOf(threadId);
+    if (source === "workspace") return { hostId, path };
+    if (paths.length > 0 && paths.every((path) => isAbsolute(path))) {
+      return { hostId, path: null };
+    }
+    throw new OpError("invalid_input", "Host file paths must be absolute.");
+  };
+  const located = async (
+    threadId: string,
+    path: string,
+    source?: FileSource,
+  ) => {
+    const base = await based(threadId, [path], source);
+    const free = isAbsolute(path) && source !== "thread-storage";
+    const rootPath = free ? undefined : (base.path ?? undefined);
+    return { runner: runners.get(base.hostId), rootPath };
+  };
+  bb.http.api((app) => registerFileRoutes(app, bb));
+  implementMachineFiles(bb);
+  bb.implement(files.read, async (args) => {
+    const { threadId, path, encoding = "utf8", source } = args;
+    const { runner, rootPath } = await located(threadId, path, source);
+    const missing = (error: unknown) => {
+      const absent = error instanceof RunnerError;
+      if (absent && error.code === "path_not_found") return null;
+      throw error;
+    };
+    const file = await runner
+      .call(machineFiles.read, { path, rootPath })
+      .catch(missing);
+    if (file === null || !("content" in file)) return null;
+    const bytes = Buffer.from(file.content, file.contentEncoding);
+    return { content: bytes.toString(encoding), sha256: file.sha256 };
+  });
+  bb.implement(files.url, async ({ threadId, path, source }) => {
+    const kind = source ?? (isAbsolute(path) ? "host" : "workspace");
+    if (kind === "workspace") {
+      const { id } = await workspaceOf(threadId);
+      return {
+        url: `/api/v1/environments/${encodeURIComponent(id)}/files/${served(path)}`,
+      };
+    }
+    let absolute = path;
+    if (kind === "thread-storage") {
+      absolute = posix.join((await storageOf(threadId)).path, path);
+    }
+    return {
+      url: `/api/v1/threads/${encodeURIComponent(threadId)}/host-files/${served(absolute)}`,
+    };
+  });
+  bb.implement(files.write, async (args) => {
+    const { threadId, encoding: contentEncoding, source, ...file } = args;
+    const { runner, rootPath } = await located(threadId, file.path, source);
+    const options = { rootPath, contentEncoding, createParents: true };
+    const result = await runner.call(machineFiles.write, {
+      ...file,
+      ...options,
+    });
+    if (result.outcome === "conflict") return { outcome: "conflict" as const };
+    return { outcome: "written" as const, sha256: result.sha256 };
+  });
+  bb.implement(
+    files.list,
+    async ({ threadId, path, directories, source, ...query }) => {
+      const base = await based(
+        threadId,
+        path === undefined ? [] : [path],
+        source,
+      );
+      const { hostId } = base;
+      const rootPath = resolve(base.path ?? "/", path ?? ".");
+      const kinds = { includeFiles: true, includeDirectories: directories };
+      const search = { ...query, ...kinds, includeHidden: true, rootPath };
+      const { paths, truncated } = await runners
+        .get(hostId)
+        .call(machineFiles.list, search);
+      const listed = paths.map(({ path: found, name }) => ({
+        path: found,
+        name,
+      }));
+      return { paths: listed, truncated };
+    },
+  );
+  bb.implement(files.mkdir, async ({ threadId, path, source }) => {
+    const { runner, rootPath } = await located(threadId, path, source);
+    await runner.call(machineFiles.mutate, {
+      op: "mkdir",
+      path,
+      rootPath,
+      recursive: true,
+    });
+  });
+  bb.implement(files.delete, async ({ threadId, path, recursive, source }) => {
+    const { runner, rootPath } = await located(threadId, path, source);
+    await runner.call(machineFiles.mutate, {
+      op: "remove",
+      path,
+      rootPath,
+      recursive,
+    });
+  });
+  bb.implement(files.move, async ({ threadId, from, to, source }) => {
+    const { hostId, path } = await based(threadId, [from, to], source);
+    const rootPath = path ?? undefined;
+    const move = { sourcePath: from, destinationPath: to, rootPath };
+    await runners
+      .get(hostId)
+      .call(machineFiles.mutate, { op: "move", ...move });
+  });
+  bb.onStart(() => startWorkspaceWatch(bb));
+}

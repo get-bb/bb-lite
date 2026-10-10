@@ -1,7 +1,8 @@
+import { request } from "node:http";
 import { PERSONAL_PROJECT_ID } from "@bb/domain";
 import { uploadedPromptAttachmentSchema } from "@bb/server-contract";
 import { expect, it } from "vitest";
-import { insertHost } from "../src/db/hosts.js";
+import { insertHost } from "@bb/server-kit/db/hosts";
 import {
   createProject,
   createTestServer,
@@ -23,7 +24,9 @@ it("finds or creates projects by host and path, in creation order", async () => 
   const again = await createProject(server, "again", "/repos/alpha");
   expect(again.id).toBe(alpha.id);
   const beta = await createProject(server, "beta");
-  const listed = await (await api.projects.$get({ query: {} })).json();
+  const listed: { name: string }[] = await (
+    await api.projects.$get({ query: {} })
+  ).json();
   expect(listed.map((project) => project.name)).toEqual(["alpha", "beta"]);
   const param = { id: beta.id };
   const json = { name: "beta two" };
@@ -37,7 +40,7 @@ it("protects the personal project and deletes others entirely", async () => {
   const { api, ctx } = server;
   const changed = await watchChanges(server);
   const { id } = await createProject(server, "alpha");
-  const query = { includePersonal: "true", include: "threads" } as const;
+  const query = { includePersonal: true, include: "threads" } as const;
   const [first, second] = await (await api.projects.$get({ query })).json();
   const empty = { threads: [], defaultExecutionOptions: null, sources: [] };
   expect(first).toMatchObject({ ...personal, name: "Personal", ...empty });
@@ -133,12 +136,57 @@ it("stores attachments and serves them with ranges", async () => {
   const image = uploadedPromptAttachmentSchema.parse(empty.uploaded);
   expect(image.type).toBe("localImage");
   expect(await read("bytes=0-99", image.path)).toBe("416|bytes */0|");
+  const html = { type: "text/html" };
+  const page = await upload(new File(["<script>1</script>"], "x.html", html));
+  const { path: pagePath } = uploadedPromptAttachmentSchema.parse(
+    page.uploaded,
+  );
+  const served = await fetch(
+    `${base}/${id}/attachments/content?path=${pagePath}`,
+  );
+  expect(served.headers.get("content-security-policy")).toBe("sandbox");
+  expect(served.headers.get("x-content-type-options")).toBe("nosniff");
   const tooLarge = new File([new Uint8Array(35 * 1024 * 1024 + 1)], "big.bin");
   const message = "big.bin is 35MB, over the 35MB attachment limit";
-  expect(await upload(tooLarge)).toMatchObject({ uploaded: { message } });
+  expect(await upload(tooLarge)).toMatchObject({
+    status: 413,
+    uploaded: { message },
+  });
+  const declared = await new Promise<number | undefined>((resolve) => {
+    const url = new URL(`${base}/${id}/attachments`);
+    const headers = { "content-length": String(64 * 1024 * 1024) };
+    const pending = request(url, { method: "POST", headers }, (reply) => {
+      resolve(reply.statusCode);
+      pending.destroy();
+    });
+    pending.on("error", () => resolve(undefined));
+    pending.flushHeaders();
+  });
+  expect(declared).toBe(413);
   const json = { sourceProjectId: project.id, paths: [attachment.path] };
   const copy = server.api.projects[":id"].attachments.copy;
   expect((await copy.$post({ param: personal, json })).status).toBe(200);
   const copied = await read("bytes=9-", attachment.path, personal.id);
   expect(copied).toBe("206|bytes 9-9/10|9");
+});
+
+it("stores a per-user project order that the list and sidebar honour", async () => {
+  const server = await createTestServer();
+  const alpha = await createProject(server, "alpha");
+  const beta = await createProject(server, "beta");
+  const gamma = await createProject(server, "gamma");
+  await server.matches("/projects/order", { projectIds: [] });
+  const projectIds = [gamma.id, alpha.id];
+  const saved = await server.send("/projects/order", { projectIds }, "PUT");
+  expect(await saved.json()).toEqual({ projectIds });
+  const names = (listed: { name: string }[]) => listed.map(({ name }) => name);
+  const listed = await server.read<{ name: string }[]>("/projects");
+  expect(names(listed)).toEqual(["gamma", "alpha", "beta"]);
+  const sidebar = await server.read<{ projects: { name: string }[] }>(
+    "/projects/sidebar",
+  );
+  expect(names(sidebar.projects)).toEqual(["gamma", "alpha", "beta"]);
+  const unknown = { projectIds: [beta.id, "proj_missing"] };
+  const refused = await server.send("/projects/order", unknown, "PUT");
+  expect(refused.status).toBe(404);
 });

@@ -1,10 +1,12 @@
 import {
   cliCommand,
+  deny,
+  fail,
   defineCli,
   PluginCliError,
   type PluginServerApi,
 } from "@bb/plugin";
-import { contract } from "./contract.js";
+import { echo } from "./contract.js";
 
 const MIGRATIONS = ["CREATE TABLE calls (text TEXT NOT NULL)"];
 
@@ -32,22 +34,23 @@ export default async function echoPlugin(bb: PluginServerApi) {
     greeting: { type: "string", label: "Greeting", default: "hello" },
     apiKey: { type: "string", label: "API key", secret: true },
   });
-  const database = bb.storage.database();
-  bb.storage.migrate(database, MIGRATIONS);
+  const database = bb.storage.database(MIGRATIONS);
   const countCalls = database.prepare("SELECT count(*) FROM calls").pluck();
 
-  bb.rpc.register(contract, {
-    async echo({ text }) {
-      const { greeting } = await settings.get();
-      database.prepare("INSERT INTO calls VALUES (?)").run(text);
-      await bb.storage.kv.set("last", text);
-      bb.realtime.publish("echoed", { text });
-      return { text: `${greeting} ${text}`, calls: Number(countCalls.get()) };
-    },
-    fail() {
-      throw new Error("boom");
-    },
+  bb.implement(echo.echo, async ({ text }) => {
+    const { greeting } = await settings.get();
+    database.prepare("INSERT INTO calls VALUES (?)").run(text);
+    await bb.storage.kv.set("last", text);
+    bb.changed(echo.echo);
+    return { text: `${greeting} ${text}`, calls: Number(countCalls.get()) };
   });
+  bb.implement(echo.fail, () => {
+    throw new Error("boom");
+  });
+  bb.implement(echo.refuse, ({ deny: refuse }) =>
+    refuse ? deny("No") : fail("not_found", "Gone", { reason: "echo_gone" }),
+  );
+  bb.on(echo.later, (_input, next) => next());
   for (const auth of ["local", "token", "none"] as const) {
     bb.http.route("GET", `/${auth}`, () => Response.json({ auth }), { auth });
   }

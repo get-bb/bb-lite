@@ -1,0 +1,36 @@
+{
+  "name": "bb-plugin-environment-git-worktree",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Run a thread in a fresh git worktree on an enrolled machine",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Worktree",
+    "description": "Run a thread in a fresh git worktree on an enrolled machine",
+    "icon": "FolderGit",
+    "server": "./server.ts",
+    "requires": [
+      "environments"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
+  }
+}

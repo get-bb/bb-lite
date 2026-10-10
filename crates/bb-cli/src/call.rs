@@ -136,6 +136,7 @@ pub struct CliEnv {
     pub thread_id: Option<String>,
     pub project_id: Option<String>,
     pub environment_id: Option<String>,
+    pub host_id: Option<String>,
     pub thread_storage: Option<String>,
 }
 
@@ -160,6 +161,7 @@ pub fn read_env(var: impl Fn(&str) -> Option<String>) -> CliResult<CliEnv> {
         thread_id: id("BB_THREAD_ID")?,
         project_id: id("BB_PROJECT_ID")?,
         environment_id: id("BB_ENVIRONMENT_ID")?,
+        host_id: id("BB_HOST_ID")?,
         thread_storage: trimmed("BB_THREAD_STORAGE"),
     })
 }
@@ -188,12 +190,32 @@ pub fn locale_date(ms: f64) -> String {
     };
     let half = if tm.tm_hour < 12 { "AM" } else { "PM" };
     format!(
-        "{}/{}/{}, {hour}:{:02}:{:02}\u{202f}{half}",
+        "{}/{}/{}, {hour}:{:02}:{:02} {half}",
         tm.tm_mon + 1,
         tm.tm_mday,
         tm.tm_year + 1900,
         tm.tm_min,
         tm.tm_sec
+    )
+}
+
+pub fn iso_date(ms: f64) -> String {
+    let seconds = (ms / 1000.0).floor() as libc::time_t;
+    // SAFETY: gmtime_r writes only into the zeroed tm we pass it.
+    let tm = unsafe {
+        let mut tm: libc::tm = std::mem::zeroed();
+        libc::gmtime_r(&seconds, &mut tm);
+        tm
+    };
+    format!(
+        "{}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+        tm.tm_year + 1900,
+        tm.tm_mon + 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec,
+        ms.rem_euclid(1000.0) as u32
     )
 }
 
@@ -422,7 +444,7 @@ pub fn machine_id(call: &Call, target: &str) -> CliResult<String> {
     if wanted.starts_with("host_") {
         return valid_id(wanted, "machine ID");
     }
-    let hosts = call.http.get("/hosts", &[("includeCreating", "true")])?;
+    let hosts = call.http.get("/machines", &[("includeCreating", "true")])?;
     let hosts = hosts.as_array().cloned().unwrap_or_default();
     let field =
         |host: &Value, key: &str| host.get(key).and_then(Value::as_str).unwrap_or("").to_string();
@@ -446,7 +468,7 @@ pub fn this_machine_id(call: &Call) -> CliResult<String> {
         let environment = call.http.get(&format!("/environments/{environment_id}"), &[])?;
         return Ok(text(&environment, "hostId").unwrap_or_default());
     }
-    let config = call.http.get("/system/config", &[])?;
+    let config = call.http.get("/server/config", &[])?;
     text(&config, "primaryHostId")
         .ok_or_else(|| usage_error("The server has no machine of its own.").hint("Pass --machine."))
 }

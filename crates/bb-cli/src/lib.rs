@@ -7,6 +7,7 @@ pub mod log_text;
 pub mod paths;
 pub mod plugin_proxy;
 pub mod render;
+pub mod sha256;
 pub mod table;
 
 use serde_json::{Map, Value, json};
@@ -15,7 +16,7 @@ use crate::call::{Call, CliEnv, CliError, CliResult, read_env};
 use crate::engine::{
     Resolution, Table, command_help, group_help, parse_invocation, resolve_command, unknown_command,
 };
-use crate::plugin_proxy::{find_plugin_command, run_plugin_command};
+use crate::plugin_proxy::{find_plugin_command, find_plugin_spelling, run_plugin_command};
 
 pub fn wants_json(argv: &[String]) -> bool {
     let end = argv.iter().position(|t| t == "--").unwrap_or(argv.len());
@@ -71,6 +72,13 @@ fn dispatch(table: &Table, argv: &[String], env: &CliEnv) -> CliResult<i32> {
         Resolution::Group { ref group, unknown: None } => {
             println!("{}", group_help(table, group));
             Ok(0)
+        }
+        Resolution::Group { ref group, unknown: Some(ref word) } if !asks_help => {
+            let spelling = format!("{group} {word}");
+            match find_plugin_spelling(env, &spelling).ok().flatten() {
+                Some(plugin_id) => run_plugin_command(env, &plugin_id, argv.to_vec()),
+                None => Err(unknown_command(table, &found)),
+            }
         }
         Resolution::Group { .. } => Err(unknown_command(table, &found)),
         Resolution::Other { ref name, ref argv } => {

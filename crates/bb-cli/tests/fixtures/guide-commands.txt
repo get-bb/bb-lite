@@ -61,8 +61,9 @@ Usage: bb thread show [id] [options]
 Show a thread, its environment and its TODOs
 Aliases: get, view, status
 Options:
-  --self  Target the current thread (BB_THREAD_ID)
-JSON (--json): {thread, environment, pendingTodos} (thread fields are under .thread)
+  --self         Target the current thread (BB_THREAD_ID)
+  --work-status  Include work status (git state)
+JSON (--json): {thread, environment: {..., pullRequest}, pendingTodos, workStatus?}
 
 Usage: bb thread log [id] [options]
 Print the timeline, or raw events as JSON
@@ -80,6 +81,12 @@ Print the final assistant message of the last turn
 Options:
   --self  Target the current thread (BB_THREAD_ID)
 JSON (--json): {output}
+
+Usage: bb thread history <id> [options]
+List a thread's prompt history
+Options:
+  --limit <count>  Maximum history entries
+JSON (--json): [{id, createdAt, input, projectId, threadId, scope}] (bare array)
 
 Usage: bb thread list [options]
 List threads
@@ -132,6 +139,12 @@ Usage: bb thread clear [id] [options]
 Clear the model context of an idle thread
 Options:
   --self  Target the current thread (BB_THREAD_ID)
+
+Usage: bb thread retry [id] [options]
+Send the failed turn of a thread again
+Options:
+  --self            Target the current thread (BB_THREAD_ID)
+  --send-at <when>  ISO time (2026-08-25T09:00) or delay (30s, 10m, 2h)
 
 Usage: bb thread pin [id] [options]
 Pin a thread
@@ -218,6 +231,13 @@ Delete a section; its threads become unsectioned
 Options:
   --yes  Skip the confirmation prompt
 
+Usage: bb prompt-history list [options]
+List prompt history newest first
+Options:
+  --cursor <cursor>  Continue from an earlier page
+  --limit <number>   Maximum entries to return
+JSON (--json): {entries: [{id, text, threadId, projectId, scope, sentAt}], nextCursor}
+
 Usage: bb project list [options]
 List projects
 Options:
@@ -226,6 +246,12 @@ JSON (--json): [{id, kind, name, gitRemoteUrl, sources: [{id, hostId, path}]}]
 
 Usage: bb project show <id> [options]
 Show a project and its sources
+
+Usage: bb project history <id> [options]
+List a project's prompt history
+Options:
+  --limit <count>  Maximum history entries
+JSON (--json): [{id, createdAt, input, projectId, threadId, scope}] (bare array)
 
 Usage: bb project create [options]
 Create a project from a directory on a machine
@@ -301,6 +327,81 @@ Usage: bb env delete <id> [options]
 Delete an environment that has no live threads
 Options:
   --yes  Skip the confirmation prompt
+
+Usage: bb env branches <id> [options]
+List the local and remote branches of an environment
+Options:
+  --query <query>  Branch-name filter
+  --limit <count>  Maximum local and remote branches
+JSON (--json): {branches, branchesTruncated, remoteBranches, remoteBranchesTruncated}
+
+Usage: bb env paths <id> [options]
+Search an environment's files and directories
+Options:
+  --query <query>  Fuzzy path query
+  --limit <count>  Maximum paths
+  --files          Include files
+  --directories    Include directories
+JSON (--json): {paths: [{kind, path}], truncated}
+
+Usage: bb env diff <id> [options]
+Print the changed files, stats and full diff of an environment
+Options:
+  --target <target>             uncommitted, branch_committed, all or commit (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>                   Commit, with --target commit
+JSON (--json): {outcome, diff: {files, shortstat, diff, truncated}}
+
+Usage: bb env diff-files <id> [options]
+List the changed files of an environment
+Options:
+  --target <target>             uncommitted, branch_committed, all or commit (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>                   Commit, with --target commit
+JSON (--json): {outcome, files: [{path, changeKind, additions, deletions, …}], shortstat}
+
+Usage: bb env diff-file <id> [options]
+Print one side of a changed file
+Options:
+  --target <target>       uncommitted, branch_committed, all or commit (required)
+  --path <path>           Repository-relative file path (required)
+  --side <side>           old or new (required)
+  --merge-base-ref <sha>  Resolved merge-base SHA, with branch_committed or all
+  --sha <sha>             Commit, with --target commit
+
+Usage: bb env diff-patch <id> [options]
+Print the patches of chosen changed files
+Options:
+  --target <target>             uncommitted, branch_committed, all or commit (required)
+  --path <path>                 Changed file path (required) (repeatable)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>                   Commit, with --target commit
+JSON (--json): {outcome, patches: [{path, patch, truncated}]}
+
+Usage: bb env pull-request show <id> [options]
+Show an environment's pull request (github plugin)
+JSON (--json): {repo, number, title, state, isDraft, url, headRefName, baseRefName} or null
+
+Usage: bb env pull-request ready <id> [options]
+Mark the pull request ready for review
+
+Usage: bb env pull-request draft <id> [options]
+Convert the pull request to draft
+
+Usage: bb env pull-request merge <id> [options]
+Merge the pull request
+Options:
+  --method <method>  merge, squash or rebase (default: merge)
+
+Usage: bb env providers [options]
+List environment providers
+Options:
+  --project <id>          Only providers this project can use
+  --machine <id-or-name>  Availability on this machine (needs --project) (alias --host)
+
+Usage: bb env archive-threads <id> [options]
+Archive every active thread in an environment
+JSON (--json): {ok, archivedThreadIds}
 
 Usage: bb machine list [options]
 List machines, their owners and who may use them
@@ -472,7 +573,7 @@ Options:
   --stdin                   Read the content from stdin
   --root <path>             Refuse paths outside this directory
   --create-parents          Create missing parent directories
-  --expected-sha256 <hash>  Only write when the current hash matches
+  --expected-sha256 <hash>  Only write when the current hash matches (else exit 1, code conflict)
 
 Usage: bb file list <path> [options]
 List files under a directory on a machine
@@ -480,6 +581,41 @@ Options:
   --machine <id-or-name>  Machine holding the directory (default: the server's) (alias --host)
   --query <query>         Fuzzy path filter
   --limit <count>         Maximum entries
+  --no-hidden             Skip dot-prefixed files and directories
+  --exclude <name>        Entry names or root-relative paths to skip (repeatable)
+
+Usage: bb file paths <path> [options]
+List matching files and directories on a machine
+Options:
+  --machine <id-or-name>  Machine holding the directory (default: the server's) (alias --host)
+  --query <query>         Fuzzy path filter
+  --limit <count>         Maximum entries
+  --files                 Include files
+  --directories           Include directories
+  --no-hidden             Skip dot-prefixed files and directories
+  --exclude <name>        Entry names or root-relative paths to skip (repeatable)
+JSON (--json): {paths: [{kind, path, name}], truncated}
+
+Usage: bb file mkdir <path> [options]
+Create a directory on a machine
+Options:
+  --machine <id-or-name>  Machine holding the directory (default: the server's) (alias --host)
+  --root <path>           Refuse paths outside this directory
+  --recursive             Create missing parent directories
+
+Usage: bb file move <source> <destination> [options]
+Move a file or directory on a machine
+Options:
+  --machine <id-or-name>  Machine holding the path (default: the server's) (alias --host)
+  --root <path>           Refuse paths outside this directory
+
+Usage: bb file remove <path> [options]
+Remove a file or directory on a machine
+Options:
+  --machine <id-or-name>  Machine holding the path (default: the server's) (alias --host)
+  --root <path>           Refuse paths outside this directory
+  --recursive             Remove a directory and everything in it
+  --yes                   Skip the confirmation prompt
 
 Usage: bb settings show [options]
 Print every setting as key = value
@@ -510,9 +646,15 @@ Usage: bb plugin add <path> [options]
 Load a plugin directory (adds it to <dataDir>/config.json)
 
 Usage: bb plugin remove <path> [options]
-Stop loading a plugin directory
+Stop loading a plugin directory (or the one a plugin id runs from)
 Options:
   --yes  Skip the confirmation prompt
+
+Usage: bb plugin config <id> [action] [key] [value] [options]
+Show or change a plugin's settings
+Options:
+  --project <id>  Read or write the value for one project
+JSON (--json): {ok, schema: {<key>: {type, label, …}}, values: {<key>: value}}
 
 Usage: bb server [options]
 Run the bb server in the foreground

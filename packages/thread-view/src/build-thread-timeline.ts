@@ -267,6 +267,7 @@ function operationRows(
       ...common,
       operationKind,
       ...(operationKind === "reasoning" ? { reasoningId: message.id } : {}),
+      ...(message.plugin === undefined ? {} : { plugin: message.plugin }),
       title,
       detail,
       status,

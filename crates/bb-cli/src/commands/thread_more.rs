@@ -1,8 +1,8 @@
 use serde_json::{Map, Value, json};
 
 use crate::call::{
-    Call, CliResult, Handler, Output, clip, confirm, parse_json, thread_target, usage_error,
-    valid_id,
+    Call, CliResult, Handler, Output, clip, confirm, integer, iso_date, parse_json, thread_target,
+    usage_error, valid_id,
 };
 use crate::http::encode;
 use crate::render::{queue_wait, shown, text};
@@ -11,6 +11,9 @@ use crate::render::{queue_wait, shown, text};
 pub fn handlers() -> Vec<(&'static str, Handler)> {
     vec![
         ("threadInteractionsList", thread_interactions_list),
+        ("promptHistoryList", prompt_history_list),
+        ("threadHistory", thread_history),
+        ("projectHistory", project_history),
         ("threadInteractionsShow", thread_interactions_show),
         ("threadInteractionsResolve", thread_interactions_resolve),
         ("threadQueueList", thread_queue_list),
@@ -275,21 +278,21 @@ fn thread_queue_delete(call: &mut Call) -> CliResult<Output> {
 }
 
 fn thread_section_list(call: &mut Call) -> CliResult<Output> {
-    let sections = call.http.get("/thread-sections", &[])?;
+    let sections = call.http.get("/sections", &[])?;
     let rows = sections.as_array().cloned().unwrap_or_default();
     Ok(Output::rows(&rows, &["id", "name"], sections))
 }
 
 fn thread_section_create(call: &mut Call) -> CliResult<Output> {
     let name = call.arg("name")?.to_string();
-    let section = call.http.post("/thread-sections", &json!({ "name": name }))?;
+    let section = call.http.post("/sections", &json!({ "name": name }))?;
     let text = format!("Section {} created", field(&section, "id"));
     Ok(Output::text(section, text))
 }
 
 fn thread_section_rename(call: &mut Call) -> CliResult<Output> {
     let change = json!({ "id": call.arg("id")?, "name": call.arg("name")? });
-    let section = call.http.patch("/thread-sections", &change)?;
+    let section = call.http.patch("/sections", &change)?;
     let text = format!("Section {} renamed to {}", field(&section, "id"), field(&section, "name"));
     Ok(Output::text(section, text))
 }
@@ -298,8 +301,69 @@ fn thread_section_delete(call: &mut Call) -> CliResult<Output> {
     let id = call.arg("id")?.to_string();
     confirm(call, &format!("Delete section {id}? Its threads stay, unsectioned."))?;
     let body = json!({ "id": id });
-    let result = call.http.request("DELETE", "/thread-sections", &[], Some(&body))?;
+    let result = call.http.request("DELETE", "/sections", &[], Some(&body))?;
     let moved = format!("{} thread(s) unsectioned", field(&result, "updatedThreadCount"));
     let text = format!("Section {} deleted; {moved}", field(&result, "id"));
     Ok(Output::text(result, text))
+}
+
+fn prompt_history_list(call: &mut Call) -> CliResult<Output> {
+    let cursor = call.flag("cursor")?;
+    let limit = call.flag("limit")?;
+    let mut query = Vec::new();
+    if let Some(cursor) = &cursor {
+        query.push(("cursor", cursor.as_str()));
+    }
+    if let Some(limit) = &limit {
+        query.push(("limit", limit.as_str()));
+    }
+    let result = call.http.get("/threads/prompt-history", &query)?;
+    if call.json() {
+        return Ok(Output::json(result));
+    }
+    let next = match result["nextCursor"].as_str() {
+        Some(next) => {
+            let limit = limit.map(|limit| format!(" --limit {limit}")).unwrap_or_default();
+            vec![format!("Next page: bb prompt-history list --cursor {next}{limit}")]
+        }
+        None => Vec::new(),
+    };
+    let entries = result["entries"].as_array().cloned().unwrap_or_default();
+    if entries.is_empty() {
+        let mut lines = vec!["No prompt history found".to_string()];
+        lines.extend(next);
+        return Ok(Output::lines(result, &lines));
+    }
+    let rows: Vec<Value> = entries
+        .iter()
+        .map(|entry| {
+            json!({
+                "created": iso_date(entry["sentAt"].as_f64().unwrap_or(0.0)),
+                "thread": entry["threadId"],
+                "prompt": entry["text"],
+            })
+        })
+        .collect();
+    match Output::rows(&rows, &["created", "thread", "prompt"], result.clone()) {
+        Output::Data { text: Some(table), .. } if !next.is_empty() => {
+            Ok(Output::text(result, format!("{table}\n{}", next.join("\n"))))
+        }
+        table => Ok(table),
+    }
+}
+
+fn prompt_history_of(call: &mut Call, kind: &str) -> CliResult<Output> {
+    let limit = integer(call.flag("limit")?.as_deref(), "--limit", 1)?.map(|n| n.to_string());
+    let id = valid_id(call.arg("id")?, "<id> argument")?;
+    let query: Vec<(&str, &str)> = limit.iter().map(|n| ("limit", n.as_str())).collect();
+    let path = format!("/{kind}/{}/prompt-history", encode(&id));
+    Ok(Output::json(call.http.get(&path, &query)?))
+}
+
+fn thread_history(call: &mut Call) -> CliResult<Output> {
+    prompt_history_of(call, "threads")
+}
+
+fn project_history(call: &mut Call) -> CliResult<Output> {
+    prompt_history_of(call, "projects")
 }

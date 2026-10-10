@@ -1,6 +1,6 @@
 {
   "name": "@bb/plugin",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,22 +13,33 @@
       "source": "./src/app.ts",
       "types": "./src/app.ts",
       "default": "./src/app.ts"
+    },
+    "./testing": {
+      "source": "./src/testing.ts",
+      "types": "./src/testing.ts",
+      "default": "./src/testing.ts"
     }
   },
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "api:lock": "tsx scripts/api-lock.ts"
   },
   "dependencies": {
     "@bb/domain": "workspace:*",
-    "@bb/sdk": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@bb/runner": "workspace:*",
     "@bb/tsconfig": "workspace:*",
+    "@hono/node-server": "^1.19.11",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0"
+    "@types/react": "^19.0.0",
+    "@types/ws": "^8.18.1",
+    "hono": "^4.7.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "ws": "^8.19.0"
   }
 }

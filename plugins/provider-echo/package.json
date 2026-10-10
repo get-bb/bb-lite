@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-provider-echo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A scripted provider for development and tests.",
+  "bb": {
+    "name": "Echo",
+    "description": "A scripted provider for development and tests.",
+    "server": "./server.ts",
+    "runner": "./runner.ts"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

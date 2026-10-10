@@ -80,7 +80,7 @@ function signalAll(pids: number[], signal: NodeJS.Signals | 0) {
   });
 }
 
-async function killProcessesWithCwdUnder(directory: string) {
+export async function killProcessesWithCwdUnder(directory: string) {
   const root = await realOrResolved(directory);
   const inside = async () =>
     (await processCwds())

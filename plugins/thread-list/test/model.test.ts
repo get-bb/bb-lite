@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import * as core from "@bb/client-core";
-import type { PluginSidebarThread } from "@bb/plugin/app";
+import type { SidebarThread } from "@bb/plugin/app";
 import * as dnd from "../app/dnd/dropDecision.js";
 import {
   buildPinnedThreadState,
@@ -17,7 +17,7 @@ const loose = { parentThreadId: null, sectionId: null, pinnedAt: null };
 const activity = { workflows: 0, backgroundAgents: 0, backgroundCommands: 0 };
 const environment = { id: "env", isWorktree: true, providerId: null };
 
-function thread(id: string, patch: object = {}): PluginSidebarThread {
+function thread(id: string, patch: object = {}): SidebarThread {
   clock += 1;
   const base = {
     id,
@@ -31,7 +31,7 @@ function thread(id: string, patch: object = {}): PluginSidebarThread {
     createdAt: clock,
     latestAttentionAt: clock,
   };
-  return { ...base, ...patch } as PluginSidebarThread;
+  return { ...base, ...patch } as SidebarThread;
 }
 
 const ids = (items: readonly ThreadItem[] = []) =>

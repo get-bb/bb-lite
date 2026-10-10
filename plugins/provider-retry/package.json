@@ -1,0 +1,35 @@
+{
+  "name": "bb-plugin-provider-retry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Retry turns after transient provider overloads and subscription limits reset.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Provider retry",
+    "description": "Retry turns after transient provider overloads and subscription limits reset.",
+    "icon": "ArrowReloadHorizontal",
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

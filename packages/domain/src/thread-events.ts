@@ -130,6 +130,14 @@ export type OwnershipChangeOperationMetadata = z.infer<
 >;
 
 export const THREAD_CONTEXT_CLEAR_OPERATION = "context_clear";
+export const PLUGIN_ROW_OPERATION = "plugin_row";
+
+export const pluginRowSchema = z.object({
+  id: z.string().min(1),
+  kind: z.string().min(1),
+  data: jsonValueSchema,
+});
+export type PluginRow = z.infer<typeof pluginRowSchema>;
 
 export const systemOperationEventDataSchema = z.object({
   operation: z.string(),

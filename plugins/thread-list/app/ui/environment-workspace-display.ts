@@ -1,11 +1,11 @@
-import type { PluginEnvironmentProvider } from "@bb/plugin/app";
+import type { EnvironmentProviderInfo } from "@bb/plugin/app";
 import type { IconName } from "@bb/shared-ui/icon";
 
 export type EnvironmentWorkspaceDisplayProviderLookup =
   | { status: "loading" }
   | {
       status: "loaded";
-      provider: PluginEnvironmentProvider | null;
+      provider: EnvironmentProviderInfo | null;
       environmentProviderId: string | null;
     };
 
@@ -14,7 +14,7 @@ export const UNNAMED_ENVIRONMENT_LABEL = "Environment";
 const PERSISTENT_HOST_ICON_NAME: IconName = "Laptop";
 
 export function findEnvironmentDisplayProvider(
-  providers: readonly PluginEnvironmentProvider[] | undefined,
+  providers: readonly EnvironmentProviderInfo[] | undefined,
   environmentProviderId: string | null,
 ): EnvironmentWorkspaceDisplayProviderLookup {
   if (environmentProviderId === null) {

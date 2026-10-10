@@ -33,6 +33,7 @@ export const appSettingsSchema = z
       .string()
       .url()
       .refine((value) => {
+        if (!URL.canParse(value)) return false;
         const url = new URL(value);
         return (
           ["http:", "https:"].includes(url.protocol) &&

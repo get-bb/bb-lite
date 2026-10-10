@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import {
-  definePluginApp,
-  type PluginPendingInteractionProps,
+  type InteractionProps,
+  type PluginAppApi,
+  threadView,
 } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
 import { Input } from "@bb/shared-ui/input";
@@ -21,7 +22,7 @@ function SecretRequestInteraction({
   interaction,
   submit,
   cancel,
-}: PluginPendingInteractionProps) {
+}: InteractionProps) {
   const parsed = useMemo(
     () => secretRequestPayloadSchema.safeParse(interaction.payload),
     [interaction.payload],
@@ -209,9 +210,9 @@ function SecretRequestInteraction({
   );
 }
 
-export default definePluginApp((app) => {
-  app.slots.pendingInteraction({
+export default function secretsApp(bb: PluginAppApi): void {
+  bb.add(threadView.interaction, {
     id: SECRET_REQUEST_RENDERER_ID,
-    component: SecretRequestInteraction,
+    view: SecretRequestInteraction,
   });
-});
+}

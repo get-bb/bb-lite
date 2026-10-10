@@ -1,16 +1,20 @@
-use std::io::Write;
+use std::io::{Read, Write};
+
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use std::path::Path;
 
 use serde_json::{Map, Value, json};
 
 use crate::call::CliEnv;
 use crate::call::{
-    Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, parse_json,
-    read_stdin, usage_error,
+    Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, read_stdin,
+    usage_error,
 };
 use crate::commands::workspace::{resolve_path, text};
 use crate::http::encode;
 use crate::render::{pending_todos_of, shown, thread_lines, todo_lines};
+use crate::sha256::sha256_hex;
 
 const KEYBINDING: &str = "keybinding.";
 const UI: &str = "ui.";
@@ -25,11 +29,16 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("fileRead", file_read),
         ("fileWrite", file_write),
         ("fileList", file_list),
+        ("filePaths", file_paths),
+        ("fileMkdir", file_mkdir),
+        ("fileMove", file_move),
+        ("fileRemove", file_remove),
         ("settingsShow", settings_show),
         ("pluginList", plugin_list),
         ("pluginReload", plugin_reload),
         ("pluginAdd", plugin_add),
         ("pluginRemove", plugin_remove),
+        ("pluginConfig", plugin_config),
         ("serverStatus", server_status),
         ("settingsSet", settings_set),
         ("settingsReset", settings_reset),
@@ -45,7 +54,7 @@ fn quiet(call: &Call, path: &str, query: &[(&str, &str)]) -> Value {
 
 fn status(call: &mut Call) -> CliResult<Output> {
     let CliEnv { project_id, thread_id, server_url, .. } = call.env.clone();
-    let config = quiet(call, "/system/config", &[]);
+    let config = quiet(call, "/server/config", &[]);
     let project = match &project_id {
         Some(id) => quiet(call, &format!("/projects/{}", encode(id)), &[]),
         None => Value::Null,
@@ -144,7 +153,7 @@ fn host_path(call: &Call) -> CliResult<Map<String, Value>> {
     Ok(body)
 }
 
-fn put_some(body: &mut Map<String, Value>, key: &str, value: Option<Value>) {
+pub(crate) fn put_some(body: &mut Map<String, Value>, key: &str, value: Option<Value>) {
     if let Some(value) = value {
         body.insert(key.into(), value);
     }
@@ -158,7 +167,10 @@ fn write_out(call: &mut Call, bytes: &[u8]) -> CliResult<()> {
 fn file_read(call: &mut Call) -> CliResult<Output> {
     let mut body = host_path(call)?;
     put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
-    let file = call.http.post("/files/read", &Value::Object(body))?;
+    let file = match call.http.post("/machines/files/read", &Value::Object(body.clone())) {
+        Err(error) if error.code == "file_too_large" => return stream_file(call, &body),
+        other => other?,
+    };
     if call.json() {
         return Ok(Output::json(file));
     }
@@ -181,11 +193,53 @@ fn file_write(call: &mut Call) -> CliResult<Output> {
     body.insert("content".into(), json!(content));
     put_some(&mut body, "createParents", call.on("create-parents")?.then_some(json!(true)));
     put_some(&mut body, "expectedSha256", call.flag("expected-sha256")?.map(Value::String));
-    let result = call.http.post("/files/write", &Value::Object(body))?;
-    let outcome =
-        if text(&result, "outcome") == "written" { "Wrote" } else { "Write conflict for" };
-    let line = format!("{outcome} {}", call.arg("path")?);
-    Ok(Output::text(result, line))
+    let result = call.http.post("/machines/files/write", &Value::Object(body))?;
+    let path = call.arg("path")?;
+    if text(&result, "outcome") == "written" {
+        return Ok(Output::text(result, format!("Wrote {path}")));
+    }
+    let current = result["currentSha256"].as_str().unwrap_or("none (the file does not exist)");
+    Err(CliError::new(format!("Write conflict for {path}"))
+        .code("conflict")
+        .hint(format!("The file's current SHA-256 is {current}.")))
+}
+
+fn stream_file(call: &mut Call, target: &Map<String, Value>) -> CliResult<Output> {
+    let path = call.arg("path")?.to_string();
+    let query: Vec<(&str, &str)> =
+        target.iter().filter_map(|(key, value)| Some((key.as_str(), value.as_str()?))).collect();
+    let failed = |status: u16| {
+        CliError::new(format!("Could not read {path} ({status})")).code("read_failed")
+    };
+    let mut response = match call.http.send("GET", "/machines/files/raw", &query, None) {
+        Err(error) => return Err(error.status.map_or(error, failed)),
+        Ok(response) => response,
+    };
+    let mime_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .map(String::from);
+    let mut reader = response.body_mut().as_reader();
+    if !call.json() {
+        std::io::copy(&mut reader, &mut call.stdout).map_err(|e| CliError::new(e.to_string()))?;
+        call.stdout.flush().map_err(|e| CliError::new(e.to_string()))?;
+        return Ok(Output::Done);
+    }
+    let mut bytes = Vec::new();
+    reader.read_to_end(&mut bytes).map_err(|e| CliError::new(e.to_string()))?;
+    let (content, encoding) = match String::from_utf8(bytes.clone()) {
+        Ok(content) => (content, "utf8"),
+        Err(_) => (STANDARD.encode(&bytes), "base64"),
+    };
+    let mut data = Map::new();
+    data.insert("path".into(), json!(path));
+    data.insert("content".into(), json!(content));
+    data.insert("contentEncoding".into(), json!(encoding));
+    put_some(&mut data, "mimeType", mime_type.map(Value::String));
+    data.insert("sizeBytes".into(), json!(bytes.len()));
+    data.insert("sha256".into(), json!(sha256_hex(&bytes)));
+    Ok(Output::json(Value::Object(data)))
 }
 
 fn file_list(call: &mut Call) -> CliResult<Output> {
@@ -197,15 +251,77 @@ fn file_list(call: &mut Call) -> CliResult<Output> {
     put_some(&mut body, "limit", limit.map(Value::from));
     put_some(&mut body, "path", located.get("path").cloned());
     put_some(&mut body, "query", query.map(Value::String));
-    let result = call.http.post("/files/list", &Value::Object(body))?;
+    if call.on("no-hidden")? {
+        body.insert("includeHidden".to_owned(), Value::Bool(false));
+    }
+    if call.on("exclude")? {
+        body.insert("excludeNames".to_owned(), json!(call.list("exclude")?));
+    }
+    let result = call.http.post("/machines/files/list", &Value::Object(body))?;
     let files = result.get("files").and_then(Value::as_array);
     let paths: Vec<String> = files.into_iter().flatten().map(|f| text(f, "path")).collect();
     Ok(Output::lines(result, &paths))
 }
 
+fn file_paths(call: &mut Call) -> CliResult<Output> {
+    let mut body = host_path(call)?;
+    let files = call.on("files")?;
+    let directories = call.on("directories")?;
+    let limit = integer(call.flag("limit")?.as_deref(), "--limit", 1)?;
+    put_some(&mut body, "limit", limit.map(Value::from));
+    put_some(&mut body, "query", call.flag("query")?.map(Value::String));
+    body.insert("includeFiles".into(), json!(files || !directories));
+    body.insert("includeDirectories".into(), json!(directories || !files));
+    if call.on("no-hidden")? {
+        body.insert("includeHidden".to_owned(), Value::Bool(false));
+    }
+    if call.on("exclude")? {
+        body.insert("excludeNames".to_owned(), json!(call.list("exclude")?));
+    }
+    let result = call.http.post("/machines/files/paths", &Value::Object(body))?;
+    let paths = result.get("paths").and_then(Value::as_array);
+    let lines: Vec<String> = paths
+        .into_iter()
+        .flatten()
+        .map(|entry| format!("{}\t{}", text(entry, "kind"), text(entry, "path")))
+        .collect();
+    Ok(Output::lines(result, &lines))
+}
+
+fn file_mkdir(call: &mut Call) -> CliResult<Output> {
+    let mut body = host_path(call)?;
+    put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
+    put_some(&mut body, "recursive", call.on("recursive")?.then_some(json!(true)));
+    let result = call.http.post("/machines/files/mkdir", &Value::Object(body))?;
+    let path = call.arg("path")?;
+    Ok(Output::text(result, format!("Created directory {path}")))
+}
+
+fn file_move(call: &mut Call) -> CliResult<Output> {
+    let source = call.arg("source")?;
+    let destination = call.arg("destination")?;
+    let mut body = Map::new();
+    put_some(&mut body, "hostId", machine_flag(call)?.map(Value::String));
+    body.insert("sourcePath".into(), json!(source));
+    body.insert("destinationPath".into(), json!(destination));
+    put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
+    let result = call.http.post("/machines/files/move", &Value::Object(body))?;
+    Ok(Output::text(result, format!("Moved {source} to {destination}")))
+}
+
+fn file_remove(call: &mut Call) -> CliResult<Output> {
+    let path = call.arg("path")?;
+    confirm(call, &format!("Remove {path}?"))?;
+    let mut body = host_path(call)?;
+    put_some(&mut body, "rootPath", call.flag("root")?.map(Value::String));
+    put_some(&mut body, "recursive", call.on("recursive")?.then_some(json!(true)));
+    let result = call.http.post("/machines/files/remove", &Value::Object(body))?;
+    Ok(Output::text(result, format!("Removed {path}")))
+}
+
 fn read_settings(call: &Call) -> CliResult<Map<String, Value>> {
-    let config = call.http.get("/system/config", &[])?;
-    let ui = call.http.get("/preferences/ui", &[])?;
+    let config = call.http.get("/server/config", &[])?;
+    let ui = call.http.get("/settings/ui-preferences", &[])?;
     let mut settings = config["generalSettings"].as_object().cloned().unwrap_or_default();
     let appearance = &config["appearance"];
     settings.insert("theme".into(), appearance["themeId"].clone());
@@ -256,7 +372,7 @@ fn default_setting(key: &str) -> Option<Value> {
 }
 
 fn write_setting(call: &Call, key: &str, raw: Option<&str>) -> CliResult<Value> {
-    let config = call.http.get("/system/config", &[])?;
+    let config = call.http.get("/server/config", &[])?;
     if key == "theme" || key == "theme.faviconColor" {
         let mut selection = json!({
             "themeId": config["appearance"]["themeId"],
@@ -283,14 +399,14 @@ fn write_setting(call: &Call, key: &str, raw: Option<&str>) -> CliResult<Value> 
         return call.http.put("/settings/keyboard", &Value::Array(overrides));
     }
     if let Some(name) = key.strip_prefix(UI) {
-        let listed = call.http.get("/preferences/ui", &[])?;
+        let listed = call.http.get("/settings/ui-preferences", &[])?;
         let preferences = listed["preferences"].as_object().cloned().unwrap_or_default();
         let Some(entry) = preferences.get(name) else {
             let known: Vec<&str> = preferences.keys().map(String::as_str).collect();
             let message = format!("Unknown UI preference '{name}'.");
             return Err(usage_error(message).hint(format!("Known: {}", known.join(", "))));
         };
-        let path = format!("/preferences/ui/{}", encode(name));
+        let path = format!("/settings/ui-preferences/{}", encode(name));
         let Some(raw) = raw else { return call.http.delete(&path, &[]) };
         let body = json!({ "expectedRevision": entry["revision"], "value": setting_value(raw) });
         return call.http.put(&path, &body);
@@ -391,8 +507,8 @@ fn plugin_disable(call: &mut Call) -> CliResult<Output> {
 }
 
 fn reload(call: &Call, plugin_id: Option<&str>) -> CliResult<Value> {
-    let query: Vec<(&str, &str)> = plugin_id.map(|id| ("id", id)).into_iter().collect();
-    call.http.request("POST", "/plugins/reload", &query, Some(&json!({})))
+    let body = plugin_id.map_or_else(|| json!({}), |id| json!({ "id": id }));
+    call.http.request("POST", "/plugins/reload", &[], Some(&body))
 }
 
 fn plugin_reload(call: &mut Call) -> CliResult<Output> {
@@ -403,39 +519,31 @@ fn plugin_reload(call: &mut Call) -> CliResult<Output> {
     Ok(Output::text(result, format!("Reloaded {what}")))
 }
 
+fn loaded_directory(call: &mut Call, given: &str) -> CliResult<String> {
+    let path = resolve_path(given);
+    if given.contains('/') || Path::new(&path).exists() {
+        return Ok(path);
+    }
+    let found = call.http.post("/ops/plugins.describe", &json!({ "id": given }))?;
+    let plugin = &found["result"];
+    if plugin.is_null() || plugin["builtin"].as_bool().unwrap_or(true) {
+        return Ok(path);
+    }
+    Ok(text(plugin, "directory"))
+}
+
 fn edit_plugin_config(call: &mut Call, add: bool) -> CliResult<Output> {
-    let path = resolve_path(call.arg("path")?);
-    let config = call.http.get("/system/config", &[])?;
+    let given = call.arg("path")?.to_string();
+    let path = if add { resolve_path(&given) } else { loaded_directory(call, &given)? };
+    let config = call.http.get("/server/config", &[])?;
     let file = Path::new(&text(&config, "dataDir")).join("config.json");
     let file = file.to_string_lossy().into_owned();
-    let raw = std::fs::read_to_string(&file).unwrap_or_else(|_| "{}".into());
-    let Value::Object(mut current) = parse_json(&raw, &file)? else {
-        return Err(usage_error(format!("Invalid {file}: Invalid input: expected object")));
-    };
-    let listed = current.get("plugins").cloned().unwrap_or_else(|| json!([]));
-    let Some(listed) = listed.as_array() else {
-        let message = format!("Invalid {file} (plugins): Invalid input: expected array");
-        return Err(usage_error(message));
-    };
-    let mut plugins = Vec::new();
-    for (at, entry) in listed.iter().enumerate() {
-        let Some(known) = entry.get("path").and_then(Value::as_str) else {
-            let message = format!("Invalid {file} (plugins.{at}.path): Invalid input");
-            return Err(usage_error(message));
-        };
-        if resolve_path(known) != path {
-            plugins.push(entry.clone());
-        }
-    }
-    if add {
-        plugins.push(json!({ "path": path, "enabled": true }));
-    }
-    current.insert("plugins".into(), Value::Array(plugins));
-    let next = serde_json::to_string_pretty(&Value::Object(current)).unwrap_or_default();
-    std::fs::write(&file, format!("{next}\n")).map_err(|e| CliError::new(e.to_string()))?;
-    let result = reload(call, None)?;
-    let done = if add { "added to" } else { "removed from" };
-    Ok(Output::text(result, format!("{path} {done} {file}; plugins reloaded")))
+    let op = if add { "install" } else { "uninstall" };
+    call.http.post(&format!("/ops/plugins.{op}"), &json!({ "path": path }))?;
+    let listed = call.http.get("/plugins", &[])?;
+    let result = json!({ "ok": true, "plugins": listed["plugins"] });
+    let (done, state) = if add { ("added to", "loaded") } else { ("removed from", "unloaded") };
+    Ok(Output::text(result, format!("{path} {done} {file}; plugin {state}")))
 }
 
 fn plugin_add(call: &mut Call) -> CliResult<Output> {
@@ -453,7 +561,7 @@ fn plugin_remove(call: &mut Call) -> CliResult<Output> {
 
 fn server_status(call: &mut Call) -> CliResult<Output> {
     let url = call.env.server_url.clone();
-    let config = call.http.get("/system/config", &[]).map_err(|error| {
+    let config = call.http.get("/server/config", &[]).map_err(|error| {
         CliError::new(format!("No bb server at {url}: {}", error.message))
             .code("server_unreachable")
             .hint("Start it with `bb server`, or set BB_SERVER_URL.")
@@ -467,4 +575,85 @@ fn server_status(call: &mut Call) -> CliResult<Output> {
         "primaryHostId": config["primaryHostId"],
     });
     Ok(Output::text(data, line))
+}
+
+fn plugin_setting_value(kind: &str, key: &str, raw: &str) -> CliResult<Value> {
+    match kind {
+        "number" => match raw.trim().parse::<f64>() {
+            Ok(value) if value.fract() == 0.0 && value.abs() < 9e15 => Ok(json!(value as i64)),
+            Ok(value) if value.is_finite() => Ok(json!(value)),
+            _ => Err(usage_error(format!("Setting '{key}' needs a number, not '{raw}'."))),
+        },
+        "boolean" => match raw {
+            "true" => Ok(json!(true)),
+            "false" => Ok(json!(false)),
+            _ => Err(usage_error(format!("Setting '{key}' needs true or false, not '{raw}'."))),
+        },
+        _ => Ok(json!(raw)),
+    }
+}
+
+fn setting_line(value: &Value) -> String {
+    match value {
+        Value::Null => "(unset)".into(),
+        Value::Object(fields) if fields.contains_key("set") => {
+            if fields["set"] == json!(true) { "(secret, set)" } else { "(secret, unset)" }.into()
+        }
+        other => other.to_string(),
+    }
+}
+
+fn plugin_config(call: &mut Call) -> CliResult<Output> {
+    let plugin_id = call.arg("id")?.to_string();
+    let action = call.args("action").map(String::from);
+    let key = call.args("key").map(String::from);
+    let value = call.args("value").map(String::from);
+    let project_id = call.id("project")?;
+    let route = format!("/plugins/{}/settings", encode(&plugin_id));
+    let query: Vec<(&str, &str)> =
+        project_id.as_deref().map(|id| vec![("projectId", id)]).unwrap_or_default();
+    let current = call.http.get(&route, &query)?;
+    let usage = "Usage: bb plugin config <id> [set <key> <value> | unset <key>]";
+    let mut result = current.clone();
+    if let Some(action) = action {
+        if action != "set" && action != "unset" {
+            return Err(usage_error(format!("Unknown action '{action}'.")).hint(usage));
+        }
+        let missing = action == "set" && value.is_none();
+        let Some(key) = key.filter(|_| !missing) else {
+            return Err(usage_error(usage));
+        };
+        if action == "unset"
+            && let Some(value) = &value
+        {
+            return Err(usage_error(format!("Unexpected argument '{value}'.")).hint(usage));
+        }
+        let schema = current["schema"].as_object().cloned().unwrap_or_default();
+        let Some(descriptor) = schema.get(&key) else {
+            let names: Vec<&str> = schema.keys().map(String::as_str).collect();
+            let known = if names.is_empty() { "none".into() } else { names.join(", ") };
+            return Err(
+                usage_error(format!("Unknown setting '{key}'.")).hint(format!("Known: {known}"))
+            );
+        };
+        let next = match &value {
+            None => Value::Null,
+            Some(raw) => plugin_setting_value(&text(descriptor, "type"), &key, raw)?,
+        };
+        let mut values = Map::new();
+        values.insert(key, next);
+        let mut body = Map::new();
+        body.insert("values".into(), Value::Object(values));
+        put_some(&mut body, "projectId", project_id.map(Value::String));
+        result = call.http.put(&route, &Value::Object(body))?;
+    }
+    let schema = result["schema"].as_object().cloned().unwrap_or_default();
+    let lines: Vec<String> = schema
+        .keys()
+        .map(|name| format!("{name} = {}", setting_line(&result["values"][name])))
+        .collect();
+    if lines.is_empty() {
+        return Ok(Output::text(result, format!("{plugin_id} has no settings")));
+    }
+    Ok(Output::lines(result, &lines))
 }

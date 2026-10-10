@@ -103,6 +103,9 @@ export const providerRateLimitStateSchema = z.object({
     .nullable(),
   overageReason: z.string().min(1).nullable(),
 });
+export type ProviderRateLimitState = z.infer<
+  typeof providerRateLimitStateSchema
+>;
 
 const threadEventFileChangeSchema = z.object({
   path: z.string(),

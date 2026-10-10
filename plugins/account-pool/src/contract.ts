@@ -1,7 +1,6 @@
-import type { RpcContract } from "@bb/plugin";
+import { contract, op } from "@bb/plugin";
 import { z } from "zod";
 
-export const ACCOUNTS_CHANGED = "accounts-changed";
 export const HUB_PATH = "/api/v1/plugins/account-pool/http";
 
 export const providerSchema = z.enum(["claude", "codex"]);
@@ -118,24 +117,53 @@ const accountPatch = z.object({
   priority: wholeNumber.optional(),
 });
 const done = z.null();
+const write = "write" as const;
 
-export const poolRpc = {
-  status: { input: z.null(), output: statusSchema },
-  "account.add": { input: accountAddSchema, output: accountSchema },
-  "account.update": {
+export const pool = contract("account-pool", {
+  status: op({ input: z.object({}), output: statusSchema }),
+  accountAdd: op({
+    input: accountAddSchema,
+    output: accountSchema,
+    kind: write,
+    allow: "owner",
+    secret: ["apiKey"],
+  }),
+  accountUpdate: op({
     input: accountId.extend(accountPatch.shape),
+    output: accountSchema,
+    kind: write,
+    allow: "owner",
+  }),
+  accountRefresh: op({
+    input: accountId,
     output: done,
-  },
-  "account.refresh": { input: accountId, output: done },
-  "routing.set": {
+    kind: write,
+    allow: "owner",
+  }),
+  routingSet: op({
     input: provider.extend({ enabled: z.boolean() }),
     output: done,
-  },
-  "config.set": { input: z.object({ switchThreshold }), output: done },
-  "login.start": { input: provider, output: loginStartSchema },
-  "login.complete": {
+    kind: write,
+    allow: "owner",
+  }),
+  configSet: op({
+    input: z.object({ switchThreshold }),
+    output: done,
+    kind: write,
+    allow: "owner",
+  }),
+  loginStart: op({
+    input: provider,
+    output: loginStartSchema,
+    kind: write,
+    allow: "owner",
+  }),
+  loginComplete: op({
     input: session.extend({ code: z.string().trim().min(1) }),
     output: accountSchema,
-  },
-  "login.poll": { input: session, output: loginPollSchema },
-} satisfies RpcContract;
+    kind: write,
+    allow: "owner",
+    secret: ["code"],
+  }),
+  loginPoll: op({ input: session, output: loginPollSchema }),
+});

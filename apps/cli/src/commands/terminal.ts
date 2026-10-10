@@ -1,4 +1,3 @@
-import type { TerminalCreateScope, TerminalListScope } from "@bb/sdk";
 import type { TerminalSession } from "@bb/server-contract";
 import {
   durationMs,
@@ -16,7 +15,12 @@ const MATCH_WINDOW_CHARS = 256 * 1024;
 const EXIT_TAIL_CHARS = 2000;
 const UNMATCHED_EXIT_CODE = 124;
 
-async function listScope(c: Call): Promise<TerminalListScope> {
+type TerminalScope =
+  | { kind: "thread"; threadId: string }
+  | { kind: "environment"; environmentId: string }
+  | { kind: "host_path"; hostId: string; cwd?: string };
+
+async function listScope(c: Call): Promise<TerminalScope> {
   const threadId = c.id("thread");
   const environmentId = c.id("environment");
   const hostId = await machineFlag(c);
@@ -68,10 +72,10 @@ export const terminalCreate: Run = async (c) => {
   }
   const command = typed ?? c.rest.map(shellQuote).join(" ");
   const scope = await listScope(c);
-  const target: TerminalCreateScope =
+  const target =
     scope.kind === "host_path" ? { ...scope, cwd: scope.cwd ?? null } : scope;
-  const session = await c.sdk.terminals.create({
-    scope: target,
+  const session = await c.op(c.ops.terminals.create, {
+    target,
     cols: integer(c.flag("cols"), "--cols") ?? DEFAULT_COLS,
     rows: integer(c.flag("rows"), "--rows") ?? DEFAULT_ROWS,
     title: c.flag("title"),
@@ -81,7 +85,8 @@ export const terminalCreate: Run = async (c) => {
 };
 
 export const terminalList: Run = async (c) => {
-  const result = await c.sdk.terminals.list({ scope: await listScope(c) });
+  const { kind: _kind, ...query } = await listScope(c);
+  const result = await c.op(c.ops.terminals.list, query);
   c.rows(result.sessions, ["id", "title", "status", "exitCode"], result);
 };
 
@@ -89,7 +94,7 @@ export const terminalOutput: Run = async (c) => {
   const terminalId = c.arg("terminalId");
   const sinceSeq = integer(c.flag("since-seq"), "--since-seq", 0);
   const query = { terminalId, sinceSeq, ...outputBounds(c) };
-  const result = await c.sdk.terminals.output(query);
+  const result = await c.op(c.ops.terminals.output, query);
   if (c.json) return c.out(result);
   process.stdout.write(decode(result.chunks));
   if (result.status === "exited") {
@@ -117,7 +122,7 @@ export const terminalWait: Run = async (c) => {
   const pollMs = durationMs(interval, "--poll-interval", "ms");
   const regex = pattern === undefined ? null : new RegExp(pattern, "u");
   const bounds = outputBounds(c);
-  const { terminals } = c.sdk;
+  const { terminals } = c.ops;
   const deadline = Date.now() + timeout;
   const done = (matched: string, nextSeq: number, exitCode: number | null) => {
     const text =
@@ -129,7 +134,7 @@ export const terminalWait: Run = async (c) => {
   let nextSeq = c.on("from-start") ? 0 : undefined;
   if (!untilExit && nextSeq === undefined) {
     const tail = { terminalId, limitChunks: 1, tailBytes: 1 };
-    const current = await terminals.output(tail);
+    const current = await c.op(terminals.output, tail);
     if (current.status === "exited") {
       const exited = describeExit(terminalId, current.exitCode);
       const hint = "Match its existing output with --from-start.";
@@ -139,11 +144,11 @@ export const terminalWait: Run = async (c) => {
   }
   for (let seen = ""; Date.now() <= deadline;) {
     if (untilExit) {
-      const session = await terminals.get({ terminalId });
+      const session = await c.op(terminals.get, { terminalId });
       if (session.status === "exited") return done("exit", 0, session.exitCode);
     } else {
       const page = { terminalId, ...bounds, sinceSeq: nextSeq };
-      const result = await terminals.output(page);
+      const result = await c.op(terminals.output, page);
       nextSeq = result.nextSeq;
       const searched = seen + decode(result.chunks).toString("utf8");
       seen = searched.slice(-MATCH_WINDOW_CHARS);
@@ -180,7 +185,7 @@ export const terminalSend: Run = async (c) => {
   for (let at = 0; at < data.byteLength; at += INPUT_CHUNK_BYTES) {
     const part = data.subarray(at, at + INPUT_CHUNK_BYTES);
     const dataBase64 = part.toString("base64");
-    session = await c.sdk.terminals.input({ terminalId, dataBase64 });
+    session = await c.op(c.ops.terminals.write, { terminalId, dataBase64 });
   }
   c.out(session, `Sent input to terminal ${terminalId}`);
 };
@@ -188,6 +193,10 @@ export const terminalSend: Run = async (c) => {
 export const terminalClose: Run = async (c) => {
   const terminalId = c.arg("terminalId");
   const mode = c.on("if-clean") ? "if-clean" : "force";
-  const session = await c.sdk.terminals.close({ terminalId, mode });
+  const session = await c.op(c.ops.terminals.close, {
+    terminalId,
+    mode,
+    reason: "user",
+  });
   c.out(session, `Closed terminal ${terminalId}`);
 };

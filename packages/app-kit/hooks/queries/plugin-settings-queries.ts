@@ -1,0 +1,116 @@
+import { callOp, plugins } from "@bb/plugin/app";
+import type {
+  InstalledPlugin,
+  PluginSettingDescriptor,
+  PluginSettingsResponse,
+} from "@bb/server-contract";
+import { pluginSettingsUpdateRequestSchema } from "@bb/server-contract";
+import {
+  queryOptions,
+  useQuery,
+  type QueryClient,
+} from "@tanstack/react-query";
+import { qk } from "./query-keys";
+
+export interface PluginListItem {
+  id: string;
+  enabled: boolean;
+  core: boolean;
+  status: InstalledPlugin["status"];
+  statusDetail: string | null;
+  description: string;
+  name: string;
+  icon: string | null;
+  compactIconUrl: string | null;
+  hasSettings: boolean;
+}
+
+export type PluginSettingFieldDescriptor = PluginSettingDescriptor;
+
+type PluginSettingsView = Pick<PluginSettingsResponse, "schema" | "values">;
+
+export function pluginIconUrl(icon: string | null): string | null {
+  return icon?.startsWith("/") ? icon : null;
+}
+
+function toPluginListItem(plugin: InstalledPlugin): PluginListItem {
+  const compactIconUrl = pluginIconUrl(plugin.icon);
+  return {
+    id: plugin.id,
+    enabled: plugin.enabled,
+    core: plugin.core ?? false,
+    status: plugin.status,
+    statusDetail: plugin.statusMessage,
+    description: plugin.description,
+    name: plugin.name,
+    icon: compactIconUrl === null ? plugin.icon : null,
+    compactIconUrl,
+    hasSettings: plugin.hasSettings,
+  };
+}
+
+export async function updatePluginSettings(
+  pluginId: string,
+  values: Record<string, unknown>,
+  projectId?: string,
+): Promise<PluginSettingsView> {
+  const request = pluginSettingsUpdateRequestSchema.parse({
+    values,
+    projectId,
+  });
+  return callOp(plugins.updateSettings, { pluginId, ...request });
+}
+
+export async function setPluginEnabled(
+  pluginId: string,
+  enabled: boolean,
+): Promise<void> {
+  await callOp(enabled ? plugins.enable : plugins.disable, { pluginId });
+}
+
+export function applyPluginSettingsView(args: {
+  queryClient: QueryClient;
+  pluginId: string;
+  view: PluginSettingsView;
+  projectId?: string;
+}): void {
+  const { pluginId, queryClient, view, projectId } = args;
+  queryClient.setQueryData(qk.pluginSettings(pluginId, projectId), view);
+}
+
+export function invalidatePluginList(args: {
+  queryClient: QueryClient;
+}): Promise<void> {
+  return args.queryClient.invalidateQueries({ queryKey: qk.pluginList() });
+}
+
+export function pluginListQueryOptions(args: { enabled: boolean }) {
+  return queryOptions({
+    queryKey: qk.pluginList(),
+    queryFn: async ({ signal }) =>
+      (await callOp(plugins.list, {}, { signal })).plugins,
+    enabled: args.enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function usePluginList(args: { enabled: boolean }) {
+  return useQuery({
+    ...pluginListQueryOptions(args),
+    select: (plugins) => ({ plugins: plugins.map(toPluginListItem) }),
+  });
+}
+
+export function usePluginSettingsView(
+  pluginId: string,
+  options: { enabled: boolean; projectId?: string },
+) {
+  const { projectId } = options;
+  return useQuery({
+    queryKey: qk.pluginSettings(pluginId, projectId),
+    queryFn: (): Promise<PluginSettingsView | null> =>
+      callOp(plugins.settings, { pluginId, projectId }).catch(() => null),
+    enabled: options.enabled,
+    staleTime: 30_000,
+  });
+}

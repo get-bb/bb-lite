@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { contentType } from "mime-types";
-import type { ApiApp } from "./api.js";
+import type { ApiApp } from "@bb/server-kit/http/api";
 import { encodeStatic } from "./compression.js";
-import { matchesEntityTag } from "./range.js";
+import { matchesEntityTag } from "@bb/server-kit/http/range";
 
 const INDEX_PATH = "/index.html";
 const ASSETS_PREFIX = "/assets/";

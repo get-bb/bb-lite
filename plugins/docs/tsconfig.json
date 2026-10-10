@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "customConditions": ["source"],
+    "paths": {
+      "@/*": ["../../apps/app/src/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../../apps/app/src/vite-env.d.ts"],
+  "exclude": ["node_modules", "dist", ".tmp"]
+}

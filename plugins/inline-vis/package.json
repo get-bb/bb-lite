@@ -1,0 +1,40 @@
+{
+  "name": "bb-plugin-inline-vis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Render workspace or thread-storage HTML visualizations and Markdown documents inline in assistant messages.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Inline visualizations",
+    "description": "Render workspace or thread-storage HTML visualizations and Markdown documents inline in assistant messages.",
+    "icon": "AppWindow",
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --ignore-pattern node_modules --ignore-pattern dist ."
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

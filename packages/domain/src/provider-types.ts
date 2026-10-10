@@ -31,12 +31,13 @@ export type ProviderModelCatalogScope = z.infer<
   typeof providerModelCatalogScopeSchema
 >;
 
-const providerCapabilitiesSchema = z.object({
+export const providerCapabilitiesSchema = z.object({
   supportsThreadArchive: z.boolean(),
   supportsThreadRename: z.boolean(),
   supportsServiceTier: z.boolean(),
   supportsNativeUserQuestion: z.boolean(),
   supportsSessionRewind: z.boolean(),
+  fork: z.enum(["checkpoint"]).optional(),
   permissionModes: z.array(permissionModeSchema).min(1),
   modelCatalogScope: providerModelCatalogScopeSchema,
 });

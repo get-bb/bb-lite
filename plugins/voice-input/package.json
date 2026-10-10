@@ -1,0 +1,36 @@
+{
+  "name": "bb-plugin-voice-input",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dictate into the composer with a microphone button.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Voice input",
+    "description": "Dictate into the composer with a microphone button.",
+    "icon": "Mic",
+    "app": "./app.tsx"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/app-kit": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "@hugeicons/core-free-icons": "^4.3.4",
+    "@hugeicons/react": "^1.1.6",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

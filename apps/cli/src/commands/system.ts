@@ -1,4 +1,5 @@
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
   confirm,
@@ -10,6 +11,7 @@ import {
   readStdin,
   valid,
   type Call,
+  type Remote,
 } from "../call.js";
 import { CliError, commandReference, usageError, type Run } from "../engine.js";
 import { bbCliPath, cliDir, guideDir } from "../paths.js";
@@ -27,22 +29,26 @@ function quiet<Value>(request: Promise<Value>): Promise<Value | null> {
 }
 
 export const status: Run = async (c) => {
-  const { sdk } = c;
+  const remote: Remote = c;
   const { projectId, threadId, serverUrl } = c.env;
   const [config, project, thread] = await Promise.all([
-    quiet(sdk.system.config()),
-    projectId === undefined ? null : quiet(sdk.projects.get({ projectId })),
-    threadId === undefined ? null : quiet(sdk.threads.get({ threadId })),
+    quiet(remote.op(remote.ops.server.config, {})),
+    projectId === undefined
+      ? null
+      : quiet(remote.op(remote.ops.projects.get, { projectId })),
+    threadId === undefined
+      ? null
+      : quiet(remote.op(remote.ops.threads.get, { threadId })),
   ]);
   const environmentId = thread?.environmentId ?? null;
   const parentThreadId = thread?.id;
   const [environment, children, pendingTodos, listed] = await Promise.all([
     environmentId === null
       ? null
-      : quiet(sdk.environments.get({ environmentId })),
-    thread && quiet(sdk.threads.list({ parentThreadId })),
-    thread && pendingTodosOf(sdk, thread.id),
-    config && quiet(sdk.plugins.list()),
+      : quiet(remote.op(remote.ops.environments.get, { environmentId })),
+    thread && quiet(remote.op(remote.ops.threads.list, { parentThreadId })),
+    thread && pendingTodosOf(remote, thread.id),
+    config && quiet(remote.op(remote.ops.plugins.list, {})),
   ]);
   const childThreads =
     children?.map(({ id, status, title }) => ({ id, status, title })) ?? null;
@@ -101,9 +107,54 @@ async function hostPath(c: Call) {
   return { hostId: await machineFlag(c), path: c.arg("path") };
 }
 
+function tooLarge(error: unknown): boolean {
+  const { CallError } = loaded().plugin;
+  return error instanceof CallError && error.code === "file_too_large";
+}
+
+async function readWhole(c: Call, target: Record<string, unknown>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(target)) {
+    if (typeof value === "string") query.set(key, value);
+  }
+  const response = await c.request(`/api/v1/machines/files/raw?${query}`);
+  if (!response.ok || response.body === null) {
+    const failure = `Could not read ${c.arg("path")} (${response.status})`;
+    throw new CliError(failure, { code: "read_failed" });
+  }
+  return response;
+}
+
+async function streamFile(c: Call, target: Record<string, unknown>) {
+  const response = await readWhole(c, target);
+  if (!c.json) {
+    for await (const chunk of response.body ?? []) process.stdout.write(chunk);
+    return;
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const text = new TextDecoder("utf-8", { fatal: true });
+  let content: string;
+  let contentEncoding: "utf8" | "base64" = "utf8";
+  try {
+    content = text.decode(bytes);
+  } catch {
+    content = bytes.toString("base64");
+    contentEncoding = "base64";
+  }
+  const mimeType = response.headers.get("content-type") ?? undefined;
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const path = c.arg("path");
+  const sizeBytes = bytes.byteLength;
+  c.out({ path, content, contentEncoding, mimeType, sizeBytes, sha256 });
+}
+
 export const fileRead: Run = async (c) => {
   const target = { ...(await hostPath(c)), rootPath: c.flag("root") };
-  const file = await c.sdk.files.read(target);
+  const file = await c.op(c.ops.machines.readFile, target).catch((error) => {
+    if (tooLarge(error)) return null;
+    throw error;
+  });
+  if (file === null) return streamFile(c, target);
   if (c.json) return c.out(file);
   const trailing = file.contentEncoding === "utf8" ? "" : "\n";
   process.stdout.write(`${file.content}${trailing}`);
@@ -114,33 +165,86 @@ export const fileWrite: Run = async (c) => {
   if ((inline === undefined) === !c.on("stdin")) {
     throw usageError("Provide exactly one of --content or --stdin.");
   }
-  const result = await c.sdk.files.write({
+  const result = await c.op(c.ops.machines.writeFile, {
     ...(await hostPath(c)),
     rootPath: c.flag("root"),
     content: inline ?? (await readStdin()).toString("utf8"),
     createParents: c.on("create-parents") || undefined,
     expectedSha256: c.flag("expected-sha256"),
   });
-  const written = result.outcome === "written";
-  const outcome = written ? "Wrote" : "Write conflict for";
-  c.out(result, `${outcome} ${c.arg("path")}`);
+  if (result.outcome === "written") {
+    return c.out(result, `Wrote ${c.arg("path")}`);
+  }
+  const current = result.currentSha256 ?? "none (the file does not exist)";
+  throw new CliError(`Write conflict for ${c.arg("path")}`, {
+    code: "conflict",
+    hint: `The file's current SHA-256 is ${current}.`,
+  });
 };
 
 export const fileList: Run = async (c) => {
-  const result = await c.sdk.files.list({
+  const result = await c.op(c.ops.machines.listFiles, {
     ...(await hostPath(c)),
     query: c.flag("query"),
     limit: integer(c.flag("limit"), "--limit"),
+    includeHidden: c.on("no-hidden") ? false : undefined,
+    excludeNames: c.on("exclude") ? c.list("exclude") : undefined,
   });
   const paths = result.files.map((file) => file.path);
   c.out(result, paths);
 };
 
+export const filePaths: Run = async (c) => {
+  const files = c.on("files");
+  const directories = c.on("directories");
+  const result = await c.op(c.ops.machines.listPaths, {
+    ...(await hostPath(c)),
+    query: c.flag("query"),
+    limit: integer(c.flag("limit"), "--limit"),
+    includeFiles: files || !directories,
+    includeDirectories: directories || !files,
+    includeHidden: c.on("no-hidden") ? false : undefined,
+    excludeNames: c.on("exclude") ? c.list("exclude") : undefined,
+  });
+  c.out(
+    result,
+    result.paths.map((entry) => `${entry.kind}\t${entry.path}`),
+  );
+};
+
+export const fileMkdir: Run = async (c) => {
+  const result = await c.op(c.ops.machines.mkdir, {
+    ...(await hostPath(c)),
+    rootPath: c.flag("root"),
+    recursive: c.on("recursive") || undefined,
+  });
+  c.out(result, `Created directory ${c.arg("path")}`);
+};
+
+export const fileMove: Run = async (c) => {
+  const result = await c.op(c.ops.machines.movePath, {
+    hostId: await machineFlag(c),
+    sourcePath: c.arg("source"),
+    destinationPath: c.arg("destination"),
+    rootPath: c.flag("root"),
+  });
+  c.out(result, `Moved ${c.arg("source")} to ${c.arg("destination")}`);
+};
+
+export const fileRemove: Run = async (c) => {
+  await confirm(c, `Remove ${c.arg("path")}?`);
+  const result = await c.op(c.ops.machines.deletePath, {
+    ...(await hostPath(c)),
+    rootPath: c.flag("root"),
+    recursive: c.on("recursive") || undefined,
+  });
+  c.out(result, `Removed ${c.arg("path")}`);
+};
+
 async function readSettings(c: Call): Promise<Record<string, unknown>> {
-  const { system } = c.sdk;
   const [config, ui] = await Promise.all([
-    system.config(),
-    system.uiPreferences.list(),
+    c.op(c.ops.server.config, {}),
+    c.op(c.ops.settings.uiPreferences, {}),
   ]);
   const keybindings = config.keybindingOverrides.map(
     ({ command, shortcut }): [string, unknown] => {
@@ -171,8 +275,8 @@ function settingValue(raw: string): unknown {
 
 async function writeSetting(c: Call, key: string, raw?: string) {
   const { domain } = loaded();
-  const { system, theme } = c.sdk;
-  const config = await system.config();
+  const { settings } = c.ops;
+  const config = await c.op(c.ops.server.config, {});
   if (key === "theme" || key === "theme.faviconColor") {
     const { themeId, faviconColor } = config.appearance;
     const next = raw ?? "default";
@@ -180,7 +284,8 @@ async function writeSetting(c: Call, key: string, raw?: string) {
       key === "theme"
         ? { themeId: next, faviconColor }
         : { themeId, faviconColor: next };
-    return theme.set(valid(domain.appThemeSchema, selection, key));
+    const theme = valid(domain.appThemeSchema, selection, key);
+    return c.op(settings.updateAppearance, theme);
   }
   if (key.startsWith(KEYBINDING)) {
     const command = key.slice(KEYBINDING.length);
@@ -197,7 +302,7 @@ async function writeSetting(c: Call, key: string, raw?: string) {
     const added = raw === undefined ? [] : [{ command, shortcut }];
     const schema = domain.appKeybindingOverridesSchema;
     const overrides = valid(schema, [...kept, ...added], "keybinding");
-    return system.updateKeyboardSettings(overrides);
+    return c.op(settings.updateKeyboard, { overrides });
   }
   if (key.startsWith(UI)) {
     const name = key.slice(UI.length);
@@ -205,13 +310,16 @@ async function writeSetting(c: Call, key: string, raw?: string) {
       const known = domain.UI_PREFERENCE_KEYS.join(", ");
       throw usageError(`Unknown UI preference '${name}'.`, `Known: ${known}`);
     }
-    if (raw === undefined) return system.uiPreferences.reset({ key: name });
+    if (raw === undefined) {
+      return c.op(settings.resetUiPreference, { key: name });
+    }
     const parsed = domain.parseUiPreferenceValue(name, settingValue(raw));
     if (!parsed.success) throw usageError(parsed.message);
-    const { preferences } = await system.uiPreferences.list();
+    const { preferences } = await c.op(settings.uiPreferences, {});
     const expectedRevision = preferences[name].revision;
     const { value } = parsed;
-    return system.uiPreferences.set({ key: name, value, expectedRevision });
+    const write = { key: name, value, expectedRevision };
+    return c.op(settings.updateUiPreference, write);
   }
   const defaults: Record<string, unknown> = domain.defaultAppSettings;
   if (!Object.hasOwn(defaults, key)) {
@@ -221,7 +329,7 @@ async function writeSetting(c: Call, key: string, raw?: string) {
   const value = raw === undefined ? defaults[key] : settingValue(raw);
   const changed = { ...config.generalSettings, [key]: value };
   const next = valid(domain.appSettingsSchema, changed, "setting");
-  return system.updateGeneralSettings(next);
+  return c.op(settings.updateGeneral, { settings: next });
 }
 
 function changeSetting(reset: boolean): Run {
@@ -253,7 +361,7 @@ export const settingsShow: Run = async (c) => {
 export const settingsGet = settingsShow;
 
 export const pluginList: Run = async (c) => {
-  const result = await c.sdk.plugins.list();
+  const result = await c.op(c.ops.plugins.list, {});
   const rows = result.plugins.map((plugin) => ({
     id: plugin.id,
     status: plugin.status,
@@ -265,7 +373,10 @@ export const pluginList: Run = async (c) => {
 
 function setPluginEnabled(verb: "enable" | "disable"): Run {
   return async (c) => {
-    const plugin = await c.sdk.plugins[verb]({ pluginId: c.arg("id") });
+    const toggled = await c.op(c.ops.plugins[verb], {
+      pluginId: c.arg("id"),
+    });
+    const { plugin } = toggled;
     c.out(plugin, `Plugin ${plugin.id} is ${plugin.status}`);
   };
 }
@@ -275,13 +386,90 @@ export const pluginDisable = setPluginEnabled("disable");
 
 export const pluginReload: Run = async (c) => {
   const pluginId = c.args.id;
-  const result = await c.sdk.plugins.reload({ pluginId });
+  const result = await c.op(c.ops.plugins.reload, { id: pluginId });
   c.out(result, `Reloaded ${pluginId ?? `${result.plugins.length} plugins`}`);
 };
 
+function pluginSettingValue(
+  type: string,
+  key: string,
+  raw: string,
+): string | number | boolean {
+  if (type === "number") {
+    const value = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(value)) {
+      throw usageError(`Setting '${key}' needs a number, not '${raw}'.`);
+    }
+    return value;
+  }
+  if (type === "boolean") {
+    if (raw === "true" || raw === "false") return raw === "true";
+    throw usageError(`Setting '${key}' needs true or false, not '${raw}'.`);
+  }
+  return raw;
+}
+
+function settingLine(value: unknown): string {
+  if (value === null || value === undefined) return "(unset)";
+  if (typeof value === "object" && "set" in value) {
+    return value.set === true ? "(secret, set)" : "(secret, unset)";
+  }
+  return JSON.stringify(value);
+}
+
+export const pluginConfig: Run = async (c) => {
+  const pluginId = c.arg("id");
+  const { action, key, value } = c.args;
+  const projectId = c.id("project");
+  const scope = projectId === undefined ? {} : { projectId };
+  const current = await c.op(c.ops.plugins.settings, { pluginId, ...scope });
+  const usage =
+    "Usage: bb plugin config <id> [set <key> <value> | unset <key>]";
+  let result = current;
+  if (action !== undefined) {
+    if (action !== "set" && action !== "unset") {
+      throw usageError(`Unknown action '${action}'.`, usage);
+    }
+    const missing = action === "set" ? value === undefined : false;
+    if (key === undefined || missing) throw usageError(usage);
+    if (action === "unset" && value !== undefined) {
+      throw usageError(`Unexpected argument '${value}'.`, usage);
+    }
+    const descriptor = current.schema[key];
+    if (descriptor === undefined) {
+      const known = Object.keys(current.schema).join(", ") || "none";
+      throw usageError(`Unknown setting '${key}'.`, `Known: ${known}`);
+    }
+    const next =
+      value === undefined
+        ? null
+        : pluginSettingValue(descriptor.type, key, value);
+    const values = { [key]: next };
+    result = await c.op(c.ops.plugins.updateSettings, {
+      pluginId,
+      values,
+      ...scope,
+    });
+  }
+  const shown = Object.keys(result.schema).map(
+    (name) => `${name} = ${settingLine(result.values[name])}`,
+  );
+  c.out(result, shown.length === 0 ? `${pluginId} has no settings` : shown);
+};
+
+async function loadedDirectory(c: Call, given: string): Promise<string> {
+  const path = resolve(given);
+  if (given.includes("/") || (await stat(path).catch(() => null)) !== null) {
+    return path;
+  }
+  const found = await c.op(c.ops.plugins.describe, { id: given });
+  return found === null || found.builtin ? path : found.directory;
+}
+
 async function editPluginConfig(c: Call, add: boolean): Promise<void> {
-  const path = resolve(c.arg("path"));
-  const { dataDir } = await c.sdk.system.config();
+  const given = c.arg("path");
+  const path = add ? resolve(given) : await loadedDirectory(c, given);
+  const { dataDir } = await c.op(c.ops.server.config, {});
   const file = join(dataDir, "config.json");
   const { z } = await import("zod");
   const entry = z.looseObject({ path: z.string() });
@@ -289,12 +477,19 @@ async function editPluginConfig(c: Call, add: boolean): Promise<void> {
   const text = await readFile(file, "utf8").catch(() => "{}");
   const config = valid(schema, parseJson(text, file), file);
   const others = config.plugins.filter((known) => resolve(known.path) !== path);
-  const plugins = add ? [...others, { path, enabled: true }] : others;
-  const next = JSON.stringify({ ...config, plugins }, null, 2);
-  await writeFile(file, `${next}\n`);
-  const result = await c.sdk.plugins.reload();
+  if (!add && others.length === config.plugins.length) {
+    const known = config.plugins.map((known) => known.path).join(", ");
+    throw usageError(
+      `${path} is not a loaded plugin directory.`,
+      `Loaded directories: ${known || "none"}`,
+    );
+  }
+  if (add) await c.op(c.ops.plugins.install, { path });
+  else await c.op(c.ops.plugins.uninstall, { path });
+  const { plugins } = await c.op(c.ops.plugins.list, {});
   const done = add ? "added to" : "removed from";
-  c.out(result, `${path} ${done} ${file}; plugins reloaded`);
+  const state = add ? "plugin loaded" : "plugin unloaded";
+  c.out({ ok: true, plugins }, `${path} ${done} ${file}; ${state}`);
 }
 
 export const pluginAdd: Run = async (c) => {
@@ -326,7 +521,7 @@ export const importLegacy: Run = async (c) => {
 
 export const serverStatus: Run = async (c) => {
   const url = c.env.serverUrl;
-  const config = await c.sdk.system.config().catch((error: unknown) => {
+  const config = await c.op(c.ops.server.config, {}).catch((error: unknown) => {
     const hint = "Start it with `bb server`, or set BB_SERVER_URL.";
     const message = `No bb server at ${url}: ${errorMessage(error)}`;
     throw new CliError(message, { code: "server_unreachable", hint });
@@ -372,11 +567,8 @@ export const runnerRun: Run = async (c) => {
     const message = "This machine has not joined exactly one server.";
     throw usageError(message, `Pass --data-dir <dir>. Joined: ${found}`);
   }
-  const dev = (process.env.BB_DEV_PROVIDERS ?? "").split(",");
-  const adapters = runner
-    .defaultAdapters()
-    .filter((adapter) => adapter.id !== "echo" || dev.includes("echo"));
-  const running = await runner.runRunner({ dataDir, bbCliPath, adapters });
+  const { runnerParts: parts } = await import("@bb/profile-default/runner");
+  const running = await runner.runRunner({ dataDir, bbCliPath, parts });
   console.error(`bb runner started (data in ${dataDir})`);
   await running.stopped;
 };

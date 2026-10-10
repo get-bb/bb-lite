@@ -118,11 +118,13 @@ export const systemConfigResponseSchema = z.object({
   defaultKeybindings: domain.appDefaultKeybindingsSchema,
   keybindingOverrides: domain.appKeybindingOverridesSchema,
   appearance: domain.appThemeSchema,
+  themes: z.array(domain.pluginThemeSchema),
   featureFlags: domain.featureFlagsSchema,
   serverUrl: z.string().url(),
   primaryHostId: z.string().nullable(),
   primaryHostPlatform: domain.hostPlatformSchema.nullable(),
   dataDir: z.string(),
+  voiceTranscriptionEnabled: z.boolean().optional(),
 });
 export type SystemConfigResponse = z.infer<typeof systemConfigResponseSchema>;
 
@@ -166,6 +168,8 @@ export const systemEnvironmentProviderSchema = z.object({
   machineInputs: domain.jsonValueSchema.nullable().optional(),
   machineAcceptsEmptyInputs: z.boolean().optional(),
   machineProviderPluginId: z.string().min(1).optional(),
+  workspace: domain.workspaceProvisionTypeSchema.optional(),
+  default: z.number().optional(),
 });
 export type SystemEnvironmentProvider = z.infer<
   typeof systemEnvironmentProviderSchema

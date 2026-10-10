@@ -37,6 +37,22 @@ export const builtInThemes: readonly BuiltInThemeMeta[] = [
   },
 ];
 
+export const pluginThemeSchema = z.object({
+  id: z.string().min(1),
+  pluginId: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string(),
+  cssUrl: z.string().min(1),
+  codeTheme: z
+    .object({ dark: z.string().optional(), light: z.string().optional() })
+    .nullable(),
+});
+export type PluginTheme = z.infer<typeof pluginThemeSchema>;
+
+export function pluginThemeId(pluginId: string, themeId: string): string {
+  return `plugin:${pluginId}:${themeId}`;
+}
+
 export const BUILTIN_THEME_IDS = builtInThemeIdSchema.options;
 
 export function isBuiltInThemeId(id: string): id is BuiltInThemeId {

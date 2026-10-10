@@ -1,4 +1,4 @@
-import type { Db, SqlValue } from "../src/db/index.js";
+import type { Db, SqlValue } from "@bb/server-kit/db/index";
 
 export type SeedRow = Record<string, unknown>;
 

@@ -1,0 +1,3293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Everything is a plugin: a proposal for bb's plugin API</title>
+    <style>
+      :root {
+        --bg: #fcfcfc;
+        --panel: #f3f4f5;
+        --line: #e1e3e6;
+        --fg: #3b4046;
+        --dim: #7b838c;
+        --head: #1c2026;
+        --accent: #c4621a;
+        --blue: #2f7fc4;
+        --green: #5a8a12;
+        --red: #c9454c;
+        --code-bg: #f6f7f8;
+        --mark: #fff1d6;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b0e14;
+          --panel: #11151c;
+          --line: #1f2531;
+          --fg: #bfbdb6;
+          --dim: #7d8590;
+          --head: #e6e1cf;
+          --accent: #e6b450;
+          --blue: #59c2ff;
+          --green: #aad94c;
+          --red: #f07178;
+          --code-bg: #0f131a;
+          --mark: #2a2110;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.62 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      .page {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 0 24px 96px;
+      }
+      @media (min-width: 1080px) {
+        .page {
+          grid-template-columns: 220px minmax(0, 1fr);
+          column-gap: 48px;
+        }
+        nav.toc {
+          position: sticky;
+          top: 0;
+          align-self: start;
+          max-height: 100vh;
+          overflow: auto;
+          padding: 44px 0 24px;
+        }
+      }
+      @media (max-width: 1079px) {
+        nav.toc {
+          display: none;
+        }
+      }
+      nav.toc p {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--dim);
+        margin: 0 0 10px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--dim);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 3px 0 3px 10px;
+        border-left: 2px solid var(--line);
+      }
+      nav.toc a:hover {
+        color: var(--head);
+        border-left-color: var(--accent);
+      }
+      main {
+        max-width: 820px;
+        padding-top: 44px;
+        min-width: 0;
+      }
+      h1 {
+        font-size: 34px;
+        line-height: 1.15;
+        color: var(--head);
+        margin: 0 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 23px;
+        color: var(--head);
+        margin: 60px 0 12px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+        letter-spacing: -0.005em;
+      }
+      h3 {
+        font-size: 17px;
+        color: var(--head);
+        margin: 30px 0 8px;
+      }
+      h4 {
+        font-size: 14px;
+        color: var(--head);
+        margin: 0 0 6px;
+      }
+      p {
+        margin: 0 0 14px;
+      }
+      a {
+        color: var(--blue);
+      }
+      .sub {
+        color: var(--dim);
+        font-size: 15px;
+        margin-bottom: 26px;
+      }
+      .num {
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+        margin-right: 8px;
+      }
+      ul,
+      ol {
+        margin: 0 0 14px;
+        padding-left: 22px;
+      }
+      li {
+        margin: 4px 0;
+      }
+      code {
+        font:
+          13.5px/1.5 ui-monospace,
+          "SF Mono",
+          Menlo,
+          Consolas,
+          monospace;
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 1px 5px;
+      }
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        margin: 0 0 16px;
+      }
+      pre code {
+        background: none;
+        border: 0;
+        padding: 0;
+        font-size: 13px;
+        line-height: 1.6;
+        display: block;
+        white-space: pre;
+      }
+      .tok-c {
+        color: var(--dim);
+        font-style: italic;
+      }
+      .tok-s {
+        color: var(--green);
+      }
+      .tok-k {
+        color: var(--accent);
+      }
+      .cap {
+        font-size: 12.5px;
+        color: var(--dim);
+        margin: -8px 0 16px;
+      }
+      .lead {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--accent);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 0 0 22px;
+      }
+      .lead p:last-child,
+      .lead ul:last-child {
+        margin-bottom: 0;
+      }
+      .note {
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--blue);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 0 0 16px;
+        font-size: 15px;
+      }
+      .note.warn {
+        border-left-color: var(--red);
+      }
+      .note p:last-child {
+        margin-bottom: 0;
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 0 0 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      th {
+        background: var(--panel);
+        color: var(--head);
+        font-weight: 600;
+        font-size: 12.5px;
+        white-space: nowrap;
+      }
+      td code {
+        font-size: 12.5px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 14px;
+        margin: 0 0 18px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px 18px;
+        background: var(--panel);
+        font-size: 14.5px;
+        min-width: 0;
+      }
+      .card h4 {
+        font-size: 16px;
+        margin-bottom: 2px;
+      }
+      .card .meta {
+        font-size: 12.5px;
+        color: var(--dim);
+        margin-bottom: 10px;
+      }
+      .card p {
+        margin-bottom: 10px;
+      }
+      .card ul {
+        margin-bottom: 8px;
+        padding-left: 18px;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 1px 7px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--dim);
+        margin-right: 6px;
+      }
+      .take {
+        color: var(--green);
+        font-weight: 600;
+      }
+      .avoid {
+        color: var(--red);
+        font-weight: 600;
+      }
+      .diagram {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 18px;
+        margin: 0 0 18px;
+        background: var(--panel);
+        overflow-x: auto;
+      }
+      .layers {
+        display: grid;
+        gap: 8px;
+        min-width: 560px;
+      }
+      .layer {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 10px;
+        align-items: stretch;
+      }
+      .layer > .label {
+        font-size: 12px;
+        color: var(--dim);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        display: flex;
+        align-items: center;
+      }
+      .boxes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .box {
+        border: 1px solid var(--line);
+        background: var(--bg);
+        border-radius: 6px;
+        padding: 5px 9px;
+        font-size: 12.5px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+      }
+      .box.k {
+        border-color: var(--accent);
+        color: var(--head);
+      }
+      .box.t {
+        border-style: dashed;
+      }
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+        row-gap: 20px;
+      }
+      .step {
+        position: relative;
+        padding: 0 14px 0 0;
+      }
+      .step .op {
+        font:
+          12.5px ui-monospace,
+          Menlo,
+          Consolas,
+          monospace;
+        color: var(--head);
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        padding: 5px 8px;
+        background: var(--bg);
+        display: inline-block;
+        margin-bottom: 8px;
+      }
+      .step:not(:last-child)::after {
+        content: "→";
+        position: absolute;
+        right: 4px;
+        top: 22px;
+        color: var(--dim);
+      }
+      .step .where {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--dim);
+        margin-bottom: 4px;
+      }
+      .step ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        font-size: 12.5px;
+      }
+      .step li {
+        margin: 3px 0;
+        padding-left: 10px;
+        border-left: 2px solid var(--line);
+      }
+      .step li.own {
+        border-left-color: var(--accent);
+        color: var(--head);
+      }
+      .runtimes {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: 10px;
+        min-width: 680px;
+      }
+      .rt {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: var(--bg);
+        font-size: 13px;
+      }
+      .rt b {
+        color: var(--head);
+        display: block;
+        margin-bottom: 4px;
+      }
+      .rt span {
+        color: var(--dim);
+        font-size: 12px;
+      }
+      .decision {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin: 0 0 12px;
+      }
+      .decision h4 {
+        font-size: 15.5px;
+      }
+      .decision p {
+        font-size: 14.5px;
+        margin-bottom: 8px;
+      }
+      .decision p:last-child {
+        margin-bottom: 0;
+      }
+      .rec {
+        color: var(--green);
+        font-weight: 600;
+      }
+      .small {
+        font-size: 13.5px;
+        color: var(--dim);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 40px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="toc">
+        <p>Contents</p>
+        <a href="#summary">Summary</a>
+        <a href="#status">Status</a>
+        <a href="#today">1. Where bb-150k was</a>
+        <a href="#refs">2. What the references teach</a>
+        <a href="#difference">3. How bb differs from them</a>
+        <a href="#kernel">4. The kernel</a>
+        <a href="#primitives">5. Three primitives</a>
+        <a href="#runtimes">6. One plugin, several runtimes</a>
+        <a href="#ui">7. The app is plugins too</a>
+        <a href="#map">8. bb-150k as plugins</a>
+        <a href="#walk">9. A message's path</a>
+        <a href="#profiles">10. Profiles</a>
+        <a href="#trust">11. Trust, audit and order</a>
+        <a href="#dev">12. Writing one</a>
+        <a href="#migration">13. Getting there</a>
+        <a href="#risks">14. Risks</a>
+        <a href="#decisions">15. Decisions for you</a>
+        <a href="#sources">Sources</a>
+      </nav>
+      <main>
+        <h1>Everything is a plugin</h1>
+        <p class="sub">
+          A proposal for rewriting bb-150k's plugin API so that the product
+          itself is built from the same plugins third parties write. Draft for
+          discussion, 8 October 2026.
+        </p>
+
+        <section id="summary">
+          <div class="lead">
+            <p>
+              <strong>The proposal in one paragraph.</strong> Shrink bb to a
+              small kernel that knows how to do four things: load plugins, let a
+              plugin define typed <em>operations</em> that anyone can call and
+              anyone can wrap, let a plugin define <em>slots</em> that other
+              plugins fill, and hand each plugin its own storage. Because every
+              action passes through it, the kernel also records who did what and
+              through which plugin. Threads, providers, environments, sign-in,
+              the sidebar, the composer and every CLI command then become
+              plugins written against that one public API. A plugin stops being
+              "a server file and an app file" and becomes a package with a part
+              for each place bb runs code: the server, the machine runner and
+              the browser.
+            </p>
+          </div>
+          <p>
+            Seven ideas carry the design. Each is taken from one of the systems
+            you asked me to study.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <tr>
+                <th>Idea</th>
+                <th>What it means for bb</th>
+                <th>Taken from</th>
+              </tr>
+              <tr>
+                <td><strong>One hook shape</strong></td>
+                <td>
+                  Every operation can be wrapped with <code>(e, next)</code>.
+                  The plugin that owns the operation is the last link in the
+                  chain, so core behaviour and plugin behaviour are the same
+                  kind of thing.
+                </td>
+                <td>Claude Code mods; DeepSeek Harness "waterfall" events</td>
+              </tr>
+              <tr>
+                <td><strong>Plugins define the extension points</strong></td>
+                <td>
+                  The kernel has no list of slots. The shell plugin defines the
+                  shell's slots, the thread view defines its own, and Tasks can
+                  define slots inside Tasks.
+                </td>
+                <td>DeepSeek Harness ("declaring a slot is claiming it")</td>
+              </tr>
+              <tr>
+                <td><strong>A part per runtime</strong></td>
+                <td>
+                  A plugin can have a server part, a browser part and a part
+                  that runs on each machine. That last one is what lets
+                  providers and environments be plugins.
+                </td>
+                <td>
+                  Original bb (server, app, host); Pi's experimental facets
+                </td>
+              </tr>
+              <tr>
+                <td><strong>One operation, several doors</strong></td>
+                <td>
+                  Define "create a task" once; the kernel offers it to the app,
+                  the CLI, agents and HTTP.
+                </td>
+                <td>DeepSeek Harness; bb's own CLI dispatch</td>
+              </tr>
+              <tr>
+                <td><strong>The product is a list</strong></td>
+                <td>
+                  A build of bb is a profile: a named list of plugins. The
+                  default profile is today's product.
+                </td>
+                <td>DeepSeek Harness profiles; Hermes backend selection</td>
+              </tr>
+              <tr>
+                <td><strong>Every action has an author</strong></td>
+                <td>
+                  Each operation carries who started it and which plugins it
+                  passed through, and the kernel records it. With several people
+                  and several plugins in one workspace, "who did this, through
+                  what?" always has an answer.
+                </td>
+                <td>
+                  bb's own actor model; Claude Code's <code>next.origin</code>
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Everything registered can be undone</strong></td>
+                <td>
+                  The loader records every registration and reverses it on
+                  unload or failed load, which is what makes reload-on-save
+                  safe.
+                </td>
+                <td>
+                  Hermes's ledger; DeepSeek Harness effects; original bb's
+                  reload
+                </td>
+              </tr>
+            </table>
+          </div>
+          <p>
+            Three things I would deliberately leave out for now: a sandbox for
+            plugin code, a way to draw the same plugin UI on surfaces other than
+            the web app, and any promise that the thread engine can be swapped
+            for another one. Sections 14 and 15 say why and what you would be
+            deciding.
+          </p>
+          <p class="small">
+            Sections 1 to 3 are findings. Sections 4 to 12 are the proposal.
+            Sections 13 to 15 are how to get there and the choices that are
+            yours.
+          </p>
+        </section>
+
+        <h2 id="status">Status: what has been built</h2>
+        <p>
+          This document was written before any code. Most of it has since been
+          built on the same branch. The table says where each part stands;
+          <code>docs/plugin-api.md</code> is the reference for writing a plugin
+          and <code>docs/architecture.md</code> ("Plugins") is the exact
+          behaviour.
+        </p>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Part of the proposal</th>
+              <th>State</th>
+              <th>Notes</th>
+            </tr>
+            <tr>
+              <td>
+                Kernel: operations, hooks, events, slots, services, live values
+              </td>
+              <td>Built</td>
+              <td>
+                One implementation shared by the server, each runner and the
+                browser. Hooks have a 10 s budget; guards can fail closed.
+                <code>fail(code, message, { reason, hint })</code> and
+                <code>deny()</code> refuse with a code that maps to an HTTP
+                status and a CLI message. Live values, <code>changed</code> and
+                events can be addressed to one user.
+                <code>bb.implement</code> takes <code>offered</code> to hide an
+                agent tool per session.
+              </td>
+            </tr>
+            <tr>
+              <td>Caller chain and audit log</td>
+              <td>Built</td>
+              <td>
+                Every write is recorded with user, door, agent thread, the
+                plugins it passed through and any hook that changed or refused
+                it. <code>bb audit list</code>. A plugin that bypasses
+                operations leaves no record, as agreed.
+              </td>
+            </tr>
+            <tr>
+              <td>Doors: app, CLI, agent tool, machine</td>
+              <td>Built</td>
+              <td>
+                The app calls any operation at
+                <code>POST /api/v1/ops/&lt;name&gt;</code>; an operation may
+                also have a REST path (<code>doors.http</code>, below), and
+                <code>bb.http.route</code> remains for bytes and webhooks. A CLI
+                door can declare aliases, per-flag options, fields filled from
+                the CLI's context (directory, project, thread, machine),
+                constraints between flags, its own output and exit code. A
+                machine call (<code>bb.runners.call</code>) takes a timeout and
+                an abort signal that cancels the work on the runner.
+              </td>
+            </tr>
+            <tr>
+              <td>The eight original plugins on the new API</td>
+              <td>Built</td>
+              <td>The old plugin API has been removed.</td>
+            </tr>
+            <tr>
+              <td>Runner parts; providers as plugins</td>
+              <td>Built</td>
+              <td>
+                Codex, Claude Code, Pi and echo are plugins with a machine part.
+                A third-party machine part is bundled by the server and sent to
+                each runner when it connects.
+              </td>
+            </tr>
+            <tr>
+              <td>Environment kinds as plugins</td>
+              <td>Built</td>
+              <td>
+                A plugin can add a kind or replace a built-in one (a different
+                <code>git-worktree</code>, for example). The three built-in
+                kinds (project checkout, worktree, personal workspace) are
+                plugins of their own, and the Modal sandbox is an add-on kind. A
+                kind declares its workspace type, requirements and a default
+                rank, so core picks a default without naming a kind.
+              </td>
+            </tr>
+            <tr>
+              <td>The screen as slots</td>
+              <td>Built</td>
+              <td>
+                Routes, navigation rail, thread actions, timeline rows and row
+                details, composer menus and footer, side-panel tabs, settings
+                pages, commands. The five core app plugins fill them through the
+                same API. Core's own command ids are a fixed list; plugins add
+                theirs as <code>plugin:&lt;id&gt;/&lt;name&gt;</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Server subsystems as plugins</td>
+              <td>Built</td>
+              <td>
+                Ten core plugins in <code>plugins/</code> (identity, settings,
+                projects, machines, sessions, threads, environments, terminals,
+                workspace, audit log), loaded by the same loader as add-ons and
+                given the same <code>bb</code> and nothing else. The database,
+                realtime, runners, configuration and route mounting are members
+                of <code>bb</code> for every plugin, and core plugins reach each
+                other only through operations, events and services. Sign-in is a
+                service the identity plugin provides. The server is a kernel,
+                the loader and the HTTP and socket shells.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Core code moved into <code>plugins/</code> with no private
+                imports
+              </td>
+              <td>Built</td>
+              <td>
+                Ten core server plugins and five core app plugins (shell, thread
+                view, composer, side panel, settings) live in
+                <code>plugins/</code> and import only the plugin API, the shared
+                schemas and two kits: <code>@bb/server-kit</code> (data layer,
+                helpers) and <code>@bb/app-kit</code> (client data layer, UI
+                primitives, shared components). Lint enforces it. The kits
+                themselves are ordinary packages, about 6,700 and 27,000 lines;
+                code more than one feature uses lives there. The hosts are about
+                2,700 lines (server) and 800 (app).
+              </td>
+            </tr>
+            <tr>
+              <td>Profiles</td>
+              <td>Built, simple</td>
+              <td>
+                In-repo plugins are registered from their manifests (<code
+                  >pnpm gen:builtins</code
+                >
+                writes the server, runner and app tables, and a test fails when
+                they are stale). <code>BB_PROFILE</code> picks which of them
+                load (<code>default</code>, <code>headless</code>,
+                <code>minimal</code>); <code>bb.enabledByDefault: false</code>
+                ships a plugin switched off. Pick-one choices are still app
+                preferences, not profile entries.
+              </td>
+            </tr>
+            <tr>
+              <td>One API on every side</td>
+              <td>Built</td>
+              <td>
+                A part is a plain function that takes <code>bb</code>. The
+                server, the app and each machine get the same handle shape, and
+                <code>bb</code> carries no feature shorthands: every slot is
+                filled with <code>bb.add</code>. A slot is declared where it is
+                read, operations share one set of verbs, and the rules are
+                listed at the top of <code>docs/plugin-api.md</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Tooling</td>
+              <td>Built</td>
+              <td>
+                <code
+                  >bb dev new | watch | validate | inspect | types | install |
+                  fork | port</code
+                >, reload on save, an authoring skill, and a small test harness
+                (<code>@bb/plugin/testing</code>).
+                <code>bb dev install</code> takes git or npm version ranges and
+                a repository subdirectory and refuses an
+                <code>engines.bb</code> mismatch before loading. A marketplace
+                plugin installs, updates and removes plugins from catalogs and
+                records where each came from. <code>plugins.contracts</code>,
+                <code>plugins.describe</code> (with what a plugin uses) and
+                <code>describeApp</code> in the app describe the live API.
+              </td>
+            </tr>
+            <tr>
+              <td>Forking a built-in plugin</td>
+              <td>Built</td>
+              <td>
+                <code>bb dev fork &lt;id&gt;</code> copies any plugin in
+                <code>plugins/</code> and runs the copy in its place, reloading
+                on save: providers, add-ons, the core server plugins (the thread
+                engine included) and the core app plugins (the thread view,
+                composer, side panel, shell, settings). A test forks every
+                built-in plugin and runs a turn through the forked core.
+                <code>--as &lt;new-id&gt;</code> makes a renamed copy that runs
+                beside the original. The two kits cannot be forked.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Open lists in the shared schemas (events, row kinds, tab kinds,
+                command ids)
+              </td>
+              <td>Built</td>
+              <td>
+                Every stored family has a plugin variant: side-panel tabs
+                (<code>plugin-panel</code>), commands and keybindings
+                (<code>plugin:&lt;id&gt;/&lt;name&gt;</code>), pending
+                interactions, mentions, provider extension kinds, and timeline
+                rows: <code>threads.addRow</code> stores a row of a plugin's own
+                kind and <code>threadView.pluginRow</code> draws it. Rows ride
+                on the existing open operation event, so the stored schema and
+                the Rust CLI did not change.
+              </td>
+            </tr>
+            <tr>
+              <td>Settings scopes</td>
+              <td>Built</td>
+              <td>
+                A setting is <code>workspace</code> (one value),
+                <code>user</code> (per person) or <code>project</code> (per
+                project); per-user and per-project values fall back to the
+                shared one. Secrets are always shared.
+              </td>
+            </tr>
+            <tr>
+              <td>Shared database with published tables</td>
+              <td>Built</td>
+              <td>
+                <code>bb.storage.tables</code>: tables in the main database
+                under the plugin's prefix, ordered migrations, and
+                <code>table()</code> in a contract to publish one for other
+                plugins to join. Writes stay with the owner. Core publishes
+                views of threads and projects. The guard is by statement shape,
+                not a sandbox.
+              </td>
+            </tr>
+            <tr>
+              <td>Process isolation</td>
+              <td>Not done</td>
+              <td>Plugins run in-process, as agreed.</td>
+            </tr>
+            <tr>
+              <td>Migration of the original bb's plugins</td>
+              <td>Bundled: most ported</td>
+              <td>
+                40 of the original's bundled plugins now live in
+                <code>plugins/</code> on this API (among them automations,
+                workflows, GitHub, memory, docs, Monaco, browser automation, Pi,
+                side chat, push notifications, the Modal sandbox);
+                <code>agent-annotations</code>, <code>provider-acp</code> and
+                <code>t3sidebar</code> are not ported. Porting them added
+                <code>threads.fork</code>, voice transcription, composer popups
+                and theme CSS to core. The 341 marketplace plugins were read
+                against this API and <code>bb dev port &lt;dir&gt;</code> names
+                the replacement for every call; none loads unmodified.
+                <code>docs/plugin-migration-gaps.md</code> has the tables.
+              </td>
+            </tr>
+            <tr>
+              <td>The REST API and its client</td>
+              <td>Done</td>
+              <td>
+                Every JSON route is the HTTP door of an operation
+                (<code>doors.http</code>), with one flat input and a path that
+                starts with its contract's name. The hand-written client and the
+                separate route table are gone: the app, the CLI and tests call
+                operations through one generic client. Only sign-in, uploads and
+                file bytes remain raw routes. A machine's credential is held
+                back by the operation (<code>allow: "user"</code>), not by a URL
+                pattern.
+              </td>
+            </tr>
+            <tr>
+              <td>What bb does on a machine</td>
+              <td>Done</td>
+              <td>
+                Git, files, terminals, lifecycle scripts and file watching are
+                operations (<code>git</code>, <code>machineFiles</code>,
+                <code>machineTerminals</code>, <code>workspaces</code>)
+                implemented by a built-in runner part. Another runner part can
+                hook, refuse or answer them. Provider sessions stay in the
+                runner's host, behind the <code>runner.provider</code> slot.
+              </td>
+            </tr>
+            <tr>
+              <td>Versioning</td>
+              <td>Done</td>
+              <td>
+                One version for the whole API (1.3.0), a committed description
+                of every contract (<code>packages/plugin/api.lock.json</code>,
+                with slot entries and other untyped members read from their
+                TypeScript types) and <code>pnpm api:lock</code>, which
+                classifies each change as an addition or a break, judging a
+                service from the consumer's side, and refuses to write without
+                the matching version bump (<code>--rebase</code> skips the
+                comparison); <code>engines.bb</code> and versioned
+                <code>requires</code> enforced at load, deprecation with a
+                warning, REST path aliases, and a version header checked between
+                clients and the server.
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <h2 id="today">
+          <span class="num">1</span>Where bb-150k was before this work
+        </h2>
+        <p>
+          A plugin is a directory with a <code>bb</code> block in
+          <code>package.json</code>, a <code>server.ts</code> that receives a
+          <code>bb</code> object, and an <code>app.tsx</code> that registers
+          into slots. Eight plugins ship in the repository. Together they are
+          about 19,000 lines; the server, runner and app that are not plugins
+          are about 92,000.
+        </p>
+        <p>
+          The parts worth keeping: one factory function per side, typed RPC
+          between a plugin's two halves, a SQLite file per plugin, CLI commands
+          that run on the server so the CLI needs no plugin code, and the rule
+          that a failing plugin never stops the server.
+        </p>
+        <p>The signs that plugins are second class:</p>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Sign</th>
+              <th>Evidence</th>
+            </tr>
+            <tr>
+              <td><strong>Plugins can listen but not intervene</strong></td>
+              <td>
+                <code>PluginEvents</code> has eight events, all after the fact.
+                To get anything from plugins, the thread engine asks the plugin
+                host eight fixed questions (<code>instructionsFor</code>,
+                <code>toolsFor</code>, <code>callTool</code>,
+                <code>contributedEnv</code>, <code>emit</code>,
+                <code>searchMentions</code>, <code>generateTitle</code>,
+                <code>skillDirs</code>). A ninth need is a change to core.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>No plugin code runs on a machine</strong></td>
+              <td>
+                Providers are a closed type (<code
+                  >"codex" | "claude-code" | "echo"</code
+                >
+                in <code>packages/runner/src/types.ts</code>) and environment
+                kinds are a closed enum. A remote runner never loads plugin
+                code.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <strong
+                  >Core defines every slot, and the biggest areas have
+                  none</strong
+                >
+              </td>
+              <td>
+                Nine app slots. Timeline rows, tool-call details, composer
+                controls, pickers, thread actions, right-panel tab kinds,
+                settings sections and the navigation rail are inline switches.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>APIs that exist for one plugin</strong></td>
+              <td>
+                <code>machines.setAccessProvider</code> and
+                <code>server.tunnelToken</code> (connect),
+                <code>useQuestionFormHost</code> (ask-user-question), ten
+                <code>useSidebar…</code> hooks (thread-list).
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <strong
+                  >The bundled plugins could not be written by a third
+                  party</strong
+                >
+              </td>
+              <td>
+                Their UIs import <code>@bb/shared-ui</code> and
+                <code>@bb/client-core</code>, which are not among the 15 modules
+                shared with external plugins. They work because they are
+                compiled into the app.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Seams that lead nowhere</strong></td>
+              <td>
+                <code>environments.register</code> and mention resolution are
+                accepted by the API and nothing in the server reads them.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>The shared schemas are closed lists</strong></td>
+              <td>
+                Event types, timeline row kinds, tab kinds, change kinds and
+                command ids are exhaustive zod unions that the app, SDK, CLI and
+                Rust crates all switch on.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <strong>No dependencies, scopes or reload on save</strong>
+              </td>
+              <td>
+                A plugin cannot require or extend another plugin. Settings and
+                storage have one scope for the whole server. Reload is a manual
+                command.
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          The original bb has a far larger API (24 app slots, a host tier on
+          every machine, providers and environments as plugins), and bb-150k
+          pared that back on purpose. Both share one model, though:
+          <em>core decides what can be extended, one surface at a time</em>. The
+          original shows where that model goes when it grows, which is the first
+          lesson in the next section.
+        </p>
+
+        <h2 id="refs"><span class="num">2</span>What the references teach</h2>
+        <p>
+          I found all five. Each was read from source: the four outside projects
+          from fresh clones, the original bb from
+          <code>~/projects/bb</code> (read only). For each, the idea worth
+          taking and the mistake worth avoiding.
+        </p>
+        <div class="cards">
+          <div class="card">
+            <h4>Original bb</h4>
+            <div class="meta">
+              <code>@get-bb/plugin-sdk</code> 0.6.28 · commit
+              <code>32f63ea</code> · about 40 bundled plugins
+            </div>
+            <p>
+              The closest thing to the goal that already exists. Providers,
+              environments, the sidebar, memory, workflows and remote access are
+              all plugins. A plugin has three tiers: a server factory, a browser
+              bundle and a <strong>host</strong> part that the daemon on each
+              machine runs in its own process.
+            </p>
+            <p><span class="take">Take:</span></p>
+            <ul>
+              <li>
+                The host tier. It is the only reason providers and environments
+                can be plugins there.
+              </li>
+              <li>
+                Reload builds the new registrations first and keeps the old
+                plugin running if that fails.
+              </li>
+              <li>
+                Replacement slots (thread list, diff renderer) with a user
+                preference and a built-in fallback.
+              </li>
+              <li>
+                Skills, CLI commands, tools and instructions as things a plugin
+                gives to agents.
+              </li>
+            </ul>
+            <p><span class="avoid">Avoid:</span></p>
+            <ul>
+              <li>
+                Growth by one-off. 24 <code>app.slots.*</code> methods plus five
+                sibling registries; commands can be registered three ways; over
+                100 identifiers still prefixed <code>experimental_</code>; the
+                app contract alone is 3,743 lines.
+              </li>
+              <li>
+                Exactly one hook (<code>message.dispatch</code>). Everything
+                else is an event after the fact, so new behaviour needs a core
+                change.
+              </li>
+              <li>
+                Core still names plugins: side-chat, thread-list and onboarding
+                are special-cased by id.
+              </li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h4>Claude Code mods</h4>
+            <div class="meta">
+              Claude Code v2.1.287+ · read from the docs and the bundled
+              reference
+            </div>
+            <p>
+              The cleanest model of the five. A mod registers
+              <code>on(event, matcher, ($, e, next) =&gt; …)</code>.
+              <code>next(e)</code> runs the mods beneath and then Claude Code's
+              own behaviour, so a hook can watch, rewrite or answer.
+            </p>
+            <p><span class="take">Take:</span></p>
+            <ul>
+              <li>
+                One hook shape for everything, including drawing (<code
+                  >ui.render</code
+                >
+                per site) and the API itself (every <code>$</code> method is
+                also an event another mod can intercept).
+              </li>
+              <li>
+                Built-in features are mods: <code>/diff</code>, AGENTS.md
+                loading, telemetry and the security guard.
+              </li>
+              <li>
+                A mod can add a namespace to the API and ship its types as a
+                contract that dependants receive.
+              </li>
+              <li>
+                <code>validate</code> lists hooks and calls without running the
+                code; <code>test</code> runs against the real engine.
+              </li>
+              <li>
+                State the host holds survives a hot reload; module variables do
+                not.
+              </li>
+            </ul>
+            <p><span class="avoid">Avoid:</span></p>
+            <ul>
+              <li>
+                The price of full generality. The type reference is about 14,000
+                lines, with rules for re-entry, time budgets and text limits
+                that an author must learn.
+              </li>
+              <li>
+                An element system per surface (terminal, desktop, mobile) is a
+                product in itself.
+              </li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h4>Pi</h4>
+            <div class="meta">
+              <code>badlogic/pi-mono</code>, now
+              <code>earendil-works/pi</code> · commit <code>1cedd32</code>
+            </div>
+            <p>
+              A deliberately small core with a large extension API:
+              <code>pi.on(event, handler)</code> plus <code>registerTool</code>,
+              <code>registerCommand</code>, <code>registerProvider</code> and a
+              <code>ctx.ui</code> for dialogs and widgets. Sub-agents, plan mode
+              and permission gates are left out of core and shipped as example
+              extensions.
+            </p>
+            <p><span class="take">Take:</span></p>
+            <ul>
+              <li>
+                Each event declares what a handler may do:
+                <code>tool_call</code> may block, <code>input</code> may
+                transform or handle, most only notify.
+              </li>
+              <li>
+                Built-ins as replaceable extensions: MCP, tool search and code
+                mode are marked <code>replaceable</code>, and a third-party
+                extension that registers the same names takes their place.
+              </li>
+              <li>
+                Dialogs, status and widgets are a small serializable protocol,
+                so they work in the terminal and over RPC.
+              </li>
+              <li>
+                The experimental "chord" plugins: per-environment facets, typed
+                service contracts, replicated state.
+              </li>
+            </ul>
+            <p><span class="avoid">Avoid:</span></p>
+            <ul>
+              <li>
+                Rich UI returns terminal components, so no other client can show
+                it.
+              </li>
+              <li>
+                A different conflict rule per surface: tools are first-wins,
+                shortcuts last-wins, commands get a numeric suffix.
+              </li>
+              <li>
+                No API version in the manifest, and tools cannot be
+                unregistered.
+              </li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h4>Hermes Agent</h4>
+            <div class="meta">
+              <code>NousResearch/hermes-agent</code> · commit
+              <code>61b7f95</code> · 103 bundled <code>plugin.yaml</code>
+            </div>
+            <p>
+              A Python agent with a <code>plugin.yaml</code> manifest and a
+              <code>register(ctx)</code> function. Model providers, chat
+              platforms, search, image, speech and memory backends are plugins.
+              The agent loop and the built-in tools are not.
+            </p>
+            <p><span class="take">Take:</span></p>
+            <ul>
+              <li>
+                An ownership ledger: every registration returns a handle, and
+                unload, failed load and timeout all roll back through it and
+                restore what was displaced.
+              </li>
+              <li>
+                A table of provider categories: one row gives a category its
+                interface, its registry and the config key that picks the active
+                one.
+              </li>
+              <li>
+                Failure policy per hook, and an activation summary after reload.
+              </li>
+              <li>
+                Process isolation as a config switch (<code
+                  >plugins.isolation: host</code
+                >) with unchanged plugin code.
+              </li>
+            </ul>
+            <p><span class="avoid">Avoid:</span></p>
+            <ul>
+              <li>
+                Four discovery systems with opposite rules for who wins a name.
+              </li>
+              <li>
+                Product features leaking into the generic API:
+                <code>register_telegram_handler</code>, eight kanban hooks.
+              </li>
+              <li>
+                Core not using its own API: 47 built-in tool files register
+                directly, bypassing the plugin context.
+              </li>
+              <li>
+                Three unrelated UI plugin mechanisms (dashboard, TUI, desktop).
+              </li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h4>DeepSeek Harness</h4>
+            <div class="meta">
+              <code>deepseek-ai/deepseek-harness</code> · commit
+              <code>5badb15</code> · v0.2.1-alpha.1
+            </div>
+            <p>
+              The one that really is plugins all the way down. It is built on
+              Cordis, a small dependency-injection kernel. The model client,
+              sessions, the tool registry, the agent loop and the plugin manager
+              itself are rows in a YAML list, and the whole web UI is some 60
+              browser plugins.
+            </p>
+            <p><span class="take">Take:</span></p>
+            <ul>
+              <li>
+                Plugins declare the services they need (<code>inject</code>);
+                there is no load order to maintain.
+              </li>
+              <li>
+                Every registration is a reversible effect, so unload and hot
+                reload come for free.
+              </li>
+              <li>
+                UI slots that plugins declare, with kinds (<code>single</code>,
+                <code>list</code>, <code>keyed</code>, <code>chain</code>);
+                registering into an undeclared slot is a load error.
+              </li>
+              <li>
+                Profiles, and <code>--dump-config</code> to show which layer set
+                each row.
+              </li>
+              <li>
+                Creator mode: the agent gets tools to inspect the live services,
+                events and slots, then writes and installs a plugin.
+              </li>
+              <li>
+                The rule that a UI action and an agent tool share one host
+                method.
+              </li>
+            </ul>
+            <p><span class="avoid">Avoid:</span></p>
+            <ul>
+              <li>
+                The authoring weight: 319 packages, types extended by
+                declaration merging everywhere.
+              </li>
+              <li>
+                Replacing a default is "disable its row, insert yours" by
+                convention, with no check that the replacement fits.
+              </li>
+              <li>
+                A list of required plugin ids hard-coded in the launcher, which
+                undercuts "no privileged core".
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>Side by side</h3>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th></th>
+              <th>How a plugin intervenes</th>
+              <th>Is the product built from plugins?</th>
+              <th>UI extension</th>
+              <th>Where plugin code runs</th>
+            </tr>
+            <tr>
+              <td><strong>bb-150k today</strong></td>
+              <td>It cannot; 8 events after the fact</td>
+              <td>8 add-ons; engine, providers and environments are core</td>
+              <td>9 slots defined by core</td>
+              <td>Server, browser</td>
+            </tr>
+            <tr>
+              <td><strong>Original bb</strong></td>
+              <td>One hook, 15 events</td>
+              <td>Providers, environments, sidebar: yes. Engine: no</td>
+              <td>24 slots and 5 registries defined by core</td>
+              <td>Server, browser, each machine</td>
+            </tr>
+            <tr>
+              <td><strong>Claude Code mods</strong></td>
+              <td><code>next</code> middleware on every event and API call</td>
+              <td>Some features are mods</td>
+              <td>Hook any render site; elements per surface</td>
+              <td>One process, in its own environment</td>
+            </tr>
+            <tr>
+              <td><strong>Pi</strong></td>
+              <td>Typed result per event</td>
+              <td>Four built-in extensions; the rest is core</td>
+              <td>Terminal components; serializable dialogs</td>
+              <td>One process (facets are experimental)</td>
+            </tr>
+            <tr>
+              <td><strong>Hermes</strong></td>
+              <td>Hooks, plus 4 kinds of middleware</td>
+              <td>Backends and platforms: yes. Loop and tools: no</td>
+              <td>Dashboard tabs and named slots; TUI and desktop separate</td>
+              <td>One process, or a plugin host process</td>
+            </tr>
+            <tr>
+              <td><strong>DeepSeek Harness</strong></td>
+              <td>
+                5 dispatch modes, one of them <code>next</code> middleware
+              </td>
+              <td>Nearly everything</td>
+              <td>About 76 slots defined by UI plugins</td>
+              <td>Host process and browser</td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          Two patterns stand out. The systems where core uses its own API
+          (DeepSeek, and Claude Code for some features) have one general
+          mechanism. The systems where core does not (Hermes's tools, the
+          original bb's engine) have many specific ones, and they keep growing.
+          And nobody sandboxes plugin code by default.
+        </p>
+
+        <h2 id="difference">
+          <span class="num">3</span>How bb differs from them
+        </h2>
+        <p>
+          All four outside references are <em>harnesses</em>: each owns the loop
+          that sends a request to a model, runs the tool it asks for, and sends
+          the result back. bb sits one level up. It runs other people's
+          harnesses (Claude Code, Codex) on machines, and owns the threads,
+          queues, workspaces, people and screen around them. That changes the
+          design in three ways.
+        </p>
+        <ol>
+          <li>
+            <strong>The moments worth hooking are different.</strong> bb does
+            not see every <code>Bash</code> call before it runs. It sees what a
+            provider reports: turns, items, approval requests, calls to bb's own
+            tools. So bb's hooks sit at sending a message, deciding whether to
+            queue it, building the session a provider starts from, an approval
+            request arriving, events being stored, and a thread changing state.
+          </li>
+          <li>
+            <strong>There are more places code runs.</strong> A harness is one
+            process with one screen. bb has a server, a runner on each machine,
+            a browser per person, and several people. A plugin API for bb has to
+            say where each piece of a plugin runs and how the pieces talk. Of
+            the references, only Pi's experimental "chord" plugins and Hermes's
+            dashboard plugins face this at all.
+          </li>
+          <li>
+            <strong>bb can carry harness plugins down with it.</strong> A bb
+            plugin already ships skills into every session. The same route can
+            ship a Claude Code mod or a Pi extension. "Stop
+            <code>rm -rf</code> inside Claude Code" is a mod that a bb plugin
+            delivers; "show that question in the bb app and let a teammate
+            answer it" is a bb hook. The two layers complement each other, and
+            bb should not try to rebuild the lower one.
+          </li>
+        </ol>
+
+        <h2 id="kernel">
+          <span class="num">4</span>The kernel: what is left when everything is
+          a plugin
+        </h2>
+        <p>
+          The kernel is the part of bb that is not a plugin. It should be small
+          enough to read in an afternoon, and it should not know what a thread,
+          a provider or a sidebar is. It has seven parts. A plugin author sees
+          the first four; the last three work underneath every call.
+        </p>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Kernel part</th>
+              <th>What it does</th>
+              <th>Nearest code today</th>
+            </tr>
+            <tr>
+              <td><strong>Loader</strong></td>
+              <td>
+                Reads manifests, works out which plugins need which, bundles
+                each plugin's parts, starts them in dependency order, and undoes
+                everything a plugin registered when it unloads or fails to load.
+              </td>
+              <td>
+                <code>apps/server/src/plugins/</code>,
+                <code>apps/app/src/plugins/</code>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Operations</strong></td>
+              <td>
+                Lets a plugin define, implement, call and wrap typed functions,
+                and carries a call from one runtime to another.
+              </td>
+              <td>
+                plugin RPC, the typed routes in <code>server-contract</code>,
+                the runner protocol
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Slots</strong></td>
+              <td>
+                Lets a plugin define a typed list and lets others add to it,
+                wrap an entry or replace it.
+              </td>
+              <td><code>apps/app/src/plugins/registry.ts</code></td>
+            </tr>
+            <tr>
+              <td><strong>Storage</strong></td>
+              <td>
+                Gives each plugin a SQLite database with migrations, a key-value
+                store, settings, and values the app can subscribe to.
+              </td>
+              <td>
+                <code>bb.storage</code>, <code>bb.settings</code>,
+                <code>bb.realtime</code>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Caller</strong></td>
+              <td>
+                Carries who is calling (a user, a machine, a plugin, nobody) on
+                every operation and checks it against what the operation allows.
+              </td>
+              <td><code>apps/server/src/auth/actor.ts</code></td>
+            </tr>
+            <tr>
+              <td><strong>Audit</strong></td>
+              <td>
+                Records every operation that changes something: who started it,
+                which plugins it passed through, which hook changed or refused
+                it, and how it ended. It lives in the kernel so that no plugin
+                can skip it.
+              </td>
+              <td>
+                <code>actorUserId</code> on turn requests,
+                <code>created_by_user_id</code> on threads
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Transports</strong></td>
+              <td>
+                One HTTP server, one WebSocket hub and the link to each runner,
+                which operations travel over.
+              </td>
+              <td>
+                <code>http/app.ts</code>, <code>ws/hub.ts</code>,
+                <code>packages/runner/src/remote</code>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          A test for whether the kernel is the right size: with every plugin
+          removed, bb still starts, serves an empty page and answers
+          <code>bb plugin list</code>. Nothing else works, and nothing else
+          should.
+        </p>
+        <div class="diagram">
+          <div class="layers">
+            <div class="layer">
+              <div class="label">Add-ons</div>
+              <div class="boxes">
+                <span class="box">tasks</span
+                ><span class="box">account-pool</span
+                ><span class="box">connect</span><span class="box">secrets</span
+                ><span class="box">custom-instructions</span
+                ><span class="box t">third-party…</span>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="label">Screen</div>
+              <div class="boxes">
+                <span class="box">shell</span
+                ><span class="box">thread-view</span
+                ><span class="box">composer</span
+                ><span class="box">thread-list</span
+                ><span class="box">settings</span
+                ><span class="box">command-palette</span
+                ><span class="box">diff</span><span class="box">terminal</span>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="label">Machines</div>
+              <div class="boxes">
+                <span class="box">provider-claude-code</span
+                ><span class="box">provider-codex</span
+                ><span class="box">provider-echo</span
+                ><span class="box">env-worktree</span
+                ><span class="box">env-checkout</span
+                ><span class="box">files</span
+                ><span class="box">terminals</span>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="label">Product core</div>
+              <div class="boxes">
+                <span class="box">threads</span><span class="box">sessions</span
+                ><span class="box">timeline</span
+                ><span class="box">interactions</span
+                ><span class="box">projects</span
+                ><span class="box">machines</span
+                ><span class="box">environments</span
+                ><span class="box">identity</span
+                ><span class="box">presence</span
+                ><span class="box">search</span>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="label">Kernel</div>
+              <div class="boxes">
+                <span class="box k">loader</span
+                ><span class="box k">operations</span
+                ><span class="box k">slots</span
+                ><span class="box k">storage</span
+                ><span class="box k">caller</span
+                ><span class="box k">audit</span
+                ><span class="box k">transports</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">
+          Every box above the bottom row is a plugin. The rows are only a
+          reading aid: the kernel treats a first-party plugin and a third-party
+          one the same way.
+        </p>
+
+        <h2 id="primitives"><span class="num">5</span>Three primitives</h2>
+        <p>
+          Today's server API has 22 namespaces and the app API has 9 slots and
+          about 20 hooks, and each was built by hand in core for a particular
+          need. The proposal replaces them with three things a plugin can
+          define, and a handful of verbs for using what other plugins defined.
+        </p>
+
+        <h3>The contract: what a plugin offers, as types</h3>
+        <p>
+          Each plugin has a <strong>contract</strong>: a file of names and
+          schemas with no behaviour in it. Other plugins import the contract,
+          never the implementation. Because it is only types and zod schemas, it
+          is safe to import from the server, the runner and the browser alike.
+        </p>
+        <pre><code>// plugins/threads/contract.ts
+import { contract, op, event } from "@bb/plugin";
+
+export const threads = contract("threads", {
+  send:   op({ input: SendInput, output: SendResult, allow: "member" }),
+  stop:   op({ input: ThreadRef, output: Nothing,   allow: "member" }),
+  title:  op({ input: TitleInput, output: Title }),
+  idle:   event({ thread: Thread, lastAssistantText: Text.nullable() }),
+});</code></pre>
+
+        <h3>Primitive 1: operations</h3>
+        <p>
+          An <strong>operation</strong> is a named, typed function. One plugin
+          implements it. Any plugin can call it. Any plugin can wrap it with a
+          <strong>hook</strong>, and the implementation is simply the last link
+          in the chain of hooks. This is the shape Claude Code mods use (<code
+            >($, e, next)</code
+          >), and it lets one mechanism cover three needs that today have three
+          separate APIs.
+        </p>
+        <pre><code>// the owner: plugins/threads/server.ts
+export default plugin((bb) =&gt; {
+  bb.implement(threads.send, (input, ctx) =&gt; engine.send(input, ctx.caller));
+});
+
+// call it: any other plugin, in any runtime
+await bb.call(threads.send, { threadId, text: "Run the tests again" });
+
+// observe it: let it through, then act on the result
+bb.on(threads.send, async (e, next) =&gt; {
+  const result = await next(e);
+  metrics.count("sent");
+  return result;
+});
+
+// rewrite it: change what the rest of the chain sees
+bb.on(threads.title, async (e, next) =&gt; next({ ...e, maxLength: 48 }));
+
+// answer it: do not call next, so the owner never runs
+bb.on(threads.title, { projectId: "proj_personal" }, async () =&gt; ({ title: "Scratch" }));</code></pre>
+        <p>
+          An <strong>event</strong> is the simple case: an operation with nobody
+          to answer it. <code>bb.emit(threads.idle, …)</code> tells whoever is
+          listening; <code>bb.on(threads.idle, …)</code> listens.
+        </p>
+        <p>
+          The contract states what a hook may do with each operation: only
+          watch, change the input, or answer in the owner's place. Pi does this
+          per event (its <code>tool_call</code> handlers may block, its
+          <code>input</code> handlers may transform or handle) and it keeps
+          hooks honest: a plugin cannot quietly swallow
+          <code>threads.send</code> unless the threads plugin said that is
+          allowed.
+        </p>
+
+        <h4>One operation, several doors</h4>
+        <p>
+          Today the tasks plugin describes "create a task" once as an RPC method
+          for its app half, again as a CLI command, and again for agents. An
+          operation can say where it should be reachable, and the kernel builds
+          each door from the one schema.
+        </p>
+        <pre><code>export const tasks = contract("tasks", {
+  create: op({
+    input: z.object({ title: z.string(), project: z.string().optional() }),
+    output: Task,
+    allow: "member",
+    doors: {
+      cli: "tasks create &lt;title&gt; [--project &lt;key&gt;]",   // bb tasks create …
+      agent: "Create a task in bb Tasks",               // a tool in every session
+      http: "POST /tasks",                              // for scripts and webhooks
+    },                                                  // the app can always call it
+  }),
+});</code></pre>
+        <p>
+          This is also what makes the CLI a plugin surface with no plugin code
+          in it: the Rust and Node CLIs already ask the server for plugin
+          commands and send <code>argv</code> to it. With doors, every
+          <code>bb</code> command except <code>bb server</code> and
+          <code>bb runner</code> can come from that table.
+        </p>
+
+        <h3>Primitive 2: slots</h3>
+        <p>
+          A <strong>slot</strong> is a named, typed list that one plugin defines
+          and reads, and other plugins add to. Slots are for things that are
+          collections by nature: providers, kinds of environment, navigation
+          panels, renderers for timeline rows, settings pages, commands.
+        </p>
+        <pre><code>// plugins/shell/contract.ts
+export const shell = contract("shell", {
+  navPanel:   slot({ item: NavPanel }),
+  command:    slot({ item: Command }),
+  threadList: slot({ item: ThreadListView, pick: "one" }),   // exactly one is active
+});
+
+// plugins/tasks/app.tsx
+bb.add(shell.navPanel, { id: "tasks", title: "Tasks", icon: "Tasks", path: "/tasks", view: TasksApp });
+
+// plugins/sessions/contract.ts, filled on the runner
+export const sessions = contract("sessions", {
+  provider: slot({ item: ProviderAdapter, key: "id" }),
+});
+
+// plugins/provider-codex/runner.ts
+bb.add(sessions.provider, codexAdapter);</code></pre>
+        <p>
+          The important change is who defines them. Today all nine app slots are
+          defined by core, so adding a tenth means changing core. Here the shell
+          plugin defines the shell's slots, the thread view defines its own, and
+          the tasks plugin can define <code>tasks.detailSection</code> so that
+          someone else can extend Tasks. A plugin's own surface is extendable by
+          the same means as bb's.
+        </p>
+        <p>
+          <code>pick: "one"</code> covers the "choose a backend" case that
+          Hermes handles with a config key per category
+          (<code>memory.provider</code>, <code>tts.provider</code>): several
+          plugins may add an entry, one is active, and the choice is a setting.
+          When the active one unloads, the one it displaced comes back.
+        </p>
+
+        <h3>Primitive 3: state</h3>
+        <pre><code>const db = bb.db({ migrations });                 // this plugin's own SQLite file
+const kv = bb.kv;                                 // small values, no schema
+const settings = bb.settings.define(fields, { scope: "user" });   // workspace | user | project
+const unread = bb.live("unread", 0);              // held by the server, pushed to subscribers</code></pre>
+        <p>
+          <code>bb.live</code> replaces <code>realtime.publish</code> plus
+          hand-written cache invalidation: the server holds the value, the app
+          reads it with <code>useLive(tasks.unread)</code>, and it survives a
+          reload of the plugin because the kernel holds it, not the plugin's
+          module. Claude mods separate <code>$.state</code> (the host's,
+          survives reload) from module variables (lost on reload) for the same
+          reason. Settings take a scope from the start, because bb is multi-user
+          now and the current API has one scope for the whole server.
+        </p>
+
+        <h3>Today's API in the new terms</h3>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Today</th>
+              <th>Becomes</th>
+            </tr>
+            <tr>
+              <td>
+                <code>rpc.register</code>, <code>http.route</code>,
+                <code>cli.register</code>, <code>agents.registerTool</code>
+              </td>
+              <td>One operation with doors</td>
+            </tr>
+            <tr>
+              <td>
+                <code>events.on("thread.idle")</code> and the seven other fixed
+                events
+              </td>
+              <td>
+                <code>bb.on(threads.idle)</code>, plus any operation or event
+                any plugin defines
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code>agents.contributeInstructions</code>,
+                <code>providers.contributeEnv</code>
+              </td>
+              <td>
+                Hooks on <code>sessions.instructions</code> and
+                <code>sessions.env</code>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code>environments.register</code>,
+                <code>inference.register</code>,
+                <code>ui.registerMentionProvider</code>,
+                <code>machines.setAccessProvider</code>
+              </td>
+              <td><code>bb.add</code> to a slot the owning plugin defines</td>
+            </tr>
+            <tr>
+              <td>
+                <code>threads.*</code>, <code>projects.list</code>,
+                <code>hosts.list</code>, <code>files.*</code>,
+                <code>sections.*</code>, <code>users.*</code>
+              </td>
+              <td><code>bb.call</code> on those plugins' contracts</td>
+            </tr>
+            <tr>
+              <td>
+                <code>server.setPublicUrl</code>,
+                <code>server.tunnelToken</code> (added for connect)
+              </td>
+              <td>
+                The connect plugin hooks <code>identity.publicUrl</code>; no
+                special case
+              </td>
+            </tr>
+            <tr>
+              <td><code>realtime.publish</code>, <code>useRealtime</code></td>
+              <td><code>bb.live</code>, <code>useLive</code></td>
+            </tr>
+            <tr>
+              <td>
+                App slots <code>navPanel</code>, <code>threadPanel</code>,
+                <code>settingsSection</code>, <code>threadList</code>, …
+              </td>
+              <td>
+                <code>bb.add</code> to slots the shell, thread view and settings
+                plugins define
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Ten <code>useSidebar…</code> hooks (added for thread-list)
+              </td>
+              <td>
+                The thread-list plugin calls the <code>threads</code> contract
+                like anyone else
+              </td>
+            </tr>
+            <tr>
+              <td><code>onDispose</code></td>
+              <td>
+                Mostly gone: the loader undoes every <code>implement</code>,
+                <code>on</code> and <code>add</code> itself
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <h2 id="runtimes">
+          <span class="num">6</span>One plugin, several runtimes
+        </h2>
+        <p>
+          A plugin today is a server file and an app file. That is why providers
+          and environments cannot be plugins: both run on the machine, inside
+          the runner, and a plugin has no part there. The proposal gives a
+          plugin up to three code parts, each with the same
+          <code>bb</code> verbs.
+        </p>
+        <div class="diagram">
+          <div class="runtimes">
+            <div class="rt">
+              <b>app.tsx</b>Browser, one per person.<br /><span
+                >Fills screen slots, calls operations, reads live values.</span
+              >
+            </div>
+            <div class="rt">
+              <b>server.ts</b>Server, one per workspace.<br /><span
+                >Implements operations, owns the database, hooks the product
+                core.</span
+              >
+            </div>
+            <div class="rt">
+              <b>runner.ts</b>Runner, one per machine.<br /><span
+                >Provider adapters, environment kinds, anything that touches the
+                machine's files and processes.</span
+              >
+            </div>
+            <div class="rt">
+              <b>No code: doors</b>CLI, agent tools, HTTP.<br /><span
+                >Built by the kernel from operations that ask for them.</span
+              >
+            </div>
+          </div>
+        </div>
+        <pre><code>// plugins/provider-codex/package.json
+"bb": {
+  "id": "provider-codex",
+  "name": "Codex",
+  "requires": ["sessions"],
+  "contract": "./contract.ts",
+  "server": "./server.ts",
+  "runner": "./runner.ts",
+  "app": "./app.tsx",
+  "skills": "./skills"
+}</code></pre>
+        <p>Two rules keep this simple:</p>
+        <ul>
+          <li>
+            <strong>Operations cross runtimes; slots do not.</strong> The app
+            calls a server operation, the server calls a runner operation, and
+            the kernel carries the call (over HTTP and the WebSocket for the
+            app, over the existing runner link for machines). A slot lives in
+            one runtime. When another runtime needs to know what is in it, the
+            owner offers an operation: the sessions plugin answers
+            <code>sessions.providers</code> so the app can draw a model picker.
+          </li>
+          <li>
+            <strong>The server hands out the code.</strong> It already bundles a
+            plugin's app part and serves it to browsers. It would bundle the
+            runner part the same way and send it down the runner link when a
+            machine connects, keyed by content hash, so a remote machine never
+            needs the plugin installed by hand.
+          </li>
+        </ul>
+        <p>
+          The runner protocol does not need to change shape. It is already "call
+          a named method, get a result, receive events on a reliable lane"; the
+          method names become operation names, and the rule "only the methods of
+          <code>Runner</code> can be called" becomes "only operations a runner
+          part implements". <code>ProviderAdapter</code> (<code>status</code>,
+          <code>listModels</code>, <code>open</code>) is already the right shape
+          for a slot entry.
+        </p>
+        <div class="note">
+          <p>
+            <strong>Precedent.</strong> The original bb already has this third
+            part: a plugin's <code>host</code> entry runs in the daemon on each
+            machine, and that is how its Claude Code, Codex and worktree plugins
+            work. bb-150k dropped it when it folded the daemon into the runner.
+            Pi is trying the same split in its experimental "chord" plugins: a
+            plugin declares <em>facets</em> (a session worker and a TUI), they
+            share a typed service contract, and the server builds the UI facet
+            and ships it to clients. Hermes went the other way and ended up with
+            three unrelated UI plugin mechanisms (dashboard, TUI, desktop) that
+            share nothing.
+          </p>
+        </div>
+
+        <h2 id="ui"><span class="num">7</span>The app is plugins too</h2>
+        <p>
+          "Everything is a plugin" is hardest in the app, because a screen is a
+          tree and somebody has to own each level. The proposal: a few screen
+          plugins each own one region and define the slots inside it.
+        </p>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Plugin</th>
+              <th>Owns</th>
+              <th>Slots it defines for others</th>
+            </tr>
+            <tr>
+              <td><code>shell</code></td>
+              <td>
+                Layout, router, navigation rail, overlays, keyboard shortcuts
+              </td>
+              <td>
+                <code>route</code>, <code>navPanel</code>,
+                <code>sidebar</code> (pick one), <code>overlay</code>,
+                <code>command</code>
+              </td>
+            </tr>
+            <tr>
+              <td><code>thread-view</code></td>
+              <td>The timeline and the thread header</td>
+              <td>
+                <code>row</code> (one renderer per kind of row),
+                <code>panel</code>, <code>headerAction</code>,
+                <code>directive</code>, <code>interaction</code>
+              </td>
+            </tr>
+            <tr>
+              <td><code>composer</code></td>
+              <td>The prompt box</td>
+              <td>
+                <code>action</code>, <code>mention</code>,
+                <code>attachment</code>, <code>picker</code>
+              </td>
+            </tr>
+            <tr>
+              <td><code>settings</code></td>
+              <td>The settings screen</td>
+              <td>
+                <code>page</code>; plugin settings pages are generated from
+                <code>settings.define</code>
+              </td>
+            </tr>
+            <tr>
+              <td><code>thread-list</code></td>
+              <td>The sidebar's list of threads (already a plugin)</td>
+              <td>
+                <code>rowBadge</code>, <code>rowAction</code>,
+                <code>section</code>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          A plugin can do three things to a slot, and these are the whole UI
+          extension model:
+        </p>
+        <ul>
+          <li>
+            <strong>Add</strong> an entry: a panel, a command, a renderer for a
+            new kind of row.
+          </li>
+          <li>
+            <strong>Wrap</strong> an entry someone else added:
+            <code
+              >bb.wrap(threadView.row, { kind: "tool-call" }, (Row) =&gt;
+              (props) =&gt; …)</code
+            >. This is the React form of a hook, the same idea as a Claude mod
+            answering <code>ui.render</code> for the <code>ToolUse</code> site
+            and calling <code>next</code>.
+          </li>
+          <li>
+            <strong>Replace</strong> the active entry of a pick-one slot: a
+            different sidebar, a different thread list.
+          </li>
+        </ul>
+        <h3>What an app part looks like</h3>
+        <p>
+          It is still React, Tailwind and the UI kit. Three things change: slots
+          come from other plugins' contracts, data comes through one family of
+          hooks, and the core screens register the same way add-ons do. These
+          are sketches; the hook names are not settled.
+        </p>
+        <p>
+          <strong>Filling slots.</strong> The Tasks entry file, which today
+          calls <code>app.slots.navPanel</code>, <code>threadPanel</code> and
+          <code>messageDirective</code>:
+        </p>
+        <pre><code>// plugins/tasks/app.tsx
+import { plugin } from "@bb/plugin/app";
+import { shell } from "@bb/shell/contract";
+import { threadView } from "@bb/thread-view/contract";
+import { tasks } from "./contract";
+
+export default plugin((bb) =&gt; {
+  bb.add(shell.navPanel, { id: "tasks", title: "Tasks", icon: "ListTodo", path: "tasks", view: TasksAppShell });
+  bb.add(threadView.panel, { id: "task", title: "Task", icon: "ListTodo", view: TaskEmbedPanel });
+  bb.add(threadView.directive, { name: "task", view: TaskDirectiveCard });
+
+  // data only: no component, so it also shows up in `bb` help and on a phone
+  bb.add(shell.command, { id: "tasks.new", title: "New task", shortcut: "mod+shift+t", run: tasks.create });
+});</code></pre>
+        <p>
+          <strong>Reading and writing data.</strong> Tasks today carries its own
+          fetch-state hook and batches realtime signals by hand
+          (<code>plugins/tasks/shell/data.ts</code>). With operations, the
+          kernel knows the types and knows when the server said something
+          changed:
+        </p>
+        <pre><code>import { useOp, useCall, useLive } from "@bb/plugin/app";
+import { tasks } from "../contract";
+
+function TaskList({ projectKey }: { projectKey: string }) {
+  const list = useOp(tasks.list, { projectKey });   // typed by the contract; refetches when the server marks it changed
+  const create = useCall(tasks.create);              // the same operation the CLI and agents call
+  const unread = useLive(tasks.unread);              // a value the server holds and pushes
+
+  if (list.status === "loading") return &lt;Skeleton /&gt;;
+  return (
+    &lt;Panel title={`Tasks (${unread} new)`} action={&lt;Button onClick={() =&gt; create({ title: "Untitled" })}&gt;New&lt;/Button&gt;}&gt;
+      {list.data.map((task) =&gt; &lt;TaskRow key={task.id} task={task} /&gt;)}
+    &lt;/Panel&gt;
+  );
+}</code></pre>
+        <p>
+          <strong>Owning a slot.</strong> The timeline today picks a renderer
+          with a <code>switch (row.kind)</code> in
+          <code>ThreadTimelineRows.tsx</code>. As a plugin, the thread view
+          reads its own slot, and registers its built-in rows exactly as an
+          outsider would:
+        </p>
+        <pre><code>// plugins/thread-view/app/Timeline.tsx
+function Row({ row }: { row: TimelineRow }) {
+  const entry = useSlotEntry(threadView.row, row.kind);   // keyed slot: one renderer per kind
+  const View = entry?.view ?? UnknownRow;                  // a kind nobody registered still draws something
+  return &lt;Mount entry={entry}&gt;&lt;View row={row} /&gt;&lt;/Mount&gt;;  // Mount is the per-entry error boundary
+}
+
+// plugins/thread-view/app.tsx
+bb.add(threadView.row, { kind: "conversation", view: ConversationRow });
+bb.add(threadView.row, { kind: "work", view: WorkRow });
+bb.add(threadView.row, { kind: "system", view: SystemRow });</code></pre>
+        <p>
+          <strong>Wrapping.</strong> A third-party plugin that adds a cost badge
+          under every tool-call row, without replacing the row:
+        </p>
+        <pre><code>bb.wrap(threadView.row, { kind: "work" }, (Row) =&gt;
+  function WorkRowWithCost(props) {
+    return (&lt;&gt;&lt;Row {...props} /&gt;&lt;CostBadge row={props.row} /&gt;&lt;/&gt;);
+  },
+);</code></pre>
+        <p>
+          <strong>The shell.</strong> <code>App.tsx</code> stops listing routes
+          and becomes a reader of slots:
+        </p>
+        <pre><code>// plugins/shell/app/App.tsx
+function App() {
+  const routes = useSlot(shell.route);
+  const Sidebar = useSlotPick(shell.sidebar);     // pick-one: thread-list unless the user chose another
+  const overlays = useSlot(shell.overlay);
+  return (
+    &lt;Layout sidebar={&lt;Sidebar /&gt;}&gt;
+      &lt;Routes&gt;
+        {routes.map((r) =&gt; &lt;Route key={r.id} path={r.path} element={&lt;Mount entry={r}&gt;&lt;r.view /&gt;&lt;/Mount&gt;} /&gt;)}
+      &lt;/Routes&gt;
+      {overlays.map((o) =&gt; &lt;Mount key={o.id} entry={o}&gt;&lt;o.view /&gt;&lt;/Mount&gt;)}
+    &lt;/Layout&gt;
+  );
+}</code></pre>
+
+        <h3>Prefer data to components</h3>
+        <p>
+          Commands, menu items, badges, status lines, toasts, settings forms and
+          questions to the user can all be described as plain data. Data
+          contributions cost nothing to render somewhere new: the same command
+          shows up in the web command palette, in <code>bb</code> help, and in a
+          phone layout. Components are for when a plugin needs its own pixels.
+        </p>
+        <p>
+          The references show both sides of this. Pi's dialogs, status and
+          widgets are a small serializable protocol, so they work in its
+          terminal UI and over RPC; its custom renderers return terminal
+          components, so they reach no other client. Claude mods solved it with
+          an element table per surface, which is powerful and a large thing to
+          build. For bb I would not build a cross-surface element system now. I
+          would make the data contributions rich and let React cover the rest.
+        </p>
+        <h3>What the app half stops needing</h3>
+        <p>
+          The app API today exports hooks that exist because one plugin needed
+          core's private state: <code>useSidebarThreads</code>,
+          <code>useSidebarThreadDraft</code>,
+          <code>useQuestionFormHost</code> and so on. When the thread engine
+          publishes a contract, those become
+          <code>useOp(threads.list, …)</code> and
+          <code>useLive(…)</code> against it, and the app API shrinks to a few
+          generic hooks plus shared components such as <code>ThreadChat</code>,
+          which the thread-view plugin would export through its contract.
+        </p>
+
+        <h2 id="map"><span class="num">8</span>bb-150k as plugins</h2>
+        <p>
+          A first cut of how today's code would divide. Line counts are
+          approximate and exclude tests. "Parts" says where the plugin's code
+          would run.
+        </p>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Plugin</th>
+              <th>Today</th>
+              <th>Lines</th>
+              <th>Parts</th>
+              <th>What it would define for others</th>
+            </tr>
+            <tr>
+              <td><code>threads</code></td>
+              <td>
+                <code>apps/server/src/threads</code> (engine, dispatch,
+                lifecycle, create, mutations, parent notices),
+                <code>db/threads</code>, <code>db/events</code>
+              </td>
+              <td>~3,000</td>
+              <td>server</td>
+              <td>
+                Operations <code>create</code>, <code>send</code>,
+                <code>stop</code>, <code>archive</code>; events
+                <code>idle</code>, <code>failed</code>…; a slot for reasons a
+                message may wait
+              </td>
+            </tr>
+            <tr>
+              <td><code>sessions</code></td>
+              <td>
+                <code>threads/session-spec.ts</code>, <code>execution.ts</code>,
+                <code>tool-calls.ts</code>;
+                <code>packages/runner/src/sessions</code>;
+                <code>providers/catalog.ts</code>, <code>models.ts</code>
+              </td>
+              <td>~1,500</td>
+              <td>server, runner</td>
+              <td>
+                Operations <code>spec</code>, <code>instructions</code>,
+                <code>tools</code>, <code>env</code>, <code>skills</code>; the
+                <code>provider</code> slot
+              </td>
+            </tr>
+            <tr>
+              <td><code>timeline</code></td>
+              <td>
+                <code>threads/timeline*.ts</code>,
+                <code>db/event-read.ts</code>, <code>packages/thread-view</code>
+              </td>
+              <td>~9,500</td>
+              <td>server, app</td>
+              <td>A registry of event and row kinds</td>
+            </tr>
+            <tr>
+              <td><code>interactions</code></td>
+              <td>
+                <code>threads/interactions.ts</code>, pending-interaction
+                schemas
+              </td>
+              <td>~1,100</td>
+              <td>server, app</td>
+              <td>
+                Operations <code>request</code>, <code>ask</code>; a renderer
+                slot
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code>provider-claude-code</code>, <code>-codex</code>,
+                <code>-echo</code>
+              </td>
+              <td>
+                <code>packages/runner/src/providers</code>, the three catalog
+                seeds, <code>title-service.ts</code>
+              </td>
+              <td>~1,860 / 1,400 / 345</td>
+              <td>runner, server</td>
+              <td>Nothing; each fills the <code>provider</code> slot</td>
+            </tr>
+            <tr>
+              <td><code>environments</code></td>
+              <td>
+                <code>apps/server/src/environments</code>,
+                <code>db/environments</code>
+              </td>
+              <td>~1,300</td>
+              <td>server</td>
+              <td>
+                The lifecycle (create, provision, retire, restore); the
+                <code>kind</code> slot
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code>env-worktree</code>, <code>env-checkout</code>,
+                <code>env-personal</code>
+              </td>
+              <td>
+                <code>packages/runner/src/workspace/worktrees.ts</code>,
+                branches in <code>manager.ts</code> and <code>create.ts</code>
+              </td>
+              <td>~500</td>
+              <td>runner, server</td>
+              <td>Nothing; each fills the <code>kind</code> slot</td>
+            </tr>
+            <tr>
+              <td><code>workspace</code></td>
+              <td>
+                Runner git, files and diff; <code>http/routes/files.ts</code>
+              </td>
+              <td>~1,500</td>
+              <td>runner, server</td>
+              <td>
+                Operations for reading, writing and diffing files on a machine
+              </td>
+            </tr>
+            <tr>
+              <td><code>terminals</code></td>
+              <td>
+                <code>terminals/sessions.ts</code>, runner terminals, the
+                terminal UI
+              </td>
+              <td>~600 + UI</td>
+              <td>runner, server, app</td>
+              <td>A right-panel tab kind</td>
+            </tr>
+            <tr>
+              <td><code>machines</code></td>
+              <td>
+                <code>apps/server/src/runners</code>, <code>db/hosts</code>
+              </td>
+              <td>~730</td>
+              <td>server, app</td>
+              <td>
+                Enrollment, sharing; a slot for how a machine reaches the server
+                (connect fills it)
+              </td>
+            </tr>
+            <tr>
+              <td><code>projects</code></td>
+              <td>
+                <code>db/projects</code>, <code>projects/</code>, attachments
+              </td>
+              <td>~570</td>
+              <td>server, app</td>
+              <td>Operations on projects</td>
+            </tr>
+            <tr>
+              <td><code>identity</code></td>
+              <td>
+                <code>http/trust.ts</code>, <code>routes/users.ts</code>,
+                <code>db/users</code>, <code>auth/</code>, login views
+              </td>
+              <td>~860 + UI</td>
+              <td>server, app</td>
+              <td>
+                A pick-one slot for how people sign in; <code>publicUrl</code>
+              </td>
+            </tr>
+            <tr>
+              <td><code>presence</code>, <code>search</code></td>
+              <td>
+                Part of <code>ws/hub.ts</code>; <code>db/thread-search.ts</code>
+              </td>
+              <td>small</td>
+              <td>server, app</td>
+              <td>Leaves; good first extractions</td>
+            </tr>
+            <tr>
+              <td><code>shell</code></td>
+              <td>
+                <code>App.tsx</code>, <code>AppLayout</code>, sidebar, command
+                palette, dialogs
+              </td>
+              <td>~4,900</td>
+              <td>app</td>
+              <td>Routes, panels, overlays, commands</td>
+            </tr>
+            <tr>
+              <td><code>thread-view</code></td>
+              <td>
+                <code>views/thread-detail</code>, <code>components/thread</code>
+              </td>
+              <td>~12,700</td>
+              <td>app</td>
+              <td>Row renderers, panels, header actions</td>
+            </tr>
+            <tr>
+              <td><code>composer</code></td>
+              <td>
+                <code>components/promptbox</code>,
+                <code>components/pickers</code>
+              </td>
+              <td>~11,200</td>
+              <td>app</td>
+              <td>Actions, mentions, pickers</td>
+            </tr>
+            <tr>
+              <td><code>side-panel</code></td>
+              <td>
+                <code>components/secondary-panel</code>, diff and code viewers
+              </td>
+              <td>~7,100</td>
+              <td>app</td>
+              <td>Tab kinds, file openers</td>
+            </tr>
+            <tr>
+              <td><code>settings</code></td>
+              <td>
+                <code>components/settings</code>, <code>SettingsView</code>,
+                keybindings
+              </td>
+              <td>~3,600</td>
+              <td>server, app</td>
+              <td>Pages</td>
+            </tr>
+            <tr>
+              <td>The 8 existing plugins</td>
+              <td><code>plugins/*</code></td>
+              <td>~19,400</td>
+              <td>as now</td>
+              <td>Ported to the new API</td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          What stays outside plugins: the kernel; the UI kit
+          (<code>components/ui</code>, about 7,900 lines), which becomes a
+          library every app part may import; the base types in
+          <code>@bb/domain</code> (ids, JSON, the event envelope); the CLI's
+          offline commands (<code>bb server</code>, <code>bb runner</code>,
+          <code>bb guide</code>); and the relay, which is a separate service.
+        </p>
+
+        <h3>The four hard parts</h3>
+        <p>
+          The table makes this look like a matter of moving files. Four things
+          are harder than that.
+        </p>
+        <ol>
+          <li>
+            <strong>Closed lists have to open.</strong> Event types, row kinds,
+            tab kinds, change kinds and command ids are exhaustive unions that
+            five packages switch on, the Rust CLI among them. Each becomes "a
+            common envelope, plus a payload checked by whichever plugin
+            registered that kind", and every consumer needs a default for kinds
+            it does not know.
+          </li>
+          <li>
+            <strong>One database with joins.</strong> The thread list joins
+            threads, events, environments, machines and per-user state. Plugins
+            today get a separate SQLite file each, which cannot join. I would
+            let a plugin ask for tables in the shared database, with migrations
+            ordered by <code>requires</code>, and let a contract publish a table
+            or view that others may read. Writes stay with the owner. This is
+            the design question I am least sure of.
+          </li>
+          <li>
+            <strong
+              >The typed HTTP contract and SDK assume a fixed set of
+              routes.</strong
+            >
+            <code>public-api.ts</code> is one file of 1,000 lines and the SDK
+            mirrors it by area. Both become compositions of plugin contracts.
+          </li>
+          <li>
+            <strong
+              >App parts need far more shared code than 15 modules.</strong
+            >
+            The query client, the router, the UI kit and other plugins'
+            contracts all have to be importable by an external plugin, or
+            first-party plugins keep an advantage that third parties cannot
+            have.
+          </li>
+        </ol>
+
+        <h2 id="walk">
+          <span class="num">9</span>A message's path through the plugins
+        </h2>
+        <p>
+          What happens when someone presses Enter, with each step named as the
+          operation, slot or event it would be. The first line under each step
+          is the plugin that owns it; the rest are plugins that would hook it or
+          add to it.
+        </p>
+        <div class="diagram">
+          <div class="flow">
+            <div class="step">
+              <div class="where">app</div>
+              <div class="op">composer.submit</div>
+              <ul>
+                <li class="own">composer</li>
+                <li>tasks: resolve <code>@ABC-12</code></li>
+                <li>saved prompts: expand a snippet</li>
+              </ul>
+            </div>
+            <div class="step">
+              <div class="where">server</div>
+              <div class="op">threads.send</div>
+              <ul>
+                <li class="own">threads</li>
+                <li>machines: is this machine shared with the caller?</li>
+                <li>a limit plugin: hold it in the queue</li>
+              </ul>
+            </div>
+            <div class="step">
+              <div class="where">server</div>
+              <div class="op">sessions.spec</div>
+              <ul>
+                <li class="own">sessions</li>
+                <li>custom-instructions: add text</li>
+                <li>ask-user-question, tasks: add tools</li>
+                <li>account-pool, secrets: add env</li>
+              </ul>
+            </div>
+            <div class="step">
+              <div class="where">runner</div>
+              <div class="op">sessions.submitTurn</div>
+              <ul>
+                <li class="own">sessions</li>
+                <li>provider slot: claude-code, codex, echo</li>
+                <li>environment slot: worktree, checkout</li>
+              </ul>
+            </div>
+            <div class="step">
+              <div class="where">server</div>
+              <div class="op">interactions.request</div>
+              <ul>
+                <li class="own">interactions</li>
+                <li>a policy plugin: approve or refuse</li>
+                <li>ask-user-question: draw the form</li>
+              </ul>
+            </div>
+            <div class="step">
+              <div class="where">server</div>
+              <div class="op">threads.idle</div>
+              <ul>
+                <li class="own">threads</li>
+                <li>tasks: update the linked task</li>
+                <li>search: index the reply</li>
+                <li>notifications</li>
+              </ul>
+            </div>
+            <div class="step">
+              <div class="where">app</div>
+              <div class="op">threadView.row</div>
+              <ul>
+                <li class="own">thread-view</li>
+                <li>one renderer per kind of row</li>
+                <li>inline previews, diffs</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p>
+          Today the engine reaches plugins at the third step through eight
+          purpose-built questions on the plugin host
+          (<code>instructionsFor</code>, <code>toolsFor</code>,
+          <code>callTool</code>, <code>contributedEnv</code>, <code>emit</code>,
+          <code>searchMentions</code>, <code>generateTitle</code>,
+          <code>skillDirs</code>). Each was added when a plugin needed it. In
+          the proposal the engine calls its own operations, and anything that
+          wants a say hooks them; a ninth need is a new operation in the
+          sessions contract, with no change to the kernel.
+        </p>
+
+        <h3>The same plugin, before and after</h3>
+        <p>
+          Custom instructions is the smallest real plugin in the repository.
+          Before, it uses three purpose-built APIs (settings,
+          <code>contributeInstructions</code>, a hand-built CLI). After, it is
+          one hook and two operations.
+        </p>
+        <pre><code>// plugins/custom-instructions/server.ts, proposed
+import { plugin } from "@bb/plugin";
+import { sessions } from "@bb/sessions/contract";
+import { customInstructions as own } from "./contract";
+
+export default plugin((bb) =&gt; {
+  const settings = bb.settings.define({
+    text: { type: "string", multiline: true, default: "", label: "Custom instructions" },
+  });
+
+  bb.on(sessions.instructions, async (e, next) =&gt; {
+    const sections = await next(e);
+    const { text } = await settings.get();
+    return text.trim() ? [...sections, { id: "custom", text }] : sections;
+  });
+
+  bb.implement(own.get, async () =&gt; (await settings.get()).text);      // door: bb instructions get
+  bb.implement(own.set, async ({ text }) =&gt; { await settings.set({ text }); });   // door: bb instructions set
+});</code></pre>
+        <p>
+          A plugin that could not be written today, because nothing can hold an
+          approval and no plugin runs on a machine:
+        </p>
+        <pre><code>// plugins/quiet-hours/server.ts: after 10pm, pushes wait for a person
+bb.on(interactions.request, { kind: "approval" }, async (e, next) =&gt; {
+  if (!isPush(e.command) || !isLate()) return next(e);
+  const answer = await bb.call(interactions.ask, {
+    threadId: e.threadId, title: "Push outside working hours?", choices: ["Push", "Wait"],
+  });
+  return answer === "Push" ? next(e) : { deny: "Held by quiet-hours until morning" };
+}).failClosed();</code></pre>
+
+        <h2 id="profiles">
+          <span class="num">10</span>Profiles: a build of bb is a list of
+          plugins
+        </h2>
+        <p>
+          Once the product is plugins, "which bb is this?" has a plain answer: a
+          <strong>profile</strong>, a named list of plugins with their settings
+          and the choice for each pick-one slot.
+        </p>
+        <pre><code>// profiles/default.json
+{
+  "plugins": ["threads", "sessions", "timeline", "interactions", "projects", "machines",
+              "environments", "env-worktree", "env-checkout", "provider-claude-code", "provider-codex",
+              "identity", "shell", "thread-view", "composer", "thread-list", "settings", "tasks", "connect"],
+  "pick": { "shell.sidebar": "thread-list", "identity.signIn": "local-accounts" },
+  "settings": { "provider-codex": { "enabled": true } }
+}</code></pre>
+        <p>
+          The profiles I would expect to exist: <code>default</code> (today's
+          product), <code>headless</code> (no screen plugins, for a server that
+          only the CLI and agents talk to), <code>hosted</code> (sign-in from
+          the relay, no local machine), and <code>dev</code> (adds the echo
+          provider and plugin tooling). A workspace adds its own plugins on top
+          of a profile.
+        </p>
+        <p>
+          DeepSeek Harness is the reference here. Its profiles are ordered lists
+          of bundles plus a patch file, it ships <code>web</code>,
+          <code>headless</code>, <code>sdk</code> and <code>acp</code> profiles,
+          and <code>dsh --dump-config</code> prints the final list with a note
+          of which layer set each row. That last command matters more than it
+          looks: when everything can be replaced, "what is actually running and
+          why" must be one command away. bb should have
+          <code>bb plugin list --why</code> from the first day.
+        </p>
+
+        <h2 id="trust">
+          <span class="num">11</span>Trust, audit, order and failure
+        </h2>
+        <h3>Trust</h3>
+        <p>
+          Plugin code would run in the server process, the runner process and
+          the page with full authority, as it does today. Every reference does
+          the same: Claude's docs say "a mod is code that runs with your
+          permissions", DeepSeek's say its checks are "not a sandbox against
+          malicious package code", and Pi has no permission model. Only Hermes
+          offers a separate process, as an opt-in. I would not build a sandbox
+          now, but I would build three cheaper things:
+        </p>
+        <ul>
+          <li>
+            <strong>Who may call.</strong> Each operation states who may call it
+            (<code>owner</code>, <code>member</code>, <code>runner</code>,
+            <code>anyone</code>) and the kernel checks it. The identity plugin
+            decides who the caller is; the kernel only enforces. Today that
+            check is spread across the trust middleware and individual routes.
+          </li>
+          <li>
+            <strong>What it touches, before it runs.</strong> Because a plugin
+            reaches the rest of bb only through <code>bb.call</code>,
+            <code>bb.on</code> and <code>bb.add</code> on named contracts,
+            <code>bb plugin validate</code> can list what a plugin hooks and
+            calls by reading its source, and installing can show that list.
+            Claude Code does this (<code>claude plugin validate</code> prints
+            <code>hooks:</code> and <code>calls:</code>). It does not stop a
+            plugin from using <code>node:fs</code> directly, so it is a
+            description for the installer, not a guarantee.
+          </li>
+          <li>
+            <strong>Who may install what.</strong> Server and runner parts are
+            installed by a workspace owner. A machine's owner decides whether
+            their machine accepts runner parts from a workspace, since a shared
+            machine would otherwise run code a teammate chose.
+          </li>
+        </ul>
+        <h3>Audit</h3>
+        <p>
+          bb is multi-user, and once the product is plugins, most of what
+          happens in a workspace is some plugin acting for some person. Being
+          able to see who did what, and through which plugin, has to be part of
+          the kernel and not a feature added later. The design makes this cheap,
+          because everything already goes through one place.
+        </p>
+        <p>
+          <strong>Every call carries its whole origin.</strong> Today a request
+          has an actor (a user, or the user a machine acts for). In the proposal
+          the caller is a chain, and each plugin that makes a call on someone's
+          behalf is added to it:
+        </p>
+        <pre><code>{
+  user: "usr_maya",                       // the person it is done for
+  door: "agent",                          // app | cli | agent | http | timer
+  thread: "thr_9f2k",                     // the agent session that asked, if any
+  via: ["tasks"],                         // plugins the call passed through, in order
+}</code></pre>
+        <p>
+          <strong
+            >The kernel writes one record per operation that changes
+            something.</strong
+          >
+          A contract marks each operation as a read or a write. Writes are
+          always recorded; reads can be turned on per operation.
+        </p>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>When</th>
+              <th>Operation</th>
+              <th>Who</th>
+              <th>Through</th>
+              <th>Hooks that acted</th>
+              <th>Outcome</th>
+            </tr>
+            <tr>
+              <td>14:02:11</td>
+              <td><code>threads.send</code></td>
+              <td>Maya</td>
+              <td>app</td>
+              <td>none</td>
+              <td>ok</td>
+            </tr>
+            <tr>
+              <td>14:02:40</td>
+              <td><code>tasks.create</code></td>
+              <td>Maya</td>
+              <td>agent in <code>thr_9f2k</code></td>
+              <td>none</td>
+              <td>ok</td>
+            </tr>
+            <tr>
+              <td>14:03:05</td>
+              <td><code>threads.create</code></td>
+              <td>Maya</td>
+              <td>agent → <code>tasks</code></td>
+              <td><code>account-pool</code> rewrote <code>env</code></td>
+              <td>ok</td>
+            </tr>
+            <tr>
+              <td>22:14:52</td>
+              <td><code>interactions.request</code></td>
+              <td>Jon</td>
+              <td>runner on <code>mac-mini</code></td>
+              <td><code>quiet-hours</code> answered</td>
+              <td>denied: "Held until morning"</td>
+            </tr>
+            <tr>
+              <td>22:20:03</td>
+              <td><code>plugins.install</code></td>
+              <td>Sam (owner)</td>
+              <td>cli</td>
+              <td>none</td>
+              <td>ok: <code>quiet-hours</code> 0.2.0</td>
+            </tr>
+          </table>
+        </div>
+        <p>What makes this more than a request log:</p>
+        <ul>
+          <li>
+            <strong>Hooks are named.</strong> When a hook rewrites an input or
+            answers in the owner's place, the record says which plugin did it.
+            "Why did my push not go through?" has an answer that names a plugin.
+          </li>
+          <li>
+            <strong>Agents are told apart from people.</strong> Today an agent's
+            <code>bb</code> call is attributed to the user who last wrote in
+            that thread. The record keeps both: it was Maya's agent, in this
+            thread, and not Maya at a keyboard.
+          </li>
+          <li>
+            <strong>Plugin changes are operations too.</strong> Install, enable,
+            disable, reload and every settings change go through the kernel, so
+            they appear with the person who made them.
+          </li>
+          <li>
+            <strong>Secrets stay out.</strong> A contract marks fields as
+            secret, and the record keeps their presence but not their value.
+          </li>
+          <li>
+            <strong>Plugins can read the log but not edit it.</strong> The
+            kernel emits each record as an event, so a plugin can forward it to
+            an outside system. Nothing can hook the write itself. An
+            <code>audit</code> plugin provides the screen and
+            <code>bb audit</code>; owners see everything, members see their own
+            actions.
+          </li>
+        </ul>
+        <div class="note warn">
+          <p>
+            <strong>The honest limit.</strong> The log covers what goes through
+            operations. A plugin that calls <code>node:fs</code> or
+            <code>fetch</code> directly leaves no record. Three steps close the
+            gap, in increasing cost: give plugins <code>bb.fs</code>,
+            <code>bb.http</code> and <code>bb.process</code> that are recorded
+            (Claude Code mods can reach the outside <em>only</em> this way,
+            which is why it can list what a mod does); have
+            <code>bb plugin validate</code> flag any direct use of Node
+            built-ins and show it at install; and, for a real guarantee, run
+            third-party plugins in their own process where those built-ins are
+            not available. That last step is the same work as isolation, so
+            wanting audit to be trustworthy is a reason to do isolation earlier
+            than I first suggested.
+          </p>
+        </div>
+
+        <h3>Order</h3>
+        <p>
+          When several plugins hook one operation, order is decided by tier,
+          then by dependency, then by the profile's list. Claude Code uses the
+          same idea with <code>prepend</code>, <code>user</code>,
+          <code>append</code> and <code>builtin</code> tiers.
+        </p>
+        <div class="diagram">
+          <div class="boxes" style="align-items: center">
+            <span class="box"
+              >policy<br /><span class="small">pinned by the owner</span></span
+            ><span class="small">→</span>
+            <span class="box"
+              >installed<br /><span class="small"
+                >third-party plugins</span
+              ></span
+            ><span class="small">→</span>
+            <span class="box"
+              >product<br /><span class="small">first-party plugins</span></span
+            ><span class="small">→</span>
+            <span class="box k"
+              >owner<br /><span class="small">the implementation</span></span
+            >
+          </div>
+        </div>
+        <h3>Failure</h3>
+        <ul>
+          <li>
+            <strong>A hook that only watches fails open.</strong> If it throws
+            or runs past its time limit, it is skipped, logged, and the plugin
+            is marked degraded.
+          </li>
+          <li>
+            <strong>A hook that guards fails closed.</strong> It says so with
+            <code>.failClosed()</code>, and a crash refuses the operation.
+            Hermes does this per hook (<code>pre_tool_call</code> blocks on
+            timeout, the others do not); Claude Code does it with a
+            <code>.catch</code> handler.
+          </li>
+          <li>
+            <strong>Unload is one path.</strong> Unload, failed load and reload
+            all reverse the plugin's registrations through the loader's record,
+            and a pick-one slot goes back to whatever the plugin displaced. A
+            <code>bb</code> object from an unloaded plugin throws when used, as
+            in Pi and the original bb.
+          </li>
+          <li>
+            <strong>Reload says what changed.</strong> Hooks and commands are
+            live at once; tools and instructions reach a provider only on its
+            next session. Hermes prints this as an "activation summary", and bb
+            should too.
+          </li>
+        </ul>
+
+        <h2 id="dev"><span class="num">12</span>Writing one</h2>
+        <p>
+          bb is a tool for running coding agents, so the most likely author of a
+          bb plugin is an agent in a bb thread. The dev loop should be built for
+          that.
+        </p>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Command</th>
+              <th>What it does</th>
+              <th>Reference</th>
+            </tr>
+            <tr>
+              <td><code>bb plugin new &lt;name&gt;</code></td>
+              <td>Writes a folder with a manifest, a contract and one part.</td>
+              <td>original bb</td>
+            </tr>
+            <tr>
+              <td><code>bb plugin dev &lt;dir&gt;</code></td>
+              <td>
+                Loads the folder and reloads it when files change. When an agent
+                in a thread is the one editing, reload waits for the end of its
+                turn.
+              </td>
+              <td>Claude Code <code>--plugin-dir</code></td>
+            </tr>
+            <tr>
+              <td><code>bb plugin types &lt;dir&gt;</code></td>
+              <td>
+                Writes the contracts of every plugin it requires into the
+                folder, so it type-checks with no install step.
+              </td>
+              <td>Claude Code writes types beside each mod</td>
+            </tr>
+            <tr>
+              <td><code>bb plugin validate &lt;dir&gt;</code></td>
+              <td>
+                Checks the manifest and lists what the plugin hooks, calls and
+                adds, without running it.
+              </td>
+              <td>Claude Code, Hermes</td>
+            </tr>
+            <tr>
+              <td><code>bb plugin test &lt;dir&gt;</code></td>
+              <td>
+                Runs its <code>*.test.ts</code> against a real kernel with an
+                in-memory database and the echo provider.
+              </td>
+              <td>Claude Code; original bb's fakes</td>
+            </tr>
+            <tr>
+              <td><code>bb plugin inspect</code></td>
+              <td>
+                Lists the live operations, slots and hooks, with their schemas.
+                Also offered to agents as a tool.
+              </td>
+              <td>DeepSeek Harness creator mode</td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          The last row is the one that makes agent-written plugins work.
+          DeepSeek's "creator mode" gives the agent read-only tools to query the
+          running system's services, events and UI slots, so it writes against
+          what is there and not against documentation that may be stale. With
+          contracts as data, bb gets this almost for free.
+        </p>
+        <p>
+          The authoring skill, the templates and these commands would themselves
+          be a plugin (<code>plugin-dev</code>), left out of the
+          <code>hosted</code> profile.
+        </p>
+
+        <h2 id="migration"><span class="num">13</span>Getting there</h2>
+        <p>
+          "From scratch" for the API does not have to mean a stopped product.
+          Each step below leaves bb working.
+        </p>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Step</th>
+              <th>What changes</th>
+              <th>What it proves</th>
+            </tr>
+            <tr>
+              <td><strong>1. Kernel</strong></td>
+              <td>
+                Build the loader, operations, slots, storage and the audit
+                record beside the current plugin host. Re-express today's
+                <code>PluginServerApi</code> and <code>definePluginApp</code> as
+                a thin layer over them, so the eight plugins keep running
+                untouched.
+              </td>
+              <td>The primitives can carry everything the current API does.</td>
+            </tr>
+            <tr>
+              <td><strong>2. Port the eight</strong></td>
+              <td>
+                Rewrite the existing plugins against the new API, Tasks first:
+                it has the most duplicated surface (RPC, CLI, tools).
+              </td>
+              <td>The API is pleasant to write. Expect to change it here.</td>
+            </tr>
+            <tr>
+              <td><strong>3. Runner parts</strong></td>
+              <td>
+                Load plugin code in the runner and ship it to remote machines.
+                Move the echo provider out first, then Codex and Claude Code,
+                then the environment kinds.
+              </td>
+              <td>
+                The third runtime works. This is the step with the most new
+                machinery.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>4. Leaves</strong></td>
+              <td>
+                Presence, search, terminals, the title service, settings pages,
+                right-panel tabs.
+              </td>
+              <td>
+                Core features can live outside core without anyone noticing.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>5. The screen</strong></td>
+              <td>
+                Shell, thread view, composer and side panel become plugins that
+                define slots. Timeline rows and tool-call details become
+                registered kinds.
+              </td>
+              <td>
+                Third parties can change the parts of the app people look at
+                most.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>6. The middle</strong></td>
+              <td>Projects, machines, identity, interactions, environments.</td>
+              <td>The shared-database rules hold up.</td>
+            </tr>
+            <tr>
+              <td><strong>7. The engine</strong></td>
+              <td>
+                Threads and sessions move last, and
+                <code>ServerContext</code> disappears.
+              </td>
+              <td>Nothing in the product uses a private API.</td>
+            </tr>
+            <tr>
+              <td><strong>8. Outsiders</strong></td>
+              <td>
+                Install from npm and git, <code>validate</code>,
+                <code>test</code>, <code>dev</code>, <code>inspect</code>, the
+                authoring skill.
+              </td>
+              <td>Someone else can do what we just did.</td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          One rule from the first day makes the rest honest:
+          <strong
+            >plugin code may import only <code>@bb/plugin</code>, the UI kit and
+            other plugins' contract files</strong
+          >, enforced by lint (the repository already has its own oxlint
+          plugin). Hermes and the original bb both show what happens without it:
+          core keeps a private door, and the public API never becomes good
+          enough to build core with.
+        </p>
+        <p>
+          Steps 1 to 3 are where the design is tested. If they go badly, the
+          product has lost nothing, because the old API is still running on top.
+        </p>
+
+        <h2 id="risks">
+          <span class="num">14</span>Risks, and what I would not do
+        </h2>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Risk</th>
+              <th>Why it is real</th>
+              <th>What I would do about it</th>
+            </tr>
+            <tr>
+              <td><strong>The code gets harder to follow</strong></td>
+              <td>
+                "What happens on send" is one file today. With hooks it is a
+                chain assembled at run time.
+              </td>
+              <td>
+                <code>bb plugin inspect threads.send</code> prints the chain in
+                order. Hooks go only at named seams, never inside the engine's
+                transaction.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>The engine's guarantees leak</strong></td>
+              <td>
+                Per-thread queues and the single writer for thread status are
+                what keep threads from corrupting. A hook that awaits a slow
+                call in the wrong place breaks them.
+              </td>
+              <td>
+                The engine calls its operations between its short critical
+                sections, as it already does for runner calls. Hooks get a time
+                limit.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Hot paths slow down</strong></td>
+              <td>Event ingest and timeline projection run for every delta.</td>
+              <td>
+                Offer batched events there, not middleware. Middleware is for
+                things that happen once per message or per turn.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Too many operations</strong></td>
+              <td>
+                DeepSeek Harness has 319 packages and 80 events. That is a lot
+                to learn.
+              </td>
+              <td>
+                A function becomes an operation when a second plugin needs it,
+                not before. Start with a few dozen.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Contracts churn</strong></td>
+              <td>
+                Every contract is a public API the moment a third party imports
+                it.
+              </td>
+              <td>
+                While this is a prototype, change freely. Add a version to the
+                manifest (Pi regrets having none) and mark contracts
+                <code>stable</code> one at a time.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>A plugin crashes the server</strong></td>
+              <td>
+                Core features become peers of third-party code in one process.
+              </td>
+              <td>
+                Failure rules from section 11. Keep operation inputs and outputs
+                serializable so a plugin can later move to its own process
+                without changing.
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>What I would not do:</p>
+        <ul>
+          <li>
+            <strong>Not make the kernel's own parts replaceable.</strong>
+            DeepSeek lets you swap the loader and plugin manager. That is the
+            least useful flexibility and the hardest to keep working.
+          </li>
+          <li>
+            <strong>Not build a second UI system.</strong> No element trees, no
+            terminal surface. React and data contributions.
+          </li>
+          <li>
+            <strong>Not copy any reference's API surface.</strong> Their events
+            are about model requests and tool calls. bb's are about threads,
+            machines and people.
+          </li>
+          <li>
+            <strong>Not design the engine to be swapped.</strong> It should be a
+            plugin in form, using only the public API. Whether anyone could
+            write a different one is not a goal.
+          </li>
+        </ul>
+
+        <h2 id="decisions"><span class="num">15</span>Decisions for you</h2>
+        <p>
+          These are the choices that shape the rest. My recommendation is first
+          in each.
+        </p>
+
+        <div class="decision">
+          <h4>1. How literally "everything"?</h4>
+          <p>
+            <span class="rec">Recommended:</span> everything is a plugin
+            <em>in form</em> (it loads through the kernel and uses only the
+            public API), and the leaves are <em>designed to be swapped</em>:
+            providers, environments, sign-in, sidebar, renderers.
+          </p>
+          <p>
+            The alternatives are to keep the thread engine in core (less work,
+            but core keeps a private door and the API stays second class), or to
+            make every plugin replaceable (DeepSeek's position, and a much
+            larger surface to keep stable).
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>2. One hook shape, or a result type per event?</h4>
+          <p>
+            <span class="rec">Recommended:</span>
+            <code>(e, next)</code> middleware everywhere, as in Claude Code,
+            with each contract stating what a hook may do. It is one thing to
+            learn, and "run something after" needs no second event.
+          </p>
+          <p>
+            The alternative is Pi's and Hermes's style, where each event has its
+            own result type (<code>{block}</code>, <code>{transform}</code>). It
+            is easier to read for simple cases, and it is how both ended up with
+            40 or more event names.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>3. Should third-party code run on machines?</h4>
+          <p>
+            <span class="rec">Recommended:</span> yes, since providers and
+            environments cannot be plugins otherwise; first-party runner parts
+            only at first, and a machine's owner approves each workspace whose
+            runner parts it will run.
+          </p>
+          <p>
+            This interacts with the multi-user work: on a shared machine, a
+            workspace owner's plugin would run under the machine owner's
+            account.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>4. How should core plugins share a database?</h4>
+          <p>
+            <span class="rec">Recommended:</span> tables in the shared file,
+            owned by one plugin each, with published read-only tables or views
+            that others may join.
+          </p>
+          <p>
+            The alternative is strict isolation (a file per plugin, reads only
+            through operations). It is cleaner and would make the thread list,
+            which joins five tables today, much slower or much more complicated.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>5. React only, or a UI description that works elsewhere too?</h4>
+          <p>
+            <span class="rec">Recommended:</span> React for views, plain data
+            for commands, menus, badges, forms and questions. Revisit if a
+            native mobile app or a terminal UI becomes real.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>6. In-process, or a process per plugin?</h4>
+          <p>
+            <span class="rec">Recommended:</span> in-process now. Keep
+            everything that crosses an operation serializable, so that isolation
+            can later be a setting, as it is in Hermes.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>7. How strong should the audit guarantee be?</h4>
+          <p>
+            <span class="rec">Recommended:</span> from step 1, record every
+            write operation with its full caller chain and the hooks that acted
+            on it; give plugins recorded <code>bb.fs</code>,
+            <code>bb.http</code> and <code>bb.process</code>; flag direct use of
+            Node built-ins at install. Treat it as complete only for plugins
+            that run in a separate process.
+          </p>
+          <p>
+            If "a third-party plugin cannot act without a record" is a
+            requirement and not a goal, decision 6 changes: third-party server
+            and runner parts would run out of process from the start, and only
+            first-party plugins stay in-process.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>8. Should plugins written for the original bb keep working?</h4>
+          <p>
+            <span class="rec">Recommended:</span> no source compatibility. The
+            factory shape stays close enough (<code>(bb) =&gt; …</code>,
+            <code>definePluginApp</code>-like app entry) that porting is
+            mechanical, and step 1's compatibility layer could be kept for the
+            server half if your own plugins need it.
+          </p>
+        </div>
+
+        <div class="decision">
+          <h4>9. Per-person plugins?</h4>
+          <p>
+            <span class="rec">Recommended:</span> give settings and storage a
+            scope (workspace, user, project) from the start, and leave "a member
+            installs an app-only plugin just for themselves" until after step 5.
+          </p>
+        </div>
+
+        <h2 id="sources">Sources</h2>
+        <div class="tablewrap">
+          <table>
+            <tr>
+              <th>Subject</th>
+              <th>What was read</th>
+            </tr>
+            <tr>
+              <td>bb-150k</td>
+              <td>
+                This repository: <code>packages/plugin</code>,
+                <code>docs/architecture.md</code>, <code>REPORT.md</code>, and a
+                sweep of <code>apps/server</code>, <code>apps/app</code>,
+                <code>packages/runner</code>, <code>apps/cli</code> and
+                <code>plugins/*</code>
+              </td>
+            </tr>
+            <tr>
+              <td>Original bb</td>
+              <td>
+                <code>~/projects/bb</code> at <code>32f63ea</code>, read only:
+                <code>packages/plugin-sdk</code>, the server plugin host, the
+                app plugin loader, <code>plugins/*</code>, the plugin-authoring
+                skill
+              </td>
+            </tr>
+            <tr>
+              <td>Claude Code mods</td>
+              <td>
+                <a href="https://code.claude.com/docs/en/plugins/mods/overview"
+                  >Mods overview</a
+                >,
+                <a href="https://code.claude.com/docs/en/plugins/mods/reference"
+                  >Mods reference</a
+                >, and the plugin-authoring reference bundled with Claude Code
+                2.1.293. Built-in mod sources:
+                <a
+                  href="https://github.com/anthropics/claude-code/tree/main/mods"
+                  >anthropics/claude-code/mods</a
+                >
+              </td>
+            </tr>
+            <tr>
+              <td>Pi</td>
+              <td>
+                <a href="https://github.com/badlogic/pi-mono"
+                  >badlogic/pi-mono</a
+                >
+                at <code>1cedd32</code> (the READMEs now point to
+                <code>earendil-works/pi</code>):
+                <code>packages/coding-agent/src/core/extensions</code>,
+                <code>docs/extensions.md</code>, <code>packages/chord</code>
+              </td>
+            </tr>
+            <tr>
+              <td>Hermes Agent</td>
+              <td>
+                <a href="https://github.com/NousResearch/hermes-agent"
+                  >NousResearch/hermes-agent</a
+                >
+                at <code>61b7f95</code>: <code>hermes_cli/plugins*.py</code>,
+                <code>plugins/</code>, <code>web/src/plugins</code>
+              </td>
+            </tr>
+            <tr>
+              <td>DeepSeek Harness</td>
+              <td>
+                <a href="https://github.com/deepseek-ai/deepseek-harness"
+                  >deepseek-ai/deepseek-harness</a
+                >
+                at <code>5badb15</code>: <code>vendor/cordis</code>,
+                <code>vendor/loader</code>, <code>packages/boot</code>,
+                <code>packages/bundle</code>, <code>packages/client</code>.
+                Background:
+                <a
+                  href="https://thenewstack.io/deepseek-harness-open-source-plugins/"
+                  >The New Stack</a
+                >
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p class="small">
+          How much to trust the details: I read the bb-150k plugin package, its
+          architecture document and the Claude Code material myself. The other
+          four codebases, and the sweep of bb-150k's core, were read by research
+          agents working from the clones; I spot-checked their main claims
+          (commits, the host tier, Pi's replaceable built-ins, Hermes's ledger,
+          the Cordis base) and did not recheck every count. Line counts and
+          totals are approximate. Nothing in the proposal has been built or
+          measured.
+        </p>
+      </main>
+    </div>
+    <script>
+      (function () {
+        var re =
+          /(\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b(import|from|export|default|const|await|async|return|if|type|interface|function|new|for|of|yield)\b/g;
+        function esc(s) {
+          return s
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+        document.querySelectorAll("pre code").forEach(function (el) {
+          var text = el.textContent,
+            out = "",
+            last = 0,
+            m;
+          re.lastIndex = 0;
+          while ((m = re.exec(text))) {
+            out += esc(text.slice(last, m.index));
+            var cls = m[1] ? "tok-c" : m[2] ? "tok-s" : "tok-k";
+            out += '<span class="' + cls + '">' + esc(m[0]) + "</span>";
+            last = m.index + m[0].length;
+          }
+          el.innerHTML = out + esc(text.slice(last));
+        });
+      })();
+    </script>
+  </body>
+</html>

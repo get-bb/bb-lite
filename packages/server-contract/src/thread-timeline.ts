@@ -177,6 +177,7 @@ export const timelineGenericOperationSystemRowSchema =
     systemKind: z.literal("operation"),
     operationKind: timelineGenericSystemOperationKindSchema,
     reasoningId: z.string().optional(),
+    plugin: domain.pluginRowSchema.optional(),
     completedAt: z.number().nullable(),
   });
 

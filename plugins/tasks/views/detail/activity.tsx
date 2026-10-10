@@ -5,6 +5,7 @@ import AttachmentIcon from "@hugeicons/core-free-icons/AttachmentIcon";
 import Notification02Icon from "@hugeicons/core-free-icons/Notification02Icon";
 import NotificationOff02Icon from "@hugeicons/core-free-icons/NotificationOff02Icon";
 import {
+  callOp,
   Icon,
   ProviderIcon,
   useBbNavigate,
@@ -23,8 +24,12 @@ import {
   MarkdownEditor,
   MarkdownView,
 } from "../../editor/markdown.js";
-import { errorMessage, reportError, useTasksRpc } from "../../shell/data.js";
-import type { Attachment, DisplayComment } from "../../shared/contract.js";
+import { errorMessage, reportError } from "../../shell/data.js";
+import {
+  tasks,
+  type Attachment,
+  type DisplayComment,
+} from "../../shared/contract.js";
 import { AttachmentsGrid, uploadAttachment } from "./attachments.js";
 
 const AVATAR_CLASS =
@@ -165,7 +170,6 @@ function CommentComposer({
   notifyLabel: string;
   canNotify: boolean;
 }) {
-  const rpc = useTasksRpc();
   const [body, setBody] = useState("");
   const [notify, setNotify] = useState(true);
   const [sending, setSending] = useState(false);
@@ -179,8 +183,11 @@ function CommentComposer({
     if (!canSend) return;
     setSending(true);
     setError(null);
-    rpc
-      .call("createComment", { taskId, body: body.trim(), notify: notifying })
+    callOp(tasks.createComment, {
+      taskId,
+      body: body.trim(),
+      notify: notifying,
+    })
       .then(
         () => setBody(""),
         (cause: unknown) => setError(errorMessage(cause)),

@@ -1,118 +1,130 @@
-import { createElement, useEffect, useMemo, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { describeKernel, server, threads } from "@bb/plugin/app";
+import {
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type {
   BbContext,
   BbNavigate,
+  Live,
+  Op,
+  OpState,
   PluginAppHost,
-  PluginEnvironmentProvidersState,
-  PluginProvidersState,
-  PluginRpcClient,
-  PluginRpcContract,
-  PluginSettingsState,
-  PluginSidebarThreadRowStatus,
+  EnvironmentProvidersState,
+  ProvidersState,
+  SettingsState,
 } from "@bb/plugin/app";
 import { Icon } from "@bb/shared-ui/icon";
 import { useQuestionFormHost } from "@bb/shared-ui/question-form-host";
-import { PluginThreadChat } from "@/components/plugin/PluginThreadChat";
-import { PluginThreadTitle } from "@/components/plugin/PluginThreadTitle";
-import { ThreadViewers } from "@/components/users/ThreadViewers";
-import { PluginUrlLink } from "@/components/plugin/PluginUrlLink";
-import { ProviderIcon } from "@/components/plugin/ProviderIcon";
-import { usePluginThreadPanelOpenHandler } from "@/components/plugin/plugin-thread-panel-navigation";
-import { SidebarNavigationIcon } from "@/components/sidebar/SidebarNavigationModel";
-import { useSystemEnvironmentProviders } from "@/hooks/queries/environment-provider-queries";
-import { usePluginSettingsView } from "@/hooks/queries/plugin-settings-queries";
-import { useSystemProviders } from "@/hooks/queries/system-queries";
-import { useRouteState } from "@/hooks/useRouteState";
-import { useServerConnectionState } from "@/hooks/useServerConnectionState";
-import { useAppNavigationHost } from "@/lib/url-open-routing";
-import { getPluginBoundSdk } from "@/lib/plugin-bound-sdk";
+import { ImageLightbox } from "@bb/app-kit/components/ui/image-lightbox";
 import {
-  useSidebarNavigation,
-  useSidebarSplitLayout,
-  useSidebarThreadActions,
-  useSidebarThreadSplit,
-  useSidebarThreadDraft,
-  useSidebarThreadDraftIds,
-  useSidebarThreadShortcut,
-  useSidebarThreads,
-} from "@/lib/plugin-sidebar-hooks";
+  PluginDiff,
+  PluginFileLink,
+  PluginMarkdown,
+} from "@bb/app-kit/components/plugin/PluginContent";
+import { ThreadViewers } from "@bb/app-kit/components/users/ThreadViewers";
+import { PluginUrlLink } from "@bb/app-kit/components/plugin/PluginUrlLink";
+import { ProviderIcon } from "@bb/app-kit/components/plugin/ProviderIcon";
+import { usePluginThreadPanelOpenHandler } from "@bb/app-kit/components/plugin/plugin-thread-panel-navigation";
+import { useSystemEnvironmentProviders } from "@bb/app-kit/hooks/queries/environment-provider-queries";
+import { usePluginSettingsView } from "@bb/app-kit/hooks/queries/plugin-settings-queries";
+import { useSystemProviders } from "@bb/app-kit/hooks/queries/system-queries";
+import { useRouteState } from "@bb/app-kit/hooks/useRouteState";
+import { useServerConnectionState } from "@bb/app-kit/hooks/useServerConnectionState";
+import { useAppNavigationHost } from "@bb/app-kit/lib/url-open-routing";
 import {
   getPluginPanelRoutePath,
   getProjectComposeRoutePath,
   getRootComposeRoutePath,
   getThreadRoutePath,
-} from "@/lib/route-paths";
-import { sdk } from "@/lib/sdk";
-import { wsManager } from "@/lib/ws";
-import { usePluginId } from "./context";
+} from "@bb/app-kit/lib/route-paths";
+import { wsManager } from "@bb/app-kit/lib/ws";
+import { useCodeTheme } from "@bb/app-kit/lib/code-theme-registration";
+import { requestFileOpen } from "@bb/app-kit/lib/file-open-requests";
+import { PluginContext, usePluginId } from "@bb/app-kit/plugins/context";
+import { readLive } from "@bb/app-kit/plugins/ops";
+import { appKernel, callOp } from "@bb/app-kit/plugins/registry";
+import {
+  SlotMount,
+  useSlot,
+  useSlotEntries,
+  useSlotEntry,
+} from "@bb/app-kit/plugins/slots";
 
-async function callPluginRpc(
-  pluginId: string,
-  method: string,
+export const OP_QUERY_KEY = "op";
+
+function useOp<O extends Op>(
+  op: O,
   input: unknown,
-): Promise<unknown> {
-  const response = await fetch(
-    `/api/v1/plugins/${encodeURIComponent(pluginId)}/rpc/${encodeURIComponent(method)}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input ?? null),
-    },
-  );
-  const body = (await response.json().catch(() => null)) as {
-    ok?: unknown;
-    result?: unknown;
-    error?: string | { message?: unknown; code?: unknown; issues?: unknown };
-  } | null;
-  if (response.ok && body?.ok === true) return body.result;
-  const failure = body?.error;
-  const { message, code, issues } =
-    typeof failure === "object" ? failure : { message: failure };
-  const fallback = `rpc "${method}" failed (HTTP ${response.status})`;
-  throw Object.assign(
-    new Error(typeof message === "string" ? message : fallback),
-    typeof code === "string" ? { code } : {},
-    Array.isArray(issues) ? { issues } : {},
-  );
-}
-
-function useRpc<
-  Contract extends PluginRpcContract = PluginRpcContract,
->(): PluginRpcClient<Contract> {
-  const pluginId = usePluginId();
-  const client = useMemo(
+  options: { enabled?: boolean } = {},
+): OpState<never> {
+  const plugin = useContext(PluginContext) ?? undefined;
+  const query = useQuery({
+    queryKey: [OP_QUERY_KEY, op.name, input],
+    queryFn: ({ signal }) => callOp(op, input as never, { signal, plugin }),
+    enabled: options.enabled ?? true,
+  });
+  const { data, error, status, refetch } = query;
+  return useMemo(
     () => ({
-      call: (method: string, input?: unknown) =>
-        callPluginRpc(pluginId, method, input),
+      status:
+        status === "pending"
+          ? "loading"
+          : status === "error"
+            ? "error"
+            : "ready",
+      data: data as never,
+      error,
+      refetch: () => void refetch(),
     }),
-    [pluginId],
+    [data, error, status, refetch],
   );
-  return client as PluginRpcClient<Contract>;
 }
 
-function useRealtime(
-  channel: string,
-  handler: (payload: unknown) => void,
-): void {
-  const pluginId = usePluginId();
+function useCall<O extends Op>(op: O) {
+  const plugin = useContext(PluginContext) ?? undefined;
+  return useCallback(
+    (input: unknown) =>
+      callOp(op, input as never, { plugin }) as Promise<never>,
+    [op, plugin],
+  );
+}
+
+function useLive<L extends Live>(live: L) {
+  const query = useQuery({
+    queryKey: [OP_QUERY_KEY, live.name],
+    queryFn: () => readLive(live),
+  });
+  return query.data as never;
+}
+
+function useChanged(member: Op | Live, handler: () => void): void {
   const handlerRef = useRef(handler);
   useEffect(() => {
     handlerRef.current = handler;
   });
+  const { name } = member;
   useEffect(
     () =>
-      wsManager.onPluginSignal((signal) => {
-        if (signal.pluginId !== pluginId || signal.channel !== channel) return;
-        handlerRef.current(signal.payload);
+      wsManager.onPluginSignal(({ pluginId, channel, payload }) => {
+        if (pluginId !== "kernel" || channel !== "changed") return;
+        if ((payload as { name?: unknown }).name === name) handlerRef.current();
       }),
-    [pluginId, channel],
+    [name],
   );
 }
 
-function useSettings(): PluginSettingsState {
-  const query = usePluginSettingsView(usePluginId(), { enabled: true });
+function useSettings(options?: { projectId?: string }): SettingsState {
+  const query = usePluginSettingsView(usePluginId(), {
+    enabled: true,
+    projectId: options?.projectId,
+  });
   const stored = query.data?.values;
   const values = useMemo(() => {
     if (stored === undefined) return undefined;
@@ -127,11 +139,20 @@ function useSettings(): PluginSettingsState {
 }
 
 const EMPTY_PROVIDERS: readonly never[] = [];
+const NO_FLAGS: Readonly<Record<string, boolean>> = {};
 
-function useProviders(): PluginProvidersState {
+function useExperiments(): Readonly<Record<string, boolean>> {
+  const read: OpState<{ flags: Record<string, boolean> }> = useOp(
+    server.experiments,
+    {},
+  );
+  return read.data?.flags ?? NO_FLAGS;
+}
+
+function useProviders(): ProvidersState {
   const query = useSystemProviders();
   const providers = query.data;
-  return useMemo<PluginProvidersState>(
+  return useMemo<ProvidersState>(
     () =>
       providers === undefined
         ? {
@@ -143,15 +164,9 @@ function useProviders(): PluginProvidersState {
   );
 }
 
-function useSdk() {
-  const pluginId = usePluginId();
-  const queryClient = useQueryClient();
-  return getPluginBoundSdk(pluginId, queryClient);
-}
-
-function useEnvironmentProviders(): PluginEnvironmentProvidersState {
+function useEnvironmentProviders(): EnvironmentProvidersState {
   const { providers } = useSystemEnvironmentProviders();
-  return useMemo<PluginEnvironmentProvidersState>(
+  return useMemo<EnvironmentProvidersState>(
     () =>
       providers === undefined
         ? { status: "loading", providers: EMPTY_PROVIDERS }
@@ -176,8 +191,7 @@ function useBbNavigate(): BbNavigate {
   return useMemo<BbNavigate>(
     () => ({
       toThread(threadId) {
-        void sdk.threads
-          .get({ threadId })
+        void callOp(threads.get, { threadId })
           .then((thread) =>
             navigate(
               getThreadRoutePath({ projectId: thread.projectId, threadId }),
@@ -206,42 +220,42 @@ function useBbNavigate(): BbNavigate {
       openThreadPanel: (options) =>
         openThreadPanelHandler?.({ ...options, pluginId }) ?? false,
       openUrl: (url) => appNavigation.openUrl({ url }),
+      openFile: ({ threadId, path, source }) =>
+        requestFileOpen(threadId, path, source),
     }),
     [appNavigation, navigate, openThreadPanelHandler, pluginId],
   );
 }
 
-const NO_ROW_STATUSES: ReadonlyMap<string, PluginSidebarThreadRowStatus> =
-  new Map();
-
 export const pluginAppHost: PluginAppHost = {
   createElement,
-  useRpc,
-  useRealtime,
+  use: (slot) => appKernel().use(slot),
   useRealtimeConnectionState: useServerConnectionState,
   useSettings,
-  useSdk,
+  useExperiments,
   usePluginId,
   useBbContext,
   useBbNavigate,
-  useSidebarThreads,
-  useSidebarThreadActions,
-  useSidebarThreadSplit,
-  useSidebarThreadDraft,
-  useSidebarThreadDraftIds,
-  useSidebarThreadRowStatus: () => null,
-  useSidebarThreadRowStatuses: () => NO_ROW_STATUSES,
-  useSidebarSplitLayout,
-  useSidebarThreadShortcut,
+  useCodeTheme,
   useProviders,
   useEnvironmentProviders,
-  useSidebarNavigation,
   useQuestionFormHost,
-  SidebarNavigationIcon,
-  ThreadChat: PluginThreadChat,
+  useSlot,
+  useSlotEntries,
+  useSlotEntry,
+  useOp,
+  useCall,
+  useLive,
+  useChanged,
+  callOp,
+  describeApp: (contractId) => describeKernel(appKernel(), contractId),
+  SlotMount,
   Icon,
   ProviderIcon,
   UrlLink: PluginUrlLink,
-  ThreadTitle: PluginThreadTitle,
   ThreadViewers,
+  ImageLightbox,
+  Markdown: PluginMarkdown,
+  Diff: PluginDiff,
+  FileLink: PluginFileLink,
 };

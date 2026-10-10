@@ -3,6 +3,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import {
+  isStandaloneBuiltinCompactCommand,
   pendingInteractionResolutionSchema,
   threadScope,
   toolCallResponseSchema,
@@ -40,13 +41,18 @@ export interface SessionApiOptions {
   serverUrl: string;
   bbCliPath: string;
   outbox: Outbox;
-  adapters: ProviderAdapter[];
+  adapters: ProviderAdapter[] | (() => ProviderAdapter[]);
   terminalIds?: () => string[];
   loginPath?: () => Promise<string | null>;
   timing?: Partial<SessionTiming>;
 }
 
-export type ManagedSessionApi = SessionApi & { shutdown(): Promise<void> };
+export type ManagedSessionApi = Omit<
+  SessionApi,
+  "loadPlugins" | "callOp" | "cancelOp"
+> & {
+  shutdown(): Promise<void>;
+};
 
 interface PendingRequest {
   kind: "interaction" | "toolCall";
@@ -101,7 +107,8 @@ export function createSessionApi(
   const { outbox } = options;
   const instanceId = randomUUID();
   const storageRoot = join(options.dataDir, "thread-storage");
-  const adapters = new Map(options.adapters.map((a) => [a.id, a]));
+  const { adapters: given } = options;
+  const listAdapters = typeof given === "function" ? given : () => given;
   const sessions = new Map<string, LiveSession>();
   const serialize = createKeyedLock();
   const remembered = new Map<string, Map<string, Promise<SubmitTurnResult>>>();
@@ -109,7 +116,7 @@ export function createSessionApi(
   let requestCounter = 0;
 
   function adapterFor(providerId: ProviderId) {
-    const adapter = adapters.get(providerId);
+    const adapter = listAdapters().find(({ id }) => id === providerId);
     if (adapter !== undefined) return adapter;
     const message = `Provider "${providerId}" is not available on this runner`;
     throw new RunnerError("unavailable", message);
@@ -286,8 +293,12 @@ export function createSessionApi(
     const live = await openSession(args, sessions.get(args.session.threadId));
     live.pendingStart = { since: Date.now(), warned: false };
     live.lastActiveAt = Date.now();
+    const { provider } = live;
     try {
-      await live.provider.startTurn(args);
+      if (provider.compact && isStandaloneBuiltinCompactCommand(args.input)) {
+        live.events.acceptInput(args.clientRequestId);
+        await provider.compact();
+      } else await provider.startTurn(args);
     } catch (error) {
       live.pendingStart = null;
       throw error;
@@ -402,7 +413,7 @@ export function createSessionApi(
       };
     },
     ackEvents: async ({ seq }) => outbox.ack(seq),
-    listProviders: () => Promise.all(options.adapters.map((a) => a.status())),
+    listProviders: () => Promise.all(listAdapters().map((a) => a.status())),
     listModels: async (args) =>
       adapterFor(args.providerId).listModels(args.cwd),
     submitTurn: (args) => {

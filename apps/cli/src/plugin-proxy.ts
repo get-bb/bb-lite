@@ -31,10 +31,24 @@ export async function findPluginCommand(
   env: CliEnv,
   name: string,
 ): Promise<string | null> {
-  const { sdk } = await loadModules();
-  const { plugins } = sdk.createNodeBbSdk({ baseUrl: env.serverUrl });
-  const { cliCommands } = await plugins.contributions();
+  const { plugin } = await loadModules();
+  const remote = plugin.createOpClient({ baseUrl: env.serverUrl, door: "cli" });
+  const listed = await remote.call(plugin.plugins.contributions, {});
+  const { cliCommands } = listed;
   return cliCommands.find((command) => command.name === name)?.pluginId ?? null;
+}
+
+export async function findPluginSpelling(
+  env: CliEnv,
+  spelling: string,
+): Promise<string | null> {
+  const { plugin } = await loadModules();
+  const remote = plugin.createOpClient({ baseUrl: env.serverUrl, door: "cli" });
+  const { cliCommands } = await remote.call(plugin.plugins.contributions, {});
+  const found = cliCommands.find(({ commands = [] }) =>
+    commands.some((command) => command.name === spelling),
+  );
+  return found?.pluginId ?? null;
 }
 
 export async function runPluginCommand(
@@ -43,15 +57,24 @@ export async function runPluginCommand(
   args: string[],
 ): Promise<number> {
   const argv = await materializeStdinFlag(args);
-  const { threadId, projectId } = env;
+  const { threadId, projectId, hostId } = env;
   const url = `${env.serverUrl}/api/v1/plugins/${pluginId}/cli`;
-  const { sdk } = await loadModules();
-  const headers = new Headers({ "content-type": "application/json" });
-  if (threadId !== undefined) headers.set(sdk.THREAD_ID_HEADER, threadId);
+  const { plugin } = await loadModules();
+  const headers = new Headers({
+    "content-type": "application/json",
+    "x-bb-door": "cli",
+  });
+  if (threadId !== undefined) headers.set(plugin.THREAD_ID_HEADER, threadId);
   const response = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ argv, cwd: process.cwd(), threadId, projectId }),
+    body: JSON.stringify({
+      argv,
+      cwd: process.cwd(),
+      threadId,
+      projectId,
+      hostId,
+    }),
   });
   const { pluginCliResponseSchema } = await import("@bb/server-contract");
   const body: unknown = JSON.parse((await response.text()).trim() || "null");

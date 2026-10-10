@@ -108,6 +108,8 @@ beforeAll(async () => {
   });
   gate = `http://127.0.0.1:${await listening(made.web)}`;
   hooks = `http://127.0.0.1:${await listening(made.hooks)}/frp`;
+  const user = { user: "bee", run_id: "run-1" };
+  await hook("NewProxy", { user, proxy_type: "http", subdomain: "bee" });
 });
 
 afterAll(() => {
@@ -123,6 +125,7 @@ it("lets only a server's own credential and address register", async () => {
     hook("Login", { user: "bee", metas: { credential } });
   expect(await login("bbcred_other")).toMatchObject({ reject: true });
   expect(await login("bbcred_bee")).toMatchObject({ reject: false });
+  await hook("CloseProxy", { user });
   const offline = await visit("bee", "/", {
     headers: { cookie: `${SESSION}=owner` },
   });

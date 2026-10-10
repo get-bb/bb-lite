@@ -6,21 +6,27 @@ budgets; this file has the shapes.
 
 ## Packages
 
-| Package                                       | Role                                                                                                                                                                                                                                              |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/server`                                 | The only stateful process. SQLite, HTTP API under `/api/v1`, WebSockets, thread engine, plugin host, runner hub, static web app                                                                                                                   |
-| `packages/runner`                             | Everything that happens on a machine: provider sessions (Codex, Claude Code, echo), git and worktrees, files, terminals, file watching. Runs in-process inside the server for the server's own machine, and as `bb runner` on every other machine |
-| `apps/cli`                                    | `bb`: every user feature, plus `bb server` and `bb runner`                                                                                                                                                                                        |
-| `apps/app`                                    | Web UI                                                                                                                                                                                                                                            |
-| `packages/thread-view`                        | Events → timeline rows. Projection runs in the server; row helpers run in the browser                                                                                                                                                             |
-| `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes                                                                                                                                                                                                    |
-| `packages/sdk`                                | Typed HTTP client used by the app, the CLI and plugins (the app keeps its own WebSocket in `apps/app/src/lib/ws.ts`)                                                                                                                              |
-| `apps/relay`                                  | bb-next relay: a Cloudflare Worker with one Durable Object per linked server. Accounts, device linking, and the public address `<label>.<domain>` that tunnels to a bb server. See `docs/relay.md`                                                |
-| `packages/plugin`                             | The plugin API (types and helpers)                                                                                                                                                                                                                |
-| `plugins/*`                                   | In-repo plugins compiled into the server and the app                                                                                                                                                                                              |
+| Package                                       | Role                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/server`                                 | The only stateful process, reduced to a host: the kernel, the plugin loader, the HTTP and WebSocket shells and the static web app. It names no feature                                                                                                                                                                                                                             |
+| `packages/server-kit`                         | What server parts of core plugins share: the SQLite data layer, auth, the hub, HTTP helpers and trust, the runner registry. Its functions take the handles a plugin has on `bb` (`db`, `config`, `runners`, `realtime`); there is no server context object                                                                                                                         |
+| `packages/runner`                             | Everything that happens on a machine: provider sessions (Codex, Claude Code, echo), git and worktrees, files, terminals, file watching. Runs in-process inside the server for the server's own machine, and as `bb runner` on every other machine                                                                                                                                  |
+| `apps/cli`                                    | `bb`: every user feature, plus `bb server` and `bb runner`                                                                                                                                                                                                                                                                                                                         |
+| `apps/app`                                    | Web UI host: the entry point, the route outlet and the loader for app parts. It names no screen                                                                                                                                                                                                                                                                                    |
+| `packages/app-kit`                            | What app parts of core plugins share: the client data layer and hooks, UI primitives, the app's plugin runtime (registry, slots, parts) and components more than one feature uses. A file only one screen plugin uses lives in that plugin. Imported as `@bb/app-kit/<path>`                                                                                                       |
+| `packages/thread-view`                        | Events → timeline rows. Projection runs in the server; row helpers run in the browser                                                                                                                                                                                                                                                                                              |
+| `packages/domain`, `packages/server-contract` | Shared schemas: events, rows, entities, routes                                                                                                                                                                                                                                                                                                                                     |
+| `apps/relay`                                  | bb-next relay: a Cloudflare Worker with one Durable Object per linked server. Accounts, device linking, and the public address `<label>.<domain>` that tunnels to a bb server. See `docs/relay.md`                                                                                                                                                                                 |
+| `packages/plugin`                             | The kernel and the plugin API: contracts, operations, slots, core contracts, app hooks                                                                                                                                                                                                                                                                                             |
+| `plugins/*`                                   | In-repo plugins. Core: ten server plugins (`identity`, `settings`, `projects`, `machines`, `sessions`, `threads`, `environments`, `terminals`, `workspace`, `audit-log`) and five app plugins (`shell`, `thread-view`, `composer`, `side-panel`, and the app part of `settings`). The rest are providers and add-ons (thread list, tasks, connect, audit, plugin tools and others) |
+| `profiles/default`                            | Which in-repo plugins make up the product, as one table per runtime (`server.ts`, `runner.ts`, `app.ts`) and named profiles                                                                                                                                                                                                                                                        |
 
-Dependency direction: `domain` ← `server-contract` ← `thread-view`, `sdk`, `runner` ← `server` ← `cli`.
-The runner never imports the server. The server talks to machines only through the `Runner` interface.
+Dependency direction: `domain` ← `server-contract` ← `thread-view`, `plugin`, `runner` ← `server-kit` ←
+`plugins/*` ← `profiles/default` ← `server` ← `cli`; in the browser `client-core`, `shared-ui` ←
+`app-kit` ← `plugins/*` ← `profiles/default` ← `app`. A plugin imports `@bb/plugin`, the kits and the
+shared schema packages, never `@bb/server`, `apps/` or another plugin's files (its `contract` aside).
+The runner never imports the server. The server talks to machines only through the `Runner` interface
+and the operations runner parts implement.
 
 ## Process and data model
 
@@ -37,7 +43,7 @@ The runner never imports the server. The server talks to machines only through t
 - `<dataDir>/bb.db` (WAL), `attachments/<projectId>/`, `thread-storage/<threadId>/`, `worktrees/`,
   `plugins/<id>/` (plugin `data.db`, secrets, files), `AGENTS.md`,
   `config.json`, `connect.json` (0600), `host-id`, `logs/`.
-- One schema file, `apps/server/src/db/schema.sql`, applied through `PRAGMA user_version` steps. No ORM:
+- One schema file, `packages/server-kit/src/db/schema.sql`, applied through `PRAGMA user_version` steps. No ORM:
   `better-sqlite3` prepared statements behind small typed query modules. Never mock the database in tests;
   use `:memory:`.
 
@@ -110,7 +116,7 @@ sign-in-link` on the server machine is how the owner signs a remote browser in t
 
 ### Actors, machines and attribution
 
-- Every request runs inside an actor (`apps/server/src/auth/actor.ts`, an `AsyncLocalStorage`): the
+- Every request runs inside an actor (`packages/server-kit/src/auth/actor.ts`, an `AsyncLocalStorage`): the
   signed-in user, or for a runner-class request the user it acts for. An agent's `bb` sends
   `x-bb-thread-id` (from `BB_THREAD_ID`); when that thread lives on the calling machine the actor is the
   user who last sent a message there (`threads.last_actor_user_id`, else its creator), otherwise the
@@ -133,7 +139,7 @@ sign-in-link` on the server machine is how the owner signs a remote browser in t
   viewer is the first owner.
 - Presence: `/ws` sockets belong to a user; a client sends `{type:"presence", threadIds}` for the
   threads it shows and the hub broadcasts `{type:"presence", users:[{userId, threadIds}]}` when the set
-  changes. `GET /presence` returns the same. The app shows it in three places: who is online (navigation
+  changes. `GET /users/presence` returns the same. The app shows it in three places: who is online (navigation
   rail), who else has a thread open (its header, and its row in the sidebar through the plugin component
   `ThreadViewers`). `thread-open` signals go to the acting user's sockets.
 
@@ -143,7 +149,7 @@ sign-in-link` on the server machine is how the owner signs a remote browser in t
   machine credentials there).
 - A request without the tunnel marker that carries `Authorization: Bearer bbr_…` is judged by that token
   alone, whatever its peer address: a token that matches a host is the same runner-class principal as a
-  gate-authenticated machine (so `/api/v1/*` minus the machine and settings writes), any other is
+  gate-authenticated machine (so `/api/v1/*` minus the operations a machine may not call), any other is
   anonymous. This is how the runner's loopback CLI proxy reaches the API on a direct connection; through
   the tunnel the gate's verdict stands and the bearer token only authenticates the runner socket.
 - The server's public URL (`publicServerUrl(ctx)`: the `Origin` allow-list above, join commands, the URL
@@ -152,14 +158,20 @@ sign-in-link` on the server machine is how the owner signs a remote browser in t
 
 ## The Runner interface
 
-`packages/runner/src/types.ts` (sessions) and `workspace-types.ts` (git, files, terminals) define
-`Runner = SessionApi & WorkspaceApi`. Two implementations:
+`packages/runner/src/types.ts` defines `SessionApi`: describing the machine, the event outbox,
+provider sessions and turns, loading runner parts and `callOp`. `Runner = SessionApi & { call }`,
+where `call(op, input, { timeoutMs? })` runs an operation in the machine's own kernel. Git, files,
+terminals, lifecycle scripts and file watching are operations (`packages/runner/src/contract.ts`:
+`git`, `machineFiles`, `machineTerminals`, `workspaces`) implemented by the built-in `workspace`
+runner part (`workspace/part.ts`), so another runner part can hook, refuse or answer them. Each
+declares how long the server waits for it. Two implementations of `Runner`:
 
 - `createLocalRunner({ dataDir, serverUrl, sink })`: direct calls, events through a callback.
 - `connectRemoteRunner(socket, sink)` on the server and `serveRunner(runner, socket)` in `bb runner`:
   the same interface as JSON frames over one WebSocket (`packages/runner/src/remote/protocol.ts`):
   `{t:"req",id,method,params}` → `{t:"res",id,ok,result|error}`, `{t:"evt",event}`, `{t:"ack",seq}`,
-  `{t:"ping"}`/`{t:"pong"}`. Only the methods of `Runner` can be called.
+  `{t:"ping"}`/`{t:"pong"}`. Only the methods of `SessionApi` can be called; an operation travels
+  as `callOp`.
 
 Remote transport rules:
 
@@ -219,7 +231,8 @@ Rules:
 
 ### Provider adapters
 
-`packages/runner/src/providers/{codex,claude,echo}.ts` implement `ProviderAdapter` and emit canonical
+`plugins/provider-{codex,claude-code,echo}/runner/` implement `ProviderAdapter` (the interface and
+its helpers stay in `packages/runner/src/providers/provider.ts`) and emit canonical
 `ThreadEvent`s (minus `threadId`) through one shared `EventBuilder`, the only place turn and item ids are
 minted (`<prefix>-t<n>`, `<prefix>-i<n>`, prefix `da` + 8 hex per session). The invariants the UI depends
 on (scope per event type, item statuses, `presentation`, `parentToolCallId`, text coalescing, settling
@@ -250,11 +263,11 @@ compare-and-set writer. Work for one thread is serialized through a per-thread a
   environment intent (reuse | project checkout | managed worktree | personal workspace); insert the row;
   append `client/turn/requested` (the user message) and `client/thread/start`; answer 201; then, off the
   request: provisioning steps as `system/thread-provisioning` events, environment creation through the
-  runner, title generation, and the first `submitTurn`. Titles come from the first inference service a
-  plugin registered; when none did, `startServer` installs `codexTitle` (`providers/title-service.ts`),
-  which reads the Codex CLI's own `auth.json` (never written, never logged) and asks the Codex responses
-  endpoint within 5 s. `createServer` alone has no fallback, and under vitest the service refuses its real
-  endpoints, so tests never call out.
+  runner, title generation, and the first `submitTurn`. Titles come from the first service in
+  the `sessions.inference` slot; when the slot is empty, from the `sessions.titleFallback` service,
+  which `provider-codex` provides (`plugins/provider-codex/title-service.ts`): it reads the Codex CLI's
+  own `auth.json` (never written, never logged) and asks the Codex responses endpoint within 5 s. Under
+  vitest the service refuses its real endpoints, so tests never call out.
 - **Send** (`POST /threads/:id/send`) goes through one dispatch checkpoint that either submits or records
   a `queued_thread_messages` row with a typed `waiting_on` (`time`, `stopping`, `host-offline`,
   `thread-busy`, `turn-starting`, `provisioning`, `interaction`). Modes: `start`, `steer`,
@@ -282,7 +295,7 @@ compare-and-set writer. Work for one thread is serialized through a per-thread a
 - **Attention**: `latest_attention_at` moves on `active → idle` for threads without a parent and on any
   transition to `error`. Unread is `last_read_at < latest_attention_at`.
 
-How the engine is built (`apps/server/src/threads`):
+How the engine is built (`plugins/threads`):
 
 - Everything that changes a thread runs inside `engine.inThread(threadId, …)`. A task holds the queue only
   for short work (decisions, a transaction, building the `SessionSpec`). Runner calls that may take long
@@ -295,20 +308,22 @@ How the engine is built (`apps/server/src/threads`):
   cleared; rows whose drain failed carry `failure_reason` and wait for "Send now".
 - `status` is `starting` only while a workspace is being prepared. A send to a ready thread moves it straight
   to `active`; `active_turn_id` stays null until the root `turn/started` arrives (`turn-starting` wait).
-- Seams on `ServerContext`: `threads` (the public operations, also for plugins), `environments`
-  (`ensureForThread`, `pathFor`, `workspaceInstructions`, `onThreadDetached`; see "Environments" below),
-  `plugins` (the plugin host: the engine asks it for instructions, tools, env, skill
-  directories and titles, and emits thread events to it; plugins reach the engine back through
-  `plugins/deps.ts`). Startup order is local host, personal project, engine, then plugins.
+- Seams: the engine calls `environments.ensure` and `environments.instructions`, `sessions.instructions`,
+  `sessions.env`, `sessions.tools`, `sessions.skillDirs` and `sessions.title`, and
+  `plugins.callAgentTool` for a tool call. It emits the thread events and `threads.retired`
+  (terminals close on it), and listens to `projects.deleted`. Other plugins reach it through the
+  `threads` operations, including `threads.workspace`, and it implements the `interactions` contract. Startup order is
+  local host, personal project, engine, then plugins.
 
 ## Environments (server)
 
-An environment is the directory a thread runs in. Three kinds, fixed, all in `apps/server/src/environments`
+An environment is the directory a thread runs in. Three built-in kinds, all in `plugins/environments`
 (`manager.ts`, `scripts.ts`): **project checkout** (the project's own path on a machine, or any existing
 directory; one row per `(project, machine, path)`, shared, never removed), **managed worktree**
 (`<runner dataDir>/worktrees/<threadId>-1/<repo>` on branch `<managedBranchPrefix><title-slug>-<threadId>`) and
 **personal workspace** (`<runner dataDir>/workspaces/<threadId>`). The last two are _managed_
-(`provider_owns_path = 1`): bb created the path and removes it.
+(`provider_owns_path = 1`): bb created the path and removes it. A plugin adds further managed kinds through
+the `environments.kind` slot (see "Runner parts").
 
 - Work on one environment is serialized through a per-environment queue, so preparing, switching branch and
   tearing down never interleave. Status walks `creating → provisioning → ready | error`; every write notifies
@@ -375,7 +390,7 @@ this product writes. Facts the code no longer states in comments:
   of the bundled dark theme: a `swap` of the few colours that differ and the `colors` the highlighter
   reads (`editor.foreground`/`background`, `gitDecoration.*ResourceForeground`, `terminal.ansi*`). The
   app registers each one with a loader that resolves the dark theme and calls `deriveLightCodeTheme`
-  (`apps/app/src/lib/code-theme-registration.ts`); the result equals the hand-expanded themes of the
+  (`packages/app-kit/lib/code-theme-registration.ts`); the result equals the hand-expanded themes of the
   original rule for rule.
 - Only an `explicit` execution input source (a user choice) updates a project's execution defaults; a
   `client-preference` (a remembered default) does not.
@@ -385,11 +400,14 @@ this product writes. Facts the code no longer states in comments:
 
 ## HTTP and WebSocket surface
 
-Routes are declared once in `packages/server-contract/src/public-api.ts` and implemented with
-`typedRoutes` from `@bb/hono-typed-routes`, so handlers are checked against the contract. The SDK sends
-every request through the same descriptors (`packages/sdk/src/http.ts`: path parameters, query and JSON
-body typed by the route, one place for timeouts and error bodies). A descriptor types the success
-response only. Errors are
+Every JSON route is the HTTP door of an operation (`doors.http` in
+`packages/plugin/src/core-contracts.ts`), served by `apps/server/src/http/doors.ts`: path parameters,
+the query or the JSON body become the operation's one input, the kernel validates it, checks who may
+call it, runs the hooks and records the call. A path starts with its contract's name
+(`/threads`, `/machines`, `/sections`, `/sessions/providers`). `packages/plugin/src/client.ts` is the
+one client: `call(op, input)` builds the request from the same declaration, with one place for
+timeouts and error bodies. Raw routes remain only for sign-in (cookies), uploads, file bytes and
+plugin assets. Errors are
 `{code, message, details?, retryable?}` with the HTTP status. Research note 01 lists every kept route, its
 callers, the response shapes and the change notifications each mutation must emit.
 
@@ -411,98 +429,334 @@ callers, the response shapes and the change notifications each mutation must emi
 
 ## Plugins
 
-A plugin is a directory with a `package.json` `bb` field (`name`, `description`, `icon`, optional
-`server`, `app`, `skills`) and at most two entry files:
+bb is a small kernel plus plugins. `docs/plugin-api-proposal.html` is the reasoning,
+`docs/plugin-api.md` is how to write one, and this section is the exact behaviour. A plugin is a
+directory with a `package.json` `bb` block (`name`, `description`, `icon`, optional `server`, `app`,
+`runner`, `requires`, `skills`) and a contract. Its id is the package name without scope and without
+`bb-plugin-`.
 
-```ts
-// server.ts
-export default function plugin(bb: PluginServerApi) { ... }
-// app.tsx
-export default definePluginApp((app) => { ... });
-```
+### Kernel
 
-In-repo plugins are listed in two static tables (`apps/server/src/plugins/builtin.ts`,
-`apps/app/src/plugins/builtin.ts`) and compiled with the rest. External plugins are directories named in
-`config.json`; the server bundles them with esbuild on load and the app imports the bundle. There is no
-marketplace, installer, artifact store, version gating or CSS scoping.
+`packages/plugin/src/kernel.ts` is runtime-neutral. The server (`apps/server/src/kernel`), each
+runner (`packages/runner/src/plugins.ts`) and the browser (`packages/app-kit/plugins/registry.ts`) each
+hold one kernel.
 
-Server API (`PluginServerApi` in `packages/plugin/src/server-api.ts`): `settings`, `storage.kv`,
-`storage.database()` / `migrate`, `rpc`, `http`, `realtime.publish`, `background.service`,
-`cli.register`, `events.on`, `agents.registerTool` / `contributeInstructions`, `ui.requestInput`,
-`ui.registerMentionProvider`, `providers.contributeEnv`, `environments.register`,
-`inference.register`, `threads` (spawn, send, get, list, stop, update, output, events — direct calls,
-not HTTP), `projects`, `hosts`, `sections`, `files`, `status.needsConfiguration`, `onDispose`,
-`server.setPublicUrl`, `machines.setAccessProvider`, `users` (`current()` is the acting user of the
-call in progress, `null` in background work; `list()`). Plugin settings and KV are still one scope for
-the whole server.
+- **Contracts** (`contract.ts`). `contract(id, { name: op | event | slot | service | live })` names
+  each member `<id>.<name>`. An operation has zod `input` and `output`, a `kind` (`read` | `write`),
+  what a hook may do (`observe` | `rewrite` | `answer`), who may call it (`allow`: `member` | `user` |
+  `owner`; work with no actor passes), `secret` field names, an optional `deprecated` note and `doors`
+  (`agent`, `cli`, `http`). `service<T>()` is a pick-one slot holding an object. `live(schema)` is a
+  value the server holds.
+- **Verbs.** A plugin's `bb` has `implement`, `call`, `on`, `emit`, `add`, `wrap`, `read`, `entries`,
+  `find`, `pick`, `use`, `provide`, `value`, `changed`. One plugin implements an operation; a second
+  `implement` throws. Hooks run by tier (`policy`, `installed`, `product`: external plugins are
+  `installed`, in-repo and core ones `product`), then in registration order, and the implementation is
+  the last link. `on(op, matcher, hook)` runs the hook only when every matcher field equals the
+  input's. A hook is `(input, next)`; `next.origin` is the caller. The implementation receives
+  `{ caller, signal }`. `implement(op, fn, { offered(context) })` hides the operation's agent tool
+  from a session whose `DoorContext` (thread, project, machine, provider) it returns false for, in
+  addition to the door's own `enabledFor`.
+- **What a hook may do** is the operation's `hooks`: `observe` ignores what the hook passes to `next`
+  and returns; `rewrite` lets it change both but it must call `next`; `answer` also lets it return
+  without `next` or `deny(reason)`, which rejects with `OpError` `denied` (HTTP 403 `denied_by_plugin`,
+  `details.plugin`). A hook that throws, or whose own time (not counting time inside `next`) passes
+  10 s, is logged and skipped (the result beneath it stands), unless it was registered `.failClosed()`
+  (only on `answer` operations), which refuses the call. The implementation's own error passes through
+  unchanged.
+- **Failures.** `fail(code, message, { reason, hint })` (`kernel.ts`) is how an implementation
+  refuses on purpose: `not_found`, `conflict`, `unavailable` or `invalid` (`invalid_input`). It
+  becomes an `OpError` carrying the plugin; a hook may throw it only on an `answer` operation. Over
+  HTTP (`server-kit/src/http/errors.ts`) `denied` is 403 `denied_by_plugin`, `forbidden` 403,
+  `invalid_input` 400 `invalid_request`, `not_found` 404, `conflict` 409, `unimplemented` 501,
+  `unavailable` 503 and `invalid_output` 500 `internal_error`; `reason`, when given, replaces the
+  error code in the body and `hint` goes into `details` next to `plugin`. A CLI door prints the same
+  code and hint.
+- **Slots.** `add` appends an entry and returns its remover. `read` returns items in order; a keyed slot
+  returns one per key and `find(slot, key)` the winner; `pick` / `use` return the winner of a pick-one
+  slot (or null / throw). The winner is the `installed` entry over the `product` one, then the later
+  one. `wrap(slot, matcher, change)` replaces matching items with `change(item)` for every reader.
+  `entries` adds the owning plugin. Results are cached until the slot changes; `watch` notifies.
+- **Live values.** `provide(live, initial)` returns `{ get, set, update }`; setting it, or
+  `changed(op | live)`, pushes a `plugin-signal` `{pluginId: "kernel", channel: "changed", {name}}` to
+  every socket. Apps refetch `useOp` / `useLive` for that name. Each of these takes an audience
+  `{ userId }`: a live value then holds a value for that person (`get({ userId })` falls back to the
+  shared one), and the signal goes only to that person's sockets. `emit(event, payload, { userId })`
+  also sends the event itself to that person's apps (channel `emitted`, `{name, payload}`); an event
+  with no `userId` stays on the server.
+- **Unload.** Everything a plugin registered through its `bb` is reversed when it is disposed, and a
+  displaced slot winner or freed operation is available again. The verbs of a disposed plugin throw.
+- **Caller.** `currentCaller()` (`kernel/caller.ts`) is the actor plus an origin: `door` (`agent` when
+  the request named a thread, else the `x-bb-door` header when it is `app` or `cli`, else `http`;
+  `system` with no actor), the agent `thread`, and `via`, the plugin ids the call passed through. A
+  request made with a machine credential has the role `machine` whoever it acts for: it cannot call
+  owner-only operations, nor those marked `allow: "user"` (changing machines, settings, users,
+  providers or the machine environment), through REST or by name. A
+  plugin's `bb.call` and its CLI handlers add the plugin to `via`. The app, the client and the
+  native CLI send `x-bb-door`; on the app door the caller also has `app`, the plugin named by the
+  `x-bb-app-plugin` header (a claim, not a check). An agent's tool call runs as the user who last
+  wrote in that thread.
+- **Audit.** The kernel writes one `audit_log` row (third schema step) per `write` operation, and per
+  read that a hook answered or refused or that failed: time, operation, user, role, door, thread,
+  `via`, the hooks that acted (`rewrote-input`, `rewrote-output`, `answered`, `denied`, `failed`),
+  outcome, detail, duration and the input as JSON cut to 600 characters with secret fields replaced.
+  `audit.list` returns them newest first; a member gets only their own. A plugin that acts without an
+  operation (`node:fs`, `fetch`) leaves no row; that is accepted.
 
-App API: slots `navPanel`, `threadPanel`, `settingsSection`, `appOverlay`, `pendingInteraction`,
-`messageDirective`, `threadList`, `sidebarNavigation`, `sidebarHeader`; `commands.register`; hooks `useRpc`,
-`useRealtime`, `useSettings`, `useSdk`, `useBbContext`, `useBbNavigate`, the sidebar thread hooks; component
-`ThreadChat`. Plugin settings are `boolean` or `string` (optionally `secret` or `multiline`). On wide windows the
-host draws the navigation rail itself (Home, one button per `navPanel`, More, Settings) with New thread in the
-sidebar header; the `sidebarNavigation` and `sidebarHeader` slots render in the phone drawer only.
+### Doors
 
-Plugin commands (`bb tasks …`) are parsed and run in the server: the CLI posts
-`{argv, cwd, threadId, projectId}` to `POST /api/v1/plugins/<id>/cli` and prints the result. The
-response body is newline keep-alives followed by one JSON object `{exitCode, stdout, stderr}`, so a
-command that waits on the user (a secret request) survives idle timeouts; `--<name>-stdin` is
-materialised by the CLI before the request.
+- **App.** `POST /api/v1/ops/<name>` calls any operation not marked `internal` (the core operations
+  whose inputs are not fully described by a schema are) with the JSON body as input (an empty body is
+  `{}`) and answers `{ok, result}`; a live value's name answers its value. An implementation's plain
+  `Error` is 500 `handler_error` with its message. `GET /api/v1/kernel` is the inspection: operations
+  with owner, doors and hook chain, events with listeners, slots, live values, plugins, contracts.
+  `plugins.contracts({ contractId? })` describes each registered contract's members (the same
+  description the API lock holds), `plugins.describe({ id })` adds `uses` (what the plugin declares,
+  implements, hooks, listens to, fills and provides), and in the app `describeApp(contractId?)` does
+  the same for the browser's kernel.
+- **Agent.** An operation with `doors.agent` (`name`, `description`, `instructions`, `presentation`,
+  `enabledFor(context)`) is offered to sessions as a dynamic tool (`plugins/doors.ts`). The tool's
+  input schema is the operation's. A string result is returned as is, anything else as JSON;
+  `toolError(text)` returns `text` as a failed result.
+- **CLI.** Operations with `doors.cli` owned by a plugin become that plugin's `bb <first word> …`
+  command (`server-kit/src/doors.ts`): flags come from the input schema (camelCase to kebab, booleans
+  are switches, arrays repeat, objects take JSON, `cwd` is filled from the caller), `--json` prints
+  the output. The door may add `description`, command `aliases` (same first word), `positionals`,
+  per-field `flags` (`aliases`, `split`, `placeholder`, `duration` with `min`/`max`/`units`), `from`
+  (fill a field from the CLI's `cwd`, `projectId`, `threadId` or `hostId`, the last resolved from the
+  thread when not given), `constraints` (`exactly-one`, `at-most-one`, `at-least-one`, `requires`),
+  `print(output, input)` and `exitCode(output, input)`. An `OpError` prints its `reason` (or code)
+  and `hint`. A plugin that also calls `bb.cli.register` gets both: its own commands and the door
+  commands.
+- **Machines.** `bb.runners.call(hostId, op, input, { timeoutMs, signal })` calls an operation a
+  runner part implements (`Runner.callOp`), validating input and output on the server and passing
+  the current caller along. `timeoutMs` overrides the call's budget. Aborting `signal` rejects the
+  call with the signal's reason and sends `Runner.cancelOp({ callId })`, which aborts the signal the
+  runner-side implementation received.
+
+### Core plugins (server)
+
+The server's own features are plugins in `plugins/`, named in `CORE` (`profiles/default/profiles.ts`,
+with the five core app ids), exported as `corePlugins` from `profiles/default/server.ts` and loaded by the same loader as every other plugin: `identity`,
+`settings`, `projects`, `machines`, `sessions`, `threads`, `environments`, `terminals`, `workspace`,
+`audit-log`. Each is a directory with a manifest and a `server.ts` that receives the
+ordinary `PluginServerApi`. `apps/server` keeps only what loads them (kernel scope `plugins`: the
+`plugins.*` operations and the `/plugins` and `/kernel` routes).
+
+- **Nothing beyond the plugin API.** A core plugin receives `bb` and nothing else. The host's
+  services are members of it for every plugin: `bb.db`, `bb.realtime`, `bb.runners`, `bb.server`,
+  `bb.now`, `bb.http.api(routes)` (Hono routes under `/api/v1` or `/internal`) and
+  `bb.http.socket(resolver)` (a WebSocket endpoint). Each registration is removed when the plugin
+  unloads; the HTTP app is assembled again from the current routes on the next request.
+- **Between core plugins.** There is no shared context object. `threads`, `environments`,
+  `terminals`, `sessions`, `projects`, `machines` and `identity` reach each other through
+  operations, events and services in `packages/plugin/src/core-contracts.ts` (and
+  `plugins/environments/contract.ts` for `environments.ensure`, whose types live in the kit). A
+  call from one plugin to another is recorded with the calling plugin in its chain; a plugin
+  calling its own operation adds nothing.
+- **What the host still does.** Loads plugins, stores their settings and tables, assembles HTTP and
+  sockets, writes the audit record, and turns operations into agent tools and CLI commands
+  (`plugins.agentTools`, `plugins.callAgentTool`). It asks `server.authenticator` (identity) who a
+  request is from and `machines.guard` (machines) whether the caller may use a machine.
+- **Machines a plugin makes.** `plugins/machines/provided.ts` implements `machines.enroll`
+  (a host row in `creating` with `machine_provider_id` and `resource`, plus a join command),
+  `waitConnected`, `update`, `suspend` and `resume` (through the `machines.provider` entry, setting
+  `suspended_at`), and `remove`; it emits `machines.connected`, `disconnected` and `signal` (a
+  runner part's `bb.signal`, carried as the live runner event `plugin.signal`). An environment
+  kind's `create` may return the machine it made; the environment row moves to it.
+- **Plugin rows.** `threads.addRow` appends a `system/operation` event with operation
+  `plugin_row`; the projection (`packages/thread-view`) carries `plugin: { id, kind, data }` on the
+  generic operation row and replaces the row when the same operation id arrives again.
+- **Order.** Plugins load in table order refined by `requires` (`threads` needs `machines` and
+  `projects`; `environments` needs `threads`; `workspace` needs `terminals`).
+  Every entry runs first; then each plugin's `bb.onStart` callbacks run in the same order (local
+  host, personal project, engine, environments, terminals, workspace watch), then add-on services.
+- **Always on.** A core plugin cannot be disabled; `InstalledPlugin.core` marks it and Settings
+  lists it without a toggle.
+- **Forkable.** `bb dev fork threads` copies the directory and loads the copy in the engine's
+  place. A fork's bundle resolves `@bb/server-kit/*` and `@bb/runner` to the host's own module
+  instances (`apps/server/src/plugins/runtime.ts`, checked by a test to cover every kit module),
+  so actors, error classes and the database handle are shared.
+
+What core offers to plugins is `packages/plugin/src/core-contracts.ts`: `threads` (the writes,
+`get`, `list`, `output`, `events`, `fork` and the lifecycle events), `sessions` (`instructions`,
+`env`, `transcribe`, and the slots `provider`, `mention`, `inference`, `titleFallback`,
+`transcription`), `interactions`, `files`, `projects`, `machines` (`list`, the `access` service),
+`users`, `sections`, `terminals`, `settings`, `environments.kind`, `appearance` (the `theme` slot,
+`themeCss`), `server` (`publicUrl`, `authenticator`, `config`, `experiments`), `plugins` (`inspect`,
+`contracts`, `describe`, `install`, `uninstall`, `reload`, the agent-tool operations),
+`audit.list`. Every thread write goes through its operation, so routes
+and plugins share one hook chain.
 
 ### Plugin host (server)
 
-- **Loading.** `apps/server/src/plugins/builtin.ts` lists `{directory, server}` rows; the manifest is
-  always the directory's `package.json` `bb` field. External directories come from
-  `<dataDir>/config.json` `plugins: [{path, enabled}]`. An external server entry is bundled by esbuild to
-  `<dataDir>/plugins/<id>/.cache/server.<hash>.mjs` (ESM, `@bb/plugin` compiled in, `better-sqlite3`
-  resolved to the server's copy, the server's `node_modules` as a fallback resolution root) and
-  imported; the app entry is bundled in memory and served at `/api/v1/plugins/<id>/app.js|app.css?h=`.
-  An external plugin with a builtin's id replaces it.
-- **Shared modules.** In an app bundle every specifier in `PLUGIN_SHARED_MODULES` (`@bb/plugin`)
-  resolves to a CommonJS shim over `globalThis.__bbPluginRuntime["<specifier>"]`, which the app fills
-  with its own module namespaces before importing any bundle. No export lists are generated. The
-  overlay primitives in that table are Base UI entry points (`@base-ui/react/menu`, `context-menu`,
-  `dialog`, `popover`, `select`, `tooltip`); Radix is not shared with plugins.
-- **State.** `enabled` is the `plugins` table row (default on) AND the config entry's `enabled` (a hard
-  off switch that works with the server down). Status is `disabled`, `error` (the factory, the bundle
-  or the manifest failed; the message is kept), `needs-configuration` or `running`. Enable, disable and
-  reload dispose the old instance (services aborted, `onDispose` hooks in reverse order, the plugin
-  database closed) and run the factory again, one change at a time. A settings write reloads a
-  plugin that asked for configuration. A failing plugin never stops the server.
+- **Loading.** In-repo plugins are registered from their manifests: `pnpm gen:builtins`
+  (`scripts/gen-builtins.mjs`) reads every `plugins/*/package.json` `bb` block and writes
+  `profiles/default/builtins.server.ts`, `builtins.runner.ts`, `builtins.app.ts` and the Tailwind
+  `@source` list; `--check` (run by `apps/server/test/profiles.test.ts`) fails when they are stale.
+  `profiles/default/profiles.ts` names the `CORE` ids, the ids `LOADED_FIRST` (providers,
+  environment kinds, `thread-list`, `navigation`; the rest follow sorted by id) and the profiles;
+  `BB_PROFILE` (`default`, `headless`, `minimal`) picks which add-ons load. A manifest's
+  `bb.enabledByDefault: false` leaves a plugin off until someone enables it (the `plugins` table row,
+  when present, wins). External directories come from `<dataDir>/config.json`
+  `plugins: [{path, enabled, watch}]`. An external server entry is bundled by esbuild to
+  `<dataDir>/plugins/<id>/.cache/server.<hash>.mjs` and imported; the app entry is bundled in memory
+  and served at `/api/v1/plugins/<id>/app.js|app.css?h=`. An external plugin with a builtin's id
+  replaces it on the server, in the app and on every runner; removing it restores the builtin.
+  `bb.forkOf` names the builtin a copy came from, whose `node_modules` then back the copy's imports. Plugins load in `requires` order; a plugin whose requirement is not running is in
+  `error`. `watch: true` reloads a plugin 200 ms after a file in its directory changes.
+- **Shared modules.** In an app bundle every specifier in `PLUGIN_SHARED_MODULES` resolves to a shim
+  over `globalThis.__bbPluginRuntime`, which the app fills before importing any bundle. Host modules
+  (`PLUGIN_HOST_MODULES`, `@bb/shared-ui/*` and `@bb/app-kit/*`) resolve the same way but are imported
+  by the app only when a bundle lists them in `shared`.
+- **Styles.** A bundle's imported `.css` is served as `app.css`. Tailwind classes are handled once
+  for all external plugins: each bundle records the candidates the app's own sources do not contain,
+  and when that set changes the host compiles the app's candidates plus the added ones against
+  `packages/app-kit/components/ui/theme.css` into `/api/v1/plugin-utilities.css?h=`. The app loads that
+  sheet after its own, so it supersedes the built utilities layer with the same rules in one order.
+  With no added classes there is no sheet.
+- **Own location.** In server and runner bundles `import.meta.url` is rewritten per source file to
+  that file's URL.
+- **Lifecycle.** A server entry may register `bb.onStart(start)`. At boot every plugin's entry runs
+  before any `start`; on a single reload `start` follows the entry. A function returned by `start`
+  runs on dispose. Unloading at shutdown goes in reverse dependency order.
+- **State.** `enabled` is the `plugins` table row (default the manifest's `enabledByDefault`, which
+  defaults to on) AND the config entry's `enabled`; a core plugin is always enabled.
+  Status is `disabled`, `error`, `needs-configuration` or `running`. Enable, disable and reload
+  dispose the old instance (services aborted, `onDispose` hooks in reverse order, the kernel scope
+  and the plugin database closed) and run the factory again, one change at a time. A failing plugin
+  never stops the server.
+- **Shared tables.** `bb.storage.tables` (`apps/server/src/plugins/tables.ts`) gives a plugin
+  tables named `p_<id>_<name>` in the main database. Migrations are tracked per plugin in
+  `plugin_table_migrations` and may only define the plugin's own objects; `run` only writes to
+  them; `all` and `get` take a `SELECT`. A contract's `table()` member is a one-item slot holding
+  the physical name, so publishing and reading go through the kernel like any service.
 - **Storage.** KV rows in `plugin_kv`, non-secret settings in `plugin_settings`, secret settings as
-  0600 files in `<dataDir>/plugins/<id>/secrets/` (reads return only `{set: boolean}`), the plugin's
-  SQLite file at `<dataDir>/plugins/<id>/data.db`.
-- **Trust.** Every plugin route sits behind the server's trust guard, so the caller is a signed-in user
-  or a machine credential. Users and machine credentials may call rpc, cli, mention search and read the
-  list and settings (agents on other machines run `bb tasks …`); only an owner may enable, disable,
-  reload, write settings or mint the plugin token. For `http.route`: `local` (default) admits only an
-  owner,
-  `token` admits any admitted caller presenting the plugin token (`x-bb-plugin-token` or `?token=`),
-  `none` adds no check beyond the guard. Nothing is reachable anonymously.
-- **Remote access seam.** `ctx.plugins.publicUrl()` and `ctx.plugins.machineAccess()` return what a
-  running plugin registered (they vanish with the plugin). The hosts routes ask the machine access
-  provider for `grant(hostId) → {serverUrl, headers} | null` when they build a join command (the
-  headers travel in the join blob and the runner sends them on every request) and call
-  `revoke({id, connectMachineId})` after a machine is removed. bb connect is the only provider: it
-  mints one relay machine credential per machine and revokes it on removal.
-- **Thread engine seam.** `ctx.plugins` answers the engine's queries (`instructionsFor`, `toolsFor`,
-  `callTool`, `contributedEnv`, `emit`, `searchMentions`, `generateTitle`, `skillDirs`). Mention
-  resolution and plugin-contributed environments are accepted by the plugin API but nothing in the
-  server reads them yet. The calls a plugin makes outward (`threads`, `projects`,
-  `hosts`, `sections`, `files`, `ui.requestInput`) come from `createPluginHostDeps(ctx)` in
-  `apps/server/src/plugins/deps.ts`, which receives the calling plugin's id.
-- **Thread context.** Every per-thread query carries `{threadId, projectId, hostId, providerId,
-providerCapabilities}`; a tool's `enabledFor` gates on it (ask-user-question is offered only where
-  `supportsNativeUserQuestion` is false).
-- **`ui.requestInput`.** Opens a plugin-origin pending interaction and resolves with
-  `submitted` or `cancelled` (`reason`: `user`, `timeout` when `timeoutMs` ran out, `request-aborted`
-  when the request's `signal` fired, or the interrupt reason of a stop). The submitted value goes to the
-  waiting plugin only: the stored resolution is `{kind: "plugin_submitted", description?}`, where the
-  description is what the request's synchronous `describeSubmission(value)` returned (title and detail
-  for the timeline row), so a plugin decides what the transcript keeps.
+  0600 files in `<dataDir>/plugins/<id>/secrets/`, the plugin's SQLite file at
+  `<dataDir>/plugins/<id>/data.db`. `bb.settings.define(descriptors, { scope })` takes a scope for
+  the group, and a descriptor may set its own: `workspace` (the default, one value for the server),
+  `user` (stored per person as `<key>@<userId>`; a member may write their own) or `project` (stored
+  as `<key>#<projectId>`). A per-user or per-project read falls back to the shared value; secrets are
+  always shared. KV is one scope for the whole server.
+- **Trust.** Every plugin route sits behind the server's trust guard. Any signed-in user or machine
+  credential may call operations (each operation's `allow` decides further), a plugin's CLI and
+  mention search; only an owner may enable, disable, reload, write settings or mint the plugin token.
+  For `http.route`: `local` (default) admits only an owner, `token` admits any admitted caller
+  presenting the plugin token, `none` adds no check beyond the guard.
+- **`interactions.ask`.** Opens a plugin-origin pending interaction and resolves with `submitted` or
+  `cancelled` (`reason`: `user`, `timeout`, `request-aborted`, or the interrupt reason of a stop). The
+  submitted value goes to the waiting plugin only; the stored resolution keeps what the request's
+  `describeSubmission(value)` returned.
 - **`files`.** A relative path is confined to the thread's workspace; an absolute path may point
-  anywhere on the thread's machine (`bb secret request --write-env`). Writes create parent
-  directories and honour `mode` and `expectedSha256` (`null` means "must not exist yet").
+  anywhere on the thread's machine. Writes create parent directories and honour `mode` and
+  `expectedSha256`.
+
+### Runner parts
+
+- `packages/runner/src/plugins.ts` gives every runner a kernel and the `runner` contract
+  (`runner.provider`, a slot of `ProviderAdapter` keyed by id). The session manager reads providers
+  from that slot on every call, so a provider can arrive or leave while the runner runs.
+- A plugin's `runner` entry is `(bb: PluginRunnerApi) => void`. In-repo ones come from the generated
+  `profiles/default/builtins.runner.ts`; `profiles/default/runner.ts` orders them (`LOADED_FIRST`,
+  then by id) and they are passed to `createLocalRunner` / `runRunner` as `parts`.
+- An operation a runner part implements is called from the server with `bb.runners.call` (see
+  Doors). The runner keeps an `AbortController` per call id, runs the implementation as the
+  server's caller, and `cancelOp(callId)` aborts it; an operation no part implements is a
+  `RunnerError` `unavailable`.
+- For an external plugin the server bundles the runner entry (`@bb/runner` and `@bb/plugin` resolve
+  to the runner's own modules through `globalThis.__bbRunnerRuntime`) and calls
+  `Runner.loadPlugins({plugins: [{id, hash, code}]})` on every connected runner when plugins change
+  and when a runner connects. The runner writes each bundle under
+  `<runner dataDir>/plugins/<id>/.cache/`, imports it, and unloads shipped parts that are no longer
+  in the list. A failed part is reported and logged; the others load.
+- Providers are plugins: `plugins/provider-codex`, `provider-claude-code`, `provider-pi` and
+  `provider-echo` each
+  have a runner part that adds its adapter and a server part that adds a `ProviderDeclaration` to
+  `sessions.provider` (name, logo, capabilities, reasoning levels, settings toggles). The echo plugin
+  registers only under vitest or `BB_DEV_PROVIDERS=echo`. A provider's toggles are ordinary plugin
+  settings of `provider-<id>`; the fourth schema step moves the old `providerSettings:*` rows there.
+- An environment kind is an entry in `environments.kind` (`EnvironmentDefinition` in
+  `server-api.ts`: `id`, `displayName`, `description`, `icon`, `workspace`, `default`, `requires`,
+  `inputs` with `validate` and `place`, `create(context)`, `delete(context)`). The built-in kinds are
+  plugins too (`environment-project-checkout`, `environment-git-worktree`,
+  `environment-personal-workspace`; `environment-modal-sandbox` is an add-on), so a plugin that adds
+  a kind with a built-in's id replaces it. When no kind is chosen, the kinds with a `default` whose
+  `requires` the project meets are tried highest `default` first
+  (`server-kit/src/environments/kinds.ts`).
+
+### App
+
+- The app's registry is a kernel too (`packages/app-kit/plugins/registry.ts`). An app part is a
+  plain function that receives the same handle shape as a server part: the verbs, `pluginId`,
+  `log`, `onStart` (run once plugins have settled) and `onDispose`. There are no slot shorthands:
+  every slot is filled with `bb.add`. `bb.call` and `callOp` run an operation the app implements,
+  else `POST /ops/<name>`.
+- **Slots and their readers.** A slot is declared in the contract of the plugin that reads it
+  (`shell`, `threadView`, `composer`, `sidePanel`, `settings`, `app` in `packages/plugin/src`). A
+  slot may carry a `check` that the kernel runs on `add`; the id-bearing shell slots use it to
+  refuse malformed, duplicate or view-less entries. Readers that need the owner use
+  `useOwned(slot)` (`packages/app-kit/plugins/slots.tsx`).
+- **Feature hooks.** `useSidebarThreads`, `ThreadChat`, `useComposer` and the rest in
+  `@bb/plugin/app` forward to typed services (`shell.api`, `threadView.api`, `composer.api`) that
+  those plugins provide. The host table (`apps/app/src/plugins/host.tsx`) holds only what the
+  host itself owns: routing, the client, settings, library components.
+- **Core app plugins.** The screens are five plugins, listed as `coreAppPlugins` in
+  `profiles/default/app.ts` and registered before the first render: `shell` (layout, sidebar,
+  command palette, routes, navigation rail items, thread actions), `thread-view` (the thread page,
+  timeline rows and row details), `composer` (prompt box, pickers, new-thread screen, "+" menu and
+  footer controls), `side-panel` (tab kinds, files, diffs, plugin panels) and `settings` (pages and
+  the settings routes). Each is `plugins/<id>/app.tsx` plus `plugins/<id>/app/`. `apps/app/src` is
+  the entry, `App.tsx` (providers, then whatever provides `app.root`; the shell does, and it renders
+  `shell.route` entries inside its layout) and the loader.
+- **Parts.** A feature never imports another feature's files. What others need is published in
+  `plugins/<id>/contract.ts` as typed parts: `part<typeof Module.Component>("<id>", "Component")`
+  for a component and `callPart<typeof Module.useHook>(…)` for a hook or function
+  (`packages/app-kit/plugins/parts.ts`). `plugins/<id>/parts.ts` re-exports the implementations and
+  the entry adds them to the `app.parts` slot (`bb.add(app.parts, { plugin, parts })`). A part resolves when it renders or is called, so
+  whichever plugin currently provides `<id>` is used; nothing renders while none does. Consumers
+  import `bb-plugin-<id>/contract`; lint rejects any other path into another plugin.
+- **What is in the kit.** Anything two features or the host share, and anything that must be one
+  instance: jotai atoms, React contexts, the query client, the socket. Feature directories hold the
+  rest.
+- **Replacing a core app plugin.** When the server lists a core id with an external app, the loader
+  unregisters the built-in registration and registers the bundle under the same id; removing the
+  external plugin registers the built-in one again. Routes of the five core ids render without a
+  plugin boundary wrapper, as before.
+- In-repo add-ons' app parts are listed as `appPlugins` in `profiles/default/app.ts` and loaded on
+  demand; external ones are imported from their bundle. Slot readers see entries sorted by plugin
+  id, then registration order.
+
+### Tooling
+
+`plugins/plugin-dev` adds `bb dev …` through CLI doors: `inspect [name]`, `new <id>`,
+`watch <dir>`, `validate <dir>` (manifest check plus what the source implements, hooks, calls, adds,
+and where it reaches Node built-ins, `fetch` or `process.env`), `types <dir>` (links the packages bb
+shares into the plugin's `node_modules` and writes a tsconfig), `port <dir>` (what a plugin written
+for the original bb calls and what each call is now), and
+`install <git:url[#ref][:subdir] | npm:pkg[@version] | dir>` (`plugin-dev.install`, fetched under
+`<dataDir>/plugins-src`; `--version <range>` resolves against git tags, with `--tag-prefix`, or
+npm; `--replace` swaps a plugin installed from the same place; a manifest whose `engines.bb` does
+not admit this bb is refused before it loads). `plugins/marketplace` reads plugin catalogs (the
+`catalogs` setting), installs through `plugin-dev.install`, records where each install came from
+and offers `bb marketplace search | list | install | updates | update | remove`.
+`fork <id> [path]` copies a builtin's directory
+(without `node_modules`, tests or caches), marks it `forkOf`, writes its types and loads it
+watched; a test forks every builtin and checks each copy runs. With `--as <new-id>` the copy is
+renamed (package, contract id, parts, CLI name, agent tool names) and runs beside the original. It ships the `bb-plugin-authoring` skill. Lint rule `bb/plugin-imports`
+keeps files under `plugins/` (tests excepted) from importing `@/…`, `@bb/server`, the profile, or
+another plugin's files other than its contract.
+
+The API is one version, `API_VERSION` in `packages/plugin/src/version.ts`, and one committed
+description, `packages/plugin/api.lock.json`: every contract exported by `@bb/plugin`,
+`@bb/plugin/app` and `@bb/runner`, member by member, with repeated shapes stored once under `shapes`.
+Members zod does not describe (slot entries, services, `z.custom` values) get their shape from the
+TypeScript checker (`packages/plugin/scripts/type-shapes.ts`), so the same source always writes the
+same lock. `pnpm api:lock` (`packages/plugin/scripts/api-lock.ts`) compares the code with the lock,
+lists each change as breaking or added (`compareApi` in `describe.ts`), and refuses to write unless
+the major version rose for a break or the minor version for an addition; `--rebase` rewrites the lock
+without comparing. A slot entry is judged by who writes each part: for a service (pick-one) the
+consumer calls it, so offering more is an addition; for a many-slot the plugin fills it, so an entry
+that takes more is one. `packages/plugin/test/api-lock.test.ts` fails when the lock and the code
+differ.
 
 ## CLI
 
@@ -523,10 +777,12 @@ when one exists and this Node CLI otherwise; the Node CLI is the reference for b
   then group help, then plugin dispatch), flag and argument parsing, `--help` at every level, the short
   "did you mean" errors, and the reference `bb guide commands` prints. Every command gets `--json` and
   `--help`. A failure with `--json` prints `{"ok": false, "error": {code, message, hint?}}` on stdout.
-- Handlers reach the server only through `@bb/sdk`. The SDK and `@bb/domain` are loaded just before a
+- Handlers reach the server only by calling operations (`c.op(c.ops.threads.get, …)`, built on
+  `createOpClient`). `@bb/plugin` and `@bb/domain` are loaded just before a
   handler runs, never for help, `bb guide`, `bb server` or `bb runner`, so those start without them.
 - A first word that is not in the table is looked up in `GET /plugins/contributions` and dispatched to
-  the server.
+  the server. That list holds each plugin's registered CLI and the commands built from operations
+  with a CLI door (`bb audit`, `bb dev`, …).
 - `bin/bb` runs `dist/bb.mjs` when `pnpm build:cli` has produced it and the TypeScript source through
   `tsx` otherwise. The bundle keeps native packages in `node_modules` and rewrites `import.meta.url` per
   source file, so it depends on the repository layout (schema, logos, plugin directories) but not on

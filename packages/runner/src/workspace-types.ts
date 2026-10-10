@@ -212,6 +212,7 @@ export interface WorkspaceApi {
     includeDirectories: boolean;
     includeHidden?: boolean;
     excludeNames?: string[];
+    fresh?: boolean;
   }): Promise<WorkspacePathListResponse>;
   browseDirectory(args: { path?: string }): Promise<HostDirectoryListing>;
   pathsExist(args: {
@@ -222,6 +223,7 @@ export interface WorkspaceApi {
   listCommands(args: {
     providerId: ProviderId;
     cwd: string | null;
+    nativeSkillRoots?: { user: string[]; project: string[] };
   }): Promise<CommandListResponse>;
 
   openTerminal(

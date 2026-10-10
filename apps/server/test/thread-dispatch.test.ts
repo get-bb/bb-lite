@@ -1,5 +1,7 @@
 import type { PendingInteractionPayload } from "@bb/domain";
+import { machines } from "@bb/plugin";
 import { expect, it } from "vitest";
+import { deny, threads as threadOps } from "@bb/plugin";
 import { createThreadServer, events, text } from "./thread-harness.js";
 
 const question: PendingInteractionPayload = {
@@ -86,6 +88,36 @@ it("holds messages on time, interactions, hosts and provisioning", async () => {
   expect(lastSubmit()).toEqual(["also this", "auto"]);
 });
 
+it("refuses a message to a thread whose machine was removed", async () => {
+  const server = await createThreadServer();
+  const id = await server.spawn();
+  await server.runTurn(id, "t1");
+  server.ctx.runners.disconnect(server.hostId);
+  const removed = "UPDATE hosts SET destroyed_at = 1 WHERE id = ?";
+  server.ctx.db.run(removed, server.hostId);
+  const refused = [409, "machine_removed"];
+  expect(await server.send(id, "auto", "anyone?")).toEqual(refused);
+  expect(server.queued(id)).toEqual([]);
+});
+
+it("fails messages queued before their machine was removed", async () => {
+  const server = await createThreadServer();
+  const { http, ingest } = server;
+  const id = await server.spawn();
+  await ingest(id, events.identity(), events.started("t1"));
+  await server.send(id, "queue-if-active", "waiting");
+  server.ctx.runners.disconnect(server.hostId);
+  const removed = "UPDATE hosts SET destroyed_at = 1 WHERE id = ?";
+  server.ctx.db.run(removed, server.hostId);
+  const machinesPlugin = server.ctx.kernel.scope("machines", "product");
+  machinesPlugin.emit(machines.deleted, { hostId: server.hostId });
+  await server.settle();
+  type Queued = { failureReason: string | null }[];
+  const path = `/threads/${id}/queued-messages`;
+  const [failed] = (await http<Queued>("GET", path)).body;
+  expect(failed?.failureReason).toMatch(/was removed; this thread can no/);
+});
+
 it("stops a running turn and pauses the turn-bound queue", async () => {
   const server = await createThreadServer();
   const { eventData, ingest, lastSubmit, queued, thread } = server;
@@ -138,4 +170,148 @@ it("stops a thread that is still provisioning or about to start", async () => {
   expect([thread(id).status, interrupts()]).toEqual(["idle", before + 1]);
   await ingest(id, events.completed("t1", "interrupted"));
   expect(thread(id)).toMatchObject({ status: "idle", activeTurnId: null });
+});
+
+it("sends queued messages in the order a client set", async () => {
+  const server = await createThreadServer();
+  const { http, ingest, lastSubmit } = server;
+  const id = await server.spawn();
+  await server.send(id, "steer-if-active", "one");
+  await ingest(id, events.identity(), events.started("t1"));
+  await server.send(id, "queue-if-active", "two");
+  await server.send(id, "queue-if-active", "three");
+  const path = `/threads/${id}/queued-messages`;
+  type Queued = { id: string }[];
+  const listed = (await http<Queued>("GET", path)).body;
+  const reversed = listed.map((message) => message.id).reverse();
+  const moved = await http<Queued>("PUT", `${path}/order`, {
+    queuedMessageIds: reversed.slice(0, 1),
+  });
+  expect(moved.body.map((message) => message.id)).toEqual(reversed);
+  const stray = { queuedMessageIds: ["qmsg_missing"] };
+  expect((await http("PUT", `${path}/order`, stray)).status).toBe(404);
+  await ingest(id, events.completed("t1"));
+  expect(lastSubmit()).toEqual(["three", "start"]);
+});
+
+it("sends queued messages up to a group boundary as one turn", async () => {
+  const server = await createThreadServer();
+  const { http, ingest, submitted } = server;
+  const id = await server.spawn();
+  await server.send(id, "steer-if-active", "one");
+  await ingest(id, events.identity(), events.started("t1"));
+  for (const message of ["two", "three", "four"]) {
+    await server.send(id, "queue-if-active", message);
+  }
+  const path = `/threads/${id}/queued-messages`;
+  type Queued = { id: string; groupWithNext: boolean }[];
+  const ids = (await http<Queued>("GET", path)).body.map((row) => row.id);
+  const boundary = `${path}/${ids[1]}/boundary`;
+  const stale = { expectedGroupedPrefixQueuedMessageIds: [ids[1]] };
+  expect((await http("PUT", boundary, stale)).status).toBe(409);
+  const grouped = await http<Queued>("PUT", boundary, {
+    expectedGroupedPrefixQueuedMessageIds: ids.slice(0, 2),
+  });
+  const flags = grouped.body.map((row) => row.groupWithNext);
+  expect(flags).toEqual([true, false, false]);
+  const listed = (await http<Queued>("GET", path)).body;
+  expect(listed.map((row) => row.groupWithNext)).toEqual(flags);
+  await ingest(id, events.completed("t1"));
+  const sent = submitted[submitted.length - 1].input.map((part) =>
+    part.type === "text" ? part.text : part.type,
+  );
+  expect(sent).toEqual(["two", "\n\n", "three"]);
+  const left = (await http<Queued>("GET", path)).body.map((row) => row.id);
+  expect(left).toEqual([ids[2]]);
+});
+
+it("keeps the lead queued group when a reorder leaves it in front", async () => {
+  const server = await createThreadServer();
+  const { http, ingest } = server;
+  const id = await server.spawn();
+  await server.send(id, "steer-if-active", "one");
+  await ingest(id, events.identity(), events.started("t1"));
+  for (const message of ["two", "three", "four", "five"]) {
+    await server.send(id, "queue-if-active", message);
+  }
+  const path = `/threads/${id}/queued-messages`;
+  type Queued = { id: string; groupWithNext: boolean }[];
+  const ids = (await http<Queued>("GET", path)).body.map((row) => row.id);
+  await http("PUT", `${path}/${ids[1]}/boundary`, {});
+  const order = `${path}/order`;
+  const kept = await http<Queued>("PUT", order, {
+    queuedMessageIds: [ids[1], ids[0], ids[3], ids[2]],
+  });
+  expect(kept.body.map((row) => row.groupWithNext)).toEqual([
+    true,
+    false,
+    false,
+    false,
+  ]);
+  const broken = await http<Queued>("PUT", order, {
+    queuedMessageIds: [ids[1], ids[3], ids[0], ids[2]],
+  });
+  expect(broken.body.some((row) => row.groupWithNext)).toBe(false);
+});
+
+it("starts a thread with no provider on an enabled one only", async () => {
+  const server = await createThreadServer();
+  const { ctx, http, runner } = server;
+  const installed = { installed: true, auth: "ready" as const, message: null };
+  const status = { ...installed, executablePath: null, version: "1.0.0" };
+  runner.script.listProviders = async () => [
+    { ...status, providerId: "codex" },
+    { ...status, providerId: "echo" },
+  ];
+  const remembered = { providerId: "codex", model: "gpt-test" };
+  ctx.db.run(
+    "UPDATE projects SET execution_defaults = ? WHERE id = 'proj_1'",
+    JSON.stringify(remembered),
+  );
+  const disabled = { pluginId: "provider-codex" };
+  expect((await http("POST", "/ops/plugins.disable", disabled)).status).toBe(
+    200,
+  );
+  const created = await http("POST", "/threads", {
+    projectId: "proj_1",
+    origin: "plugin",
+    originPluginId: "github",
+    input: text("go"),
+    model: "echo",
+    environment: { type: "project-default" },
+    startedOnBehalfOf: null,
+  });
+  expect(created.body).toMatchObject({ providerId: "echo" });
+});
+
+it("runs a new thread's first prompt through send hooks", async () => {
+  const server = await createThreadServer();
+  const guard = server.ctx.kernel.scope("quiet-hours", "installed");
+  const seen: string[] = [];
+  guard
+    .on(threadOps.send, (input, next) => {
+      const [first] = input.input;
+      const said = first?.type === "text" ? first.text : "";
+      seen.push(said);
+      return said === "forbidden" ? deny("Not that one") : next(input);
+    })
+    .failClosed();
+  const allowed = await server.spawn();
+  expect(seen).toHaveLength(1);
+  const before = server.rows("SELECT id FROM threads").length;
+  const request = {
+    projectId: "proj_1",
+    origin: "app",
+    providerId: "codex",
+    input: text("forbidden"),
+    environment: { type: "project-default" },
+    startedOnBehalfOf: null,
+  };
+  const refused = await server.http("POST", "/threads", request);
+  expect(refused).toMatchObject({
+    status: 403,
+    body: { code: "denied_by_plugin" },
+  });
+  expect(server.rows("SELECT id FROM threads")).toHaveLength(before);
+  expect(server.thread(allowed).id).toBe(allowed);
 });

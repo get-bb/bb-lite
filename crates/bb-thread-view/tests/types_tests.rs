@@ -193,7 +193,7 @@ fn conversation_and_turn_rows() {
 fn fixture() -> Vec<Value> {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../packages/runner/test/fixtures/claude/turn-tools.events.json"
+        "/../../plugins/provider-claude-code/test/fixtures/turn-tools.events.json"
     );
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
 }

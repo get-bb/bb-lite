@@ -8,7 +8,7 @@ use crate::call::{
     machine_flag, machine_or_this, now_ms, send_at_ms, text_input, thread_target, usage_error,
     valid_id,
 };
-use crate::commands::workspace::{read_client_file, upload_attachment};
+use crate::commands::workspace::{pull_request_op, read_client_file, upload_attachment};
 use crate::http::encode;
 use crate::render::{pending_todos_of, queue_wait, shown, text, thread_lines, todo_lines};
 
@@ -42,6 +42,7 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("threadUnarchive", thread_unarchive),
         ("threadCompact", thread_compact),
         ("threadClear", thread_clear),
+        ("threadRetry", thread_retry),
         ("threadPin", thread_pin),
         ("threadUnpin", thread_unpin),
         ("threadRead", thread_read),
@@ -379,9 +380,75 @@ fn thread_show(call: &mut Call) -> CliResult<Output> {
     let pending_todos = pending_todos_of(call, &thread_id);
     let mut lines = thread_lines(&thread, &environment);
     lines.extend(todo_lines(&pending_todos));
-    let data =
+    let environment_id = text(&environment, "id").unwrap_or_default().to_string();
+    let environment = match environment {
+        Value::Object(mut fields) => {
+            fields.insert("pullRequest".into(), pull_request_of(call, &environment_id));
+            Value::Object(fields)
+        }
+        other => other,
+    };
+    let mut data =
         json!({ "thread": thread, "environment": environment, "pendingTodos": pending_todos });
+    if environment_id.is_empty() || !call.on("work-status")? {
+        return Ok(Output::lines(data, &lines));
+    }
+    let path = format!("/environments/{}/status", encode(&environment_id));
+    let status = call.http.get(&path, &[])?;
+    let available = text(&status, "outcome") == Some("available");
+    data["workStatus"] = if available { status["workspace"].clone() } else { Value::Null };
+    lines.push(String::new());
+    lines.extend(work_lines(&status));
     Ok(Output::lines(data, &lines))
+}
+
+fn pull_request_of(call: &Call, environment_id: &str) -> Value {
+    match pull_request_op(call, "get", json!({ "environmentId": environment_id })) {
+        Ok(Value::Null) => json!({ "status": "none", "pullRequest": null }),
+        Ok(pull) => json!({ "status": "available", "pullRequest": pull }),
+        Err(error) => {
+            json!({ "status": "unavailable", "pullRequest": null, "message": error.message })
+        }
+    }
+}
+
+fn work_lines(status: &Value) -> Vec<String> {
+    match text(status, "outcome").unwrap_or_default() {
+        "not_applicable" => {
+            return vec![format!("Work status: {}", text(status, "message").unwrap_or_default())];
+        }
+        "available" => {}
+        _ => {
+            return vec![format!(
+                "Work status: {}",
+                text(&status["failure"], "message").unwrap_or_default()
+            )];
+        }
+    }
+    let tree = &status["workspace"]["workingTree"];
+    let mut lines = vec![
+        "Work status:".to_string(),
+        format!("  State:    {}", text(tree, "state").unwrap_or_default()),
+    ];
+    let branch = text(&status["workspace"]["branch"], "currentBranch").unwrap_or_default();
+    if !branch.is_empty() {
+        lines.push(format!("  Branch:   {branch}"));
+    }
+    let files = tree["files"].as_array().map_or(0, Vec::len);
+    lines.push(format!("  Changed files: {files}"));
+    if tree["lineStatsComplete"].as_bool() == Some(true) {
+        lines.push(format!("  Insertions:    +{}", tree["insertions"]));
+        lines.push(format!("  Deletions:     -{}", tree["deletions"]));
+    } else {
+        lines.push("  Line stats: unavailable for untracked files".to_string());
+    }
+    let base = &status["workspace"]["mergeBase"];
+    if base.is_object() {
+        lines
+            .push(format!("  Merge base:   {}", text(base, "mergeBaseBranch").unwrap_or_default()));
+        lines.push(format!("  Ahead: {}  Behind: {}", base["aheadCount"], base["behindCount"]));
+    }
+    lines
 }
 
 fn log_events(call: &mut Call, thread_id: &str) -> CliResult<Output> {
@@ -619,6 +686,25 @@ fn thread_unarchive(call: &mut Call) -> CliResult<Output> {
 
 fn thread_compact(call: &mut Call) -> CliResult<Output> {
     action(call, "/compact", true, "compaction requested")
+}
+
+fn thread_retry(call: &mut Call) -> CliResult<Output> {
+    let thread_id = thread_target(call)?;
+    let mut body = Map::new();
+    put(&mut body, "sendAt", send_at(call)?);
+    let response = call.http.post(&at(&thread_id, "/retry"), &Value::Object(body))?;
+    let outcome = if text(&response, "delivery") == Some("queued") {
+        let queued = response.get("queuedMessage").cloned().unwrap_or(Value::Null);
+        format!("retry queued ({})", queue_wait(&queued))
+    } else {
+        "retry sent".into()
+    };
+    let mut data = Map::new();
+    data.insert("threadId".into(), json!(thread_id));
+    if let Value::Object(fields) = response {
+        data.extend(fields);
+    }
+    Ok(Output::text(Value::Object(data), format!("Thread {thread_id} {outcome}")))
 }
 
 fn thread_clear(call: &mut Call) -> CliResult<Output> {

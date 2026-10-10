@@ -1,3 +1,4 @@
+import { sessions } from "@bb/plugin";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -28,22 +29,25 @@ const ulid = (suffix: string): string => `01J8ZZZZZZZZZZZZZZZZZZZZ${suffix}`;
 async function tasksServer() {
   const server = await createThreadServer();
   const base = `${server.url}/api/v1/plugins/tasks`;
-  const post = (path: string, body: unknown = {}): Promise<Response> =>
-    fetch(`${base}${path}`, {
+  const send = (url: string, body: unknown): Promise<Response> =>
+    fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
+  const post = (path: string, body: unknown = {}): Promise<Response> =>
+    send(`${base}${path}`, body);
   const rpc = async <Result = Row>(
     method: string,
-    input: unknown = null,
+    input: unknown = {},
   ): Promise<Result> => {
-    const response = await post(`/rpc/${method}`, input);
+    const url = `${server.url}/api/v1/ops/tasks.${method}`;
+    const response = await send(url, input);
     const body = (await response.json()) as {
       result: Result;
-      error?: { message: string };
+      message?: string;
     };
-    if (body.error) throw new Error(body.error.message);
+    if (!response.ok) throw new Error(body.message);
     return body.result;
   };
   const cli = async (line: string, scope: Row = {}) => {
@@ -77,7 +81,11 @@ it("round-trips tasks, labels, comments and mentions over rpc", async () => {
   const { project, label, task } = await seed();
   expect(task).toMatchObject({ key: "BB-1", status: "backlog", number: 1 });
   const signal = await client.next(({ type }) => type === "plugin-signal");
-  expect(signal).toMatchObject({ pluginId: "tasks" });
+  expect(signal).toMatchObject({
+    pluginId: "kernel",
+    channel: "changed",
+    payload: { name: "tasks.overview" },
+  });
 
   const child = { projectId: project.id, parentTaskId: task.id };
   const part = { ...child, title: "Part one", status: "todo" };
@@ -86,13 +94,21 @@ it("round-trips tasks, labels, comments and mentions over rpc", async () => {
   await expect(rpc("createTask", grandchild)).rejects.toThrow("one level");
   const foreign = { taskId: task.id, labelIds: [ulid("ZZ")] };
   await expect(rpc("updateTask", foreign)).rejects.toThrow("must belong");
+  const missing = await fetch(`${url}/api/v1/ops/tasks.updateTask`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ taskId: ulid("YY"), title: "Gone" }),
+  });
+  expect(missing.status).toBe(404);
+  expect(await missing.json()).toMatchObject({ code: "task_not_found" });
 
-  const search = `${url}/api/v1/plugins/mentions/search?q=fix&projectId=proj_1`;
-  const { groups } = (await (await fetch(search)).json()) as { groups: Row[] };
+  const search = `${url}/api/v1/sessions/mentions?query=fix&projectId=proj_1`;
+  const groups = (await (await fetch(search)).json()) as Row[];
   const itemId = `task:${task.id}`;
   const item = { itemId, title: "BB-1 · Fix it", subtitle: "bb · Backlog" };
   expect(groups).toMatchObject([{ providerId: "task", items: [item] }]);
-  const context = await ctx.plugins.resolveMention("tasks", itemId);
+  const mention = { pluginId: "tasks", itemId };
+  const context = await ctx.kernel.call(sessions.resolveMention, mention);
   expect(context).toContain("- Labels: bug\n- Project: bb");
   expect(context).toContain("first run: bb tasks attach BB-1");
 
@@ -319,6 +335,11 @@ it("dispatches to a new thread, follows it and notifies its agent", async () => 
   const saved = await cli(`preset set 'Codex high' ${execution} ${guard}`);
   expect(saved.stdout).toContain("Saved preset Codex high");
   expect((await cli("preset set Other")).stderr).toContain("--provider");
+  const missing = await cli("preset set Nope --delete");
+  expect([missing.exitCode, missing.stderr]).toEqual([
+    1,
+    expect.stringContaining("preset not found: Nope"),
+  ]);
   const sent = "dispatch bb-1 --preset 'codex HIGH' --json";
   const dispatched = await cli(`${sent} --instructions 'Be quick'`);
   const { threadId } = dispatched.json<{ threadId: string }>();
@@ -371,4 +392,33 @@ it("dispatches to a new thread, follows it and notifies its agent", async () => 
     `Thread "BB-1 · Fix it" failed · ${threadId}`,
     `Thread "BB-1 · Fix it" completed — final message posted · ${threadId}`,
   ]);
+});
+
+it("answers conflicts and contradictory flags with clear errors", async () => {
+  const { rpc, cli, seed } = await tasksServer();
+  const { project, label } = await seed();
+  const again = { name: "Again", prefix: "BB", color: "teal" };
+  await expect(rpc("createProject", again)).rejects.toThrow("already in use");
+  const twin = { projectId: project.id, name: "BUG", color: "teal" };
+  await expect(rpc("createLabel", twin)).rejects.toThrow("already exists");
+  const other = { projectId: project.id, name: "ui", color: "teal" };
+  const { label: ui } = await rpc<{ label: Label }>("createLabel", other);
+  const rename = { labelId: ui.id, name: "Bug" };
+  await expect(rpc("updateLabel", rename)).rejects.toThrow("already exists");
+  const recolor = { labelId: label.id, name: "bug", color: "red" };
+  const recolored = { label: { id: label.id, color: "red" } };
+  expect(await rpc("updateLabel", recolor)).toMatchObject(recolored);
+
+  const both = await cli("update BB-1 --parent BB-1 --no-parent");
+  expect(both.exitCode).not.toBe(0);
+  expect(both.stderr).toContain("cannot combine --parent and --no-parent");
+  const preset = "preset set P --provider echo --model echo";
+  const flags = `${preset} --reasoning low --permission auto`;
+  const stray = await cli(`${flags} --base-branch main`);
+  expect(stray.exitCode).not.toBe(0);
+  expect(stray.stderr).toContain("--base-branch requires --environment");
+  const placed = await cli(
+    `${flags} --environment worktree --base-branch main`,
+  );
+  expect(placed.exitCode).toBe(0);
 });

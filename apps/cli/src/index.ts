@@ -13,7 +13,11 @@ import {
   resolveCommand,
   unknownCommand,
 } from "./engine.js";
-import { findPluginCommand, runPluginCommand } from "./plugin-proxy.js";
+import {
+  findPluginCommand,
+  findPluginSpelling,
+  runPluginCommand,
+} from "./plugin-proxy.js";
 import { table } from "./table.js";
 
 const SERVERLESS_COMMANDS = ["guide", "server", "runner join", "runner run"];
@@ -81,6 +85,11 @@ async function dispatch(argv: string[], env: CliEnv): Promise<number> {
   if (found.kind === "group" && found.unknown === null) {
     console.log(groupHelp(table, found.group));
     return 0;
+  }
+  if (found.kind === "group" && !asksHelp) {
+    const spelling = `${found.group} ${found.unknown}`;
+    const pluginId = await findPluginSpelling(env, spelling).catch(() => null);
+    if (pluginId !== null) return runPluginCommand(env, pluginId, argv);
   }
   if (found.kind === "group") throw unknownCommand(table, found);
   const [first, ...rest] = found.argv;

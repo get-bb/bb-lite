@@ -75,7 +75,7 @@ fn machine_list_shows_creating_hosts_with_owner_and_sharing() {
           "ownerUserId": null, "sharing": "shared" },
     ]);
     let users = json!([{ "id": "usr_1", "name": "Ada" }]);
-    let routes = vec![route("GET", "/hosts", hosts.clone()), route("GET", "/users", users)];
+    let routes = vec![route("GET", "/machines", hosts.clone()), route("GET", "/users", users)];
     let server = FakeServer::start(routes);
     let (result, printed) = run(&server, &["machine", "list"], CliEnv::default());
     result.unwrap();
@@ -85,9 +85,9 @@ fn machine_list_shows_creating_hosts_with_owner_and_sharing() {
         host_3  old   offline  shared   -      -\n\n";
     assert_eq!(printed, expected);
     let listed =
-        [request("GET", "/hosts?includeCreating=true", None), request("GET", "/users", None)];
+        [request("GET", "/machines?includeCreating=true", None), request("GET", "/users", None)];
     assert_eq!(server.requests(), listed);
-    let forbidden = FakeServer::start(vec![route("GET", "/hosts", hosts.clone())]);
+    let forbidden = FakeServer::start(vec![route("GET", "/machines", hosts.clone())]);
     let (result, printed) = run(&forbidden, &["machine", "list", "--json"], CliEnv::default());
     result.unwrap();
     assert_eq!(serde_json::from_str::<serde_json::Value>(&printed).unwrap(), hosts);
@@ -96,13 +96,13 @@ fn machine_list_shows_creating_hosts_with_owner_and_sharing() {
 #[test]
 fn machine_share_and_unshare_patch_the_sharing_of_a_machine() {
     let host = json!({ "id": "host_1", "sharing": "shared" });
-    let server = FakeServer::start(vec![route("PATCH", "/hosts/host_1/sharing", host)]);
+    let server = FakeServer::start(vec![route("PATCH", "/machines/host_1/sharing", host)]);
     let (result, printed) = run(&server, &["machine", "share", "host_1"], CliEnv::default());
     result.unwrap();
     assert_eq!(printed, "Machine host_1 is shared\n");
     run(&server, &["machine", "unshare", "host_1"], CliEnv::default()).0.unwrap();
     let sent = |sharing: &str| {
-        request("PATCH", "/hosts/host_1/sharing", Some(json!({ "sharing": sharing })))
+        request("PATCH", "/machines/host_1/sharing", Some(json!({ "sharing": sharing })))
     };
     assert_eq!(server.requests(), [sent("shared"), sent("private")]);
 }
@@ -112,8 +112,8 @@ fn provider_list_and_models_route_by_machine() {
     let models = json!({ "models": [{ "model": "m1", "displayName": "M1", "isDefault": true }],
         "modelLoadError": null });
     let server = FakeServer::start(vec![
-        route("GET", "/system/providers", json!([{ "id": "codex", "displayName": "Codex" }])),
-        route("GET", "/system/execution-options", models),
+        route("GET", "/sessions/providers", json!([{ "id": "codex", "displayName": "Codex" }])),
+        route("GET", "/sessions/execution-options", models),
     ]);
     let (result, printed) = run(&server, &["provider", "list"], CliEnv::default());
     result.unwrap();
@@ -125,8 +125,8 @@ fn provider_list_and_models_route_by_machine() {
     assert_eq!(
         server.requests(),
         [
-            request("GET", "/system/providers", None),
-            request("GET", "/system/execution-options?hostId=host_1&providerId=codex", None),
+            request("GET", "/sessions/providers", None),
+            request("GET", "/sessions/execution-options?hostId=host_1&providerId=codex", None),
         ]
     );
 }
@@ -170,4 +170,126 @@ fn env_commands_build_queries_and_bodies() {
             request("GET", "/environments/env_1/status?mergeBaseBranch=main", None),
         ]
     );
+}
+
+#[test]
+fn env_diff_commands_print_what_the_original_printed() {
+    let files = json!({
+        "outcome": "available",
+        "files": [{
+            "path": "b.txt", "previousPath": "a.txt", "changeKind": "renamed",
+            "additions": 1, "deletions": 0, "binary": false, "origin": "tracked",
+            "loadMode": "auto"
+        }],
+        "truncated": true, "shortstat": " 1 file changed\n", "mergeBaseRef": null,
+        "initialPatches": []
+    });
+    let server = FakeServer::start(vec![
+        route("GET", "/environments/env_1/diff/files", files),
+        route(
+            "POST",
+            "/environments/env_1/diff/patch",
+            json!({ "outcome": "not_applicable", "reason": "non_git_environment",
+                    "message": "Not git" }),
+        ),
+        route(
+            "GET",
+            "/environments/env_1/diff/branches",
+            json!({ "branches": ["main"], "branchesTruncated": false,
+                    "remoteBranches": [], "remoteBranchesTruncated": true }),
+        ),
+        route(
+            "POST",
+            "/environments/env_1/archive-threads",
+            json!({
+            "ok": true, "archivedThreadIds": ["thr_1", "thr_2"] }),
+        ),
+    ]);
+    let env = CliEnv::default;
+    let words = ["env", "diff-files", "env_1", "--target", "all", "--merge-base-branch", "main"];
+    let (result, printed) = run(&server, &words, env());
+    result.unwrap();
+    let expected = "renamed\t+1 -0\ttracked\tauto\ta.txt -> b.txt\n1 file changed\n\
+                    (additional changed files omitted)\n";
+    assert_eq!(printed, expected);
+    let words =
+        ["env", "diff-patch", "env_1", "--target", "commit", "--sha", "abcd", "--path", "x"];
+    let (result, printed) = run(&server, &words, env());
+    result.unwrap();
+    assert_eq!(printed, "Diff patches unavailable: Not git\n");
+    let (result, printed) = run(&server, &["env", "branches", "env_1", "--limit", "0"], env());
+    result.unwrap();
+    assert_eq!(printed, "Local branches:\n  main\nRemote branches:\n  (none)\n  (truncated)\n");
+    let (result, printed) = run(&server, &["env", "archive-threads", "env_1"], env());
+    result.unwrap();
+    assert_eq!(printed, "Archived 2 thread(s) in environment env_1\n");
+    let words = ["env", "diff-files", "env_1", "--target", "commit"];
+    let (result, _) = run(&server, &words, env());
+    assert_eq!(result.unwrap_err().message, "--sha is required when --target commit is used.");
+    let words = ["env", "diff-patch", "env_1", "--target", "uncommitted"];
+    let (result, _) = run(&server, &words, env());
+    assert_eq!(result.unwrap_err().message, "Provide at least one --path.");
+    assert_eq!(
+        server.requests(),
+        [
+            request("GET", "/environments/env_1/diff/files?target=all&mergeBaseBranch=main", None),
+            request(
+                "POST",
+                "/environments/env_1/diff/patch",
+                Some(json!({ "target": { "type": "commit", "sha": "abcd" }, "paths": ["x"] })),
+            ),
+            request("GET", "/environments/env_1/diff/branches?limit=0", None),
+            request("POST", "/environments/env_1/archive-threads", Some(json!({}))),
+        ]
+    );
+}
+
+#[test]
+fn env_diff_composes_the_file_list_stats_and_every_patch() {
+    let paths: Vec<String> = (0..51).map(|n| format!("f{n}")).collect();
+    let files: Vec<serde_json::Value> =
+        paths.iter().map(|path| json!({ "path": path, "changeKind": "added" })).collect();
+    let listed = json!({ "outcome": "available", "files": files, "truncated": false,
+                         "shortstat": " 51 files changed\n" });
+    let patch = json!({ "path": "f", "patch": "+x\n", "truncated": false });
+    let server = FakeServer::start(vec![
+        route("GET", "/environments/env_1/diff/files", listed),
+        route(
+            "POST",
+            "/environments/env_1/diff/patch",
+            json!({ "outcome": "available", "patches": [patch] }),
+        ),
+    ]);
+    let words = ["env", "diff", "env_1", "--target", "uncommitted"];
+    let (result, printed) = run(&server, &words, CliEnv::default());
+    result.unwrap();
+    let lines: Vec<&str> = printed.lines().collect();
+    assert_eq!(lines[50..], ["added\tf50", "51 files changed", "+x", "+x"]);
+    let requests = server.requests();
+    let batches: Vec<usize> = requests[1..]
+        .iter()
+        .map(|sent| sent.body.as_ref().unwrap()["paths"].as_array().unwrap().len())
+        .collect();
+    assert_eq!(batches, [50, 1]);
+}
+
+#[test]
+fn env_pull_request_calls_the_github_plugin_operations() {
+    let pull = json!({ "repo": "o/r", "number": 7, "title": "Fix", "state": "OPEN",
+                       "isDraft": true, "url": "u", "headRefName": "h", "baseRefName": "main" });
+    let answer = json!({ "ok": true, "result": pull });
+    let server = FakeServer::start(vec![
+        route("POST", "/ops/pullRequests.get", answer.clone()),
+        route("POST", "/ops/pullRequests.merge", answer),
+    ]);
+    let (result, printed) =
+        run(&server, &["env", "pull-request", "show", "env_1"], CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "Pull request: #7 OPEN - Fix\nURL: u\nBranch: h -> main\nDraft: yes\n");
+    let words = ["env", "pull-request", "merge", "env_1", "--method", "squash"];
+    let (result, printed) = run(&server, &words, CliEnv::default());
+    result.unwrap();
+    assert_eq!(printed, "Merged pull request #7\n");
+    let merged = server.requests()[1].body.clone();
+    assert_eq!(merged, Some(json!({ "environmentId": "env_1", "method": "squash" })));
 }

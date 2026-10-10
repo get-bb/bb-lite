@@ -2,7 +2,7 @@ import {
   isRunningThreadRuntimeDisplayStatus,
   type ThreadListIndicatorState,
 } from "@bb/client-core";
-import type { PluginSidebarThread } from "@bb/plugin/app";
+import type { SidebarThread } from "@bb/plugin/app";
 
 const NO_THREAD_ACTIVITY: ThreadListIndicatorState = {
   hasPendingInteraction: false,
@@ -18,7 +18,7 @@ const NO_THREAD_ACTIVITY: ThreadListIndicatorState = {
 };
 
 export function threadIndicatorState(
-  thread: PluginSidebarThread,
+  thread: SidebarThread,
   hasUnsubmittedDraft: boolean,
 ): ThreadListIndicatorState {
   const unreadDone =
@@ -63,7 +63,7 @@ export function mergeThreadActivity(
 const NO_DRAFT_THREAD_IDS: ReadonlySet<string> = new Set();
 
 export function rollupThreadActivity(
-  threads: readonly PluginSidebarThread[],
+  threads: readonly SidebarThread[],
   draftThreadIds: ReadonlySet<string> = NO_DRAFT_THREAD_IDS,
 ): ThreadListIndicatorState {
   return threads.reduce(

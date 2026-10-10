@@ -8,10 +8,7 @@ import {
   hasThreadListWorkingActivity,
   type ThreadListIndicatorState,
 } from "@bb/client-core";
-import {
-  useSidebarSplitLayout,
-  type PluginSidebarSplitPane,
-} from "@bb/plugin/app";
+import { useSidebarSplitLayout, type SidebarSplitPane } from "@bb/plugin/app";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { Icon } from "@bb/shared-ui/icon";
 import { LIST_HOVER_TRANSITION } from "@bb/shared-ui/motion";
@@ -44,12 +41,12 @@ function stopPropagation(event: { stopPropagation: () => void }) {
 function useCollapsedSplitMiniMap(
   threads: readonly { id: string }[],
   enabled: boolean,
-): PluginSidebarSplitPane[] | null {
+): SidebarSplitPane[] | null {
   const layout = useSidebarSplitLayout();
   return useMemo(() => {
     if (!enabled || threads.length === 0 || layout === null) return null;
     const threadIds = new Set(threads.map((thread) => thread.id));
-    const slots = layout.panes.map<PluginSidebarSplitPane>((pane) => ({
+    const slots = layout.panes.map<SidebarSplitPane>((pane) => ({
       paneId: pane.paneId,
       rect: pane.rect,
       isMe: pane.threadId !== null && threadIds.has(pane.threadId),

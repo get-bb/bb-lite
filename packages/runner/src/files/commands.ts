@@ -80,7 +80,12 @@ async function scanRoots(ctx: Ctx, scope: Scope) {
       ...shared,
     ];
   }
-  return shared;
+  const native = scope.nativeSkillRoots ?? { user: [], project: [] };
+  return [
+    ...native.project.flatMap(inherited),
+    ...native.user.map((relative) => user(path.resolve(home, relative))),
+    ...shared,
+  ];
 }
 
 export function parseFrontmatter(content: string): Record<string, string> {
@@ -116,7 +121,7 @@ async function describe(
     const description = fields.description?.slice(0, MAX_DESCRIPTION_LENGTH);
     const argumentHint = fields["argument-hint"] || null;
     const about = { description: description || null, argumentHint };
-    return { name, source, origin, ...about };
+    return { name, source, origin, ...about, path: filePath };
   } finally {
     await handle.close();
   }

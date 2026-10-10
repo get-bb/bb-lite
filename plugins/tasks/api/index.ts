@@ -1,4 +1,4 @@
-import type { PluginServerApi } from "@bb/plugin";
+import { fail, threads, type PluginServerApi } from "@bb/plugin";
 import type { z } from "zod";
 import type { TasksStore } from "../db/store.js";
 import {
@@ -8,7 +8,8 @@ import {
   type DisplayComment,
   type Task,
   type TaskDetail,
-  type TASK_CHANNELS,
+  TASK_CHANGES,
+  type TaskChange,
   type updateTaskInputSchema,
 } from "../shared/contract.js";
 
@@ -93,20 +94,17 @@ export function taskBrief(
   return `${[`# ${task.key} · ${task.title}`, ...body].join("\n\n")}\n`;
 }
 
-export function publish(
-  { bb, store }: TasksContext,
-  taskId: string,
-  ...channels: (typeof TASK_CHANNELS)[number][]
-): void {
-  const projectId = store.getTask(taskId)?.projectId ?? null;
-  for (const channel of channels) {
-    bb.realtime.publish(channel, { taskId, projectId });
-  }
+export function publish({ bb }: TasksContext, ...changes: TaskChange[]): void {
+  const ops = new Set(changes.map((change) => TASK_CHANGES[change]));
+  for (const changed of ops) bb.changed(changed);
 }
 
 export function requireTask(store: TasksStore, taskId: string): Task {
   const task = store.getTask(taskId);
-  if (!task) throw new Error(`Task not found: ${taskId}`);
+  if (!task)
+    fail("not_found", `Task not found: ${taskId}`, {
+      reason: "task_not_found",
+    });
   return task;
 }
 
@@ -118,17 +116,17 @@ function checkParent(
 ): void {
   if (parentTaskId === null) return;
   if (parentTaskId === ownId) {
-    throw new Error("A task cannot be its own parent");
+    fail("invalid", "A task cannot be its own parent");
   }
   const parent = requireTask(store, parentTaskId);
   if (parent.projectId !== projectId) {
-    throw new Error("A sub-task must belong to the same project as its parent");
+    fail("invalid", "A sub-task must belong to the same project as its parent");
   }
   if (parent.parentTaskId !== null) {
-    throw new Error("Tasks support at most one level of sub-tasks");
+    fail("invalid", "Tasks support at most one level of sub-tasks");
   }
   if (ownId && store.listTasks({ parentTaskId: ownId }).length > 0) {
-    throw new Error("A task with sub-tasks cannot itself become a sub-task");
+    fail("invalid", "A task with sub-tasks cannot itself become a sub-task");
   }
 }
 
@@ -139,7 +137,8 @@ function checkLabels(
 ): void {
   for (const labelId of labelIds) {
     if (store.getLabel(labelId)?.projectId !== projectId) {
-      throw new Error(
+      fail(
+        "invalid",
         `Task labels must belong to the task project: ${labelId}`,
       );
     }
@@ -153,7 +152,7 @@ export function createTask(
   checkParent(ctx.store, projectId, fields.parentTaskId);
   checkLabels(ctx.store, projectId, fields.labelIds);
   const task = ctx.store.createTask(projectId, fields);
-  publish(ctx, task.id, "tasks:changed");
+  publish(ctx, "tasks");
   return task;
 }
 
@@ -192,8 +191,8 @@ export function updateTask(
     }
     return updated;
   });
-  publish(ctx, taskId, "tasks:changed");
-  if (notes.length > 0) publish(ctx, taskId, "comments:changed");
+  publish(ctx, "tasks");
+  if (notes.length > 0) publish(ctx, "comments");
   return task;
 }
 
@@ -210,7 +209,8 @@ async function notifyLatestAgent(
     `reply via bb tasks comment ${key} when relevant.`;
   try {
     const input = [{ type: "text" as const, text, mentions: [] }];
-    await bb.threads.send(threadId, { input, mode: "steer-if-active" });
+    const mode = "steer-if-active" as const;
+    await bb.call(threads.send, { threadId, input, mode });
     return 1;
   } catch (error) {
     const reason = errorMessage(error);
@@ -231,7 +231,7 @@ export async function createComment(
     comment.notifiedCount = await notifyLatestAgent(ctx, comment);
     ctx.store.setNotifiedCount(comment.id, comment.notifiedCount);
   }
-  publish(ctx, input.taskId, "comments:changed");
+  publish(ctx, "comments");
   return comment;
 }
 
@@ -243,17 +243,19 @@ export async function displayComments(
   const authors = comments.flatMap((comment) =>
     comment.kind === "agent" && comment.threadId ? [comment.threadId] : [],
   );
-  const threads = new Map(
+  const authored = new Map(
     await Promise.all(
       [...new Set(authors)].map(async (threadId) => {
-        const thread = await bb.threads.get(threadId).catch(() => null);
+        const thread = await bb
+          .call(threads.get, { threadId })
+          .catch(() => null);
         return [threadId, thread] as const;
       }),
     ),
   );
   return comments.map((comment) => {
     const thread =
-      comment.kind === "agent" ? threads.get(comment.threadId ?? "") : null;
+      comment.kind === "agent" ? authored.get(comment.threadId ?? "") : null;
     if (!thread) return { ...comment, threadTitle: null, provider: null };
     const title = thread.title?.trim() || thread.titleFallback?.trim() || null;
     const provider = { id: thread.providerId, name: thread.providerId };
@@ -267,7 +269,7 @@ export async function taskDetail(
 ): Promise<TaskDetail> {
   const { store } = ctx;
   const project = store.getProject(task.projectId);
-  if (!project) throw new Error(`Project not found: ${task.projectId}`);
+  if (!project) fail("not_found", `Project not found: ${task.projectId}`);
   return {
     task,
     project,

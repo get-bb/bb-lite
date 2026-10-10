@@ -1,8 +1,19 @@
+import {
+  githubDisabled,
+  pullRequestOps,
+  ThreadWaitTimeoutError,
+  ThreadWaitUnreachableError,
+  uploadAttachment,
+  waitForThread,
+} from "../remote.js";
 import { readFile } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PromptInput, ThreadEventRow } from "@bb/domain";
-import type { CreateThreadEnvironmentArgs } from "@bb/server-contract";
+import type {
+  CreateThreadEnvironmentArgs,
+  EnvironmentStatusResponse,
+} from "@bb/server-contract";
 import {
   confirm,
   durationMs,
@@ -15,6 +26,7 @@ import {
   threadTarget,
   validId,
   type Call,
+  type Remote,
 } from "../call.js";
 import { CliError, usageError, type Run } from "../engine.js";
 import {
@@ -62,9 +74,9 @@ async function promptInput(
   ): Promise<PromptInput> => {
     const local = clientPath(value);
     if (local === null) return { type, path: value };
-    const uploaded = await c.sdk.projects.attachments.upload({
+    const uploaded = await uploadAttachment(c, {
       projectId: await projectId(),
-      clientFile: await readFile(local),
+      bytes: await readFile(local),
       filename: basename(local),
     });
     return { type, path: uploaded.path };
@@ -142,7 +154,7 @@ export const threadSpawn: Run = async (c) => {
   }
   const parentThreadId = spawnParent(c);
   const scheduled = sendAtMs(c.flag("send-at"));
-  const thread = await c.sdk.threads.spawn({
+  const thread = await c.op(c.ops.threads.create, {
     origin: "cli",
     projectId,
     environment: await spawnEnvironment(c, projectId),
@@ -171,11 +183,11 @@ export const threadTell: Run = async (c) => {
   const { message } = c.args;
   const text = await textInput(c, message, "message-file", "<message>");
   const mode = c.choice("mode", ["steer", "queue", "auto"]) ?? "steer";
-  const { sdk } = c;
+  const remote: Remote = c;
   const project = async (): Promise<string> =>
-    (await sdk.threads.get({ threadId })).projectId;
+    (await remote.op(remote.ops.threads.get, { threadId })).projectId;
   const sender = c.env.threadId;
-  const response = await sdk.threads.send({
+  const response = await remote.op(remote.ops.threads.send, {
     threadId,
     input: await promptInput(c, text, project),
     mode: mode === "auto" ? mode : `${mode}-if-active`,
@@ -187,9 +199,7 @@ export const threadTell: Run = async (c) => {
     response.delivery === "queued"
       ? `message queued (${queueWait(response.queuedMessage)}); it ` +
         "dispatches when that clears"
-      : mode === "steer"
-        ? "steered"
-        : "updated";
+      : "message sent";
   c.out({ threadId, ...response, mode }, `Thread ${threadId} ${outcome}`);
 };
 
@@ -221,13 +231,11 @@ export const threadWait: Run = async (c) => {
     if (error instanceof CliError) waitFailure(error, error.code, 3);
     throw error;
   }
-  const { sdk } = c;
-  const errors = loaded().sdk;
-  const result = await sdk.threads.wait(request).catch((error: unknown) => {
-    if (error instanceof errors.ThreadWaitTimeoutError) {
+  const result = await waitForThread(c, request).catch((error: unknown) => {
+    if (error instanceof ThreadWaitTimeoutError) {
       waitFailure(error, "timeout", 2);
     }
-    if (error instanceof errors.ThreadWaitUnreachableError) {
+    if (error instanceof ThreadWaitUnreachableError) {
       waitFailure(error, "unreachable", 4);
     }
     throw error;
@@ -242,17 +250,74 @@ export const threadWait: Run = async (c) => {
 
 export const threadShow: Run = async (c) => {
   const threadId = threadTarget(c);
-  const { sdk } = c;
-  const thread = await sdk.threads.get({ threadId });
+  const remote: Remote = c;
+  const thread = await remote.op(remote.ops.threads.get, { threadId });
   const { environmentId } = thread;
   const environment = environmentId
-    ? await sdk.environments.get({ environmentId }).catch(() => null)
+    ? await remote
+        .op(remote.ops.environments.get, { environmentId })
+        .catch(() => null)
     : null;
-  const pendingTodos = await pendingTodosOf(sdk, threadId);
-  const lines = threadLines(thread, environment);
-  const data = { thread, environment, pendingTodos };
-  c.out(data, [...lines, ...todoLines(pendingTodos)]);
+  const pendingTodos = await pendingTodosOf(remote, threadId);
+  const lines = [
+    ...threadLines(thread, environment),
+    ...todoLines(pendingTodos),
+  ];
+  const data = {
+    thread,
+    environment: environment && {
+      ...environment,
+      pullRequest: await pullRequestOf(c, environment.id),
+    },
+    pendingTodos,
+  };
+  if (!environmentId || !c.on("work-status")) return c.out(data, lines);
+  const status = await c.op(c.ops.environments.status, { environmentId });
+  const workStatus = status.outcome === "available" ? status.workspace : null;
+  c.out({ ...data, workStatus }, [...lines, "", ...workLines(status)]);
 };
+
+async function pullRequestOf(c: Call, environmentId: string) {
+  try {
+    const pullRequest = await c
+      .op(pullRequestOps().get, { environmentId })
+      .catch(githubDisabled);
+    return pullRequest
+      ? { status: "available", pullRequest }
+      : { status: "none", pullRequest: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { status: "unavailable", pullRequest: null, message };
+  }
+}
+
+function workLines(status: EnvironmentStatusResponse): string[] {
+  if (status.outcome === "not_applicable") {
+    return [`Work status: ${status.message}`];
+  }
+  if (status.outcome !== "available") {
+    return [`Work status: ${status.failure.message}`];
+  }
+  const { workingTree, branch, mergeBase } = status.workspace;
+  return [
+    "Work status:",
+    `  State:    ${workingTree.state}`,
+    ...(branch.currentBranch ? [`  Branch:   ${branch.currentBranch}`] : []),
+    `  Changed files: ${workingTree.files.length}`,
+    ...(workingTree.lineStatsComplete
+      ? [
+          `  Insertions:    +${workingTree.insertions}`,
+          `  Deletions:     -${workingTree.deletions}`,
+        ]
+      : ["  Line stats: unavailable for untracked files"]),
+    ...(mergeBase
+      ? [
+          `  Merge base:   ${mergeBase.mergeBaseBranch}`,
+          `  Ahead: ${mergeBase.aheadCount}  Behind: ${mergeBase.behindCount}`,
+        ]
+      : []),
+  ];
+}
 
 async function logEvents(c: Call, threadId: string) {
   const wanted = c.on("all")
@@ -260,9 +325,13 @@ async function logEvents(c: Call, threadId: string) {
     : (integer(c.flag("limit"), "--limit") ?? EVENT_PAGE_SIZE);
   const after = c.flag("after-seq");
   const rows: ThreadEventRow[] = [];
-  const limit = String(EVENT_PAGE_SIZE);
+  const limit = EVENT_PAGE_SIZE;
   for (let afterSeq = after, more = true; more && rows.length <= wanted;) {
-    const page = await c.sdk.threads.events.list({ threadId, limit, afterSeq });
+    const page = await c.op(c.ops.threads.events, {
+      threadId,
+      limit,
+      afterSeq,
+    });
     rows.push(...page);
     more = page.length === EVENT_PAGE_SIZE;
     afterSeq = String(page.at(-1)?.seq);
@@ -287,7 +356,7 @@ export const threadLog: Run = async (c) => {
   if (format !== "json" && c.on("after-seq")) {
     throw usageError("--after-seq is only supported with --format json.");
   }
-  const { sdk } = c;
+  const remote: Remote = c;
   if (format === "json") return logEvents(c, threadId);
   if (limit !== undefined && limit > TIMELINE_TURN_LIMIT) {
     const most = `--limit is at most ${TIMELINE_TURN_LIMIT} for the timeline`;
@@ -295,14 +364,17 @@ export const threadLog: Run = async (c) => {
   }
   const query = {
     threadId,
-    ...(format === "verbose" ? { includeNestedRows: "true" as const } : {}),
-    ...(limit === undefined ? {} : { segmentLimit: String(limit) }),
+    ...(format === "verbose" ? { includeNestedRows: true } : {}),
+    ...(limit === undefined ? {} : { segmentLimit: limit }),
   };
-  let { rows, timelinePage: page } = await sdk.threads.timeline(query);
+  let { rows, timelinePage: page } = await remote.op(
+    remote.ops.threads.timeline,
+    query,
+  );
   while (all && page.hasOlderRows && page.olderCursor !== null) {
-    const older = await sdk.threads.timeline({
+    const older = await remote.op(remote.ops.threads.timeline, {
       ...query,
-      beforeAnchorSeq: String(page.olderCursor.anchorSeq),
+      beforeAnchorSeq: page.olderCursor.anchorSeq,
       beforeAnchorId: page.olderCursor.anchorId,
     });
     const known = new Set(rows.map((row) => row.id));
@@ -322,7 +394,7 @@ export const threadLog: Run = async (c) => {
 
 export const threadOutput: Run = async (c) => {
   const threadId = threadTarget(c);
-  const result = await c.sdk.threads.output({ threadId });
+  const result = await c.op(c.ops.threads.output, { threadId });
   c.out(result, result.output || "(no output)");
 };
 
@@ -330,8 +402,8 @@ export const threadList: Run = async (c) => {
   if (c.on("section") && c.on("unsectioned")) {
     throw usageError("Cannot combine --section with --unsectioned.");
   }
-  const { sdk } = c;
-  const threads = await sdk.threads.list({
+  const remote: Remote = c;
+  const threads = await remote.op(remote.ops.threads.list, {
     projectId: c.id("project"),
     environmentId: c.id("environment"),
     hostId: await machineFlag(c),
@@ -375,7 +447,7 @@ export const threadUpdate: Run = async (c) => {
     throw usageError("No changes requested.", `Change one of: ${options}.`);
   }
   const threadId = threadTarget(c);
-  const thread = await c.sdk.threads.update({ threadId, ...changes });
+  const thread = await c.op(c.ops.threads.update, { threadId, ...changes });
   const lines = changed.map(([key, value]) => `  ${key}: ${value ?? "none"}`);
   c.out(thread, [`Thread ${thread.id} updated`, ...lines]);
 };
@@ -383,8 +455,11 @@ export const threadUpdate: Run = async (c) => {
 function action(method: Action | Marker, done: string): Run {
   return async (c) => {
     const threadId = threadTarget(c);
-    const result = await c.sdk.threads[method]({ threadId });
-    const data = "ok" in result ? { ...result, threadId } : result;
+    const result: object | void = await c.op(c.ops.threads[method], {
+      threadId,
+    });
+    const acknowledged = result === undefined || "ok" in result;
+    const data = acknowledged ? { ok: true, ...result, threadId } : result;
     c.out(data, `Thread ${threadId} ${done}`);
   };
 }
@@ -393,6 +468,16 @@ export const threadStop = action("stop", "stopped");
 export const threadArchive = action("archive", "archived");
 export const threadUnarchive = action("unarchive", "unarchived");
 export const threadCompact = action("compact", "compaction requested");
+export const threadRetry: Run = async (c) => {
+  const threadId = threadTarget(c);
+  const sendAt = sendAtMs(c.flag("send-at"));
+  const response = await c.op(c.ops.threads.retry, { threadId, sendAt });
+  const outcome =
+    response.delivery === "queued"
+      ? `retry queued (${queueWait(response.queuedMessage)})`
+      : "retry sent";
+  c.out({ threadId, ...response }, `Thread ${threadId} ${outcome}`);
+};
 export const threadClear = action("clearContext", "context cleared");
 export const threadPin = action("pin", "pinned");
 export const threadUnpin = action("unpin", "unpinned");
@@ -403,7 +488,7 @@ export const threadDelete: Run = async (c) => {
   const threadId = validId(c.arg("id"), "<id> argument");
   await confirm(c, `Delete thread ${threadId} permanently?`);
   const childThreadsConfirmed = c.on("confirm-child-threads");
-  await c.sdk.threads.delete({ threadId, childThreadsConfirmed });
+  await c.op(c.ops.threads.delete, { threadId, childThreadsConfirmed });
   c.out({ ok: true, threadId }, `Thread ${threadId} deleted`);
 };
 
@@ -411,7 +496,7 @@ export const threadSearch: Run = async (c) => {
   const limit = integer(c.flag("limit"), "--limit");
   const limitPerGroup = limit === undefined ? undefined : String(limit);
   const query = c.arg("query");
-  c.out(await c.sdk.threads.search({ query, limitPerGroup }));
+  c.out(await c.op(c.ops.threads.search, { query, limitPerGroup }));
 };
 
 function inside(root: string | null | undefined, target: string) {
@@ -427,12 +512,14 @@ async function openFile(c: Call, threadId: string, path: string) {
   const stored = inside(own ? c.env.threadStorage : null, path);
   if (stored !== null)
     return { source: "thread-storage", path: stored } as const;
-  const { sdk } = c;
-  const { environmentId } = await sdk.threads.get({ threadId });
+  const remote: Remote = c;
+  const { environmentId } = await remote.op(remote.ops.threads.get, {
+    threadId,
+  });
   const environment =
     environmentId === null
       ? null
-      : await sdk.environments.get({ environmentId });
+      : await remote.op(remote.ops.environments.get, { environmentId });
   const local = inside(environment?.path, path);
   if (local !== null) return { source: "workspace", path: local } as const;
   const roots = "the thread's workspace or BB_THREAD_STORAGE";
@@ -459,7 +546,11 @@ export const threadOpen: Run = async (c) => {
     path === undefined
       ? null
       : { ...(await openFile(c, threadId, path)), lineNumber };
-  const { delivered } = await c.sdk.threads.open({ threadId, split, file });
+  const { delivered } = await c.op(c.ops.threads.open, {
+    threadId,
+    split,
+    file,
+  });
   const shown = file === null ? "" : ` with ${file.path}`;
   const text = `Opened thread ${threadId}${shown} in ${delivered} window(s)`;
   c.out({ threadId, split: split ?? "replace", file, delivered }, text);

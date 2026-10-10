@@ -1,0 +1,40 @@
+{
+  "name": "bb-plugin-plugin-api-docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browse the loaded bb plugin API: every contract, operation, event and slot.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Plugin Guide",
+    "description": "Browse the loaded bb plugin API: every contract, operation, event and slot.",
+    "icon": "Explore",
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills"
+    ],
+    "enabledByDefault": false
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

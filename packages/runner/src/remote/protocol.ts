@@ -1,18 +1,22 @@
 import { z } from "zod";
-import type { Runner } from "../local.js";
-import { RUNNER_ERROR_CODES, RunnerError, type RunnerEvent } from "../types.js";
+import {
+  RUNNER_ERROR_CODES,
+  RunnerError,
+  type RunnerEvent,
+  type SessionApi,
+} from "../types.js";
 
 export const PING_INTERVAL_MS = 5_000;
 export const LEASE_MS = 30_000;
 export const MAX_FRAME_BYTES = 768 * 1024;
 export const REPLACED_CLOSE_CODE = 4001;
+export const OUTDATED_CLOSE_CODE = 4002;
 const PART_CHARS = 256 * 1024;
 const MAX_ASSEMBLED_CHARS = 64 * 1024 * 1024;
 const MAX_TIMER_MS = 2_147_483_647;
 const QUICK_MS = 15_000;
 const STANDARD_MS = 60_000;
 const LONG_MS = 10 * 60_000;
-const SCRIPT_GRACE_MS = 30_000;
 
 const REQUEST_TIMEOUT_MS = {
   describe: QUICK_MS,
@@ -27,40 +31,12 @@ const REQUEST_TIMEOUT_MS = {
   resolveToolCall: QUICK_MS,
   renameSession: QUICK_MS,
   deleteThreadStorage: STANDARD_MS,
-  inspectPath: STANDARD_MS,
-  inspectGitSource: STANDARD_MS,
-  listBranches: STANDARD_MS,
-  gitStatus: STANDARD_MS,
-  gitDiffFiles: STANDARD_MS,
-  gitDiffPatch: STANDARD_MS,
-  gitDiffFile: STANDARD_MS,
-  gitCommit: LONG_MS,
-  createWorktree: LONG_MS,
-  removeWorktree: LONG_MS,
-  ensurePersonalWorkspace: LONG_MS,
-  switchBranch: LONG_MS,
-  runLifecycleScript: SCRIPT_GRACE_MS,
-  cancelOperation: QUICK_MS,
-  readFile: STANDARD_MS,
-  readFileChunk: STANDARD_MS,
-  writeFile: STANDARD_MS,
-  writeFileChunk: STANDARD_MS,
-  listPaths: STANDARD_MS,
-  browseDirectory: STANDARD_MS,
-  pathsExist: QUICK_MS,
-  mutatePath: STANDARD_MS,
-  listCommands: STANDARD_MS,
-  openTerminal: STANDARD_MS,
-  attachTerminal: QUICK_MS,
-  writeTerminal: QUICK_MS,
-  resizeTerminal: QUICK_MS,
-  closeTerminal: QUICK_MS,
-  setWatchedPaths: STANDARD_MS,
-  listOpenTargets: QUICK_MS,
-  openInTarget: QUICK_MS,
-} as const satisfies Record<keyof Runner, number>;
+  loadPlugins: STANDARD_MS,
+  callOp: LONG_MS,
+  cancelOp: QUICK_MS,
+} as const satisfies Record<keyof SessionApi, number>;
 
-export type RunnerMethod = keyof Runner;
+export type RunnerMethod = keyof SessionApi;
 export const RUNNER_METHODS =
   Object.keys(REQUEST_TIMEOUT_MS).filter(isRunnerMethod);
 
@@ -72,9 +48,11 @@ const ownBudgetSchema = z.object({ timeoutMs: z.number().nonnegative() });
 
 export function requestTimeoutMs(method: RunnerMethod, params: unknown) {
   const own = ownBudgetSchema.safeParse(params);
-  const extra =
-    method === "runLifecycleScript" && own.success ? own.data.timeoutMs : 0;
-  return Math.min(REQUEST_TIMEOUT_MS[method] + extra, MAX_TIMER_MS);
+  const budget =
+    method === "callOp" && own.success
+      ? own.data.timeoutMs
+      : REQUEST_TIMEOUT_MS[method];
+  return Math.min(budget, MAX_TIMER_MS);
 }
 
 const seqSchema = z.number().int().nonnegative();
@@ -93,6 +71,7 @@ const helloSchema = z.object({
   t: z.literal("hello"),
   instanceId: z.string().min(1),
   version: z.string(),
+  api: z.string().optional(),
   lastAckedSeq: seqSchema.optional(),
 });
 const frameSchema = z.discriminatedUnion("t", [

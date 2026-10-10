@@ -1,9 +1,9 @@
+import type { Remote } from "./call.js";
 import type {
   Environment,
   QueuedMessageWaitingOn,
   ThreadTimelinePendingTodos,
 } from "@bb/domain";
-import type { BbSdk } from "@bb/sdk";
 import type { ThreadResponse } from "@bb/server-contract";
 
 interface QueueWait {
@@ -25,11 +25,11 @@ function date(at: number): string {
 }
 
 export async function pendingTodosOf(
-  sdk: BbSdk,
+  remote: Remote,
   threadId: string,
 ): Promise<ThreadTimelinePendingTodos | null> {
-  const summaryOnly = "true";
-  const request = sdk.threads.timeline({ threadId, summaryOnly });
+  const summary = { threadId, summaryOnly: true };
+  const request = remote.op(remote.ops.threads.timeline, summary);
   return (await request.catch(() => null))?.pendingTodos ?? null;
 }
 
@@ -65,8 +65,11 @@ export function threadLines(
   ].filter(Boolean);
 }
 
-export function queueWait(row: QueueWait): string {
+export function queueWait(row: QueueWait, idle = false): string {
   const waitingOn = row.waitingOn ?? { kind: "thread-busy" };
+  if (idle && waitingOn.kind === "thread-busy") {
+    return "paused by a manual stop; `bb thread queue send` resumes";
+  }
   if (waitingOn.kind === "time") {
     return row.sendAt === null ? "scheduled" : `due ${date(row.sendAt)}`;
   }

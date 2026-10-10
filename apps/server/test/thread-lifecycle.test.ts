@@ -1,9 +1,13 @@
+import { cpSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { threads } from "@bb/plugin";
 import type { PendingInteractionPayload } from "@bb/domain";
 import type { ThreadTimelineResponse as Timeline } from "@bb/server-contract";
-import { expect, it } from "vitest";
-import { insertRow, openDatabase } from "../src/db/index.js";
+import { expect, it, vi } from "vitest";
+import { insertRow, openDatabase } from "@bb/server-kit/db/index";
 import { createServer } from "../src/server.js";
-import { FakeRunner } from "./helpers.js";
+import { FakeRunner, scratch } from "./helpers.js";
 import {
   createThreadServer,
   events,
@@ -128,7 +132,7 @@ it("archives a tree, keeps turns through the undo grace and unarchives", async (
   expect(archived.body).toEqual(swept);
   const change = [["archived-changed"], { projectId: "proj_1" }];
   expect(await server.changes(client)).toEqual(change);
-  await server.matches("/sidebar-bootstrap", { projects: [{ threads: [] }] });
+  await server.matches("/projects/sidebar", { projects: [{ threads: [] }] });
   await server.advance(29_000);
   expect(thread(child).status).toBe("active");
   expect(server.callsTo("closeTerminal")).toEqual([]);
@@ -208,6 +212,51 @@ it("reconciles threads when a runner reconnects", async () => {
   expect(eventData(kept, interrupted)).toEqual([restarted]);
 });
 
+it("keeps a running turn when plugins are reloaded", async () => {
+  const server = await createThreadServer();
+  const { eventData, ingest, runner, thread } = server;
+  const [kept, lost] = [await server.spawn(), await server.spawn()];
+  await ingest(kept, events.identity(), events.started("k1"));
+  await ingest(lost, events.identity(), events.started("l1"));
+  const session = { providerId: "codex" as const, providerThreadId: "prov-1" };
+  const sessions = [{ ...session, threadId: kept, activeTurnId: "k1" }];
+  const idle = { pendingRequestIds: [], terminalIds: [], lastEventSeq: 0 };
+  runner.script.snapshot = async () => ({ sessions, ...idle });
+  await server.ctx.plugins.reload();
+  await vi.waitFor(() => expect(thread(lost).status).toBe("error"));
+  expect(thread(kept)).toMatchObject({ status: "active", activeTurnId: "k1" });
+  const interrupted = "system/thread/interrupted";
+  expect(eventData(kept, interrupted)).toEqual([]);
+  expect(eventData(lost, interrupted)).toEqual([
+    { reason: "host-daemon-restarted" },
+  ]);
+});
+
+it("adds and removes a plugin without restarting the others", async () => {
+  const server = await createThreadServer();
+  const { eventData, ingest, thread } = server;
+  const id = await server.spawn();
+  await ingest(id, events.identity(), events.started("t1"));
+  const fixture = new URL("./fixtures/echo-plugin", import.meta.url);
+  const directory = join(scratch(), "echo");
+  cpSync(fileURLToPath(fixture), directory, { recursive: true });
+  const loaded = () => server.ctx.plugins.list().map((plugin) => plugin.id);
+  const added = await server.http("POST", "/ops/plugins.install", {
+    path: directory,
+  });
+  expect([added.status, loaded()]).toEqual([
+    200,
+    expect.arrayContaining(["echo"]),
+  ]);
+  const removed = await server.http("POST", "/ops/plugins.uninstall", {
+    path: directory,
+  });
+  expect(removed.status).toBe(200);
+  expect(loaded()).not.toContain("echo");
+  expect(thread(id)).toMatchObject({ status: "active", activeTurnId: "t1" });
+  expect(eventData(id, "system/thread/interrupted")).toEqual([]);
+});
+
 it("interrupts threads that were running when the server stopped", async () => {
   const { config } = (await createThreadServer()).ctx;
   const db = openDatabase({ path: ":memory:" });
@@ -229,7 +278,7 @@ it("interrupts threads that were running when the server stopped", async () => {
   const runner = new FakeRunner();
   const server = createServer({ config, db, localRunner: () => runner.api });
   await server.listen();
-  await server.ctx.threads.settled();
+  await server.ctx.kernel.call(threads.waitSettled, {});
   const column = <Row>(sql: string, pick: (row: Row) => string) =>
     db.all<Row>(sql).map(pick);
   const statuses = "SELECT status FROM threads ORDER BY id";

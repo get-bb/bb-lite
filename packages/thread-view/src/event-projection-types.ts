@@ -3,6 +3,7 @@ import {
   threadScope,
   turnScope,
   type ActiveThinking,
+  type PluginRow,
   type ProviderErrorInfo,
   type ProvisioningTranscriptEntry,
   type Thread,
@@ -180,6 +181,7 @@ export interface OperationMessage extends MessageBase {
   mergeKey?: string;
   transcript?: ProvisioningTranscriptEntry[];
   parentChange?: TimelineParentChange | null;
+  plugin?: PluginRow;
 }
 
 export type WorkflowMessage = MessageBase & {

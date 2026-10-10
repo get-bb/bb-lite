@@ -11,8 +11,20 @@ import type {
   ThreadEvent,
   ToolCallResponse,
 } from "@bb/domain";
+import type { Caller } from "@bb/plugin";
 
-export type ProviderId = "codex" | "claude-code" | "echo";
+export type ProviderId = string;
+
+export interface RunnerPartBundle {
+  id: string;
+  hash: string;
+  code: string;
+}
+
+export interface LoadPluginsResult {
+  loaded: string[];
+  failed: { id: string; message: string }[];
+}
 
 export const SERVER_URL_PLACEHOLDER = "{BB_SERVER_URL}";
 
@@ -47,6 +59,8 @@ export interface SessionSpec {
   env: Record<string, string>;
   skillDirs: string[];
   customModels?: CustomModelSettings[];
+  instructionMode?: "append" | "replace";
+  forkFrom?: { providerThreadId: string; checkpointId: string };
 }
 
 export type SubmitTurnMode =
@@ -95,6 +109,9 @@ export interface ProviderStatus {
   version: string | null;
   auth: "ready" | "unauthenticated" | "unknown";
   message: string | null;
+  minimumVersion?: string;
+  versionUnsupported?: boolean;
+  installAction?: { kind: "install" | "update"; command: string };
 }
 
 export interface ProviderModels {
@@ -192,6 +209,17 @@ export type RunnerEvent =
       kind: "workspace.changed";
       path: string;
       change: "status" | "refs" | "files";
+    }>
+  | Live<{
+      kind: "plugin.event";
+      name: string;
+      payload: unknown;
+    }>
+  | Live<{
+      kind: "plugin.signal";
+      pluginId: string;
+      name: string;
+      payload: unknown;
     }>;
 
 export type RunnerEventSink = (event: RunnerEvent) => void;
@@ -220,4 +248,15 @@ export interface SessionApi {
   }): Promise<{ delivered: boolean }>;
   renameSession(args: { threadId: string; title: string }): Promise<void>;
   deleteThreadStorage(args: { threadId: string }): Promise<void>;
+  loadPlugins(args: {
+    plugins: RunnerPartBundle[];
+  }): Promise<LoadPluginsResult>;
+  callOp(args: {
+    name: string;
+    input: unknown;
+    timeoutMs?: number;
+    caller?: Caller;
+    callId?: string;
+  }): Promise<unknown>;
+  cancelOp(args: { callId: string }): Promise<void>;
 }

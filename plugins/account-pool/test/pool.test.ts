@@ -1,11 +1,15 @@
+import { sessions } from "@bb/plugin";
 import { once } from "node:events";
 import fs from "node:fs";
 import http, { type IncomingHttpHeaders, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { expect, it, onTestFinished, vi } from "vitest";
-import { writePluginRow } from "../../../apps/server/src/db/plugins.js";
-import { createTestServer } from "../../../apps/server/test/helpers.js";
+import { writePluginRow } from "../../../packages/server-kit/src/db/plugins.js";
+import {
+  createTestServer,
+  insertThread,
+} from "../../../apps/server/test/helpers.js";
 import { HUB_PATH } from "../src/contract.js";
 
 interface Seen {
@@ -81,6 +85,7 @@ function stored(n: number, provider: Provider) {
 
 async function seed(server: TestServer, upstream: string, accounts: object[]) {
   const { ctx, url } = server;
+  insertThread(server, "thr_1");
   const dataDir = join(ctx.config.dataDir, "plugins", "account-pool");
   const secrets = join(dataDir, "secrets", "accounts");
   fs.mkdirSync(secrets, { recursive: true });
@@ -111,7 +116,7 @@ async function seed(server: TestServer, upstream: string, accounts: object[]) {
   const env = async (providerId: string, hostId = ctx.config.hostId) => {
     const scope = { threadId: "thr_1", projectId: "proj_1" };
     const thread = { ...scope, hostId, providerId };
-    const entries = await ctx.plugins.contributedEnv(providerId, thread);
+    const entries = await ctx.kernel.call(sessions.env, thread);
     return Object.fromEntries(entries.map(({ name, value }) => [name, value]));
   };
   const cli = async (...argv: string[]) => {
@@ -150,6 +155,10 @@ it("forwards Claude messages for stored accounts and streams SSE unbuffered", as
   const accounts = [stored(1, "claude"), stored(2, "claude")];
   const pool = await seed(await createTestServer(), upstream.url, accounts);
   const value = await pool.token("claude-code", "ANTHROPIC_AUTH_TOKEN");
+  const health = await pool.ctx.kernel.call(sessions.environmentHealth, {
+    providerId: "claude-code",
+  });
+  expect(health).toMatchObject({ label: "Proxied" });
   expect(await pool.env("claude-code")).toEqual({
     ANTHROPIC_BASE_URL: { serverPath: HUB_PATH },
     ANTHROPIC_AUTH_TOKEN: value,

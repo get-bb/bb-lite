@@ -1,6 +1,6 @@
 import { Toaster, type ToasterProps } from "sonner";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { usePreferredTheme } from "@/hooks/useTheme";
+import { usePreferredTheme } from "@bb/app-kit/hooks/useTheme";
 
 const COMPACT_TOAST_OFFSET: NonNullable<ToasterProps["offset"]> = {
   top: "calc(env(safe-area-inset-top) + var(--bb-app-chrome-row-height) + 16px)",

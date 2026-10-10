@@ -22,8 +22,8 @@ fn config(data_dir: &str) -> Value {
 fn settings_server() -> FakeServer {
     let ui = json!({ "preferences": { "sidebarWidth": { "value": 300, "revision": 2 } } });
     FakeServer::start(vec![
-        route("GET", "/system/config", config("/data")),
-        route("GET", "/preferences/ui", ui),
+        route("GET", "/server/config", config("/data")),
+        route("GET", "/settings/ui-preferences", ui),
         route("PUT", "/settings/general", json!({})),
         route("PUT", "/settings/keyboard", json!([])),
     ])
@@ -87,8 +87,9 @@ fn plugin_list_add_and_remove() {
         "cliCommands": [{ "name": "tasks" }], "statusMessage": null, "description": "Tasks" }] });
     let server = FakeServer::start(vec![
         route("GET", "/plugins", listed.clone()),
-        route("GET", "/system/config", config(data.to_str().unwrap())),
-        route("POST", "/plugins/reload", listed),
+        route("GET", "/server/config", config(data.to_str().unwrap())),
+        route("POST", "/ops/plugins.install", json!({ "ok": true, "result": {} })),
+        route("POST", "/ops/plugins.uninstall", json!({ "ok": true, "result": null })),
     ]);
     let (result, printed) = run(&server, &["plugin", "list"], CliEnv::default());
     result.unwrap();
@@ -97,15 +98,17 @@ fn plugin_list_add_and_remove() {
     let file = data.join("config.json");
     let (result, printed) = run(&server, &["plugin", "add", path], CliEnv::default());
     result.unwrap();
-    assert_eq!(printed, format!("{path} added to {}; plugins reloaded\n", file.display()));
-    let written = std::fs::read_to_string(&file).unwrap();
-    let expected = json!({ "plugins": [{ "path": path, "enabled": true }] });
-    assert_eq!(written, format!("{}\n", serde_json::to_string_pretty(&expected).unwrap()));
-    let (result, _) = run(&server, &["plugin", "remove", path, "--yes"], CliEnv::default());
+    assert_eq!(printed, format!("{path} added to {}; plugin loaded\n", file.display()));
+    let (result, printed) = run(&server, &["plugin", "remove", path, "--yes"], CliEnv::default());
     result.unwrap();
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "{\n  \"plugins\": []\n}\n");
-    let reloads = server.requests().into_iter().filter(|r| r.method == "POST").count();
-    assert_eq!(reloads, 2);
+    assert_eq!(printed, format!("{path} removed from {}; plugin unloaded\n", file.display()));
+    let posted: Vec<_> = server.requests().into_iter().filter(|r| r.method == "POST").collect();
+    let sent: Vec<_> = posted.iter().map(|r| (r.path.as_str(), r.body.clone())).collect();
+    let body = Some(json!({ "path": path }));
+    assert_eq!(
+        sent,
+        vec![("/ops/plugins.install", body.clone()), ("/ops/plugins.uninstall", body)]
+    );
     let (result, _) = run(&server, &["plugin", "add", data.to_str().unwrap()], CliEnv::default());
     assert_eq!(result.unwrap_err().message, format!("{} has no package.json.", data.display()));
     std::fs::remove_dir_all(root).unwrap();
@@ -114,9 +117,17 @@ fn plugin_list_add_and_remove() {
 #[test]
 fn file_commands_post_to_the_files_routes() {
     let server = FakeServer::start(vec![
-        route("POST", "/files/read", json!({ "content": "hi\n", "contentEncoding": "utf8" })),
-        route("POST", "/files/write", json!({ "outcome": "written" })),
-        route("POST", "/files/list", json!({ "files": [{ "path": "a" }, { "path": "b" }] })),
+        route(
+            "POST",
+            "/machines/files/read",
+            json!({ "content": "hi\n", "contentEncoding": "utf8" }),
+        ),
+        route("POST", "/machines/files/write", json!({ "outcome": "written" })),
+        route(
+            "POST",
+            "/machines/files/list",
+            json!({ "files": [{ "path": "a" }, { "path": "b" }] }),
+        ),
     ]);
     let env = CliEnv::default;
     let (result, printed) = run(&server, &["file", "read", "/a", "--machine", "host_1"], env());
@@ -133,16 +144,61 @@ fn file_commands_post_to_the_files_routes() {
     assert_eq!(
         server.requests(),
         [
-            request("POST", "/files/read", Some(json!({ "hostId": "host_1", "path": "/a" }))),
-            request("POST", "/files/write", Some(json!({ "path": "/a", "content": "x" }))),
-            request("POST", "/files/list", Some(json!({ "limit": 2, "path": "/src" }))),
+            request(
+                "POST",
+                "/machines/files/read",
+                Some(json!({ "hostId": "host_1", "path": "/a" }))
+            ),
+            request("POST", "/machines/files/write", Some(json!({ "path": "/a", "content": "x" }))),
+            request("POST", "/machines/files/list", Some(json!({ "limit": 2, "path": "/src" }))),
+        ]
+    );
+}
+
+#[test]
+fn file_paths_mkdir_move_and_remove_call_the_machine_file_doors() {
+    let ok = json!({ "ok": true });
+    let server = FakeServer::start(vec![
+        route(
+            "POST",
+            "/machines/files/paths",
+            json!({ "paths": [{ "kind": "directory", "path": "src" }], "truncated": false }),
+        ),
+        route("POST", "/machines/files/mkdir", ok.clone()),
+        route("POST", "/machines/files/move", ok.clone()),
+        route("POST", "/machines/files/remove", ok),
+    ]);
+    let env = CliEnv::default;
+    let (result, printed) = run(&server, &["file", "paths", "/r", "--directories"], env());
+    result.unwrap();
+    assert_eq!(printed, "directory\tsrc\n");
+    let (result, printed) =
+        run(&server, &["file", "mkdir", "a", "--root", "/r", "--recursive"], env());
+    result.unwrap();
+    assert_eq!(printed, "Created directory a\n");
+    let (result, printed) = run(&server, &["file", "move", "a", "b", "--machine", "host_1"], env());
+    result.unwrap();
+    assert_eq!(printed, "Moved a to b\n");
+    let (result, printed) = run(&server, &["file", "remove", "/b", "--yes"], env());
+    result.unwrap();
+    assert_eq!(printed, "Removed /b\n");
+    let paths = json!({ "path": "/r", "includeFiles": false, "includeDirectories": true });
+    let mkdir = json!({ "path": "a", "rootPath": "/r", "recursive": true });
+    let moved = json!({ "hostId": "host_1", "sourcePath": "a", "destinationPath": "b" });
+    assert_eq!(
+        server.requests(),
+        [
+            request("POST", "/machines/files/paths", Some(paths)),
+            request("POST", "/machines/files/mkdir", Some(mkdir)),
+            request("POST", "/machines/files/move", Some(moved)),
+            request("POST", "/machines/files/remove", Some(json!({ "path": "/b" }))),
         ]
     );
 }
 
 #[test]
 fn server_status_reports_the_data_directory() {
-    let server = FakeServer::start(vec![route("GET", "/system/config", config("/data"))]);
+    let server = FakeServer::start(vec![route("GET", "/server/config", config("/data"))]);
     let (result, printed) = run(&server, &["server", "status"], CliEnv::default());
     result.unwrap();
     assert_eq!(printed, format!("bb server at {} (data in /data)\n", server.url));
@@ -156,7 +212,7 @@ fn status_reports_project_server_and_plugins() {
         { "id": "off", "enabled": false, "status": "stopped" },
     ]});
     let server = FakeServer::start(vec![
-        route("GET", "/system/config", config("/data")),
+        route("GET", "/server/config", config("/data")),
         route("GET", "/projects/prj_1", json!({ "id": "prj_1", "name": "Demo" })),
         route("GET", "/plugins", plugins),
     ]);
@@ -175,4 +231,23 @@ fn status_reports_project_server_and_plugins() {
     assert_eq!(data["project"], Value::Null);
     assert_eq!(data["pluginsNeedingAttention"], json!([{ "id": "tasks", "status": "error" }]));
     assert_eq!(data["dataDir"], json!("/data"));
+}
+
+#[test]
+fn plugin_commands_send_the_callers_machine() {
+    let answer = json!({ "exitCode": 0, "stdout": "", "stderr": "" });
+    let server = FakeServer::start(vec![route("POST", "/plugins/demo/cli", answer)]);
+    let env = CliEnv {
+        server_url: server.url.clone(),
+        thread_id: Some("thr_1".into()),
+        host_id: Some("host_1".into()),
+        ..CliEnv::default()
+    };
+    let code = bb_cli::plugin_proxy::run_plugin_command(&env, "demo", vec!["x".into()]).unwrap();
+    assert_eq!(code, 0);
+    let body = server.requests()[0].body.clone().unwrap();
+    assert_eq!(
+        (body["threadId"].clone(), body["hostId"].clone()),
+        (json!("thr_1"), json!("host_1"))
+    );
 }

@@ -1,10 +1,12 @@
 import * as domain from "@bb/domain";
 import { z } from "zod";
 import {
-  rejectMultipleWorkspaceSelectors,
   branchListQuerySchema,
+  countField,
+  flagField,
   isCommaSeparatedIncludeQueryValue,
   pathListIncludeQueryValueSchema,
+  rejectMultipleWorkspaceSelectors,
 } from "./shared.js";
 
 const localProjectPathRequestSchema = z
@@ -119,7 +121,7 @@ export const projectListQuerySchema = z.object({
       { message: "Invalid include" },
     )
     .optional(),
-  includePersonal: z.enum(["true", "false"]).optional(),
+  includePersonal: flagField.optional(),
 });
 export type ProjectListQuery = z.infer<typeof projectListQuerySchema>;
 
@@ -135,7 +137,7 @@ export const projectPathsQuerySchema = z
   .object({
     ...projectWorkspaceRoutingFields,
     query: z.string().min(1).max(domain.FILE_LIST_QUERY_MAX_LENGTH).optional(),
-    limit: z.string().regex(/^\d+$/).optional(),
+    limit: countField.optional(),
     includeFiles: pathListIncludeQueryValueSchema,
     includeDirectories: pathListIncludeQueryValueSchema,
   })
@@ -178,10 +180,34 @@ export type ProjectDefaultExecutionOptionsQuery = z.infer<
 
 export const promptHistoryQuerySchema = z
   .object({
-    limit: z.string().regex(/^\d+$/),
+    limit: countField,
   })
   .partial();
 export type PromptHistoryQuery = z.infer<typeof promptHistoryQuerySchema>;
+
+export const recentPromptsQuerySchema = z
+  .object({
+    cursor: z.string().min(1),
+    limit: countField,
+    projectId: z.string().min(1),
+  })
+  .partial();
+
+export const recentPromptsResponseSchema = z.object({
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      text: z.string(),
+      mentions: z.array(domain.promptTextMentionSchema).optional(),
+      threadId: z.string(),
+      projectId: z.string(),
+      scope: z.enum(["project", "thread"]),
+      sentAt: z.number(),
+    }),
+  ),
+  nextCursor: z.string().nullable(),
+});
+export type RecentPromptsResponse = z.infer<typeof recentPromptsResponseSchema>;
 
 export const promptHistoryResponseSchema = z.array(
   domain.promptHistoryEntrySchema,
@@ -233,6 +259,7 @@ export const providerCommandSchema = z.object({
   description: z.string().nullable(),
   argumentHint: z.string().nullable(),
   pluginId: z.string().min(1).optional(),
+  path: z.string().optional(),
 });
 export type ProviderCommand = z.infer<typeof providerCommandSchema>;
 

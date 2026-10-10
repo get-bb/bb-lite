@@ -1,7 +1,7 @@
 import { defaultAppSettings } from "@bb/domain";
 import { expect, it } from "vitest";
 import { WebSocket } from "ws";
-import { setAppSettings } from "../src/db/settings.js";
+import { setAppSettings } from "@bb/server-kit/db/settings";
 import { createTestServer, watchChanges, type TestServer } from "./helpers.js";
 
 type Headers = Record<string, string>;
@@ -48,16 +48,20 @@ it("enrolls a machine with a single-use join token", async () => {
   const { api, clock, ctx, runner, url } = server;
   const changed = await watchChanges(server);
   const json = { ...manual, key: "launch-1" };
-  const created = await (await api.hosts.$post({ json })).json();
+  const created = await (await api.machines.$post({ json })).json();
   const pending = { status: "disconnected", machineProviderId: "manual" };
   const creating = { lifecycle: { phase: "creating" } };
   expect(created).toMatchObject({ ...pending, ...creating });
   await changed("host", "host-connected");
   const param = { id: created.id };
-  expect(await (await api.hosts.$post({ json })).json()).toMatchObject(param);
-  const visible = await (await api.hosts.$get({ query: {} })).json();
+  expect(await (await api.machines.$post({ json })).json()).toMatchObject(
+    param,
+  );
+  const visible: { id: string }[] = await (
+    await api.machines.$get({ query: {} })
+  ).json();
   expect(visible.map((host) => host.id)).toEqual([ctx.config.hostId]);
-  const enrollment = api.hosts[":id"]["enrollment-command"];
+  const enrollment = api.machines[":id"]["enrollment-command"];
   const command = await (await enrollment.$get({ param })).json();
   expect(command?.expiresAt).toBe(clock.now + JOIN_TOKEN_TTL_MS);
   const blob = decodeJoinCommand(command?.command);
@@ -65,7 +69,7 @@ it("enrolls a machine with a single-use join token", async () => {
   const m1 = throughGate("m1");
   const asMachine = async (method: string, path = "") => {
     const init = { method, headers: m1 };
-    const target = `${url}/api/v1/hosts/${created.id}${path}`;
+    const target = `${url}/api/v1/machines/${created.id}${path}`;
     return (await fetch(target, init)).status;
   };
   expect(await asMachine("GET", "/enrollment-command")).toBe(403);
@@ -85,7 +89,7 @@ it("enrolls a machine with a single-use join token", async () => {
   expect(ctx.runners.isConnected(created.id)).toBe(false);
   ctx.runners.connect(created.id, () => runner.api);
   await changed("host", "host-connected");
-  const enrolled = await (await api.hosts[":id"].$get({ param })).json();
+  const enrolled = await (await api.machines[":id"].$get({ param })).json();
   const active = { phase: "active", message: null };
   expect(enrolled).toMatchObject({ status: "connected", lifecycle: active });
 });
@@ -94,15 +98,15 @@ it("expires join tokens, reissues them and revokes on removal", async () => {
   const server = await createTestServer();
   const { api, clock, ctx, runner } = server;
   const changed = await watchChanges(server);
-  const { id } = await (await api.hosts.$post({ json: manual })).json();
+  const { id } = await (await api.machines.$post({ json: manual })).json();
   const param = { id };
-  const enrollment = api.hosts[":id"]["enrollment-command"];
+  const enrollment = api.machines[":id"]["enrollment-command"];
   const first = await (await enrollment.$get({ param })).json();
   clock.now += JOIN_TOKEN_TTL_MS;
   expect(await (await enrollment.$get({ param })).json()).toBeNull();
   const expired = decodeJoinCommand(first?.command).joinToken;
   expect((await join(server, expired)).status).toBe(401);
-  const reconnect = api.hosts[":id"]["reconnect-commands"];
+  const reconnect = api.machines[":id"]["reconnect-commands"];
   expect((await reconnect.$post({ param })).status).toBe(409);
   ctx.runners.connect(id, () => runner.api);
   expect((await reconnect.$post({ param })).status).toBe(409);
@@ -114,8 +118,8 @@ it("expires join tokens, reissues them and revokes on removal", async () => {
   const blob = decodeJoinCommand(reissued.command);
   expect(blob.serverUrl).toBe(publicUrl);
   const { token } = await join(server, blob.joinToken);
-  expect((await api.hosts[":id"].$delete({ param })).status).toBe(200);
+  expect((await api.machines[":id"].$delete({ param })).status).toBe(200);
   await changed("host", "host-disconnected");
-  expect((await api.hosts[":id"].$get({ param })).status).toBe(404);
+  expect((await api.machines[":id"].$get({ param })).status).toBe(404);
   expect(await dial(server, token)).toBe("refused 401");
 });

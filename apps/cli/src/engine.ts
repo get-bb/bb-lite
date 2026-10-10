@@ -332,9 +332,17 @@ export function unknownCommand(
 }
 
 export function commandReference(table: Table, group = ""): string {
-  const entries = commandsUnder(table, group).map((spec) =>
-    commandHelp(spec, true),
-  );
+  const specs = commandsUnder(table, group);
+  if (specs.length === 0) {
+    const groups = [
+      ...new Set(table.commands.map((s) => s.path.split(" ")[0])),
+    ];
+    throw usageError(
+      `Unknown command group '${group}'.`,
+      `Command groups: ${groups.join(", ")}`,
+    );
+  }
+  const entries = specs.map((spec) => commandHelp(spec, true));
   const footer = `Every command takes --json. ${JSON_FAILURE}`;
   return [...entries, footer].join("\n\n");
 }

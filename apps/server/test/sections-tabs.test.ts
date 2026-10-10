@@ -5,14 +5,14 @@ import {
   type UpdateThreadTabsRequest,
 } from "@bb/server-contract";
 import { expect, it } from "vitest";
-import { insertRow } from "../src/db/index.js";
+import { insertRow } from "@bb/server-kit/db/index";
 import { createTestServer, insertThread, watchChanges } from "./helpers.js";
 
 it("keeps section names unique and un-sections threads on delete", async () => {
   const server = await createTestServer();
   const { api, ctx } = server;
   const changed = await watchChanges(server);
-  const sections = api["thread-sections"];
+  const sections = api.sections;
   const create = (name: string) => sections.$post({ json: { name } });
   const later = threadSectionSchema.parse(
     await (await create(" Later ")).json(),
@@ -40,7 +40,8 @@ it("keeps section names unique and un-sections threads on delete", async () => {
   const unsectioned = `SELECT thread_id FROM thread_user_state
     WHERE section_id IS NULL`;
   expect(ctx.db.all(unsectioned)).toHaveLength(1);
-  const names = (await (await sections.$get()).json()).map(({ name }) => name);
+  const listed: { name: string }[] = await (await sections.$get()).json();
+  const names = listed.map(({ name }) => name);
   expect(names).toEqual(["Soon"]);
 });
 

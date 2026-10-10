@@ -8,25 +8,17 @@ import {
   type SetStateAction,
   type WritableAtom,
 } from "jotai";
-import {
-  usePluginId,
-  useRealtime,
-  useRpc,
-  type PluginRpcClient,
-} from "@bb/plugin/app";
-import type { threadListRpcContract } from "../server.js";
+import { callOp, useChanged, usePluginId } from "@bb/plugin/app";
+import { threadList } from "../shared/contract.js";
 import {
   parsePreferences,
   PREFERENCE_DEFAULTS,
   PREFERENCE_KEYS,
-  PREFERENCES_CHANGED_CHANNEL,
   type PreferenceKey,
   type PreferenceValues,
 } from "../shared/preferences.js";
 
 const WRITE_DEBOUNCE_MS = 150;
-
-type PreferencesRpc = PluginRpcClient<typeof threadListRpcContract>;
 
 interface PendingWrite {
   timer: number | null;
@@ -39,7 +31,7 @@ const valueAtoms = new Map<PreferenceKey, PrimitiveAtom<unknown>>(
 const readyAtom = atom(false);
 const pendingWrites = new Map<PreferenceKey, PendingWrite>();
 let store = getDefaultStore();
-let rpc: PreferencesRpc | null = null;
+let connected = false;
 let pluginId: string | null = null;
 let hydrateGeneration = 0;
 
@@ -93,10 +85,10 @@ function applyValues(values: Partial<PreferenceValues>): void {
   }
 }
 
-async function hydratePreferences(client: PreferencesRpc): Promise<void> {
-  rpc = client;
+async function hydratePreferences(): Promise<void> {
+  connected = true;
   const generation = ++hydrateGeneration;
-  const response: unknown = await client.call("listPreferences");
+  const response: unknown = await callOp(threadList.listPreferences, {});
   if (generation !== hydrateGeneration) return;
   const preferences =
     typeof response === "object" && response !== null
@@ -107,27 +99,25 @@ async function hydratePreferences(client: PreferencesRpc): Promise<void> {
   store.set(readyAtom, true);
 }
 
-function applyRemotePreferenceSignal(payload: unknown): void {
-  if (typeof payload !== "object" || payload === null) return;
-  const key: unknown = Reflect.get(payload, "key");
-  const values = parsePreferences({
-    [String(key)]: Reflect.get(payload, "value"),
+function loadPreferences(): void {
+  void hydratePreferences().catch((error: unknown) => {
+    console.warn(
+      `${pluginId}: loading preferences failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
   });
-  if (Object.keys(values).length === 0) return;
-  applyValues(values);
-  writeMirror();
 }
 
 function flushWrite(key: PreferenceKey): void {
   const pending = pendingWrites.get(key);
   if (pending === undefined) return;
   pending.timer = null;
-  if (rpc === null) {
+  if (!connected) {
     pendingWrites.delete(key);
     return;
   }
-  void rpc
-    .call("setPreference", { key, value: pending.value })
+  void callOp(threadList.setPreference, { key, value: pending.value })
     .catch((error: unknown) => {
       console.warn(
         `${pluginId}: saving preference ${key} failed: ${
@@ -203,7 +193,6 @@ export function usePreferencesReady(): boolean {
 }
 
 export function PreferencesSync() {
-  const client = useRpc<typeof threadListRpcContract>();
   const jotaiStore = useStore();
   const id = usePluginId();
   useEffect(() => {
@@ -211,14 +200,8 @@ export function PreferencesSync() {
     pluginId = id;
     const mirrored = readMirror();
     if (mirrored !== null) applyValues(mirrored);
-    void hydratePreferences(client).catch((error: unknown) => {
-      console.warn(
-        `${id}: loading preferences failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    });
-  }, [client, id, jotaiStore]);
-  useRealtime(PREFERENCES_CHANGED_CHANNEL, applyRemotePreferenceSignal);
+    loadPreferences();
+  }, [id, jotaiStore]);
+  useChanged(threadList.listPreferences, loadPreferences);
   return null;
 }

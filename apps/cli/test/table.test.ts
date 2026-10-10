@@ -105,6 +105,9 @@ it("prints help for a group, a leaf command and the generated guide", async () =
     "bb machine rename <machine> <name> [options]",
   );
   expect(guide.stdout).not.toContain("bb thread spawn");
+  const nope = await runBb(["guide", "commands", "nope"]);
+  expect(nope.code).toBe(1);
+  expect(nope.stderr).toContain("Unknown command group 'nope'.");
   const concepts = await runBb(["guide"]);
   expect([concepts.code, concepts.stderr]).toEqual([0, ""]);
   const unknown = await runBb(["thread", "tel", "--json"]);

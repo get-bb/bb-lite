@@ -1,3 +1,4 @@
+import { fail } from "@bb/plugin";
 import { randomBytes } from "node:crypto";
 import type {
   Attachment,
@@ -105,7 +106,7 @@ function createUlid(now = Date.now()): string {
 const nowIso = (): string => new Date().toISOString();
 
 function found<T>(value: T | undefined, what: string): T {
-  if (value === undefined) throw new Error(`${what} not found`);
+  if (value === undefined) fail("not_found", `${what} not found`);
   return value;
 }
 
@@ -289,6 +290,10 @@ export function createTasksStore(db: PluginDatabase) {
     get(`SELECT ${LABEL} FROM labels WHERE id = ?`, id);
 
   function createLabel({ projectId, name, color }: Omit<Label, "id">): Label {
+    found(getProject(projectId), `Project ${projectId}`);
+    if (listLabels(projectId).some((label) => label.name === name)) {
+      fail("conflict", `A label called "${name}" already exists`);
+    }
     const label = { id: createUlid(), projectId, name, color };
     insert("labels", label);
     return label;

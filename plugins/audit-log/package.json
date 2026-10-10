@@ -1,0 +1,23 @@
+{
+  "name": "bb-plugin-audit-log",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "The record of who changed what, and through which plugin.",
+  "bb": {
+    "name": "Audit log",
+    "description": "The record of who changed what, and through which plugin.",
+    "server": "./server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/server-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0"
+  }
+}

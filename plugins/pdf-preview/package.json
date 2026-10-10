@@ -1,0 +1,33 @@
+{
+  "name": "bb-plugin-pdf-preview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Preview PDF files with the browser's built-in viewer.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "PDF preview",
+    "description": "Preview PDF files with the browser's built-in viewer.",
+    "icon": "FileText",
+    "app": "./app.tsx"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --ignore-pattern node_modules --ignore-pattern dist ."
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

@@ -1,4 +1,9 @@
 import {
+  callOp,
+  sections as sectionOps,
+  threads as threadOps,
+} from "@bb/plugin/app";
+import {
   memo,
   useCallback,
   useEffect,
@@ -24,7 +29,6 @@ import {
 } from "@bb/client-core";
 import {
   useSidebarThreadActions,
-  useSdk,
   useSidebarThreadDraftIds,
 } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
@@ -239,19 +243,17 @@ function ThreadSections({
   onProjectSelect,
   onRemoveSection,
 }: ThreadSectionsProps) {
-  const sdk = useSdk();
   const sidebarActions = useSidebarThreadActions();
   const draftThreadIds = useSidebarThreadDraftIds();
   const [isPinnedReorderPending, setIsPinnedReorderPending] = useState(false);
   const handleReorderPinnedRoot = useCallback<PinnedThreadReorderHandler>(
     (request, callbacks) => {
       setIsPinnedReorderPending(true);
-      void sdk.threads
-        .reorderPinned({
-          threadId: request.itemId,
-          previousThreadId: request.previousItemId,
-          nextThreadId: request.nextItemId,
-        })
+      void callOp(threadOps.reorderPinned, {
+        threadId: request.itemId,
+        previousThreadId: request.previousItemId,
+        nextThreadId: request.nextItemId,
+      })
         .catch((error: unknown) => {
           toast.error(
             getMutationErrorMessage(error, "Failed to reorder pinned thread."),
@@ -262,7 +264,7 @@ function ThreadSections({
           callbacks.onSettled();
         });
     },
-    [sdk],
+    [],
   );
   const openNewThread = useCallback(
     (projectId: string | null, sectionId: string | null, pinned: boolean) => {
@@ -560,7 +562,6 @@ function ThreadListContent({
   activeThreadId,
   onProjectSelect,
 }: ThreadListProps) {
-  const sdk = useSdk();
   const { status, sections, threads, personalProjectId, archived } =
     useSidebarData();
   const preferencesReady = usePreferencesReady();
@@ -594,8 +595,7 @@ function ThreadListContent({
     (name: string) => {
       setSectionCreateErrorMessage(null);
       setIsCreateSectionPending(true);
-      void sdk.threadSections
-        .create({ name })
+      void callOp(sectionOps.create, { name })
         .then((section) => {
           const anchorSectionId = sectionCreateAnchorId;
           if (anchorSectionId) {
@@ -621,15 +621,14 @@ function ThreadListContent({
         )
         .finally(() => setIsCreateSectionPending(false));
     },
-    [sdk, sectionCreateAnchorId, sections, setManualSectionOrder],
+    [sectionCreateAnchorId, sections, setManualSectionOrder],
   );
   const handleConfirmRemoveThreadSection = useCallback(() => {
     if (!sectionToDelete) {
       return;
     }
     setIsDeleteSectionPending(true);
-    void sdk.threadSections
-      .delete({ id: sectionToDelete.id })
+    void callOp(sectionOps.delete, { id: sectionToDelete.id })
       .then(() => setSectionToDelete(null))
       .catch((error: unknown) => {
         toast.error(
@@ -637,7 +636,7 @@ function ThreadListContent({
         );
       })
       .finally(() => setIsDeleteSectionPending(false));
-  }, [sdk, sectionToDelete]);
+  }, [sectionToDelete]);
   const headerActions = useMemo(
     () => ({
       onNewSection: handleOpenCreateSectionDialog,

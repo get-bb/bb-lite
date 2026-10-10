@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { MarkdownPreview } from "@/components/ui/markdown-preview";
+import { Markdown } from "@bb/plugin/app";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { cn } from "@bb/shared-ui/lib/utils";
 import { reportError } from "../shell/data.js";
@@ -17,7 +17,7 @@ export function MarkdownView({
     .replace(/\]\(bbtask:\/\//gu, "](/plugins/tasks/tasks/task/")
     .replace(/\]\(bbthread:\/\//gu, "](/threads/");
   return (
-    <MarkdownPreview
+    <Markdown
       content={content}
       className={variant === "comment" ? "text-[13px]" : undefined}
     />

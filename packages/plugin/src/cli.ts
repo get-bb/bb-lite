@@ -2,6 +2,7 @@ export interface CliContext {
   cwd?: string;
   threadId?: string;
   projectId?: string;
+  hostId?: string;
   signal: AbortSignal;
 }
 
@@ -18,16 +19,28 @@ export interface CliRegistration {
   run(argv: string[], context: CliContext): CliResult | Promise<CliResult>;
 }
 
+export type CliDurationUnit = "ms" | "s" | "m" | "h" | "d";
+
 export interface CliOption {
-  type: "boolean" | "string" | "integer" | "enum";
+  type: "boolean" | "string" | "integer" | "enum" | "duration";
   description: string;
   values?: readonly string[];
   aliases?: readonly string[];
   placeholder?: string;
   required?: boolean;
   repeatable?: boolean;
+  split?: string;
+  min?: number;
+  max?: number;
+  units?: readonly CliDurationUnit[];
   default?: string | number;
 }
+
+export type CliConstraint =
+  | { kind: "exactly-one"; options: readonly string[] }
+  | { kind: "at-most-one"; options: readonly string[] }
+  | { kind: "at-least-one"; options: readonly string[] }
+  | { kind: "requires"; option: string; needs: readonly string[] };
 
 export interface CliPositional {
   name: string;
@@ -40,7 +53,7 @@ type Options = Record<string, CliOption>;
 type Positionals = readonly CliPositional[];
 type OptionValue<O> = O extends { values: readonly (infer Value)[] }
   ? Value
-  : O extends { type: "integer" }
+  : O extends { type: "integer" | "duration" }
     ? number
     : string;
 type ResolvedOption<O> = O extends { type: "boolean" }
@@ -59,6 +72,7 @@ type ResolvedPositional<P> = P extends { variadic: true }
 export interface CliInput<O extends Options, P extends Positionals> {
   options: { [Name in keyof O]: ResolvedOption<O[Name]> };
   positionals: { [E in P[number] as E["name"]]: ResolvedPositional<E> };
+  passthrough: string[];
   help: string;
 }
 
@@ -66,6 +80,7 @@ type ParsedOption = string | number | boolean | (string | number)[] | undefined;
 interface ParsedInput {
   options: Record<string, ParsedOption>;
   positionals: Record<string, string | string[] | undefined>;
+  passthrough: string[];
   help: string;
 }
 
@@ -75,6 +90,9 @@ interface CommandShape<O, P, Input> {
   aliases?: readonly string[];
   options?: O;
   positionals?: P;
+  constraints?: readonly CliConstraint[];
+  passthrough?: boolean;
+  unexpectedPositionalHint?: string;
   run(input: Input, context: CliContext): CliResult | Promise<CliResult>;
 }
 export type CliCommand = CommandShape<Options, Positionals, ParsedInput>;
@@ -82,6 +100,7 @@ export type CliCommand = CommandShape<Options, Positionals, ParsedInput>;
 export interface CliSpec {
   name: string;
   summary: string;
+  description?: string;
   root?: CliCommand;
   commands: Record<string, CliCommand>;
 }
@@ -105,8 +124,33 @@ export class PluginCliError extends Error {
 
 class UsageError extends PluginCliError {}
 
-function fail(message: string): never {
-  throw new UsageError(message, { code: "usage" });
+function fail(message: string, hint?: string): never {
+  throw new UsageError(message, { code: "usage", hint });
+}
+
+const UNIT_MS: Record<CliDurationUnit, number> = {
+  ms: 1,
+  s: 1_000,
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
+const DURATION = /^(\d+(?:\.\d+)?)(ms|s|m|h|d)?$/u;
+
+function within({ min, max }: CliOption, value: number): boolean {
+  return (
+    (min === undefined || value >= min) && (max === undefined || value <= max)
+  );
+}
+
+function durationOf(option: CliOption, raw: string): number | null {
+  const [, amount, unit] = DURATION.exec(raw.trim().toLowerCase()) ?? [];
+  if (amount === undefined) return null;
+  const candidates = unit === undefined ? (option.units ?? ["s"]) : [unit];
+  const values = candidates.map((each) =>
+    Math.round(Number(amount) * UNIT_MS[each as CliDurationUnit]),
+  );
+  return values.find((value) => within(option, value)) ?? null;
 }
 
 export function cliCommand<
@@ -118,7 +162,8 @@ export function cliCommand<
 
 function signature(name: string, option: CliOption): string {
   if (option.type === "boolean") return `--${name}`;
-  const fallback = option.values?.join("|") ?? "value";
+  const named = option.type === "duration" ? "duration" : "value";
+  const fallback = option.values?.join("|") ?? named;
   return `--${name} <${option.placeholder ?? fallback}>`;
 }
 
@@ -163,8 +208,13 @@ function listHelp(spec: CliSpec, words: readonly string[]): string {
   const commands = Object.entries(spec.commands)
     .filter(([path]) => path.startsWith(prefix))
     .map(([path, command]) => [`bb ${spec.name} ${path}`, command.summary]);
+  const about =
+    words.length === 0 && spec.description !== undefined
+      ? ["", spec.description]
+      : [];
   return [
     `${scope} — ${words.length === 0 ? spec.summary : "commands"}`,
+    ...about,
     "",
     `Usage:\n  ${scope} <command> [options]`,
     ...section("Commands:", commands),
@@ -189,23 +239,72 @@ function resolveCommand(spec: CliSpec, words: readonly string[]) {
 }
 
 function optionValue(name: string, option: CliOption, raw: string) {
-  const values = option.type === "enum" ? (option.values ?? []) : [raw];
-  const valid = option.type === "integer" ? /^-?\d+$/u.test(raw) : true;
-  if (!valid || !values.includes(raw)) {
-    const expected = option.type === "enum" ? values.join(", ") : "an integer";
+  const wrong = (expected: string) =>
     fail(`invalid value '${raw}' for --${name}: expected ${expected}`);
+  if (option.type === "duration") {
+    return (
+      durationOf(option, raw) ??
+      wrong("a duration with a unit (1500ms, 90s, 5m, 2h) in range")
+    );
   }
-  return option.type === "integer" ? Number(raw) : raw;
+  if (option.type === "enum") {
+    const values = option.values ?? [];
+    return values.includes(raw) ? raw : wrong(values.join(", "));
+  }
+  if (option.type !== "integer") return raw;
+  const { min, max } = option;
+  const range =
+    min === undefined && max === undefined
+      ? "an integer"
+      : `an integer from ${min ?? "any"} to ${max ?? "any"}`;
+  const valid = /^-?\d+$/u.test(raw) && within(option, Number(raw));
+  return valid ? Number(raw) : wrong(range);
+}
+
+function checkConstraints(
+  command: CliCommand,
+  given: ReadonlyMap<string, string[]>,
+  words: readonly string[],
+): void {
+  const named = (command.positionals ?? [])
+    .filter((_, index) => index < words.length)
+    .map(({ name }) => name);
+  const has = (name: string) => given.has(name) || named.includes(name);
+  const flags = (names: readonly string[]) =>
+    names.map((name) => `--${name}`).join(", ");
+  for (const constraint of command.constraints ?? []) {
+    if (constraint.kind === "requires") {
+      const absent = constraint.needs.filter((need) => !has(need));
+      if (has(constraint.option) && absent.length > 0) {
+        fail(`--${constraint.option} requires ${flags(absent)}`);
+      }
+      continue;
+    }
+    const { kind, options } = constraint;
+    const present = options.filter(has);
+    if (present.length > 1 && kind !== "at-least-one") {
+      const most = kind === "exactly-one" ? "exactly" : "at most";
+      fail(
+        `${flags(present).replaceAll(", ", " and ")} cannot be combined`,
+        `Pass ${most} one of: ${flags(options)}`,
+      );
+    }
+    if (present.length === 0 && kind !== "at-most-one") {
+      fail(`missing required options: one of ${flags(options)}`);
+    }
+  }
 }
 
 function parseArguments(command: CliCommand, argv: readonly string[]) {
   const declared = Object.entries(command.options ?? {});
   const given = new Map<string, string[]>();
   const words: string[] = [];
+  const passthrough: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index] ?? "";
     if (token === "--") {
-      words.push(...argv.slice(index + 1));
+      const rest = argv.slice(index + 1);
+      (command.passthrough ? passthrough : words).push(...rest);
       break;
     }
     if (!token.startsWith("--")) {
@@ -220,8 +319,14 @@ function parseArguments(command: CliCommand, argv: readonly string[]) {
     const implied = option.type === "boolean" ? "true" : undefined;
     const value = inline ?? implied ?? argv[(index += 1)];
     if (value === undefined) fail(`--${name} requires a value`);
-    given.set(name, [...(given.get(name) ?? []), value]);
+    const split = option.repeatable ? option.split : undefined;
+    const values =
+      split === undefined
+        ? [value]
+        : value.split(split).flatMap((part) => part.trim() || []);
+    given.set(name, [...(given.get(name) ?? []), ...values]);
   }
+  checkConstraints(command, given, words);
 
   const options: Record<string, ParsedOption> = {};
   const missing: string[] = [];
@@ -245,14 +350,17 @@ function parseArguments(command: CliCommand, argv: readonly string[]) {
     positionals[name] = variadic ? taken : taken[0];
     if (required && taken.length === 0) missing.push(`<${name}>`);
   }
-  if (words.length > 0) fail(`unexpected argument '${words[0]}'`);
+  if (words.length > 0) {
+    fail(`unexpected argument '${words[0]}'`, command.unexpectedPositionalHint);
+  }
   if (missing.length > 0) fail(`missing ${missing.join(", ")}`);
-  return { options, positionals };
+  return { options, positionals, passthrough };
 }
 
 function failure(error: PluginCliError, json: boolean, hint: string) {
   const { code, message, exitCode } = error;
-  const detail = error instanceof UsageError ? hint : error.hint;
+  const usageHint = [error.hint, hint].filter(Boolean).join("\n\n");
+  const detail = error instanceof UsageError ? usageHint : error.hint;
   const stderr = `${[message, ...(detail === undefined ? [] : [detail])].join("\n\n")}\n`;
   if (!json) return { exitCode, stderr };
   const body = { ok: false, error: { code, message, hint: error.hint } };

@@ -1,19 +1,45 @@
+import { API_VERSION, satisfies } from "@bb/plugin";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { join } from "node:path";
+import { statSync, watch as watchDirectory, type FSWatcher } from "node:fs";
+import { basename, join, relative, resolve } from "node:path";
+import { derivePluginId, pluginThemeId } from "@bb/domain";
+import {
+  appearance,
+  server as serverContract,
+  type ApiRoutes,
+  type Kernel,
+  type Runners,
+  type SocketResolver,
+} from "@bb/plugin";
+import type { RunnerPartBundle } from "@bb/runner";
 import type { InstalledPlugin, PluginApp } from "@bb/server-contract";
-import { dataPaths, loopbackUrl, type ServerConfig } from "../config.js";
-import type { Logger } from "../context.js";
-import type { Db } from "../db/index.js";
-import { isPluginEnabled, setPluginEnabled } from "../db/plugins.js";
-import type { ServerContext } from "../context.js";
+import { asSystem } from "@bb/server-kit/auth/actor";
+import {
+  dataPaths,
+  loopbackUrl,
+  type ServerConfig,
+} from "@bb/server-kit/config";
+import type { Logger } from "@bb/server-kit/context";
+import type { Db } from "@bb/server-kit/db/index";
+import { isPluginEnabled, setPluginEnabled } from "@bb/server-kit/db/plugins";
+import type { HostContext } from "../host-context.js";
 import type { Disposer } from "../server.js";
-import type { Hub } from "../ws/hub.js";
+import type { Hub } from "@bb/server-kit/ws/hub";
 import { builtinPlugins, type BuiltinPlugin } from "./builtin.js";
-import { bundleApp, importServerEntry } from "./bundle.js";
-import { createPluginHostDeps, type PluginHostDeps } from "./deps.js";
-import { errorMessage } from "../http/errors.js";
+import {
+  bundleApp,
+  bundleRunnerPart,
+  contentHash,
+  importServerEntry,
+  utilitiesWith,
+} from "./bundle.js";
+import { ApiError, errorMessage } from "@bb/server-kit/http/errors";
 import { createPluginInstance } from "./instance.js";
-import { readExternalPluginEntries, readManifest } from "./manifest.js";
+import {
+  readExternalPluginEntries,
+  readManifest,
+  type PluginManifest,
+} from "./manifest.js";
 import { PluginRegistry, type PluginRecord } from "./registry.js";
 
 export interface PluginHostOptions {
@@ -22,34 +48,97 @@ export interface PluginHostOptions {
   hub: Hub;
   log: Logger;
   tunnelToken: string;
+  kernel: Kernel;
+  runners: Runners;
+  now(): number;
+  routes(routes: ApiRoutes, internal: boolean): () => void;
+  sockets(resolver: SocketResolver): () => void;
   builtins?: BuiltinPlugin[];
 }
 
-type PluginOrigin = Pick<PluginRecord, "server" | "external" | "configEnabled">;
+type PluginOrigin = Pick<
+  PluginRecord,
+  "server" | "external" | "configEnabled" | "watch"
+>;
+
+const WATCH_DEBOUNCE_MS = 200;
+const UTILITIES_PATH = "/api/v1/plugin-utilities.css";
+const UNWATCHED = /(^|[\\/])(node_modules|\.cache|\.git|\.bb|dist)([\\/]|$)/u;
 
 const UNLOADED = { instance: null, app: null, error: null, token: null };
 
 export class PluginHost extends PluginRegistry {
-  deps: PluginHostDeps = () => {
-    throw new Error("The plugin host has not started");
-  };
+  onChanged: () => void = () => {};
   private settled: Promise<void> = Promise.resolve();
+  private readonly runnerBundles = new Map<string, RunnerPartBundle>();
+  private readonly watchers = new Map<string, FSWatcher>();
+  utilities: { css: string; hash: string } | null = null;
+  private styled = "";
+  private booting = false;
+  private readonly coreIds = new Set<string>();
 
-  constructor(private readonly options: PluginHostOptions) {
-    super(options.log);
+  constructor(readonly options: PluginHostOptions) {
+    super(options.log, options.kernel);
   }
 
   async reload(id?: string): Promise<void> {
     await this.discover();
-    const targets =
-      id === undefined ? [...this.records.values()] : [this.record(id)];
-    for (const record of targets) await this.load(record);
-    this.options.hub.system(["plugins-changed"]);
+    if (id !== undefined) await this.load(this.record(id));
+    else await this.inOrder(() => this.loadAll());
+    await this.announce();
+  }
+
+  private async loadAll(): Promise<void> {
+    const targets = this.inDependencyOrder();
+    this.booting = true;
+    try {
+      for (const record of targets) await this.start(record);
+    } finally {
+      this.booting = false;
+    }
+    for (const record of targets) {
+      const { instance, manifest } = record;
+      try {
+        await instance?.start();
+      } catch (error) {
+        await this.unload(record);
+        record.error = errorMessage(error);
+        const fields = { pluginId: manifest.id, err: error };
+        this.options.log.error("Plugin failed to start", fields);
+      }
+    }
+  }
+
+  async refresh(id: string | null): Promise<void> {
+    await this.discover();
+    const record = id === null ? undefined : this.records.get(id);
+    if (record !== undefined) await this.loadWithDependents(record);
+    await this.announce();
+  }
+
+  async runnerParts(): Promise<RunnerPartBundle[]> {
+    const bundles: RunnerPartBundle[] = [];
+    for (const { manifest, instance, external } of this.records.values()) {
+      const { id, runnerEntry } = manifest;
+      if (instance === null || !external || runnerEntry === null) continue;
+      try {
+        const fallbacks = this.fallbacks(manifest);
+        const bundle = await bundleRunnerPart(id, runnerEntry, fallbacks);
+        this.runnerBundles.set(id, bundle);
+        bundles.push(bundle);
+      } catch (error) {
+        const fields = { pluginId: id, err: error };
+        this.options.log.error("Plugin runner part failed to build", fields);
+      }
+    }
+    return bundles;
   }
 
   stop(): Promise<void> {
     return this.inOrder(async () => {
-      for (const record of [...this.records.values()].reverse()) {
+      for (const watcher of this.watchers.values()) watcher.close();
+      this.watchers.clear();
+      for (const record of this.inDependencyOrder().reverse()) {
         await this.unload(record);
       }
     });
@@ -57,10 +146,37 @@ export class PluginHost extends PluginRegistry {
 
   async setEnabled(id: string, enabled: boolean): Promise<InstalledPlugin> {
     const record = this.record(id);
+    if (this.isCore(id)) {
+      const message = `"${id}" is part of bb's core and is always on`;
+      throw new ApiError(409, "core_plugin", message);
+    }
     setPluginEnabled(this.options.db, id, enabled);
-    await this.load(record);
-    this.options.hub.system(["plugins-changed"]);
+    await this.loadWithDependents(record);
+    await this.announce();
     return this.describe(record);
+  }
+
+  private async announce(): Promise<void> {
+    await this.restyle();
+    this.options.hub.system(["plugins-changed"]);
+    this.options.kernel.changed(serverContract.config);
+    this.onChanged();
+  }
+
+  private async restyle(): Promise<void> {
+    const records = [...this.records.values()];
+    const classes = records.flatMap((record) => record.app?.classes ?? []);
+    const wanted = [...new Set(classes)].sort();
+    const key = wanted.join(" ");
+    if (key === this.styled) return;
+    this.styled = key;
+    try {
+      const css = await utilitiesWith(wanted);
+      this.utilities = css === null ? null : { css, hash: contentHash(css) };
+    } catch (error) {
+      this.utilities = null;
+      this.options.log.error("Plugin styles failed to build", { err: error });
+    }
   }
 
   list(): InstalledPlugin[] {
@@ -82,17 +198,48 @@ export class PluginHost extends PluginRegistry {
     return comparable && timingSafeEqual(expected, given);
   }
 
-  async settings(id: string, update?: Record<string, unknown>) {
+  hasPersonalSettings(
+    id: string,
+    keys: readonly string[],
+    projectId?: string | null,
+  ): boolean {
+    return this.running(id).settings.isPersonal(keys, projectId);
+  }
+
+  async settings(
+    id: string,
+    update?: Record<string, unknown>,
+    userId: string | null = null,
+    projectId: string | null = null,
+  ) {
     const instance = this.running(id);
     if (update !== undefined) {
-      await instance.settings.write(update);
+      await instance.settings.write(update, userId, projectId);
       const waiting = instance.needsConfiguration !== null;
       if (waiting) await this.load(this.record(id));
       this.options.hub.system(["plugins-changed"]);
     }
     const { settings } = this.running(id);
-    const values = await settings.publicValues();
+    settings.requireProject(projectId);
+    const values = await settings.publicValues(userId, projectId);
     return { schema: settings.descriptors, values };
+  }
+
+  private inDependencyOrder(): PluginRecord[] {
+    const ordered: PluginRecord[] = [];
+    const visit = (record: PluginRecord, trail: string[]) => {
+      if (ordered.includes(record) || trail.includes(record.manifest.id)) {
+        return;
+      }
+      for (const required of record.manifest.requires) {
+        const needed = this.records.get(required);
+        const deeper = [...trail, record.manifest.id];
+        if (needed !== undefined) visit(needed, deeper);
+      }
+      ordered.push(record);
+    };
+    for (const record of this.records.values()) visit(record, []);
+    return ordered;
   }
 
   private inOrder(work: () => Promise<void>): Promise<void> {
@@ -101,9 +248,16 @@ export class PluginHost extends PluginRegistry {
     return done;
   }
 
+  isCore(id: string): boolean {
+    return this.coreIds.has(id);
+  }
+
   private isEnabled(record: PluginRecord): boolean {
     const { id } = record.manifest;
-    return record.configEnabled && isPluginEnabled(this.options.db, id);
+    if (this.isCore(id)) return true;
+    const { enabledByDefault } = record.manifest;
+    const chosen = isPluginEnabled(this.options.db, id, enabledByDefault);
+    return record.configEnabled && chosen;
   }
 
   private describe(record: PluginRecord): InstalledPlugin {
@@ -114,7 +268,7 @@ export class PluginHost extends PluginRegistry {
     const disabledBy = record.configEnabled ? null : "Disabled in config.json";
     const waiting = instance?.needsConfiguration ?? null;
     const settings = instance?.settings.descriptors ?? {};
-    const cli = instance?.cli ?? null;
+    const cli = this.cliOf(id);
     const loaded = waiting === null ? "running" : "needs-configuration";
     return {
       id,
@@ -122,6 +276,7 @@ export class PluginHost extends PluginRegistry {
       description,
       icon: icon?.startsWith("./") ? `${base}/assets/${icon.slice(2)}` : icon,
       enabled,
+      core: this.isCore(id),
       status: !enabled ? "disabled" : instance === null ? "error" : loaded,
       statusMessage: enabled ? (error ?? waiting) : disabledBy,
       hasSettings: Object.keys(settings).length > 0,
@@ -136,10 +291,13 @@ export class PluginHost extends PluginRegistry {
     if (record.manifest.appEntry === null) return null;
     if (!record.external) return { kind: "builtin" };
     if (record.app === null) return null;
-    const { hash, css } = record.app;
+    const { hash, css, shared } = record.app;
     const jsUrl = `${base}/app.js?h=${hash}`;
     const cssUrl = css === null ? null : `${base}/app.css?h=${hash}`;
-    return { kind: "external", jsUrl, cssUrl, hash };
+    const sheet = this.utilities;
+    const utilitiesUrl =
+      sheet === null ? null : `${UTILITIES_PATH}?h=${sheet.hash}`;
+    return { kind: "external", jsUrl, cssUrl, utilitiesUrl, hash, shared };
   }
 
   private async discover(): Promise<void> {
@@ -148,14 +306,31 @@ export class PluginHost extends PluginRegistry {
     const add = async (directory: string, origin: PluginOrigin) => {
       try {
         const manifest = await readManifest(directory);
-        const known = this.records.get(manifest.id) ?? { ...UNLOADED };
-        found.set(manifest.id, Object.assign(known, origin, { manifest }));
+        const { id } = manifest;
+        if (this.isCore(id) && !origin.configEnabled) return null;
+        const known = this.records.get(id) ?? { ...UNLOADED };
+        const fields = { manifest, manifestError: null };
+        found.set(id, Object.assign(known, origin, fields));
+        return id;
       } catch (error) {
         log.error("Plugin manifest is unreadable", { directory, err: error });
+        const where = resolve(directory);
+        const known = [...this.records.values()].find(
+          ({ external, manifest }) => external && manifest.directory === where,
+        );
+        if (known === undefined || !origin.external) return null;
+        const manifestError = errorMessage(error);
+        found.set(
+          known.manifest.id,
+          Object.assign(known, origin, { manifestError }),
+        );
+        return known.manifest.id;
       }
     };
-    for (const { directory, server } of builtins) {
-      await add(directory, { server, external: false, configEnabled: true });
+    for (const { directory, server, core = false } of builtins) {
+      const origin = { server, external: false, watch: false };
+      const id = await add(directory, { ...origin, configEnabled: true });
+      if (core && id !== null) this.coreIds.add(id);
     }
     const { configFile } = dataPaths(config.dataDir);
     const entries = await readExternalPluginEntries(configFile).catch(
@@ -164,14 +339,29 @@ export class PluginHost extends PluginRegistry {
         return [];
       },
     );
-    for (const { path, enabled } of entries) {
-      await add(path, { server: null, external: true, configEnabled: enabled });
+    for (const { path, enabled, watch } of entries) {
+      const origin = { server: null, external: true, watch };
+      await add(path, { ...origin, configEnabled: enabled });
     }
     for (const [id, record] of this.records) {
-      if (!found.has(id)) await this.inOrder(() => this.unload(record));
+      if (found.has(id)) continue;
+      this.watchers.get(id)?.close();
+      this.watchers.delete(id);
+      await this.inOrder(() => this.unload(record));
     }
     this.records.clear();
     for (const [id, record] of found) this.records.set(id, record);
+  }
+
+  private async loadWithDependents(record: PluginRecord): Promise<void> {
+    await this.load(record);
+    const changed = new Set([record.manifest.id]);
+    for (const other of this.inDependencyOrder()) {
+      const { requires } = other.manifest;
+      if (!requires.some((required) => changed.has(required))) continue;
+      changed.add(other.manifest.id);
+      await this.load(other);
+    }
   }
 
   private load(record: PluginRecord): Promise<void> {
@@ -180,32 +370,161 @@ export class PluginHost extends PluginRegistry {
 
   private async start(record: PluginRecord): Promise<void> {
     await this.unload(record);
+    this.watch(record);
     if (!this.isEnabled(record)) return;
-    const { config, db, hub, log, tunnelToken } = this.options;
+    const { config, log, tunnelToken } = this.options;
     const { id, serverEntry, appEntry } = record.manifest;
     const { dataDir } = config;
-    const serverUrl = loopbackUrl(config);
-    const server = { dataDir, serverUrl, tunnelToken };
+    const server = { ...config, url: loopbackUrl(config), tunnelToken };
     const { instance, api } = createPluginInstance(
-      { db, hub, log, ...server, deps: this.deps },
+      { ...this.options, server },
       id,
+      record.external ? "installed" : "product",
     );
+    const fallbacks = this.fallbacks(record.manifest);
     try {
+      if (record.manifestError !== null) throw new Error(record.manifestError);
+      const { apiRange, requiredVersions } = record.manifest;
+      if (apiRange !== null && !satisfies(API_VERSION, apiRange)) {
+        const has = `this bb has ${API_VERSION}`;
+        throw new Error(`needs plugin API ${apiRange}; ${has}`);
+      }
+      for (const required of record.manifest.requires) {
+        const needed = this.records.get(required);
+        if (needed?.instance == null) {
+          throw new Error(`requires "${required}", which is not running`);
+        }
+        const wanted = requiredVersions[required];
+        const found = needed.manifest.version;
+        const fits = found !== null && satisfies(found, wanted ?? "*");
+        if (wanted !== undefined && !fits) {
+          const has = found ?? "no version";
+          throw new Error(`requires "${required}" ${wanted}; it is ${has}`);
+        }
+      }
       if (record.external && appEntry !== null) {
-        record.app = await bundleApp(appEntry);
+        const { directory } = record.manifest;
+        record.app = await bundleApp(appEntry, directory, fallbacks);
       }
       const cacheDir = join(dataPaths(dataDir).plugins, id, ".cache");
       const entry =
         record.external && serverEntry !== null
-          ? await importServerEntry(serverEntry, cacheDir)
+          ? await importServerEntry(serverEntry, cacheDir, fallbacks)
           : record.server;
+      for (const declared of record.manifest.themes) {
+        const { id: themeId, cssFile, codeThemeFiles, ...theme } = declared;
+        const base = `/api/v1/plugins/${id}/themes/${themeId}`;
+        const versioned = (file: string, suffix: string) => {
+          const stat = statSync(file, { throwIfNoEntry: false });
+          if (record.external && !record.watch) this.watchTheme(id, file);
+          if (stat === undefined) {
+            const named = relative(record.manifest.directory, file);
+            throw new Error(`theme "${themeId}": ${named} does not exist`);
+          }
+          return `${base}${suffix}?v=${Math.trunc(stat.mtimeMs)}`;
+        };
+        const files = Object.entries(codeThemeFiles);
+        const urls = files.map(([side, file]) => [
+          side,
+          versioned(file, `.${side}.json`),
+        ]);
+        const codeTheme =
+          theme.codeTheme === null
+            ? null
+            : { ...theme.codeTheme, ...Object.fromEntries(urls) };
+        api.add(appearance.theme, {
+          ...theme,
+          codeTheme,
+          cssFile,
+          id: pluginThemeId(id, themeId),
+          pluginId: id,
+          cssUrl: versioned(cssFile, ".css"),
+        });
+      }
       await entry?.(api);
       record.instance = instance;
-      instance.startServices();
+      if (!this.booting) await instance.start();
     } catch (error) {
+      record.instance = null;
       await instance.dispose();
       record.error = errorMessage(error);
       log.error("Plugin failed to load", { pluginId: id, err: error });
+    }
+  }
+
+  builtinDirectory(id: string): string | null {
+    const { builtins = builtinPlugins } = this.options;
+    const found = builtins.find(
+      ({ directory }) => derivePluginId(basename(directory)) === id,
+    );
+    return found?.directory ?? null;
+  }
+
+  locate(id: string) {
+    const record = this.records.get(id);
+    const original = this.builtinDirectory(id);
+    if (record === undefined && original === null) return null;
+    const directory = record?.manifest.directory ?? original ?? "";
+    return { id, directory, builtin: record?.external !== true, original };
+  }
+
+  private fallbacks({ id, forkOf }: PluginManifest): string[] {
+    const original = this.builtinDirectory(forkOf ?? id);
+    return original === null ? [] : [join(original, "node_modules")];
+  }
+
+  idOfDirectory(path: string): string | null {
+    const directory = resolve(path);
+    for (const { manifest } of this.records.values()) {
+      if (manifest.directory === directory) return manifest.id;
+    }
+    return null;
+  }
+
+  private watchTheme(id: string, cssFile: string): void {
+    const key = `${id}:${cssFile}`;
+    if (this.watchers.has(key)) return;
+    try {
+      const watcher = watchDirectory(cssFile, () => {
+        watcher.close();
+        this.watchers.delete(key);
+        this.reload(id).catch((error: unknown) => {
+          const fields = { pluginId: id, err: error };
+          this.options.log.warn("Plugin reload on theme change failed", fields);
+        });
+      });
+      watcher.on("error", () => watcher.close());
+      this.watchers.set(key, watcher);
+    } catch (error) {
+      const fields = { pluginId: id, err: error };
+      this.options.log.warn("Plugin theme cannot be watched", fields);
+    }
+  }
+
+  private watch(record: PluginRecord): void {
+    const { id, directory } = record.manifest;
+    this.watchers.get(id)?.close();
+    this.watchers.delete(id);
+    if (!record.watch || !this.isEnabled(record)) return;
+    let timer: NodeJS.Timeout | undefined;
+    const changed = (_event: string, file: string | null) => {
+      if (file !== null && UNWATCHED.test(file)) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        this.reload(id).catch((error: unknown) => {
+          const fields = { pluginId: id, err: error };
+          this.options.log.warn("Plugin reload on change failed", fields);
+        });
+      }, WATCH_DEBOUNCE_MS);
+    };
+    try {
+      const watcher = watchDirectory(directory, { recursive: true }, changed);
+      watcher.on("close", () => clearTimeout(timer));
+      watcher.on("error", () => watcher.close());
+      this.watchers.set(id, watcher);
+    } catch (error) {
+      const fields = { pluginId: id, err: error };
+      this.options.log.warn("Plugin directory cannot be watched", fields);
     }
   }
 
@@ -216,8 +535,33 @@ export class PluginHost extends PluginRegistry {
   }
 }
 
-export async function startPlugins(ctx: ServerContext): Promise<Disposer> {
-  ctx.plugins.deps = createPluginHostDeps(ctx);
-  await ctx.plugins.reload();
-  return () => ctx.plugins.stop();
+export async function startPlugins(ctx: HostContext): Promise<Disposer> {
+  const { plugins, runners, log } = ctx;
+  const shipped = new Set<string>();
+  const sync = async (hostIds: string[]) => {
+    const parts = await plugins.runnerParts();
+    for (const hostId of hostIds) {
+      if (parts.length === 0 && !shipped.has(hostId)) continue;
+      if (!runners.isConnected(hostId)) continue;
+      shipped.add(hostId);
+      try {
+        const runner = asSystem(() => runners.get(hostId));
+        const { failed } = await runner.loadPlugins({ plugins: parts });
+        for (const { id, message } of failed) {
+          const fields = { hostId, pluginId: id, message };
+          log.warn("A plugin's runner part did not load", fields);
+        }
+      } catch (error) {
+        log.warn("Runner parts were not sent", { hostId, err: error });
+      }
+    }
+  };
+  plugins.onChanged = () => void sync(runners.connectedHostIds());
+  const stopWatching = runners.onConnected((hostId) => void sync([hostId]));
+  await plugins.reload();
+  return async () => {
+    stopWatching();
+    plugins.onChanged = () => {};
+    await plugins.stop();
+  };
 }

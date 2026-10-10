@@ -2,7 +2,7 @@ import { symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { environmentSchema } from "@bb/domain";
 import { expect, it } from "vitest";
-import { insertHost } from "../src/db/hosts.js";
+import { insertHost } from "@bb/server-kit/db/hosts";
 import * as helpers from "./helpers.js";
 
 const env = "/environments/env_demo";
@@ -97,6 +97,15 @@ it("serves file bytes with ranges, validators and confinement", async () => {
   server.ctx.db.run(attach, "env_demo");
   const viaThread = `/threads/thr_demo/host-files${repo}/README.md`;
   expect(await (await request(viaThread)).text()).toBe("# demo\n");
+  const raw = (query: Record<string, string>) =>
+    request(`/machines/files/raw?${new URLSearchParams(query)}`);
+  const whole = await raw({ path: join(repo, "big.bin") });
+  expect((await bytes(whole)).equals(big)).toBe(true);
+  const rooted = await raw({ path: "src/a.ts", rootPath: repo });
+  expect(await rooted.text()).toBe("changed\n");
+  const escaped = await raw({ path: "../x", rootPath: join(repo, "src") });
+  expect(escaped.status).toBe(400);
+  expect((await raw({})).status).toBe(400);
 });
 
 it("resolves a project to its checkout for paths and branches", async () => {
@@ -170,4 +179,31 @@ it("answers with outcomes when git, a machine or a folder is missing", async () 
   const bytes = await request("/environments/env_away/files/README.md");
   const down = [502, { code: "host_unavailable" }];
   expect([bytes.status, await bytes.json()]).toMatchObject(down);
+});
+
+it("lists, creates, moves and removes machine paths inside a root", async () => {
+  const { repo, send } = await helpers.createDemo();
+  const op = async (route: string, body: object) => {
+    const response = await send(`/machines/files/${route}`, body);
+    return { status: response.status, body: await response.json() };
+  };
+  const rootPath = join(repo, "src");
+  const made = await op("mkdir", { path: "a/b", rootPath, recursive: true });
+  expect(made).toEqual({ status: 200, body: { ok: true } });
+  helpers.write(repo, { "src/a/b/c.txt": "c\n" });
+  const moved = { sourcePath: "a/b/c.txt", destinationPath: "d.txt" };
+  expect((await op("move", { ...moved, rootPath })).status).toBe(200);
+  const kinds = { includeFiles: true, includeDirectories: true };
+  const listed = await op("paths", { path: rootPath, ...kinds, query: "d" });
+  expect(listed.body.paths).toContainEqual(
+    expect.objectContaining({ kind: "file", path: "d.txt" }),
+  );
+  const outside = { path: join(repo, "x"), rootPath };
+  expect((await op("mkdir", outside)).status).toBe(400);
+  const escape = { sourcePath: "d.txt", destinationPath: "../d.txt" };
+  expect((await op("move", { ...escape, rootPath })).status).toBe(400);
+  expect((await op("remove", { path: "a", rootPath })).status).toBe(400);
+  const all = { path: "a", rootPath, recursive: true };
+  expect((await op("remove", all)).body).toEqual({ ok: true });
+  expect((await op("remove", { path: ".", rootPath })).status).toBe(400);
 });

@@ -1,31 +1,36 @@
-import { definePluginApp } from "@bb/plugin/app";
+import {
+  type PluginAppApi,
+  shell,
+  sidePanel,
+  threadView,
+} from "@bb/plugin/app";
 import { TasksAppShell } from "./shell/app-shell.js";
 import { TasksNavigationPanel } from "./shell/sidebar.js";
 import { TaskDirectiveCard, TaskEmbedPanel } from "./views/embed/index.js";
 
-export default definePluginApp((app) => {
-  app.slots.navPanel({
+export default function tasksApp(bb: PluginAppApi): void {
+  bb.add(shell.navPanel, {
     id: "tasks",
     title: "Tasks",
     icon: "ListTodo",
     path: "tasks",
-    component: TasksAppShell,
+    view: TasksAppShell,
     fixedTabs: [
       {
         panelId: "tasks",
         id: "navigation",
         title: "Navigation",
         icon: "ListView",
-        component: TasksNavigationPanel,
+        view: TasksNavigationPanel,
         layout: "flush",
       },
     ],
   });
-  app.slots.threadPanel({
+  bb.add(sidePanel.panel, {
     id: "task",
     title: "Task",
     icon: "ListTodo",
-    component: TaskEmbedPanel,
+    view: TaskEmbedPanel,
   });
-  app.slots.messageDirective({ id: "task", component: TaskDirectiveCard });
-});
+  bb.add(threadView.messageDirective, { id: "task", view: TaskDirectiveCard });
+}

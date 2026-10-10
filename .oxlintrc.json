@@ -4,7 +4,7 @@
   "jsPlugins": ["./scripts/oxlint-plugin.mjs"],
   "categories": { "correctness": "off" },
   "env": { "builtin": true },
-  "rules": { "bb/no-comments": "error" },
+  "rules": { "bb/no-comments": "error", "bb/plugin-imports": "error" },
   "ignorePatterns": [
     "**/node_modules/**",
     "**/dist/**",

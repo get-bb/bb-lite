@@ -2,6 +2,7 @@ import * as domain from "@bb/domain";
 import { z } from "zod";
 import {
   branchListQuerySchema,
+  countField,
   environmentProviderInstanceKeySchema,
   pathListIncludeQueryValueSchema,
 } from "./shared.js";
@@ -29,14 +30,14 @@ export const listEnvironmentsQuerySchema = z.object({
   instanceKey: environmentProviderInstanceKeySchema.optional(),
   path: z.string().min(1).optional(),
   status: domain.environmentStatusSchema.optional(),
-  limit: z.string().regex(/^\d+$/).optional(),
-  offset: z.string().regex(/^\d+$/).optional(),
+  limit: countField.optional(),
+  offset: countField.optional(),
 });
 export type ListEnvironmentsQuery = z.infer<typeof listEnvironmentsQuerySchema>;
 
 export const environmentPathsQuerySchema = z.object({
   query: z.string().min(1).max(domain.FILE_LIST_QUERY_MAX_LENGTH).optional(),
-  limit: z.string().regex(/^\d+$/).optional(),
+  limit: countField.optional(),
   includeFiles: pathListIncludeQueryValueSchema,
   includeDirectories: pathListIncludeQueryValueSchema,
 });

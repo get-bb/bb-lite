@@ -11,6 +11,7 @@ export const pluginStatusSchema = z.enum([
 const pluginSettingBaseSchema = {
   label: z.string().min(1),
   description: z.string().min(1).optional(),
+  scope: z.enum(["workspace", "user", "project"]).optional(),
 };
 
 export const pluginSettingDescriptorSchema = z.discriminatedUnion("type", [
@@ -20,6 +21,7 @@ export const pluginSettingDescriptorSchema = z.discriminatedUnion("type", [
       type: z.literal("string"),
       secret: z.literal(true).optional(),
       multiline: z.boolean().optional(),
+      maxLength: z.number().int().positive().optional(),
       default: z.string().optional(),
     })
     .strict(),
@@ -28,6 +30,33 @@ export const pluginSettingDescriptorSchema = z.discriminatedUnion("type", [
       ...pluginSettingBaseSchema,
       type: z.literal("boolean"),
       default: z.boolean().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      ...pluginSettingBaseSchema,
+      type: z.literal("select"),
+      options: z
+        .array(z.object({ value: z.string().min(1), label: z.string().min(1) }))
+        .min(1),
+      default: z.string().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      ...pluginSettingBaseSchema,
+      type: z.literal("number"),
+      min: z.number().optional(),
+      max: z.number().optional(),
+      integer: z.boolean().optional(),
+      default: z.number().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      ...pluginSettingBaseSchema,
+      type: z.literal("project"),
+      default: z.string().optional(),
     })
     .strict(),
 ]);
@@ -46,7 +75,9 @@ export const pluginAppSchema = z.discriminatedUnion("kind", [
     kind: z.literal("external"),
     jsUrl: z.string(),
     cssUrl: z.string().nullable(),
+    utilitiesUrl: z.string().nullable().default(null),
     hash: z.string(),
+    shared: z.array(z.string()).default([]),
   }),
 ]);
 export type PluginApp = z.infer<typeof pluginAppSchema>;
@@ -62,6 +93,7 @@ export const installedPluginSchema = z.object({
   description: z.string(),
   icon: z.string().nullable(),
   enabled: z.boolean(),
+  core: z.boolean().default(false),
   status: pluginStatusSchema,
   statusMessage: z.string().nullable(),
   hasSettings: z.boolean(),
@@ -86,7 +118,10 @@ export type PluginSettingsResponse = z.infer<
 >;
 
 export const pluginSettingsUpdateRequestSchema = z
-  .object({ values: z.record(z.string(), domain.jsonValueSchema) })
+  .object({
+    values: z.record(z.string(), domain.jsonValueSchema),
+    projectId: z.string().optional(),
+  })
   .strict();
 
 export const pluginTokenRequestSchema = z
@@ -98,6 +133,7 @@ export const pluginCliRequestSchema = z.object({
   cwd: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
+  hostId: z.string().min(1).optional(),
 });
 
 export const pluginCliResponseSchema = z.object({

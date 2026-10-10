@@ -1,6 +1,7 @@
+import { callOp } from "@bb/plugin/app";
 import { useState } from "react";
-import type { Label, Project } from "../../shared/contract.js";
-import { errorMessage, useLabels, useTasksRpc } from "../../shell/data.js";
+import { tasks, type Label, type Project } from "../../shared/contract.js";
+import { errorMessage, useLabels } from "../../shell/data.js";
 import {
   Select,
   SelectContent,
@@ -81,7 +82,6 @@ function projectLabel(project: Project) {
 }
 
 export function LabelsPanel({ projects }: { projects: Project[] }) {
-  const rpc = useTasksRpc();
   const [selectedProjectId, setSelectedProjectId] = useState<string>();
   const projectId = selectedProjectId ?? projects[0]?.id;
   const labels = useLabels(projectId);
@@ -138,7 +138,7 @@ export function LabelsPanel({ projects }: { projects: Project[] }) {
                     onSubmit={(name, color) =>
                       run(async () => {
                         const patch = { labelId: label.id, name, color };
-                        await rpc.call("updateLabel", patch);
+                        await callOp(tasks.updateLabel, patch);
                         setEditingId(null);
                       })
                     }
@@ -183,7 +183,7 @@ export function LabelsPanel({ projects }: { projects: Project[] }) {
             initial={{ name: "", color: DEFAULT_COLOR }}
             submitLabel="Add label"
             onSubmit={(name, color) =>
-              run(() => rpc.call("createLabel", { projectId, name, color }))
+              run(() => callOp(tasks.createLabel, { projectId, name, color }))
             }
           />
           {error ? (
@@ -201,7 +201,8 @@ export function LabelsPanel({ projects }: { projects: Project[] }) {
             confirmLabel="Delete label"
             onConfirm={() => {
               const labelId = deleting?.id;
-              if (labelId) void run(() => rpc.call("deleteLabel", { labelId }));
+              if (labelId)
+                void run(() => callOp(tasks.deleteLabel, { labelId }));
             }}
           />
         </div>

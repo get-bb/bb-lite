@@ -15,8 +15,8 @@ describe("managed worktrees and lifecycle scripts", () => {
   let h: Harness;
   let source: string;
   const branchName = "bb/feature-thr_1";
-  const create = (key = "thr_1-1") => {
-    const names = { key, branchName, baseBranch: null };
+  const create = (key = "thr_1-1", branch = branchName) => {
+    const names = { key, branchName: branch, baseBranch: null };
     return h.api.createWorktree({ sourcePath: source, ...names });
   };
 
@@ -35,11 +35,12 @@ describe("managed worktrees and lifecycle scripts", () => {
   afterAll(() => h.dispose());
 
   it("copies included files, streams setup output and enforces the timeout", async () => {
-    const created = await create();
+    const setupNames = ["thr_2-1", "bb/setup-thr_2"] as const;
+    const created = await create(...setupNames);
     const cwd = created.path;
     expect(created.worktreeInclude).toEqual({ copied: 1, skipped: 0 });
     expect(fs.existsSync(path.join(cwd, "node_modules"))).toBe(false);
-    expect((await create()).worktreeInclude).toBeNull();
+    expect((await create(...setupNames)).worktreeInclude).toBeNull();
     const script = { path: cwd, env: { BB_THREAD_ID: "thr_1" } };
     const run = (operationId: string, kind: Kind, timeoutMs = 20_000) =>
       h.api.runLifecycleScript({ operationId, kind, timeoutMs, ...script });

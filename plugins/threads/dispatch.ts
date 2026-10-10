@@ -1,0 +1,535 @@
+import { threads } from "@bb/plugin";
+import { isStandaloneBuiltinClearCommand, threadScope } from "@bb/domain";
+import type * as domain from "@bb/domain";
+import { RunnerError } from "@bb/runner";
+import type * as runner from "@bb/runner";
+import type { SendMessageRequest } from "@bb/server-contract";
+import { getEnvironment } from "@bb/server-kit/db/environments";
+import { isQueueAutoSendPaused } from "@bb/server-kit/db/events";
+import { findHost } from "@bb/server-kit/db/hosts";
+import { newId } from "@bb/server-kit/db/index";
+import { ApiError } from "@bb/server-kit/http/errors";
+import { hasTurnBoundInteraction } from "@bb/server-kit/db/pending-interactions";
+import * as queue from "@bb/server-kit/db/queued-messages";
+import {
+  getThread,
+  patchThread,
+  type ThreadRow,
+} from "@bb/server-kit/db/threads";
+import {
+  conflict,
+  errorMessage,
+  threadNotFound,
+} from "@bb/server-kit/http/errors";
+import { resolvePluginMentions } from "./mentions.js";
+import { deliverAttachments } from "./attachments.js";
+import * as core from "./core.js";
+import type { Engine } from "./engine.js";
+import * as execution from "./execution.js";
+import type { SessionEnvironment } from "@bb/server-kit/services";
+import { buildSessionSpec } from "./session-spec.js";
+import { startupContextSchema } from "./provisioning.js";
+
+type QueuedMessageRow = queue.QueuedMessageRow;
+type PromptInput = domain.PromptInput;
+
+export type SendMode = SendMessageRequest["mode"];
+type TurnKind = "start" | "steer" | "auto";
+
+export interface OutboundMessage {
+  input: PromptInput[];
+  execution: execution.ExecutionTuple;
+  senderThreadId: string | null;
+  actorUserId: string | null;
+  initiator: domain.ThreadTurnInitiator;
+  systemNotice: domain.QueuedMessageSystemNotice | null;
+}
+
+export interface DispatchArgs {
+  message: OutboundMessage;
+  mode: SendMode;
+  sendAt: number | null;
+  rows: QueuedMessageRow[];
+  sendNow: boolean;
+}
+
+export type Delivery =
+  | { delivery: "sent" }
+  | { delivery: "queued"; row: QueuedMessageRow };
+
+const SENT: Delivery = { delivery: "sent" };
+const MAX_DRAIN_ROUNDS = 20;
+const FAILURE_REASON_MAX_LENGTH = 200;
+
+function senderPrefix(senderThreadId: string) {
+  return `[bb message from thread:${senderThreadId}]\n\n`;
+}
+
+function attribute(input: PromptInput[], senderThreadId: string | null) {
+  if (senderThreadId === null) return input;
+  const prefix = senderPrefix(senderThreadId);
+  const first = input.findIndex((part) => part.type === "text");
+  if (first < 0) {
+    return [{ type: "text" as const, text: prefix, mentions: [] }, ...input];
+  }
+  return input.map((part, index) => {
+    if (index !== first || part.type !== "text") return part;
+    const mentions = part.mentions.map((mention) => ({
+      ...mention,
+      start: mention.start + prefix.length,
+      end: mention.end + prefix.length,
+    }));
+    return { ...part, text: prefix + part.text, mentions };
+  });
+}
+
+export function attributedMessage(message: OutboundMessage): OutboundMessage {
+  const input = attribute(message.input, message.senderThreadId);
+  return { ...message, input };
+}
+
+export function turnRequestEvent(
+  message: OutboundMessage,
+  requestId: string,
+  target: domain.TurnRequestTarget,
+): runner.RunnerThreadEvent {
+  const starts = target.kind === "thread-start";
+  const { systemNotice } = message;
+  return {
+    type: "client/turn/requested",
+    scope: threadScope(),
+    direction: "outbound",
+    requestId,
+    source: starts ? "spawn" : "tell",
+    initiator: message.initiator,
+    senderThreadId: message.senderThreadId,
+    ...(message.actorUserId === null
+      ? {}
+      : { actorUserId: message.actorUserId }),
+    ...(systemNotice === null
+      ? {}
+      : {
+          systemMessageKind: systemNotice.kind,
+          systemMessageSubject: systemNotice.subject,
+        }),
+    input: message.input,
+    target,
+    request: { method: starts ? "thread/start" : "turn/start", params: {} },
+    execution: execution.recordedExecution(message.execution),
+  };
+}
+
+export function consumeRows(
+  engine: Engine,
+  out: core.Outbox,
+  thread: ThreadRow,
+  rows: readonly QueuedMessageRow[],
+): void {
+  if (rows.length === 0) return;
+  const ids = rows.map((row) => row.id);
+  queue.deleteQueuedMessages(engine.bb.db, ids);
+  out.thread(thread.id, ["queue-changed"]);
+  out.after(() => {
+    for (const id of ids) {
+      engine.announceMessage(threads.messageDispatched, thread.id, id);
+    }
+  });
+}
+
+export function sessionEnvironmentOf(
+  engine: Engine,
+  thread: ThreadRow,
+): SessionEnvironment {
+  const { db } = engine.bb;
+  const row =
+    thread.environmentId === null
+      ? undefined
+      : getEnvironment(db, thread.environmentId);
+  if (row === undefined) {
+    const reason = "never_attached";
+    throw core.environmentUnavailable({ reason, environmentStatus: null });
+  }
+  const path = row.status === "ready" ? row.path : null;
+  if (path === null) {
+    const reason = row.status === "destroyed" ? "destroyed" : "provisioning";
+    const details = { reason, environmentStatus: row.status } as const;
+    throw core.environmentUnavailable(details);
+  }
+  return { id: row.id, hostId: row.hostId, path };
+}
+
+function hasReadyWorkspace(engine: Engine, thread: ThreadRow) {
+  const { environmentId } = thread;
+  if (environmentId === null) return false;
+  return getEnvironment(engine.bb.db, environmentId)?.status === "ready";
+}
+
+function currentWait(
+  engine: Engine,
+  thread: ThreadRow,
+  args: DispatchArgs,
+): domain.QueuedMessageWaitingOn | null {
+  const { db, now, runners } = engine.bb;
+  const { mode, sendAt, sendNow } = args;
+  if (!sendNow && sendAt !== null && sendAt > now()) return { kind: "time" };
+  if (thread.status === "stopping") return { kind: "stopping" };
+  const active = thread.status === "active";
+  if (active && mode === "start") {
+    throw core.notWritable(
+      thread,
+      "already_active",
+      "Thread is already active",
+    );
+  }
+  const environment =
+    thread.environmentId === null
+      ? undefined
+      : getEnvironment(db, thread.environmentId);
+  if (environment !== undefined && !runners.isConnected(environment.hostId)) {
+    const host = findHost(db, "id", environment.hostId);
+    if (host === undefined) {
+      throw new ApiError(
+        409,
+        "machine_removed",
+        `Machine ${environment.hostId} was removed; ` +
+          "this thread can no longer run",
+      );
+    }
+    return { kind: "host-offline", hostName: host.name };
+  }
+  if (active && mode === "queue-if-active") return { kind: "thread-busy" };
+  if (active && thread.activeTurnId === null) return { kind: "turn-starting" };
+  if (thread.status === "starting") return { kind: "provisioning" };
+  if (mode !== "start" && hasTurnBoundInteraction(db, thread.id)) {
+    return { kind: "interaction" };
+  }
+  return null;
+}
+
+function turnHostOf(engine: Engine, thread: ThreadRow): string | null {
+  const hostId = engine.hostOf(thread);
+  if (hostId !== null || thread.startupContext === null) return hostId;
+  const startup = startupContextSchema.safeParse(
+    JSON.parse(thread.startupContext),
+  );
+  const { intent } = startup.data ?? {};
+  if (intent === undefined) return null;
+  if (intent.type !== "reuse") return intent.hostId;
+  return getEnvironment(engine.bb.db, intent.environmentId)?.hostId ?? null;
+}
+
+async function heldBy(
+  engine: Engine,
+  thread: ThreadRow,
+  { sendNow, rows, message }: DispatchArgs,
+): Promise<domain.QueuedMessageWaitingOn | null> {
+  const { id: threadId, projectId, providerId } = thread;
+  const asked = {
+    threadId,
+    projectId,
+    providerId,
+    sendNow,
+    hostId: turnHostOf(engine, thread),
+    queuedMessageId: rows[0]?.id ?? null,
+    input: message.input,
+  };
+  const held = await engine.bb.call(threads.hold, asked);
+  return held === null ? null : { kind: "plugin", ...held };
+}
+
+function recordWait(
+  engine: Engine,
+  thread: ThreadRow,
+  args: DispatchArgs,
+  waitingOn: domain.QueuedMessageWaitingOn,
+) {
+  const { db } = engine.bb;
+  const { message, rows, sendAt } = args;
+  const [lead] = rows;
+  const encoded = JSON.stringify(waitingOn);
+  if (lead?.waitingOn === encoded) return lead;
+  return engine.commit((out) => {
+    out.thread(thread.id, ["queue-changed"]);
+    if (lead !== undefined) {
+      queue.setQueuedMessageWait(db, rows, waitingOn);
+      return { ...lead, waitingOn: encoded };
+    }
+    const held = queue.insertQueuedMessage(db, {
+      threadId: thread.id,
+      content: message.input,
+      senderThreadId: message.senderThreadId,
+      requestedByUserId: message.actorUserId,
+      systemNotice: message.systemNotice,
+      ...message.execution,
+      waitingOn,
+      sendAt,
+    });
+    out.after(() => {
+      engine.announceMessage(threads.messageQueued, thread.id, held.id);
+    });
+    return held;
+  });
+}
+
+function settleRejectedTurn(
+  engine: Engine,
+  threadId: string,
+  requestId: string,
+  kind: TurnKind,
+  error: unknown,
+) {
+  const runtime = engine.runtimeOf(threadId);
+  if (runtime.pendingStart === requestId) runtime.pendingStart = null;
+  if (runtime.cancelledStart === requestId) runtime.cancelledStart = null;
+  const thread = getThread(engine.bb.db, threadId);
+  if (thread === undefined || thread.deletedAt !== null) return;
+  const reason = error instanceof RunnerError ? error.code : "failed";
+  const message = errorMessage(error);
+  engine.commit((out) => {
+    const rejection = { scope: threadScope(), requestId, reason, message };
+    engine.append(out, thread, [
+      { type: "client/turn/rejected", ...rejection },
+    ]);
+    if (kind !== "start" || reason === "competing_turn") return;
+    engine.failThread(out, thread, {
+      code: "thread_command_failed",
+      message: "Command turn.submit failed",
+      detail: message,
+    });
+  });
+}
+
+export function submitToRunner(
+  engine: Engine,
+  thread: ThreadRow,
+  hostId: string,
+  args: runner.SubmitTurnArgs,
+): void {
+  const { id: threadId } = thread;
+  const requestId = args.clientRequestId;
+  const { kind } = args.mode;
+  const { db } = engine.bb;
+  if (kind === "start") engine.runtimeOf(threadId).pendingStart = requestId;
+  const accepted = engine
+    .onHost(hostId, async (runner) => {
+      const target = { hostId, runner, thread };
+      const mentioned = await resolvePluginMentions(engine.bb, args.input);
+      const input = await deliverAttachments(engine.bb, target, mentioned);
+      return runner.submitTurn({ ...args, input });
+    })
+    .then(
+      ({ providerThreadId }) =>
+        engine.inThread(threadId, () => {
+          const thread = getThread(db, threadId);
+          if (thread === undefined) return;
+          if (thread.providerThreadId === providerThreadId) return;
+          patchThread(db, threadId, { providerThreadId }, false);
+        }),
+      (error: unknown) =>
+        engine.inThread(threadId, () =>
+          settleRejectedTurn(engine, threadId, requestId, kind, error),
+        ),
+    );
+  engine.background("submit turn", accepted);
+}
+
+async function submitTurn(
+  engine: Engine,
+  thread: ThreadRow,
+  args: DispatchArgs,
+) {
+  const { bb } = engine;
+  const { mode } = args;
+  const joins = thread.status === "active";
+  if (thread.status === "error" && mode === "steer") {
+    throw core.notWritable(thread, "errored", "Thread is not active");
+  }
+  const environment = sessionEnvironmentOf(engine, thread);
+  const message = attributedMessage(args.message);
+  const { execution: tuple, input } = message;
+  const session = await buildSessionSpec(bb, thread, environment);
+  const requestId = newId("creq");
+  const expectedTurnId = thread.activeTurnId;
+  const steers = joins && mode !== "auto" && expectedTurnId !== null;
+  const runnerMode: runner.SubmitTurnMode = !joins
+    ? { kind: "start" }
+    : steers
+      ? { kind: "steer", expectedTurnId }
+      : { kind: "auto" };
+  const target: domain.TurnRequestTarget = joins
+    ? { kind: steers ? "steer" : "auto", expectedTurnId }
+    : { kind: "new-turn" };
+  engine.commit((out) => {
+    consumeRows(engine, out, thread, args.rows);
+    engine.append(out, thread, [turnRequestEvent(message, requestId, target)]);
+    patchThread(bb.db, thread.id, tuple, false);
+    if (!joins) engine.transition(out, thread.id, "run.started");
+    const options = execution.toRunnerOptions(
+      bb.db,
+      thread.providerId,
+      message,
+    );
+    const turn = { session, clientRequestId: requestId, input, options };
+    const submit = { ...turn, mode: runnerMode };
+    out.after(() => submitToRunner(engine, thread, environment.hostId, submit));
+  });
+}
+
+export async function dispatchMessage(
+  engine: Engine,
+  threadId: string,
+  args: DispatchArgs,
+): Promise<Delivery> {
+  const thread = getThread(engine.bb.db, threadId);
+  if (thread === undefined) throw threadNotFound();
+  if (thread.deletedAt !== null) {
+    throw core.notWritable(thread, "deleted", "Thread is deleted");
+  }
+  if (thread.archivedAt !== null) {
+    throw core.notWritable(thread, "archived", "Thread is archived");
+  }
+  const waitingOn =
+    currentWait(engine, thread, args) ?? (await heldBy(engine, thread, args));
+  if (waitingOn !== null) {
+    const row = recordWait(engine, thread, args, waitingOn);
+    return { delivery: "queued", row };
+  }
+  const settled = thread.status !== "active";
+  const unprepared = settled && !hasReadyWorkspace(engine, thread);
+  if (thread.status === "pending" || unprepared) {
+    engine.beginProvisioning(thread, args);
+    return SENT;
+  }
+  if (settled && isStandaloneBuiltinClearCommand(args.message.input)) {
+    engine.commit((out) => consumeRows(engine, out, thread, args.rows));
+    await engine.resetContext(thread);
+    return SENT;
+  }
+  await submitTurn(engine, thread, args);
+  return SENT;
+}
+
+function nextEligible(engine: Engine, thread: ThreadRow) {
+  const { db, now, runners } = engine.bb;
+  const rows = queue.listQueuedMessages(db, thread.id);
+  if (rows.length === 0) return null;
+  const paused = isQueueAutoSendPaused(db, thread.id);
+  const idle = thread.status === "idle" || thread.status === "pending";
+  const joinable = thread.status === "active" && thread.activeTurnId !== null;
+  const hostId = engine.hostOf(thread);
+  const eligible = (row: QueuedMessageRow) => {
+    if (row.failureReason !== null) return false;
+    const kind = queue.parseQueuedWait(row)?.kind ?? null;
+    const turnBound = kind === null || kind === "thread-busy";
+    const ordinary = turnBound || kind === "turn-starting";
+    if (ordinary && paused && row.systemNotice === null) return false;
+    switch (kind) {
+      case "turn-starting":
+        return idle || joinable;
+      case "time":
+        return row.sendAt !== null && row.sendAt <= now();
+      case "host-offline":
+        return hostId !== null && runners.isConnected(hostId);
+      case "interaction":
+        return !hasTurnBoundInteraction(db, thread.id);
+      case "provisioning":
+        return false;
+      default:
+        return idle;
+    }
+  };
+  const groups = queue.queuedGroups(rows);
+  return groups.find((group) => group.every(eligible)) ?? null;
+}
+
+function groupOf(engine: Engine, row: QueuedMessageRow) {
+  const rows = queue.listQueuedMessages(engine.bb.db, row.threadId);
+  const groups = queue.queuedGroups(rows);
+  return groups.find((group) => group.some(({ id }) => id === row.id)) ?? [];
+}
+
+function dispatchRow(
+  engine: Engine,
+  threadId: string,
+  rows: QueuedMessageRow[],
+  mode: SendMode,
+  sendNow: boolean,
+) {
+  const [row] = rows;
+  if (row === undefined) throw queue.queuedMessageNotFound();
+  const { model, reasoningLevel, permissionMode, serviceTier, sendAt } = row;
+  const message: OutboundMessage = {
+    input: rows.flatMap((member, index) => [
+      ...(index === 0
+        ? []
+        : [{ type: "text" as const, text: "\n\n", mentions: [] }]),
+      ...queue.parseQueuedContent(member),
+    ]),
+    execution: { model, reasoningLevel, permissionMode, serviceTier },
+    senderThreadId: row.senderThreadId,
+    actorUserId: row.requestedByUserId,
+    initiator: queue.queuedInitiator(row),
+    systemNotice: queue.parseQueuedNotice(row),
+  };
+  const args = { message, mode, sendAt, rows, sendNow };
+  return dispatchMessage(engine, threadId, args);
+}
+
+function recordDrainFailure(
+  engine: Engine,
+  row: QueuedMessageRow,
+  error: unknown,
+) {
+  const { db, log } = engine.bb;
+  const { threadId } = row;
+  log.warn("Queued message dispatch failed", { err: error, threadId });
+  db.run(
+    "UPDATE queued_thread_messages SET failure_reason = ? WHERE id = ?",
+    errorMessage(error).slice(0, FAILURE_REASON_MAX_LENGTH) || "failed",
+    row.id,
+  );
+  engine.bb.realtime.thread(threadId, ["queue-changed"]);
+}
+
+export async function drainQueue(
+  engine: Engine,
+  threadId: string,
+): Promise<void> {
+  for (let round = 0; round < MAX_DRAIN_ROUNDS; round += 1) {
+    const thread = getThread(engine.bb.db, threadId);
+    if (thread === undefined || thread.status === "stopping") return;
+    if (thread.archivedAt !== null || thread.deletedAt !== null) return;
+    const group = nextEligible(engine, thread);
+    if (group === null) return;
+    try {
+      const outcome = await dispatchRow(engine, threadId, group, "auto", false);
+      if (outcome.delivery === "queued") return;
+    } catch (error) {
+      for (const row of group) recordDrainFailure(engine, row, error);
+      return;
+    }
+  }
+}
+
+export async function sendQueuedMessageNow(
+  engine: Engine,
+  threadId: string,
+  queuedMessageId: string,
+  mode: "auto" | "steer",
+): Promise<Delivery> {
+  const { db } = engine.bb;
+  const row = queue.getQueuedMessage(db, threadId, queuedMessageId);
+  if (row === undefined) throw queue.queuedMessageNotFound();
+  const group = groupOf(engine, row);
+  for (const member of group) {
+    db.run(
+      "UPDATE queued_thread_messages SET failure_reason = NULL WHERE id = ?",
+      member.id,
+    );
+  }
+  const outcome = await dispatchRow(engine, threadId, group, mode, true);
+  if (outcome.delivery === "sent" || mode === "steer") return outcome;
+  const kind = queue.parseQueuedWait(outcome.row)?.kind ?? "thread-busy";
+  if (kind === "stopping") return outcome;
+  throw conflict(`This message cannot be sent yet: it waits on ${kind}.`);
+}

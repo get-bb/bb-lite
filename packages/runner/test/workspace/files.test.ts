@@ -56,6 +56,7 @@ describe("files", () => {
       h.api.writeFile({ path: "dangling", rootPath: root, content: "x" }),
       h.api.mutatePath({ op: "mkdir", path: "../made", rootPath: root }),
       h.api.mutatePath({ op: "remove", path: ".", rootPath: root }),
+      h.api.readFile({ path: path.join(h.root, "a".repeat(5000)) }),
     ];
     const codes = await Promise.all(escapes.map(failureCode));
     expect(new Set(codes)).toEqual(new Set(["invalid_path"]));
@@ -113,8 +114,28 @@ describe("files", () => {
     const dotfiles = { query: "workflow", includeHidden: true };
     const hidden = await list(repo, 5, dotfiles);
     expect(hidden.paths[0]?.path).toBe(".github/workflow.yml");
+    h.write(root, { "nested/deep.txt": "" });
     const plain = (await list(root, 50)).paths.map((entry) => entry.path);
-    expect(plain).toContain("state/config.json");
+    expect(plain).toContain("nested/deep.txt");
     expect(plain).not.toContain("link");
+  });
+
+  it("lists fresh past the reuse window and browses with modified times", async () => {
+    const dir = path.join(h.root, "fresh");
+    h.write(h.root, { "fresh/a.md": "" });
+    const args = { rootPath: dir, limit: 50, includeDirectories: false };
+    const names = async (fresh?: boolean) =>
+      (await h.api.listPaths({ ...args, includeFiles: true, fresh })).paths
+        .map((entry) => entry.path)
+        .sort();
+    expect(await names()).toEqual(["a.md"]);
+    h.write(h.root, { "fresh/b.md": "" });
+    expect(await names()).toEqual(["a.md"]);
+    expect(await names(true)).toEqual(["a.md", "b.md"]);
+    const stamp = new Date(1_700_000_000_000);
+    fs.utimesSync(path.join(dir, "a.md"), stamp, stamp);
+    const listing = await h.api.browseDirectory({ path: dir });
+    const entry = listing.entries.find(({ name }) => name === "a.md");
+    expect(entry?.modifiedAt).toBe(1_700_000_000_000);
   });
 });

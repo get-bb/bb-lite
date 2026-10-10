@@ -41,6 +41,7 @@ export interface ProviderSession {
   interrupt(): Promise<void>;
   close(): Promise<void>;
   rename?(title: string): Promise<void>;
+  compact?(): Promise<void>;
 }
 
 export interface ToolCall {

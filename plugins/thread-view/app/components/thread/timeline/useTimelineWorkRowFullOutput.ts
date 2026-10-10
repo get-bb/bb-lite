@@ -1,0 +1,128 @@
+import { useMemo } from "react";
+import type {
+  TimelineCommandWorkRow,
+  TimelineRow,
+  TimelineToolWorkRow,
+} from "@bb/server-contract";
+import { useThreadTimelineTurnSummaryDetails } from "@bb/app-kit/hooks/queries/thread-queries";
+
+export type TimelinePreviewableWorkRow =
+  | TimelineCommandWorkRow
+  | TimelineToolWorkRow;
+
+export type TimelineWorkRowFullOutputState =
+  | "complete"
+  | "streaming-preview"
+  | "limited-preview"
+  | "expired-preview"
+  | "loading"
+  | "error"
+  | "loaded";
+
+export interface TimelineWorkRowFullOutput {
+  output: string;
+  state: TimelineWorkRowFullOutputState;
+  retry: () => void;
+}
+
+const LOADED_PREVIEW_STATE = {
+  available: "error",
+  "detail-limit": "limited-preview",
+  "retention-expired": "expired-preview",
+} as const;
+
+function findPreviewableWorkRow(
+  rows: readonly TimelineRow[],
+  predicate: (row: TimelinePreviewableWorkRow) => boolean,
+): TimelinePreviewableWorkRow | null {
+  for (const row of rows) {
+    if (
+      row.kind === "work" &&
+      (row.workKind === "command" || row.workKind === "tool") &&
+      predicate(row)
+    ) {
+      return row;
+    }
+    const children =
+      row.kind === "turn"
+        ? row.children
+        : row.kind === "work" && row.workKind === "delegation"
+          ? row.childRows
+          : null;
+    if (children !== null) {
+      const match = findPreviewableWorkRow(children, predicate);
+      if (match !== null) {
+        return match;
+      }
+    }
+  }
+  return null;
+}
+
+export function useTimelineWorkRowFullOutput(
+  row: TimelinePreviewableWorkRow,
+): TimelineWorkRowFullOutput {
+  const outputPreview = row.outputPreview;
+  const isPreview = outputPreview !== undefined;
+  const shouldLoad =
+    isPreview &&
+    outputPreview.experimental_fullOutputAvailability !== "retention-expired" &&
+    row.turnId !== null &&
+    row.status !== "pending";
+  const { data, isError, refetch } = useThreadTimelineTurnSummaryDetails(
+    {
+      sourceSeqEnd: row.sourceSeqEnd,
+      sourceSeqStart: row.sourceSeqStart,
+      threadId: row.threadId,
+      turnId: row.turnId ?? "",
+    },
+    { enabled: shouldLoad, refetchOnMount: false },
+  );
+  const retry = (): void => {
+    void refetch();
+  };
+  const loadedOutput = useMemo(
+    () =>
+      !shouldLoad || data === undefined
+        ? null
+        : (findPreviewableWorkRow(
+            data.rows,
+            (candidate) => candidate.id === row.id,
+          ) ??
+          findPreviewableWorkRow(
+            data.rows,
+            (candidate) =>
+              candidate.workKind === row.workKind &&
+              candidate.callId === row.callId,
+          )),
+    [data, row.callId, row.id, row.workKind, shouldLoad],
+  );
+
+  if (!isPreview) {
+    return { output: row.output, state: "complete", retry };
+  }
+  if (
+    outputPreview.experimental_fullOutputAvailability === "retention-expired"
+  ) {
+    return { output: row.output, state: "expired-preview", retry };
+  }
+  if (loadedOutput !== null) {
+    return {
+      output: loadedOutput.output,
+      state:
+        loadedOutput.outputPreview === undefined
+          ? "loaded"
+          : LOADED_PREVIEW_STATE[
+              loadedOutput.outputPreview.experimental_fullOutputAvailability
+            ],
+      retry,
+    };
+  }
+  if (!shouldLoad) {
+    return { output: row.output, state: "streaming-preview", retry };
+  }
+  if (isError || data !== undefined) {
+    return { output: row.output, state: "error", retry };
+  }
+  return { output: row.output, state: "loading", retry };
+}

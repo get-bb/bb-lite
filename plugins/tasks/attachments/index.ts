@@ -106,7 +106,7 @@ export async function saveAttachment(
     throw error;
   }
   store.setBlobPath(created.id, blobPath);
-  publish(ctx, taskId, "tasks:changed");
+  publish(ctx, "tasks");
   return { ...created, blobPath };
 }
 
@@ -141,7 +141,7 @@ export async function deleteAttachment(
     store.updateTask(task.id, { description });
   }
   store.deleteAttachment(attachmentId);
-  if (task) publish(ctx, task.id, "tasks:changed");
+  if (task) publish(ctx, "tasks");
   return true;
 }
 

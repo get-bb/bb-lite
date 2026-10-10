@@ -1,10 +1,13 @@
 import { statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AvailableModel } from "@bb/domain";
-import { pluginSettingsResponseSchema } from "@bb/server-contract";
+import {
+  pluginSettingsResponseSchema,
+  type SystemExecutionOptionsResponse,
+} from "@bb/server-contract";
 import { expect, it } from "vitest";
-import { resolveContributedEnvironment } from "../src/machine-environment.js";
-import { providerOptionsFor } from "../src/providers/settings.js";
+import { resolveContributedEnvironment } from "@bb/server-kit/machine-environment";
+import { providerOptionsFor } from "@bb/server-kit/providers/settings";
 import { createProject, createTestServer, watchChanges } from "./helpers.js";
 
 function model(id: string): AvailableModel {
@@ -17,9 +20,10 @@ it("caches model catalogs and merges custom models", async () => {
   const server = await createTestServer();
   const { api, clock, ctx, runner } = server;
   const changed = await watchChanges(server);
-  const route = api.system["execution-options"];
+  const route = api.sessions["execution-options"];
   const query = { providerId: "codex" };
-  const options = async () => (await route.$get({ query })).json();
+  const options = async (): Promise<SystemExecutionOptionsResponse> =>
+    (await route.$get({ query })).json();
   const modelLoadError = { providerId: "codex", code: "failed" };
   expect(await options()).toMatchObject({ models: [], modelLoadError });
   let models = [model("gpt-5")];
@@ -54,12 +58,12 @@ it("disables providers and turns their toggles into options", async () => {
   const server = await createTestServer();
   const { api, ctx, url } = server;
   const changed = await watchChanges(server);
-  const enabled = api.system.providers[":id"].enabled;
+  const enabled = api.sessions.providers[":id"].enabled;
   const off = { param: { id: "codex" }, json: { enabled: false } };
   const [codex] = await (await enabled.$put(off)).json();
   expect(codex).toMatchObject({ enabled: false, pluginId: "provider-codex" });
   await changed("system", "config-changed");
-  const logo = await fetch(`${url}/api/v1/system/providers/claude-code/logo`);
+  const logo = await fetch(`${url}/api/v1/sessions/providers/claude-code/logo`);
   expect(logo.headers.get("content-type")).toBe("image/svg+xml");
   const defaults = { memoryEnabled: true, providerSubagentsEnabled: true };
   expect(providerOptionsFor(ctx.db, "codex")).toEqual(defaults);
@@ -68,7 +72,7 @@ it("disables providers and turns their toggles into options", async () => {
   const saved = await fetch(settings, { method: "PUT", body });
   const { values } = pluginSettingsResponseSchema.parse(await saved.json());
   expect(values).toEqual({ memoryEnabled: true, subagentsDisabled: true });
-  await changed("system", "config-changed");
+  await changed("system", "plugins-changed");
   const updated = { ...defaults, providerSubagentsEnabled: false };
   expect(providerOptionsFor(ctx.db, "codex")).toEqual(updated);
 });
@@ -104,4 +108,58 @@ it("keeps environment variable values encrypted and write-only", async () => {
   const projectEnv = await resolveContributedEnvironment(ctx, param.id);
   const resolved = [everywhereEnv.API_KEY, projectEnv.API_KEY].join();
   expect(resolved).toBe("s3cret-global,s3cret-own");
+});
+
+it("reports each enabled provider's install and login state", async () => {
+  const server = await createTestServer();
+  const { runner } = server;
+  const base = { executablePath: null, message: null, version: "1.0.0" };
+  runner.script.listProviders = async () => [
+    { ...base, providerId: "echo", installed: true, auth: "ready" },
+    {
+      ...base,
+      providerId: "codex",
+      installed: true,
+      auth: "ready",
+      minimumVersion: "2.0.0",
+      versionUnsupported: true,
+      installAction: { kind: "update", command: "npm i -g codex" },
+    },
+    { ...base, providerId: "claude-code", installed: false, auth: "unknown" },
+    { ...base, providerId: "nope", installed: true, auth: "ready" },
+  ];
+  type Status = { providerId: string; state: string };
+  const statuses = await server.read<Status[]>("/sessions/provider-status");
+  expect(statuses.map(({ providerId, state }) => [providerId, state])).toEqual([
+    ["echo", "ready"],
+    ["codex", "update_required"],
+    ["claude-code", "not_installed"],
+  ]);
+  expect(statuses[1]).toMatchObject({
+    minimumVersion: "2.0.0",
+    installAction: { kind: "update", command: "npm i -g codex" },
+  });
+});
+
+it("reports the health of a provider's environment on a machine", async () => {
+  const server = await createTestServer();
+  const health = (providerId: string, machineId?: string) =>
+    server.read(
+      `/sessions/providers/${providerId}/environment-health` +
+        (machineId === undefined ? "" : `?machineId=${machineId}`),
+    );
+  const hostId = server.ctx.config.hostId;
+  const ready = { providerId: "codex", machineId: hostId, status: "ready" };
+  expect(await health("codex")).toEqual({
+    ...ready,
+    label: null,
+    statusMessage: null,
+  });
+  expect(await health("codex", "host_gone")).toMatchObject({
+    status: "offline",
+  });
+  expect(await health("nope")).toMatchObject({ status: "unknown-provider" });
+  const off = { enabled: false };
+  await server.send("/sessions/providers/codex/enabled", off, "PUT");
+  expect(await health("codex")).toMatchObject({ status: "disabled" });
 });

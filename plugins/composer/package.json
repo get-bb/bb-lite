@@ -1,0 +1,55 @@
+{
+  "name": "bb-plugin-composer",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Where a message is written: the prompt box, pickers and the new-thread screen.",
+  "bb": {
+    "name": "Composer",
+    "description": "Where a message is written: the prompt box, pickers and the new-thread screen.",
+    "app": "./app.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/app-kit": "workspace:*",
+    "@bb/client-core": "workspace:*",
+    "@bb/core-ui": "workspace:*",
+    "@bb/domain": "workspace:*",
+    "@bb/fuzzy-match": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "@bb/thread-view": "workspace:*",
+    "@tanstack/react-query": "^5.62.0",
+    "@tiptap/core": "^3.26.0",
+    "@tiptap/extension-blockquote": "^3.26.0",
+    "@tiptap/extension-document": "^3.26.0",
+    "@tiptap/extension-hard-break": "^3.26.0",
+    "@tiptap/extension-mention": "^3.26.0",
+    "@tiptap/extension-paragraph": "^3.26.0",
+    "@tiptap/extension-placeholder": "^3.26.0",
+    "@tiptap/extension-text": "^3.26.0",
+    "@tiptap/extensions": "^3.26.0",
+    "@tiptap/pm": "^3.26.0",
+    "@tiptap/react": "^3.26.0",
+    "bb-plugin-thread-view": "workspace:*",
+    "jotai": "^2.19.0",
+    "jotai-family": "^1.0.1",
+    "nanoid": "^5.1.6",
+    "react": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.1.0",
+    "remark-gfm": "^4.0.1",
+    "usehooks-ts": "^3.1.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "vitest": "^4.1.1"
+  }
+}

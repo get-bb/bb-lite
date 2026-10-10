@@ -11,14 +11,20 @@ import {
   FILE_PAYLOAD_MAX_BYTES,
   LIVE_OUTPUT_KEEP_NEWEST,
   connectRemoteRunner,
-  createEchoAdapter,
   createLocalRunner,
+  git,
+  machineFiles,
+  workspaces,
   serveRunner,
   startCliProxy,
   type RunnerEvent,
   type RunnerEventSink,
+  type RunnerPart,
   type RunnerServing,
 } from "@bb/runner";
+import { contract, deny, event, op, type Caller } from "@bb/plugin";
+import { z } from "zod";
+import { createEchoAdapter } from "../../../plugins/provider-echo/runner/echo.js";
 import { until } from "./kit.js";
 
 const MIB = 1024 * 1024;
@@ -43,7 +49,10 @@ async function socketPair() {
   return { runnerSide: dialed, serverSide: accepted, wireSizes };
 }
 
-function startLocalRunner() {
+function startLocalRunner(
+  parts: RunnerPart[] = [],
+  heard: RunnerEventSink = () => {},
+) {
   const dataDir = mkdtempSync(join(tmpdir(), "bb-remote-runner-"));
   let serving: RunnerServing | null = null;
   const runner = createLocalRunner({
@@ -51,7 +60,11 @@ function startLocalRunner() {
     serverUrl: "http://127.0.0.1:48901",
     bbCliPath: "/opt/bb/bin/bb",
     adapters: [createEchoAdapter()],
-    sink: (event) => serving?.deliver(event),
+    parts,
+    sink: (event) => {
+      heard(event);
+      serving?.deliver(event);
+    },
   });
   onTestFinished(async () => {
     await runner.shutdown();
@@ -70,7 +83,7 @@ function rawPeer(socket: WebSocket) {
   return { frames, send, reply };
 }
 
-it("serves only the Runner interface and maps errors", async () => {
+it("serves only the session methods and operations, and maps errors", async () => {
   const { runnerSide, serverSide } = await socketPair();
   const peer = rawPeer(serverSide);
   const { dataDir, runner, serve } = startLocalRunner();
@@ -78,10 +91,11 @@ it("serves only the Runner interface and maps errors", async () => {
   const { instanceId } = await runner.describe();
   await until(() => peer.frames.length > 0);
   expect(peer.frames[0]).toMatchObject({ t: "hello", instanceId });
-  const methods = ["shutdown", "outbox", "constructor", "nope", "describe"];
+  const methods = ["shutdown", "outbox", "readFile", "nope", "describe"];
   methods.forEach((method, id) => peer.send({ t: "req", id, method }));
-  const params = { path: "absent.txt", rootPath: dataDir };
-  peer.send({ t: "req", id: 9, method: "readFile", params });
+  const input = { path: "absent.txt", rootPath: dataDir };
+  const params = { name: machineFiles.read.name, input };
+  peer.send({ t: "req", id: 9, method: "callOp", params });
   peer.send({ t: "ping" });
   for (const id of [0, 1, 2, 3]) {
     const error = { code: "failed", retryable: false };
@@ -96,12 +110,104 @@ it("serves only the Runner interface and maps errors", async () => {
   expect(peer.frames).toContainEqual({ t: "pong" });
 });
 
+it("lets another runner part refuse or answer a machine operation", async () => {
+  const guard: RunnerPart = {
+    id: "guard",
+    entry(bb) {
+      bb.on(machineFiles.write, (input, next) =>
+        input.path.endsWith(".env")
+          ? deny("Secrets stay out of files")
+          : next(),
+      );
+      bb.on(workspaces.openTargets, () => ({ targets: [] }));
+    },
+  };
+  const { dataDir, runner } = startLocalRunner([guard]);
+  const file = { rootPath: dataDir, content: "A=1" };
+  const refused = runner.call(machineFiles.write, { ...file, path: ".env" });
+  await expect(refused).rejects.toThrow("Secrets stay out of files");
+  const written = { ...file, path: "notes.txt" };
+  expect(await runner.call(machineFiles.write, written)).toMatchObject({
+    outcome: "written",
+  });
+  expect(await runner.call(workspaces.openTargets, {})).toEqual({
+    targets: [],
+  });
+});
+
+it("runs a machine operation as the caller and sends a part's events on", async () => {
+  const probe = contract("probe", {
+    low: event(z.object({ freeBytes: z.number() })),
+  });
+  const seen: (string | null)[] = [];
+  const watcher: RunnerPart = {
+    id: "watcher",
+    entry(bb) {
+      bb.on(machineFiles.exist, (_input, next) => {
+        seen.push(next.origin.user);
+        bb.emit(probe.low, { freeBytes: 12 });
+        return next();
+      });
+    },
+  };
+  const events: RunnerEvent[] = [];
+  const { runner } = startLocalRunner([watcher], (sent) => events.push(sent));
+  const caller: Caller = {
+    user: "usr_ada",
+    role: "member",
+    door: "app",
+    thread: null,
+    via: ["workspace"],
+  };
+  await runner.call(machineFiles.exist, { paths: ["/"] }, { caller });
+  await runner.call(machineFiles.exist, { paths: ["/"] });
+  expect(seen).toEqual(["usr_ada", null]);
+  const sent = { kind: "plugin.event", name: "probe.low" };
+  expect(events).toContainEqual({
+    lane: "live",
+    ...sent,
+    payload: { freeBytes: 12 },
+  });
+});
+
+it("stops a machine operation when the caller gives up", async () => {
+  const slow = contract("slow", {
+    wait: op({ input: z.object({}), output: z.string() }),
+  });
+  const stopped: unknown[] = [];
+  let started = false;
+  const sleeper: RunnerPart = {
+    id: "sleeper",
+    entry(bb) {
+      bb.implement(
+        slow.wait,
+        (_input, { signal }) =>
+          new Promise<string>((_resolve, reject) => {
+            started = true;
+            signal.addEventListener("abort", () => {
+              stopped.push(signal.reason);
+              reject(signal.reason);
+            });
+          }),
+      );
+    },
+  };
+  const { runner } = startLocalRunner([sleeper]);
+  const giveUp = new AbortController();
+  const waiting = runner.call(slow.wait, {}, { signal: giveUp.signal });
+  await until(() => started);
+  giveUp.abort(new Error("changed my mind"));
+  await expect(waiting).rejects.toThrow("changed my mind");
+  await until(() => stopped.length === 1);
+  expect(stopped[0]).toMatchObject({ message: "Cancelled" });
+});
+
 it("rejects pending and later requests when the socket drops", async () => {
   const { runnerSide, serverSide } = await socketPair();
   const peer = rawPeer(runnerSide);
   const remote = connectRemoteRunner(serverSide, () => {});
-  const pending = remote.runner.gitStatus({ path: "/repo" });
-  await until(() => peer.frames.some((frame) => frame.method === "gitStatus"));
+  const pending = remote.runner.call(git.status, { path: "/repo" });
+  await until(() => peer.frames.some((frame) => frame.method === "callOp"));
   runnerSide.terminate();
   const lost = { name: "RunnerError", code: "unavailable", retryable: true };
   await expect(pending).rejects.toMatchObject(lost);
@@ -128,7 +234,10 @@ it("keeps every wire frame under 1 MiB for large payloads", async () => {
   writeFileSync(join(dataDir, "big.bin"), bytes);
   const whole = { offset: 0, length: FILE_PAYLOAD_MAX_BYTES, revision: null };
   const location = { path: "big.bin", rootPath: dataDir };
-  const chunk = await remote.runner.readFileChunk({ ...location, ...whole });
+  const chunk = await remote.runner.call(machineFiles.readChunk, {
+    ...location,
+    ...whole,
+  });
   const received = Buffer.from(chunk.dataBase64, "base64");
   expect(received.equals(bytes.subarray(0, FILE_PAYLOAD_MAX_BYTES))).toBe(true);
   expect(Math.max(...wireSizes)).toBeGreaterThan(FILE_PAYLOAD_MAX_BYTES);

@@ -9,6 +9,7 @@ Commands:
   show          Show a thread, its environment and its TODOs
   log           Print the timeline, or raw events as JSON
   output        Print the final assistant message of the last turn
+  history       List a thread's prompt history
   list          List threads
   update        Change title, parent, section, model or visibility
   stop          Stop work and release the agent runtime
@@ -16,6 +17,7 @@ Commands:
   unarchive     Unarchive a thread
   compact       Compact the context of an idle thread
   clear         Clear the model context of an idle thread
+  retry         Send the failed turn of a thread again
   pin           Pin a thread
   unpin         Unpin a thread
   read          Mark a thread read

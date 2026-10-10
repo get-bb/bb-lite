@@ -1,16 +1,13 @@
+import { callOp } from "@bb/plugin/app";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  Preset,
-  Task,
-  TaskDetail,
-  UpdateTaskInput,
-} from "../../shared/contract.js";
 import {
-  reportError,
-  usePresets,
-  useTasksQuery,
-  useTasksRpc,
-} from "../../shell/data.js";
+  tasks,
+  type Preset,
+  type Task,
+  type TaskDetail,
+  type UpdateTaskInput,
+} from "../../shared/contract.js";
+import { reportError, usePresets, useTasksQuery } from "../../shell/data.js";
 import { useTasksNavigation } from "../../shell/routes.js";
 import { MarkdownField } from "../../editor/markdown.js";
 import { StatusIcon } from "../list/icons.js";
@@ -105,15 +102,16 @@ function TaskDetailPage({
   presets: Preset[] | undefined;
 }) {
   const { task, project, parent, subtasks, labels, threads } = detail;
-  const rpc = useTasksRpc();
   const navigation = useTasksNavigation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const subtasksRef = useRef<HTMLElement>(null);
 
   const update = useCallback(
     (input: Omit<UpdateTaskInput, "taskId">) =>
-      rpc.call("updateTask", { taskId: task.id, ...input }).catch(reportError),
-    [rpc, task.id],
+      callOp(tasks.updateTask, { taskId: task.id, ...input }).catch(
+        reportError,
+      ),
+    [task.id],
   );
 
   const [draft, setDraft] = useState<string | null>(null);
@@ -251,7 +249,7 @@ function TaskDetailPage({
           <AttachmentsGrid
             attachments={detail.attachments}
             onRemove={({ id: attachmentId }) =>
-              rpc.call("deleteAttachment", { attachmentId })
+              callOp(tasks.deleteAttachment, { attachmentId })
             }
           />
 
@@ -260,7 +258,7 @@ function TaskDetailPage({
             task={task}
             subtasks={subtasks}
             onCreate={(title) =>
-              rpc.call("createTask", {
+              callOp(tasks.createTask, {
                 projectId: task.projectId,
                 title,
                 parentTaskId: task.id,
@@ -303,7 +301,7 @@ export function DetailView({
   onCanonicalKey?: (taskKey: string) => void;
 }) {
   const query = useTasksQuery(
-    async (rpc) => (await rpc.call("taskDetail", { taskKey })).detail,
+    async () => (await callOp(tasks.taskDetail, { taskKey })).detail,
     [taskKey],
   );
   const presets = usePresets();

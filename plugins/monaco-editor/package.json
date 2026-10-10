@@ -1,0 +1,40 @@
+{
+  "name": "bb-plugin-monaco-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Edit files in BB with the Monaco editor instead of the read-only preview.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "File Editor",
+    "description": "Edit files in BB with the Monaco editor instead of the read-only preview.",
+    "icon": "Code",
+    "enabledByDefault": false,
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --ignore-pattern node_modules --ignore-pattern dist ."
+  },
+  "dependencies": {
+    "@bb/app-kit": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "monaco-editor": "^0.56.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@bb/runner": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

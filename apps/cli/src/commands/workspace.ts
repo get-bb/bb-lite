@@ -1,6 +1,11 @@
+import {
+  githubDisabled,
+  MERGE_METHODS,
+  pullRequestOps,
+  uploadAttachment,
+} from "../remote.js";
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
-import type { ProviderHostRoutingArgs } from "@bb/sdk";
 import {
   confirm,
   integer,
@@ -10,6 +15,7 @@ import {
   readStdin,
   validId,
   type Call,
+  type Remote,
 } from "../call.js";
 import { usageError, type Run } from "../engine.js";
 
@@ -29,7 +35,7 @@ function required(c: Call, name: string): string {
 
 export const projectList: Run = async (c) => {
   const includePersonal = c.on("include-personal");
-  const projects = await c.sdk.projects.list({ includePersonal });
+  const projects = await c.op(c.ops.projects.list, { includePersonal });
   const rows = projects.map(({ id, name, sources }) => {
     const places = sources.map((source) => `${source.hostId}:${source.path}`);
     return { id, name, sources: places.join(" ") };
@@ -38,7 +44,7 @@ export const projectList: Run = async (c) => {
 };
 
 export const projectShow: Run = async (c) => {
-  c.out(await c.sdk.projects.get({ projectId: id(c, "id") }));
+  c.out(await c.op(c.ops.projects.get, { projectId: id(c, "id") }));
 };
 
 export const projectCreate: Run = async (c) => {
@@ -46,39 +52,42 @@ export const projectCreate: Run = async (c) => {
   const path = resolve(c.flag("root") ?? ".");
   const hostId = await machineOrThis(c);
   const source = { type: LOCAL_PATH, hostId, path } as const;
-  const project = await c.sdk.projects.create({ name, source });
+  const project = await c.op(c.ops.projects.create, { name, source });
   c.out(project, `Project ${project.id} created (${project.name})`);
 };
 
 export const projectUpdate: Run = async (c) => {
   const change = { projectId: id(c, "id"), name: required(c, "name") };
-  const project = await c.sdk.projects.update(change);
+  const project = await c.op(c.ops.projects.update, change);
   c.out(project, `Project ${project.id} renamed to ${project.name}`);
 };
 
 export const projectDelete: Run = async (c) => {
   const projectId = id(c, "id");
   await confirm(c, `Delete project ${projectId} and all of its threads?`);
-  const result = await c.sdk.projects.delete({ projectId });
-  c.out({ ...result, projectId }, `Project ${projectId} deleted`);
+  await c.op(c.ops.projects.delete, { projectId });
+  c.out({ ok: true, projectId }, `Project ${projectId} deleted`);
 };
 
 export const projectSourceAdd: Run = async (c) => {
   const projectId = id(c, "projectId");
   const path = required(c, "path");
   const hostId = await machineOrThis(c);
-  const { sources } = c.sdk.projects;
+  const { projects } = c.ops;
   const type = LOCAL_PATH;
-  const added = await sources.add({ projectId, type, hostId, path });
+  const added = await c.op(projects.createSource, {
+    projectId,
+    source: { type, hostId, path },
+  });
   const target = { projectId, sourceId: added.id, type } as const;
   const source = c.on("default")
-    ? await sources.update({ ...target, isDefault: true })
+    ? await c.op(projects.updateSource, { ...target, isDefault: true })
     : added;
   c.out(source, `Source ${source.id} added to project ${projectId}`);
 };
 
 export const projectSourceUpdate: Run = async (c) => {
-  const source = await c.sdk.projects.sources.update({
+  const source = await c.op(c.ops.projects.updateSource, {
     projectId: id(c, "projectId"),
     sourceId: id(c, "sourceId"),
     type: LOCAL_PATH,
@@ -91,22 +100,22 @@ export const projectSourceUpdate: Run = async (c) => {
 export const projectSourceDelete: Run = async (c) => {
   const target = { projectId: id(c, "projectId"), sourceId: id(c, "sourceId") };
   await confirm(c, `Delete project source ${target.sourceId}?`);
-  const result = await c.sdk.projects.sources.delete(target);
-  c.out({ ...result, ...target }, `Source ${target.sourceId} deleted`);
+  await c.op(c.ops.projects.deleteSource, target);
+  c.out({ ok: true, ...target }, `Source ${target.sourceId} deleted`);
 };
 
 export const projectAttachmentUpload: Run = async (c) => {
   const file = required(c, "client-file");
-  const uploaded = await c.sdk.projects.attachments.upload({
+  const uploaded = await uploadAttachment(c, {
     projectId: id(c, "id"),
-    clientFile: await readFile(file),
+    bytes: await readFile(file),
     filename: c.flag("filename") ?? basename(file),
   });
   c.out(uploaded, uploaded.path);
 };
 
 export const envList: Run = async (c) => {
-  const environments = await c.sdk.environments.list({
+  const environments = await c.op(c.ops.environments.list, {
     projectId: c.id("project"),
     hostId: await machineFlag(c),
     status: c.choice("status", ENVIRONMENT_STATUSES),
@@ -116,18 +125,23 @@ export const envList: Run = async (c) => {
 };
 
 export const envShow: Run = async (c) => {
-  c.out(await c.sdk.environments.get({ environmentId: id(c, "id") }));
+  c.out(await c.op(c.ops.environments.get, { environmentId: id(c, "id") }));
 };
 
 export const envStatus: Run = async (c) => {
   const environmentId = id(c, "id");
   const mergeBaseBranch = c.flag("merge-base-branch");
-  c.out(await c.sdk.environments.status({ environmentId, mergeBaseBranch }));
+  c.out(
+    await c.op(c.ops.environments.status, { environmentId, mergeBaseBranch }),
+  );
 };
 
 export const envCommit: Run = async (c) => {
   const environmentId = id(c, "id");
-  const result = await c.sdk.environments.commit({ environmentId });
+  const result = await c.op(c.ops.environments.runAction, {
+    environmentId,
+    action: "commit",
+  });
   c.out(result, result.message);
 };
 
@@ -141,32 +155,28 @@ export const envUpdate: Run = async (c) => {
   const name = cleared("name", "clear-name");
   const base = cleared("merge-base-branch", "clear-merge-base-branch");
   const environmentId = id(c, "id");
-  const { environments } = c.sdk;
   if (name === undefined && base === undefined) {
     throw usageError("Nothing to change; pass --name or --merge-base-branch.");
   }
-  const environment =
+  const changes =
     base === undefined
-      ? await environments.update({ environmentId, name: name ?? null })
-      : await environments.update({
-          environmentId,
-          name,
-          mergeBaseBranch: base,
-        });
+      ? { environmentId, name: name ?? null }
+      : { environmentId, name, mergeBaseBranch: base };
+  const environment = await c.op(c.ops.environments.update, changes);
   c.out(environment, `Environment ${environment.id} updated`);
 };
 
 export const envDelete: Run = async (c) => {
   const environmentId = id(c, "id");
   await confirm(c, `Delete environment ${environmentId} and its worktree?`);
-  const result = await c.sdk.environments.delete({ environmentId });
-  c.out({ ...result, environmentId }, `Environment ${environmentId} deleted`);
+  await c.op(c.ops.environments.delete, { environmentId });
+  c.out({ ok: true, environmentId }, `Environment ${environmentId} deleted`);
 };
 
 export const machineList: Run = async (c) => {
   const [hosts, users] = await Promise.all([
-    c.sdk.hosts.list({ includeCreating: true }),
-    c.sdk.users.list().catch(() => []),
+    c.op(c.ops.machines.list, { includeCreating: true }),
+    c.op(c.ops.users.list, {}).catch(() => []),
   ]);
   const names = new Map(users.map((user) => [user.id, user.name]));
   const rows = hosts.map((host) => ({
@@ -191,21 +201,22 @@ function joinInstructions(command: string, expiresAt: number): string[] {
 
 export const machineShow: Run = async (c) => {
   const hostId = await machineId(c, c.arg("machine"));
-  c.out(await c.sdk.hosts.get({ hostId }));
+  c.out(await c.op(c.ops.machines.get, { hostId }));
 };
 
 export const machineAdd: Run = async (c) => {
-  const { hosts } = c.sdk;
-  const created = await hosts.experimental_create({
+  const { machines } = c.ops;
+  const created = await c.op(machines.create, {
     machineProviderId: MANUAL_MACHINE_PROVIDER,
     inputs: null,
-    wait: false,
   });
   const hostId = created.id;
   const name = c.flag("name");
   const host =
-    name === undefined ? created : await hosts.update({ hostId, name });
-  const join = await hosts.experimental_getEnrollmentCommand({ hostId });
+    name === undefined
+      ? created
+      : await c.op(machines.update, { hostId, name });
+  const join = await c.op(machines.enrollmentCommand, { hostId });
   if (join === null) throw new Error(`Machine ${hostId} has no join command.`);
   const lines = joinInstructions(join.command, join.expiresAt);
   c.out({ host, ...join }, [`Machine ${hostId} added.`, ...lines]);
@@ -213,27 +224,30 @@ export const machineAdd: Run = async (c) => {
 
 export const machineReconnect: Run = async (c) => {
   const hostId = await machineId(c, c.arg("machine"));
-  const join = await c.sdk.hosts.experimental_reconnect({ hostId });
+  const join = await c.op(c.ops.machines.createReconnectCommand, { hostId });
   c.out(join, joinInstructions(join.command, join.expiresAt));
 };
 
 export const machineRename: Run = async (c) => {
   const hostId = await machineId(c, c.arg("machine"));
-  const host = await c.sdk.hosts.update({ hostId, name: c.arg("name") });
+  const host = await c.op(c.ops.machines.update, {
+    hostId,
+    name: c.arg("name"),
+  });
   c.out(host, `Machine ${host.id} renamed to ${host.name}`);
 };
 
 export const machineRemove: Run = async (c) => {
   const hostId = await machineId(c, c.arg("machine"));
   await confirm(c, `Remove machine ${hostId}?`);
-  const result = await c.sdk.hosts.delete({ hostId });
-  c.out({ ...result, hostId }, `Machine ${hostId} removed`);
+  await c.op(c.ops.machines.delete, { hostId });
+  c.out({ ok: true, hostId }, `Machine ${hostId} removed`);
 };
 
 function setSharing(sharing: "private" | "shared"): Run {
   return async (c) => {
     const hostId = await machineId(c, c.arg("machine"));
-    const host = await c.sdk.hosts.setSharing({ hostId, sharing });
+    const host = await c.op(c.ops.machines.updateSharing, { hostId, sharing });
     c.out(host, `Machine ${host.id} is ${host.sharing}`);
   };
 }
@@ -242,12 +256,12 @@ export const machineShare = setSharing("shared");
 export const machineUnshare = setSharing("private");
 
 async function variables(c: Call, change?: "set" | "unset") {
-  const { sdk } = c;
+  const remote: Remote = c;
   const projectId = c.id("project");
   const current =
     projectId === undefined
-      ? await sdk.system.machineEnvironment()
-      : await sdk.projects.machineEnvironment({ projectId });
+      ? await remote.op(remote.ops.settings.machineEnvironment, {})
+      : await remote.op(remote.ops.projects.machineEnvironment, { projectId });
   if (change === undefined) return current;
   const name = c.arg("name");
   const kept = current.variables
@@ -258,8 +272,13 @@ async function variables(c: Call, change?: "set" | "unset") {
   const note = change === "set" ? (c.flag("note") ?? null) : null;
   const next = change === "set" ? [...kept, { name, value, note }] : kept;
   return projectId === undefined
-    ? sdk.system.replaceMachineEnvironment({ variables: next })
-    : sdk.projects.replaceMachineEnvironment({ projectId, variables: next });
+    ? remote.op(remote.ops.settings.updateMachineEnvironment, {
+        variables: next,
+      })
+    : remote.op(remote.ops.projects.updateMachineEnvironment, {
+        projectId,
+        variables: next,
+      });
 }
 
 export const machineEnvList: Run = async (c) => {
@@ -275,7 +294,9 @@ export const machineEnvUnset: Run = async (c) => {
   c.out(await variables(c, "unset"), `${c.arg("name")} removed`);
 };
 
-async function routing(c: Call): Promise<ProviderHostRoutingArgs> {
+async function routing(
+  c: Call,
+): Promise<{ environmentId?: string; hostId?: string }> {
   const hostId = await machineFlag(c);
   const environmentId = c.id("environment");
   if (hostId !== undefined && environmentId !== undefined) {
@@ -286,17 +307,21 @@ async function routing(c: Call): Promise<ProviderHostRoutingArgs> {
 }
 
 export const providerList: Run = async (c) => {
-  const { providers } = c.sdk;
+  const { sessions } = c.ops;
   if (c.on("all")) {
     const keys = ["id", "displayName", "enabled", "available"] as const;
-    return c.rows(await providers.catalog(), [...keys]);
+    return c.rows(await c.op(sessions.providerCatalog, {}), [...keys]);
   }
-  c.rows(await providers.list(await routing(c)), ["id", "displayName"]);
+  const listed = await c.op(sessions.providers, await routing(c));
+  c.rows(listed, ["id", "displayName"]);
 };
 
 export const providerModels: Run = async (c) => {
   const target = { ...(await routing(c)), providerId: c.args.providerId };
-  const { models, modelLoadError } = await c.sdk.providers.models(target);
+  const { models, modelLoadError } = await c.op(
+    c.ops.sessions.executionOptions,
+    target,
+  );
   if (modelLoadError !== null) {
     const { providerId, code, detail } = modelLoadError;
     const reason = `${code}${detail === null ? "" : `: ${detail}`}`;
@@ -308,10 +333,327 @@ export const providerModels: Run = async (c) => {
 function setProviderEnabled(enabled: boolean): Run {
   return async (c) => {
     const providerId = c.arg("providerId");
-    const catalog = await c.sdk.providers.setEnabled({ providerId, enabled });
+    const catalog = await c.op(c.ops.sessions.updateProvider, {
+      providerId,
+      enabled,
+    });
     c.out(catalog, `${providerId} ${enabled ? "enabled" : "disabled"}`);
   };
 }
 
 export const providerEnable = setProviderEnabled(true);
 export const providerDisable = setProviderEnabled(false);
+
+const DIFF_SIDES = ["old", "new"] as const;
+const DIFF_PATCH_BATCH = 50;
+
+type DiffTarget =
+  | { target: "uncommitted" }
+  | { target: "branch_committed"; base: string }
+  | { target: "all"; base: string }
+  | { target: "commit"; sha: string };
+
+function diffTarget(c: Call, baseFlag: string): DiffTarget {
+  const target = required(c, "target");
+  const base = c.flag(baseFlag);
+  const sha = c.flag("sha");
+  if (target === "uncommitted") {
+    if (base !== undefined || sha !== undefined) {
+      throw usageError(
+        `--target uncommitted cannot be combined with --${baseFlag} or --sha.`,
+      );
+    }
+    return { target };
+  }
+  if (target === "branch_committed" || target === "all") {
+    if (!base) {
+      throw usageError(
+        `--${baseFlag} is required when --target ${target} is used.`,
+      );
+    }
+    if (sha !== undefined) {
+      throw usageError(`--target ${target} cannot be combined with --sha.`);
+    }
+    return target === "all" ? { target, base } : { target, base };
+  }
+  if (target === "commit") {
+    if (!sha)
+      throw usageError("--sha is required when --target commit is used.");
+    if (base !== undefined) {
+      throw usageError(
+        `--target commit cannot be combined with --${baseFlag}.`,
+      );
+    }
+    return { target, sha };
+  }
+  throw usageError(
+    "--target must be uncommitted, branch_committed, all, or commit.",
+  );
+}
+
+function diffQuery(c: Call) {
+  const environmentId = id(c, "id");
+  const chosen = diffTarget(c, "merge-base-branch");
+  if (chosen.target === "all") {
+    return {
+      environmentId,
+      target: chosen.target,
+      mergeBaseBranch: chosen.base,
+    };
+  }
+  if (chosen.target === "branch_committed") {
+    return {
+      environmentId,
+      target: chosen.target,
+      mergeBaseBranch: chosen.base,
+    };
+  }
+  return { environmentId, ...chosen };
+}
+
+function unavailable(
+  label: string,
+  result: { outcome: string; message?: string; failure?: { message: string } },
+): string | undefined {
+  if (result.outcome === "not_applicable") {
+    return `${label} unavailable: ${result.message}`;
+  }
+  if (result.outcome === "unavailable") {
+    return `${label} unavailable: ${result.failure?.message}`;
+  }
+  return undefined;
+}
+
+export const envBranches: Run = async (c) => {
+  const result = await c.op(c.ops.environments.diffBranches, {
+    environmentId: id(c, "id"),
+    query: c.flag("query"),
+    limit: integer(c.flag("limit"), "--limit", 0),
+  });
+  const section = (names: string[], truncated: boolean) => [
+    ...(names.length === 0 ? ["  (none)"] : names.map((name) => `  ${name}`)),
+    ...(truncated ? ["  (truncated)"] : []),
+  ];
+  c.out(result, [
+    "Local branches:",
+    ...section(result.branches, result.branchesTruncated),
+    "Remote branches:",
+    ...section(result.remoteBranches, result.remoteBranchesTruncated),
+  ]);
+};
+
+export const envPaths: Run = async (c) => {
+  const files = c.on("files");
+  const directories = c.on("directories");
+  const result = await c.op(c.ops.environments.paths, {
+    environmentId: id(c, "id"),
+    includeFiles: files || !directories,
+    includeDirectories: directories || !files,
+    query: c.flag("query"),
+    limit: integer(c.flag("limit"), "--limit", 0),
+  });
+  c.out(result, [
+    ...result.paths.map((entry) => `${entry.kind}\t${entry.path}`),
+    ...(result.truncated ? ["(results truncated)"] : []),
+  ]);
+};
+
+function patchTarget(chosen: ReturnType<typeof diffQuery>) {
+  return chosen.target === "all"
+    ? { type: chosen.target, mergeBaseBranch: chosen.mergeBaseBranch }
+    : chosen.target === "branch_committed"
+      ? { type: chosen.target, mergeBaseBranch: chosen.mergeBaseBranch }
+      : chosen.target === "commit"
+        ? { type: chosen.target, sha: chosen.sha }
+        : { type: chosen.target };
+}
+
+export const envDiff: Run = async (c) => {
+  const query = diffQuery(c);
+  const listed = await c.op(c.ops.environments.diffFiles, query);
+  if (listed.outcome !== "available") {
+    return c.out(listed, unavailable("Diff", listed));
+  }
+  const { environmentId } = query;
+  const target = patchTarget(query);
+  const paths = listed.files.map((file) => file.path);
+  const patches = [];
+  for (let at = 0; at < paths.length; at += DIFF_PATCH_BATCH) {
+    const batch = paths.slice(at, at + DIFF_PATCH_BATCH);
+    const result = await c.op(c.ops.environments.diffPatch, {
+      environmentId,
+      target,
+      paths: batch,
+    });
+    if (result.outcome !== "available") {
+      return c.out(result, unavailable("Diff", result));
+    }
+    patches.push(...result.patches);
+  }
+  const files = listed.files.map((file) =>
+    file.previousPath
+      ? `${file.changeKind}\t${file.previousPath} -> ${file.path}`
+      : `${file.changeKind}\t${file.path}`,
+  );
+  const diff = {
+    files: files.join("\n"),
+    shortstat: listed.shortstat,
+    diff: patches.map((patch) => patch.patch).join(""),
+    truncated: listed.truncated || patches.some((patch) => patch.truncated),
+  };
+  const shortstat = diff.shortstat.trim();
+  c.out({ outcome: listed.outcome, diff }, [
+    ...files,
+    ...(shortstat.length > 0 ? [shortstat] : []),
+    ...(diff.diff.length > 0 ? [diff.diff.trimEnd()] : []),
+    ...(diff.truncated ? ["(diff truncated)"] : []),
+  ]);
+};
+
+export const envDiffFiles: Run = async (c) => {
+  const result = await c.op(c.ops.environments.diffFiles, diffQuery(c));
+  if (result.outcome !== "available") {
+    return c.out(result, unavailable("Diff files", result));
+  }
+  const lines = result.files.map((file) => {
+    const path = file.previousPath
+      ? `${file.previousPath} -> ${file.path}`
+      : file.path;
+    const stats = file.binary
+      ? "binary"
+      : `+${file.additions} -${file.deletions}`;
+    return `${file.changeKind}\t${stats}\t${file.origin}\t${file.loadMode}\t${path}`;
+  });
+  const shortstat = result.shortstat.trim();
+  c.out(result, [
+    ...lines,
+    ...(shortstat.length > 0 ? [shortstat] : []),
+    ...(result.truncated ? ["(additional changed files omitted)"] : []),
+  ]);
+};
+
+export const envDiffFile: Run = async (c) => {
+  const environmentId = id(c, "id");
+  const chosen = diffTarget(c, "merge-base-ref");
+  const side = c.choice("side", DIFF_SIDES);
+  if (side === undefined) throw usageError("Missing required option --side.");
+  const file = { path: required(c, "path"), side };
+  const query =
+    chosen.target === "branch_committed" || chosen.target === "all"
+      ? { target: chosen.target, mergeBaseRef: chosen.base }
+      : chosen;
+  const result = await c.op(c.ops.environments.diffFile, {
+    environmentId,
+    ...file,
+    ...query,
+  });
+  if (result.contentEncoding !== "base64") return c.out(result, result.content);
+  c.out(result, [
+    `Binary file: ${result.path}`,
+    `Encoding: ${result.contentEncoding}`,
+    `Size: ${result.sizeBytes} bytes`,
+    ...(result.mimeType ? [`MIME type: ${result.mimeType}`] : []),
+    result.content,
+  ]);
+};
+
+export const envDiffPatch: Run = async (c) => {
+  const paths = c.list("path");
+  if (paths.length === 0) throw usageError("Provide at least one --path.");
+  const query = diffQuery(c);
+  const result = await c.op(c.ops.environments.diffPatch, {
+    environmentId: query.environmentId,
+    target: patchTarget(query),
+    paths,
+  });
+  if (result.outcome !== "available") {
+    return c.out(result, unavailable("Diff patches", result));
+  }
+  c.out(
+    result,
+    result.patches.flatMap((patch) => [
+      `File: ${patch.path}`,
+      patch.patch,
+      ...(patch.truncated ? ["(patch truncated)"] : []),
+    ]),
+  );
+};
+
+export const envProviders: Run = async (c) => {
+  const hostId = await machineFlag(c);
+  const projectId = c.id("project");
+  if (hostId !== undefined && projectId === undefined) {
+    throw usageError("--machine or --host requires --project <id>.");
+  }
+  const { providers } = await c.op(c.ops.environments.providers, {
+    projectId,
+    hostId,
+  });
+  if (providers.length === 0) {
+    return c.out(providers, "No environment providers available");
+  }
+  c.out(
+    providers,
+    providers.map((provider) => {
+      const status = provider.availability;
+      const availability =
+        hostId === undefined
+          ? ""
+          : status === null
+            ? "  availability: unknown"
+            : status.status === "available"
+              ? "  availability: available"
+              : `  availability: ${status.status} (${status.message})`;
+      const inputs =
+        provider.inputs === null ? "" : "  takes --environment-inputs";
+      const requires = Object.entries(provider.requires)
+        .filter(([, required]) => required)
+        .map(([name]) => name)
+        .join(", ");
+      const about = `${provider.id}  ${provider.displayName}  ${requires || "-"}`;
+      return `${about}${inputs}${availability}`;
+    }),
+  );
+};
+
+export const envArchiveThreads: Run = async (c) => {
+  const environmentId = id(c, "id");
+  const result = await c.op(c.ops.environments.archiveThreads, {
+    environmentId,
+  });
+  const count = result.archivedThreadIds.length;
+  c.out(result, `Archived ${count} thread(s) in environment ${environmentId}`);
+};
+
+async function setDraft(c: Call, draft: boolean, done: string) {
+  const pull = await c
+    .op(pullRequestOps().update, { environmentId: id(c, "id"), draft })
+    .catch(githubDisabled);
+  c.out(pull, `Pull request #${pull.number} ${done}`);
+}
+
+export const envPullRequestShow: Run = async (c) => {
+  const pull = await c
+    .op(pullRequestOps().get, { environmentId: id(c, "id") })
+    .catch(githubDisabled);
+  if (pull === null) return c.out(pull, "No pull request found");
+  c.out(pull, [
+    `Pull request: #${pull.number} ${pull.state} - ${pull.title}`,
+    `URL: ${pull.url}`,
+    `Branch: ${pull.headRefName} -> ${pull.baseRefName}`,
+    `Draft: ${pull.isDraft ? "yes" : "no"}`,
+  ]);
+};
+
+export const envPullRequestReady: Run = (c) =>
+  setDraft(c, false, "is ready for review");
+
+export const envPullRequestDraft: Run = (c) => setDraft(c, true, "is a draft");
+
+export const envPullRequestMerge: Run = async (c) => {
+  const method = c.choice("method", MERGE_METHODS) ?? "merge";
+  const pull = await c
+    .op(pullRequestOps().merge, { environmentId: id(c, "id"), method })
+    .catch(githubDisabled);
+  c.out(pull, `Merged pull request #${pull.number}`);
+};

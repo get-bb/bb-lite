@@ -1,0 +1,35 @@
+{
+  "name": "bb-plugin-environment-personal-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Give every thread without a project its own personal workspace on the machine",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Personal workspace",
+    "description": "Give every thread without a project its own personal workspace on the machine",
+    "icon": "Folder",
+    "server": "./server.ts",
+    "requires": [
+      "environments"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
+  }
+}

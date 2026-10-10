@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import type { Runner } from "../local.js";
+import { opCaller, type Runner } from "../local.js";
 import { RunnerError, type RunnerEventSink } from "../types.js";
 import { linkFrames } from "./link.js";
 import {
@@ -83,6 +83,10 @@ export function connectRemoteRunner(
   const runner = {
     ...Object.fromEntries(methods),
     ackEvents: async ({ seq }) => link.send({ t: "ack", seq }),
+    call: opCaller({
+      callOp: (args) => call("callOp", args),
+      cancelOp: async (args) => void (await call("cancelOp", args)),
+    }),
   } as Runner;
 
   return {

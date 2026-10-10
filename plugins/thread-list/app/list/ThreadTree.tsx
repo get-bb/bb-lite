@@ -1,3 +1,4 @@
+import { callOp, environments, sections } from "@bb/plugin/app";
 import {
   createContext,
   memo,
@@ -25,7 +26,6 @@ import {
 import {
   useBbNavigate,
   useEnvironmentProviders,
-  useSdk,
   useSidebarThreadActions,
 } from "@bb/plugin/app";
 import { Button } from "@bb/shared-ui/button";
@@ -485,7 +485,6 @@ function EnvironmentThreadGroupHeader({
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [archiveThreadsPending, setArchiveThreadsPending] = useState(false);
   const navigate = useBbNavigate();
-  const sdk = useSdk();
   const sidebarActions = useSidebarThreadActions();
   const sectionWhenUnpinned = nodes.every(
     (node) => node.thread.sectionId === representativeThread.sectionId,
@@ -512,8 +511,9 @@ function EnvironmentThreadGroupHeader({
       providerLookup,
     ) ?? UNNAMED_ENVIRONMENT_LABEL;
   const updateEnvironment = useCallback(
-    (name: string | null) => sdk.environments.update({ environmentId, name }),
-    [environmentId, sdk],
+    (name: string | null) =>
+      callOp(environments.update, { environmentId, name }),
+    [environmentId],
   );
   const rename = useSidebarRename({
     kind: "environment",
@@ -532,8 +532,7 @@ function EnvironmentThreadGroupHeader({
   });
   const handleArchiveThreads = () => {
     setArchiveThreadsPending(true);
-    void sdk.environments
-      .archiveThreads({ environmentId })
+    void callOp(environments.archiveThreads, { environmentId })
       .then((response) => {
         toast.success(
           formatArchivedEnvironmentThreadsToastTitle(
@@ -971,7 +970,6 @@ const SectionRowContent = memo(function SectionRowContent({
   sectionRef,
   sectionStyle,
 }: SectionRowContentProps) {
-  const sdk = useSdk();
   const { itemIdsByParentKey } = useSectionThreadDndState();
   const [sectionNameOverrides, setSectionNameOverrides] = useAtom(
     sectionNameOverridesAtom,
@@ -994,7 +992,7 @@ const SectionRowContent = memo(function SectionRowContent({
         new Map(current).set(section.id, { previousName, name }),
       );
       try {
-        const result = await sdk.threadSections.update({
+        const result = await callOp(sections.update, {
           id: section.id,
           name,
         });

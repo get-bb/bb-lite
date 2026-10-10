@@ -1,22 +1,13 @@
 import { STATUS_CODES, type IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import { WebSocketServer, type WebSocket } from "ws";
-import type { Actor } from "../auth/actor.js";
-import type { ServerContext } from "../context.js";
-import { trustLookups } from "../http/app.js";
-import { errorResponse } from "../http/errors.js";
-import { authorize, requestHeader, type Principal } from "../http/trust.js";
-import { THREAD_ID_HEADER, actorOf } from "../runners/access.js";
-
-export interface SocketRequest {
-  url: URL;
-  principal: Principal;
-  actor: Actor | null;
-  header(name: string): string | undefined;
-}
-
-export type SocketOpen = (socket: WebSocket) => void;
-export type SocketResolver = (request: SocketRequest) => SocketOpen;
+import { WebSocketServer } from "ws";
+import type { HostContext } from "../host-context.js";
+import type { SocketOpen } from "@bb/plugin";
+import { authenticatorOf } from "../http/app.js";
+import type { RequiredSocketResolver } from "./endpoints.js";
+import { errorResponse } from "@bb/server-kit/http/errors";
+import { requestHeader } from "@bb/server-kit/http/trust";
+import { THREAD_ID_HEADER } from "@bb/server-kit/runners/access";
 
 const SHUTDOWN_CLOSE_CODE = 1001;
 const SHUTDOWN_GRACE_MS = 1_000;
@@ -36,8 +27,8 @@ export class SocketRegistry {
   private readonly server = new WebSocketServer({ noServer: true });
 
   constructor(
-    private readonly ctx: ServerContext,
-    private readonly resolve: SocketResolver,
+    private readonly ctx: HostContext,
+    private readonly resolve: RequiredSocketResolver,
   ) {}
 
   readonly handleUpgrade = (
@@ -72,12 +63,11 @@ export class SocketRegistry {
   ): Promise<SocketOpen> {
     const { headers, socket } = request;
     const path = url.pathname;
-    const principal = authorize(
-      { method: "GET", path, headers, socket },
-      trustLookups(this.ctx),
-    );
+    const authenticator = authenticatorOf(this.ctx);
+    const identity = { method: "GET", path, headers, socket };
+    const principal = authenticator.principal(identity);
     const header = (name: string) => requestHeader(request, name);
-    const actor = actorOf(this.ctx, principal, header(THREAD_ID_HEADER));
+    const actor = authenticator.actor(principal, header(THREAD_ID_HEADER));
     return this.resolve({ url, principal, actor, header });
   }
 }

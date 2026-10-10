@@ -6,7 +6,9 @@ import {
   timelineWorkflowWorkRowSchema,
 } from "../thread-timeline.js";
 import {
+  countField,
   createThreadEnvironmentArgsSchema,
+  flagField,
   isCommaSeparatedIncludeQueryValue,
   threadContextWindowUsageSchema,
 } from "./shared.js";
@@ -159,6 +161,7 @@ export const createQueuedMessageRequestSchema = z.object({
   permissionMode: domain.permissionModeInputSchema.optional(),
   executionInputSources: existingThreadExecutionInputSourcesSchema.optional(),
   senderThreadId: z.string().min(1).optional(),
+  sendAt: z.number().int().nonnegative().optional(),
 });
 export type CreateQueuedMessageRequest = z.infer<
   typeof createQueuedMessageRequestSchema
@@ -433,21 +436,21 @@ export const threadListQuerySchema = z.object({
   environmentId: z.string().min(1).optional(),
   hostId: z.string().min(1).optional(),
   parentThreadId: z.string().min(1).optional(),
-  archived: z.enum(["true", "false"]).optional(),
+  archived: flagField.optional(),
   sectionId: z.string().min(1).optional(),
-  unsectioned: z.enum(["true", "false"]).optional(),
-  hasParent: z.enum(["true", "false"]).optional(),
+  unsectioned: flagField.optional(),
+  hasParent: flagField.optional(),
   originKind: domain.threadOriginKindSchema.optional(),
   originPluginId: z.string().min(1).optional(),
-  includeHidden: z.enum(["true", "false"]).optional(),
-  limit: z.string().regex(/^\d+$/).optional(),
-  offset: z.string().regex(/^\d+$/).optional(),
+  includeHidden: flagField.optional(),
+  limit: countField.optional(),
+  offset: countField.optional(),
 });
 export type ThreadListQuery = z.infer<typeof threadListQuerySchema>;
 
 export const threadSearchQuerySchema = z.object({
   query: z.string().trim().min(2),
-  limitPerGroup: z.string().regex(/^\d+$/).optional(),
+  limitPerGroup: countField.optional(),
 });
 export type ThreadSearchQuery = z.infer<typeof threadSearchQuerySchema>;
 
@@ -484,12 +487,12 @@ export const timelinePageMetadataSchema = z
 
 export const threadTimelineQuerySchema = z
   .object({
-    includeNestedRows: z.enum(["true", "false"]),
-    segmentLimit: z.string().regex(/^\d+$/),
-    beforeAnchorSeq: z.string().regex(/^(0|[1-9]\d*)$/),
+    includeNestedRows: flagField,
+    segmentLimit: countField,
+    beforeAnchorSeq: countField,
     beforeAnchorId: z.string().min(1),
-    summaryOnly: z.enum(["true", "false"]),
-    afterSequence: z.string().regex(/^\d+$/),
+    summaryOnly: flagField,
+    afterSequence: countField,
   })
   .partial()
   .superRefine((query, context) => {
@@ -511,8 +514,8 @@ export type ThreadTimelineQuery = z.infer<typeof threadTimelineQuerySchema>;
 export const timelineTurnSummaryDetailsQuerySchema = z.object({
   beforeCursor: z.string().min(1).optional(),
   turnId: z.string().min(1),
-  sourceSeqStart: z.string().regex(/^\d+$/),
-  sourceSeqEnd: z.string().regex(/^\d+$/),
+  sourceSeqStart: countField,
+  sourceSeqEnd: countField,
 });
 export type TimelineTurnSummaryDetailsQuery = z.infer<
   typeof timelineTurnSummaryDetailsQuerySchema
@@ -520,15 +523,12 @@ export type TimelineTurnSummaryDetailsQuery = z.infer<
 
 export const threadEventsQuerySchema = z
   .object({
-    afterSeq: z.string().regex(/^\d+$/),
-    beforeSeq: z.string().regex(/^\d+$/),
-    limit: z
-      .string()
-      .regex(/^\d+$/)
-      .refine(
-        (value) => Number(value) <= THREAD_EVENT_LIST_PAGE_SIZE,
-        `Thread event limit cannot exceed ${THREAD_EVENT_LIST_PAGE_SIZE}`,
-      ),
+    afterSeq: countField,
+    beforeSeq: countField,
+    limit: countField.refine(
+      (value) => value <= THREAD_EVENT_LIST_PAGE_SIZE,
+      `Thread event limit cannot exceed ${THREAD_EVENT_LIST_PAGE_SIZE}`,
+    ),
     order: z.enum(["asc", "desc"]),
     types: z.string().refine(
       (value) =>
@@ -544,8 +544,8 @@ export type ThreadEventsQuery = z.infer<typeof threadEventsQuerySchema>;
 
 export const threadEventWaitQuerySchema = z.object({
   type: z.string().min(1),
-  afterSeq: z.string().regex(/^\d+$/).optional(),
-  waitMs: z.string().regex(/^\d+$/).optional(),
+  afterSeq: countField.optional(),
+  waitMs: countField.optional(),
 });
 export type ThreadEventWaitQuery = z.infer<typeof threadEventWaitQuerySchema>;
 

@@ -1,0 +1,42 @@
+{
+  "name": "@bb/profile-default",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": {
+      "source": "./server.ts",
+      "types": "./server.ts",
+      "default": "./server.ts"
+    },
+    "./runner": {
+      "source": "./runner.ts",
+      "types": "./runner.ts",
+      "default": "./runner.ts"
+    },
+    "./app": {
+      "source": "./app.ts",
+      "types": "./app.ts",
+      "default": "./app.ts"
+    },
+    "./profiles": {
+      "source": "./profiles.ts",
+      "types": "./profiles.ts",
+      "default": "./profiles.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0"
+  }
+}

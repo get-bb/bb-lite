@@ -1,0 +1,33 @@
+{
+  "name": "bb-plugin-scheduled-send",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Schedule the current composer draft to send at a later time.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "Scheduled send",
+    "description": "Schedule the current composer draft to send at a later time.",
+    "icon": "Calendar",
+    "app": "./app.tsx"
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

@@ -53,6 +53,10 @@ fn show_prints_thread_environment_and_todos() {
                 found
             }
             "/environments/env_1" => json!({ "id": "env_1", "hostId": "host_1", "path": "/w" }),
+            "/ops/pullRequests.get" => return (501, unimplemented()),
+            "/environments/env_1/status" => {
+                json!({ "outcome": "not_applicable", "message": "No git" })
+            }
             "/threads/thr_a/timeline" => json!({ "pendingTodos": { "items": [
                 { "status": "completed", "text": "one" },
                 { "status": "in_progress", "text": "two" },
@@ -63,8 +67,12 @@ fn show_prints_thread_environment_and_todos() {
     });
     let out = ok(&fake.url, Some("thr_a"), &["thread", "show", "--self"]);
     let paths: Vec<String> = fake.requests().into_iter().map(|r| r.path + "?" + &r.query).collect();
-    let expected_paths =
-        ["/threads/thr_a?", "/environments/env_1?", "/threads/thr_a/timeline?summaryOnly=true"];
+    let expected_paths = [
+        "/threads/thr_a?",
+        "/environments/env_1?",
+        "/threads/thr_a/timeline?summaryOnly=true",
+        "/ops/pullRequests.get?",
+    ];
     assert_eq!(paths, expected_paths);
     let expected = format!(
         "Thread: thr_a\n  Status: idle\n  Title: Fix it\n  Project: proj_1\n  Environment: env_1 \
@@ -74,6 +82,14 @@ fn show_prints_thread_environment_and_todos() {
         locale_date(1_700_000_100_000.0)
     );
     assert_eq!(out, expected);
+    let out = ok(&fake.url, None, &["thread", "show", "thr_a", "--work-status", "--json"]);
+    let data: Value = serde_json::from_str(&out).expect("json");
+    let pull = json!({ "status": "unavailable", "pullRequest": null,
+        "message": "The github plugin is not enabled." });
+    assert_eq!(data["environment"]["pullRequest"], pull);
+    assert_eq!(data["workStatus"], Value::Null);
+    let out = ok(&fake.url, None, &["thread", "show", "thr_a", "--work-status"]);
+    assert!(out.ends_with("two\n\nWork status: No git\n"));
     let error = fail(&fake.url, None, &["thread", "show"]);
     assert_eq!(error.message, "Missing thread ID. Pass <id> or use --self.");
     assert_eq!(error.code, "missing_required");
@@ -239,23 +255,23 @@ fn queue_commands() {
 fn section_commands() {
     let fake = Fake::json(json!([{ "id": "sec_1", "name": "Work" }]));
     let out = ok(&fake.url, None, &["thread", "section", "list"]);
-    assert_eq!(fake.only(), request("GET", "/thread-sections", "", None));
+    assert_eq!(fake.only(), request("GET", "/sections", "", None));
     assert_eq!(out, "\nID     NAME\nsec_1  Work\n\n");
 
     let fake = Fake::json(json!({ "id": "sec_2", "name": "New" }));
     let out = ok(&fake.url, None, &["thread", "section", "create", "New"]);
     let body = Some(json!({ "name": "New" }));
-    assert_eq!(fake.only(), request("POST", "/thread-sections", "", body));
+    assert_eq!(fake.only(), request("POST", "/sections", "", body));
     assert_eq!(out, "Section sec_2 created\n");
     let out = ok(&fake.url, None, &["thread", "section", "rename", "sec_2", "New"]);
     let body = Some(json!({ "id": "sec_2", "name": "New" }));
-    assert_eq!(fake.requests()[1], request("PATCH", "/thread-sections", "", body));
+    assert_eq!(fake.requests()[1], request("PATCH", "/sections", "", body));
     assert_eq!(out, "Section sec_2 renamed to New\n");
 
     let fake = Fake::json(json!({ "id": "sec_2", "updatedThreadCount": 3 }));
     let out = ok(&fake.url, None, &["thread", "section", "delete", "sec_2", "--yes"]);
     let body = Some(json!({ "id": "sec_2" }));
-    assert_eq!(fake.only(), request("DELETE", "/thread-sections", "", body));
+    assert_eq!(fake.only(), request("DELETE", "/sections", "", body));
     assert_eq!(out, "Section sec_2 deleted; 3 thread(s) unsectioned\n");
 }
 
@@ -372,4 +388,32 @@ fn remaining_actions_post_to_their_routes() {
         assert_eq!(fake.only(), request("POST", &format!("/threads/thr_a{tail}"), "", None));
         assert_eq!(serde_json::from_str::<Value>(&out).expect("json"), thread("thr_a", "idle"));
     }
+}
+
+fn unimplemented() -> String {
+    json!({ "code": "unimplemented", "message": "Nothing implements it" }).to_string()
+}
+
+#[test]
+fn prompt_history_lists_pages() {
+    let fake = Fake::json(json!({
+        "entries": [{ "id": "p1", "text": "hello", "threadId": "thr_a", "projectId": "proj_1",
+            "scope": "thread", "sentAt": 1_700_000_000_123_u64 }],
+        "nextCursor": "c1",
+    }));
+    let out = ok(&fake.url, None, &["prompt-history", "list", "--limit", "1"]);
+    assert_eq!(fake.only(), request("GET", "/threads/prompt-history", "limit=1", None));
+    let expected = "\nCREATED                   THREAD  PROMPT\n2023-11-14T22:13:20.123Z  thr_a   \
+                    hello\n\nNext page: bb prompt-history list --cursor c1 --limit 1\n";
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn thread_and_project_history_print_json() {
+    let fake = Fake::json(json!([]));
+    assert_eq!(ok(&fake.url, None, &["thread", "history", "thr_a", "--limit", "2"]), "[]\n");
+    assert_eq!(fake.only(), request("GET", "/threads/thr_a/prompt-history", "limit=2", None));
+    let fake = Fake::json(json!([]));
+    assert_eq!(ok(&fake.url, None, &["project", "history", "proj_1"]), "[]\n");
+    assert_eq!(fake.only(), request("GET", "/projects/proj_1/prompt-history", "", None));
 }

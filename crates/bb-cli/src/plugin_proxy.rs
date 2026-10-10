@@ -53,6 +53,18 @@ pub fn find_plugin_command(env: &CliEnv, name: &str) -> CliResult<Option<String>
     Ok(found.and_then(|c| c.get("pluginId")).and_then(Value::as_str).map(String::from))
 }
 
+pub fn find_plugin_spelling(env: &CliEnv, spelling: &str) -> CliResult<Option<String>> {
+    let http = Http::new(&env.server_url).on_behalf_of(env.thread_id.as_deref());
+    let contributions = http.get("/plugins/contributions", &[])?;
+    let plugins = contributions.get("cliCommands").and_then(Value::as_array);
+    let found = plugins.into_iter().flatten().find(|plugin| {
+        let commands = plugin.get("commands").and_then(Value::as_array);
+        let named = |c: &Value| c.get("name").and_then(Value::as_str) == Some(spelling);
+        commands.is_some_and(|list| list.iter().any(named))
+    });
+    Ok(found.and_then(|c| c.get("pluginId")).and_then(Value::as_str).map(String::from))
+}
+
 pub fn run_plugin_command(env: &CliEnv, plugin_id: &str, args: Vec<String>) -> CliResult<i32> {
     let argv = materialize_stdin_flag(args)?;
     let cwd = std::env::current_dir().map(|d| d.display().to_string()).unwrap_or_default();
@@ -62,6 +74,9 @@ pub fn run_plugin_command(env: &CliEnv, plugin_id: &str, args: Vec<String>) -> C
     }
     if let Some(id) = &env.project_id {
         body["projectId"] = json!(id);
+    }
+    if let Some(id) = &env.host_id {
+        body["hostId"] = json!(id);
     }
     let http = Http::with_timeout_ms(&env.server_url, None).on_behalf_of(env.thread_id.as_deref());
     let (status, text) = http.post_raw(&format!("/plugins/{plugin_id}/cli"), &body)?;

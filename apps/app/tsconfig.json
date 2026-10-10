@@ -7,9 +7,6 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "paths": {
-      "@/*": ["./src/*"]
-    },
     "rootDir": "../..",
     // Pin auto-included global type packages (like the sibling apps do):
     // without this, tsc walks up past the repo and pulls in whatever

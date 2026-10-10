@@ -1,0 +1,28 @@
+{
+  "name": "bb-plugin-terminals",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Terminal sessions on machines.",
+  "bb": {
+    "name": "Terminals",
+    "description": "Terminal sessions on machines.",
+    "server": "./server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/server-contract": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@bb/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1"
+  }
+}

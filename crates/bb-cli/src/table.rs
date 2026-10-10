@@ -134,7 +134,8 @@ thread show|get|view|status [id]  Show a thread, its environment and its TODOs
 "#,
     self_flag!(),
     r#"
-  > {thread, environment, pendingTodos} (thread fields are under .thread)
+  --work-status  Include work status (git state)
+  > {thread, environment: {..., pullRequest}, pendingTodos, workStatus?}
 thread log|messages|timeline [id]  Print the timeline, or raw events as JSON
 "#,
     self_flag!(),
@@ -149,6 +150,9 @@ thread output [id]  Print the final assistant message of the last turn
     self_flag!(),
     r#"
   > {output}
+thread history <id>  List a thread's prompt history
+  --limit <count>  Maximum history entries
+  > [{id, createdAt, input, projectId, threadId, scope}] (bare array)
 thread list  List threads
   --project <id>  Only this project
   --environment <id>  Only this environment
@@ -194,6 +198,11 @@ thread clear [id]  Clear the model context of an idle thread
 "#,
     self_flag!(),
     r#"
+thread retry [id]  Send the failed turn of a thread again
+"#,
+    self_flag!(),
+    r#"
+  --send-at <when>  ISO time (2026-08-25T09:00) or delay (30s, 10m, 2h)
 thread pin [id]  Pin a thread
 "#,
     self_flag!(),
@@ -257,10 +266,18 @@ thread section delete <id>  Delete a section; its threads become unsectioned
     yes!(),
     r#"
 
+prompt-history list  List prompt history newest first
+  --cursor <cursor>  Continue from an earlier page
+  --limit <number>  Maximum entries to return
+  > {entries: [{id, text, threadId, projectId, scope, sentAt}], nextCursor}
+
 project list  List projects
   --include-personal  Include the personal project
   > [{id, kind, name, gitRemoteUrl, sources: [{id, hostId, path}]}]
 project show <id>  Show a project and its sources
+project history <id>  List a project's prompt history
+  --limit <count>  Maximum history entries
+  > [{id, createdAt, input, projectId, threadId, scope}] (bare array)
 project create  Create a project from a directory on a machine
   --name <name>  Project name (required)
   --root <path>  Project directory (default: the current directory)
@@ -311,6 +328,51 @@ env delete <id>  Delete an environment that has no live threads
 "#,
     yes!(),
     r#"
+env branches <id>  List the local and remote branches of an environment
+  --query <query>  Branch-name filter
+  --limit <count>  Maximum local and remote branches
+  > {branches, branchesTruncated, remoteBranches, remoteBranchesTruncated}
+env paths <id>  Search an environment's files and directories
+  --query <query>  Fuzzy path query
+  --limit <count>  Maximum paths
+  --files  Include files
+  --directories  Include directories
+  > {paths: [{kind, path}], truncated}
+env diff <id>  Print the changed files, stats and full diff of an environment
+  --target <target>  uncommitted, branch_committed, all or commit (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>  Commit, with --target commit
+  > {outcome, diff: {files, shortstat, diff, truncated}}
+env diff-files <id>  List the changed files of an environment
+  --target <target>  uncommitted, branch_committed, all or commit (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>  Commit, with --target commit
+  > {outcome, files: [{path, changeKind, additions, deletions, …}], shortstat}
+env diff-file <id>  Print one side of a changed file
+  --target <target>  uncommitted, branch_committed, all or commit (required)
+  --path <path>  Repository-relative file path (required)
+  --side <side>  old or new (required)
+  --merge-base-ref <sha>  Resolved merge-base SHA, with branch_committed or all
+  --sha <sha>  Commit, with --target commit
+env diff-patch <id>  Print the patches of chosen changed files
+  --target <target>  uncommitted, branch_committed, all or commit (required)
+  --path <path>...  Changed file path (required)
+  --merge-base-branch <branch>  Base branch, with branch_committed or all
+  --sha <sha>  Commit, with --target commit
+  > {outcome, patches: [{path, patch, truncated}]}
+env pull-request show <id>  Show an environment's pull request (github plugin)
+  > {repo, number, title, state, isDraft, url, headRefName, baseRefName} or null
+env pull-request ready <id>  Mark the pull request ready for review
+env pull-request draft <id>  Convert the pull request to draft
+env pull-request merge <id>  Merge the pull request
+  --method <method>  merge, squash or rebase (default: merge)
+env providers  List environment providers
+  --project <id>  Only providers this project can use
+"#,
+    machine!(),
+    r#"  Availability on this machine (needs --project)
+env archive-threads <id>  Archive every active thread in an environment
+  > {ok, archivedThreadIds}
 
 machine list  List machines, their owners and who may use them
   > [{id, name, type, status, lifecycle, ownerUserId, sharing, usable,
@@ -422,13 +484,46 @@ file write <path>  Write a UTF-8 file on a machine
   --stdin  Read the content from stdin
   --root <path>  Refuse paths outside this directory
   --create-parents  Create missing parent directories
-  --expected-sha256 <hash>  Only write when the current hash matches
+  --expected-sha256 <hash>  Only write when the current hash matches (else exit 1, code conflict)
 file list <path>  List files under a directory on a machine
 "#,
     machine!(),
     r#"  Machine holding the directory (default: the server's)
   --query <query>  Fuzzy path filter
   --limit <count>  Maximum entries
+  --no-hidden  Skip dot-prefixed files and directories
+  --exclude <name>...  Entry names or root-relative paths to skip
+file paths <path>  List matching files and directories on a machine
+"#,
+    machine!(),
+    r#"  Machine holding the directory (default: the server's)
+  --query <query>  Fuzzy path filter
+  --limit <count>  Maximum entries
+  --files  Include files
+  --directories  Include directories
+  --no-hidden  Skip dot-prefixed files and directories
+  --exclude <name>...  Entry names or root-relative paths to skip
+  > {paths: [{kind, path, name}], truncated}
+file mkdir <path>  Create a directory on a machine
+"#,
+    machine!(),
+    r#"  Machine holding the directory (default: the server's)
+  --root <path>  Refuse paths outside this directory
+  --recursive  Create missing parent directories
+file move <source> <destination>  Move a file or directory on a machine
+"#,
+    machine!(),
+    r#"  Machine holding the path (default: the server's)
+  --root <path>  Refuse paths outside this directory
+file remove <path>  Remove a file or directory on a machine
+"#,
+    machine!(),
+    r#"  Machine holding the path (default: the server's)
+  --root <path>  Refuse paths outside this directory
+  --recursive  Remove a directory and everything in it
+"#,
+    yes!(),
+    r#"
 
 settings show  Print every setting as key = value
 settings get <key>  Print one setting
@@ -444,10 +539,16 @@ plugin enable <id>  Enable a plugin
 plugin disable <id>  Disable a plugin
 plugin reload [id]  Reload one plugin, or rediscover and reload all of them
 plugin add <path>  Load a plugin directory (adds it to <dataDir>/config.json)
-plugin remove <path>  Stop loading a plugin directory
+plugin remove <path>  Stop loading a plugin directory (or the one a plugin id runs from)
 "#,
     yes!(),
     r#"
+plugin config <id> [action] [key] [value]  Show or change a plugin's settings
+  --project <id>  Read or write the value for one project
+  $ bb plugin config marketplace
+  $ bb plugin config marketplace set catalogs ./catalog.json
+  $ bb plugin config github unset token
+  > {ok, schema: {<key>: {type, label, …}}, values: {<key>: value}}
 
 server  Run the bb server in the foreground
 server status  Check that the server answers and show its data directory
@@ -472,9 +573,11 @@ const GROUPS: &[(&str, &str)] = &[
     ("thread interactions", "Approvals, questions and plugin forms of a thread"),
     ("thread queue", "Messages waiting to be sent to a thread"),
     ("thread section", "Sidebar sections"),
+    ("prompt-history", "List prompt history across threads and projects"),
     ("project", "Projects and the directories that hold them on each machine"),
     ("project source", "Where a project lives on a machine"),
     ("project attachment", "Files attached to prompts"),
+    ("env pull-request", "The pull request of an environment (github plugin)"),
     ("env", "Environments: the checkouts and worktrees threads run in"),
     ("machine", "Machines that run threads"),
     ("machine env", "Environment variables given to agents"),
