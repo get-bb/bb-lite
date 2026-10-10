@@ -32,7 +32,9 @@ const pull = {
   baseRefName: "main",
 };
 
-async function githubServer(options: { signedIn?: boolean } = {}) {
+async function githubServer(
+  options: { signedIn?: boolean; issues?: unknown[] } = {},
+) {
   const server = await createThreadServer();
   const calls: Exec[] = [];
   const answer = (input: Exec): unknown => {
@@ -43,7 +45,7 @@ async function githubServer(options: { signedIn?: boolean } = {}) {
     }
     if (verb === "issue" && sub === "list") {
       return input.args.includes("acme/app")
-        ? [issue(1, "Crash on start")]
+        ? (options.issues ?? [issue(1, "Crash on start")])
         : [];
     }
     if (verb === "pr" && sub === "list") {
@@ -106,6 +108,25 @@ async function githubServer(options: { signedIn?: boolean } = {}) {
     ).body;
   return { ...server, calls, op, cli };
 }
+
+it("caches more issues than one stored value holds", async () => {
+  const long = (number: number) => ({
+    ...issue(number, `Issue ${number}`),
+    body: "x".repeat(6_000),
+  });
+  const issues = Array.from({ length: 100 }, (_, index) => long(index + 1));
+  const { cli, op } = await githubServer({ issues });
+  expect(await op("github.sync")).toEqual({ repos: 1, items: 101 });
+  const listed = JSON.parse((await cli("issues", "--json")).stdout);
+  expect(listed.items.map((item: { number: number }) => item.number)).toEqual(
+    issues.map((item) => item.number),
+  );
+
+  issues.length = 2;
+  expect(await op("github.sync")).toEqual({ repos: 1, items: 3 });
+  const fewer = JSON.parse((await cli("issues", "--json")).stdout);
+  expect(fewer.items).toHaveLength(2);
+});
 
 it("syncs tracked repositories and lists the cache from the CLI", async () => {
   const { cli, op, calls } = await githubServer();
