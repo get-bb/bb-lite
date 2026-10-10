@@ -1,5 +1,5 @@
 import path from "node:path";
-import { fail, files, threads, type PluginServerApi } from "@bb/plugin";
+import { fail, files, type PluginServerApi } from "@bb/plugin";
 import { inlineVis } from "./contract.js";
 
 export const MAX_PREVIEW_BYTES = 5 * 1024 * 1024;
@@ -47,32 +47,11 @@ export function relativePreviewFile(value: string): string {
 }
 
 export default function inlineVisServer(bb: PluginServerApi): void {
-  const locate = async (threadId: string, file: string, source: string) => {
-    if (source === "workspace") {
-      const { url } = await bb.call(files.url, {
-        threadId,
-        path: file,
-        source: "workspace",
-      });
-      return { readPath: file, url };
-    }
-    const storage = await bb.call(threads.storageLocation, { threadId });
-    if (storage === null) {
-      fail("not_found", "This thread has no storage directory.");
-    }
-    const readPath = path.posix.join(storage.path, file);
-    const { url } = await bb.call(files.url, {
-      threadId,
-      path: readPath,
-      source: "host",
-    });
-    return { readPath, url };
-  };
-
   bb.implement(inlineVis.preview, async ({ threadId, file: raw, source }) => {
     const file = relativePreviewFile(raw);
-    const { readPath, url } = await locate(threadId, file, source);
-    const read = await bb.call(files.read, { threadId, path: readPath });
+    const target = { threadId, path: file, source };
+    const { url } = await bb.call(files.url, target);
+    const read = await bb.call(files.read, target);
     if (read === null) return { kind: "not-found" as const, file };
     const sizeBytes = Buffer.byteLength(read.content);
     if (sizeBytes > MAX_PREVIEW_BYTES) {
