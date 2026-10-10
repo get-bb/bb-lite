@@ -292,8 +292,8 @@ describe("acp native selection", () => {
     expect(
       await completeTurnWith(harness, session, "echo-argv", { model: "other" }),
     ).toBe("argv:--model other");
-    const started = harness.types().indexOf("turn/started");
-    expect(harness.types().slice(started)).toContain("thread/identity");
+    const identities = harness.types().filter((t) => t === "thread/identity");
+    expect(identities.length).toBeGreaterThan(1);
   });
 
   it("selects ACP-native reasoning with session/set_config_option before the first prompt", async () => {
