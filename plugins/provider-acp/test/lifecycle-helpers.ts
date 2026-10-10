@@ -1,4 +1,8 @@
 import { readFileSync, existsSync } from "node:fs";
+import type {
+  PendingInteractionPayload,
+  PendingInteractionResolution,
+} from "@bb/domain";
 import type { ProviderSession, RunnerThreadEvent } from "@bb/runner";
 import { afterEach, vi } from "vitest";
 import { createHarness, type HarnessOptions } from "./adapter-harness.js";
@@ -22,6 +26,7 @@ export function trackSessions() {
     },
     async start(options: HarnessOptions = {}) {
       const harness = createHarness(options);
+      answering(harness, options.answer ?? allowOnce);
       const session = await harness.open();
       sessions.push(session);
       return { harness, session };
@@ -73,4 +78,25 @@ export function jsonLines<T>(path: string): T[] {
     .split("\n")
     .filter(Boolean)
     .map((line) => JSON.parse(line) as T);
+}
+
+export function streamed(harness: Harness): string {
+  return ofType(harness, "item/agentMessage/delta")
+    .map((event) => event.delta)
+    .join("");
+}
+
+export function answering(
+  harness: Harness,
+  answer: (payload: PendingInteractionPayload) => PendingInteractionResolution,
+) {
+  harness.host.requestInteraction = async ({ payload }) => {
+    harness.interactions.push(payload);
+    return answer(payload);
+  };
+  return harness;
+}
+
+export function allowOnce(): PendingInteractionResolution {
+  return { decision: "allow_once", grantedPermissions: null };
 }
