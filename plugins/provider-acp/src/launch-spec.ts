@@ -120,6 +120,7 @@ export const acpLaunchSpecSchema = z
         primaryModels: z.array(z.string()),
       })
       .strict()
+      .transform((cli) => (cli.listArgs.length > 0 ? cli : undefined))
       .optional(),
     reasoningCli: acpReasoningCliSchema.optional(),
     nativeReasoning: acpNativeReasoningSchema.optional(),
