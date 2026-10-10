@@ -141,6 +141,44 @@ export function ComposerFooterControls({
   });
 }
 
+export function useHasThreadContextSegments(): boolean {
+  return useSlotEntries(composer.contextSegment).length > 0;
+}
+
+export function ThreadContextSegments({ threadId }: { threadId: string }) {
+  const entries = ordered(useSlotEntries(composer.contextSegment));
+  return entries.map(({ plugin, item }) => (
+    <SlotMount
+      key={`${plugin}/${item.id}`}
+      pluginId={plugin}
+      slot={composer.contextSegment.name}
+      id={item.id}
+      fallback={null}
+    >
+      <item.segment threadId={threadId} />
+    </SlotMount>
+  ));
+}
+
+export function ThreadContextActions({ threadId }: { threadId: string }) {
+  const entries = ordered(useSlotEntries(composer.contextSegment));
+  return entries.map(({ plugin, item }) => {
+    const Action = item.action;
+    if (Action === undefined) return null;
+    return (
+      <SlotMount
+        key={`${plugin}/${item.id}`}
+        pluginId={plugin}
+        slot={composer.contextSegment.name}
+        id={`${item.id}:action`}
+        fallback={null}
+      >
+        <Action threadId={threadId} />
+      </SlotMount>
+    );
+  });
+}
+
 export function ComposerBanners({
   composer: handle,
 }: {

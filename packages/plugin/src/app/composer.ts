@@ -85,6 +85,17 @@ export interface ComposerBanner {
   view: ComponentType<{ composer: ComposerHandle }>;
 }
 
+export interface ThreadContextSegmentProps {
+  threadId: string;
+}
+
+export interface ThreadContextSegment {
+  id: string;
+  order?: number;
+  segment: ComponentType<ThreadContextSegmentProps>;
+  action?: ComponentType<ThreadContextSegmentProps>;
+}
+
 export interface ComposerPopupProps {
   composer: ComposerHandle;
   close(): void;
@@ -164,6 +175,7 @@ export const composer = contract("composer", {
   sendMenuItem: slot<ComposerSendMenuItem>({ key: "id" }),
   environmentInputs: slot<EnvironmentInputsForm>({ key: "kind" }),
   banner: slot<ComposerBanner>(),
+  contextSegment: slot<ThreadContextSegment>({ key: "id" }),
   textEffect: slot<ComposerTextEffect>({ key: "id" }),
   homeSection: slot<HomeSection>(),
   popup: slot<ComposerPopup>({ key: "id" }),

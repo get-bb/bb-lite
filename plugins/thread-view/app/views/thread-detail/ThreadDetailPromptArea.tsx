@@ -706,6 +706,7 @@ export function ThreadDetailPromptArea({
         onToggle={() => setIsTodoExpanded((value) => !value)}
       />
       <ThreadPromptContextBanner
+        threadId={thread.id}
         archivedSection={
           thread.archivedAt !== null
             ? {
