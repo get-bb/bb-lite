@@ -938,7 +938,7 @@ it.skipIf(FRP_BIN === undefined)(
       },
       { timeout: 15_000, interval: 200 },
     );
-    expect(ctx.plugins.publicUrl()).toBe(linked.bee);
+    expect(ctx.kernel.pick(serverSlots.publicUrl)?.()).toBe(linked.bee);
 
     const stranger = browser();
     const refused = await stranger.visit(`${bee}${session}`);
@@ -961,12 +961,12 @@ it.skipIf(FRP_BIN === undefined)(
       user: null,
       identity: { name: "Bo" },
     });
-    const invite = await alice.visit(`${bee}/api/v1/user-invites`, {
+    const invite = await alice.visit(`${bee}/api/v1/users/invites`, {
       json: {},
     });
     expect(invite.status, invite.text).toBe(201);
     const elsewhere = { headers: { origin: linked.origin("evil") } };
-    const crossSite = await alice.visit(`${bee}/api/v1/user-invites`, {
+    const crossSite = await alice.visit(`${bee}/api/v1/users/invites`, {
       json: {},
       ...elsewhere,
     });
@@ -974,7 +974,7 @@ it.skipIf(FRP_BIN === undefined)(
       status: 403,
       body: { code: "forbidden_origin" },
     });
-    const large = await alice.visit(`${bee}/api/v1/system/config`, {
+    const large = await alice.visit(`${bee}/api/v1/server/config`, {
       headers: { "accept-encoding": "gzip" },
     });
     expect(large.headers.get("content-encoding")).toBe("gzip");
