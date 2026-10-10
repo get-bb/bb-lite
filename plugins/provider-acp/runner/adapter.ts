@@ -14,7 +14,6 @@ import {
 } from "@bb/runner";
 import type { AcpRunnerAgent } from "../src/launch-spec.js";
 import * as engine from "./engine.js";
-import { resolveExecutablePath } from "./kit.js";
 import type { AcpSkillRoot } from "./session-params.js";
 import { createDeltaSink } from "./thread-delta.js";
 
@@ -142,35 +141,15 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
   return {
     id: agent.id,
     approvalEnforcedBy: "runner",
-    async status(): Promise<ProviderStatus> {
-      const { command } = agent.launch;
-      const result = await engine.acpProviderHealth(standalone);
-      const health = result.supported ? result.health : null;
-      const installed = health !== null && health.status !== "not_installed";
-      const signedOut =
-        health?.status === "unauthenticated" || health?.status === "expired";
-      const hint =
-        agent.signInCommand === undefined
-          ? `Sign in to ${agent.displayName} on this machine.`
-          : `Run \`${agent.signInCommand}\` on this machine to sign in.`;
-      const fallback = installed
-        ? signedOut
-          ? hint
-          : null
-        : missingCli(agent);
-      return {
+    status(): Promise<ProviderStatus> {
+      return engine.acpProviderHealth(standalone, {
         providerId: agent.id,
-        installed,
-        executablePath: installed ? await resolveExecutablePath(command) : null,
-        version: health?.installedVersion ?? null,
-        auth:
-          health?.status === "ready"
-            ? "ready"
-            : signedOut
-              ? "unauthenticated"
-              : "unknown",
-        message: health?.statusMessage ?? fallback,
-      };
+        missingMessage: missingCli(agent),
+        signedOutMessage:
+          agent.signInCommand === undefined
+            ? `Sign in to ${agent.displayName} on this machine.`
+            : `Run \`${agent.signInCommand}\` on this machine to sign in.`,
+      });
     },
     async listModels() {
       try {

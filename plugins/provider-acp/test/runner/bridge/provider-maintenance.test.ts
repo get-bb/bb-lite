@@ -2,26 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   CURSOR_ACP_MAINTENANCE,
   __testing,
+  getAcpProviderStatus,
+  type AcpMaintenanceDialect,
 } from "../../../runner/bridge/provider-maintenance.js";
 
-function cursorMissingInstallationStatus() {
+function missingAgent(maintenance: AcpMaintenanceDialect | undefined) {
   return {
-    executableName: "cursor-agent",
-    executablePath: null,
-    installed: false,
-    installSource: "notInstalled" as const,
-    currentVersion: null,
-    latestVersion: null,
-    minimumSupportedVersion: null,
-    npmPackageName: null,
-    npmGlobalPackageVersion: null,
-    installAction: {
-      kind: "install" as const,
-      label: "Install" as const,
-      command: "install Cursor",
-    },
-    needsUpdate: false,
-    versionUnsupported: false,
+    providerId: "acp-test",
+    maintenance,
+    command: "/nonexistent/bb-provider-acp-test/agent",
+    missingMessage: "agent is missing",
+    signedOutMessage: "sign in",
   };
 }
 
@@ -60,42 +51,48 @@ describe("ACP provider maintenance", () => {
     });
   });
 
-  it("offers the installer only through a fresh matching action", () => {
-    expect(
-      __testing.buildProviderInstallationRun(
-        cursorMissingInstallationStatus(),
-        {
-          maintenance: CURSOR_ACP_MAINTENANCE,
-          command: "cursor-agent",
-          action: "install",
-        },
-      ),
-    ).toMatchObject({
-      available: true,
-      command: { command: "sh" },
-      verification: { kind: "installed" },
+  it("offers the installer only when the agent is missing and maintained", async () => {
+    const cursor = await getAcpProviderStatus(
+      missingAgent(CURSOR_ACP_MAINTENANCE),
+    );
+    expect(cursor).toEqual({
+      providerId: "acp-test",
+      installed: false,
+      executablePath: null,
+      version: null,
+      auth: "unknown",
+      message: "agent is missing",
+      installAction: {
+        kind: "install",
+        command: CURSOR_ACP_MAINTENANCE.installer().displayCommand,
+      },
+    });
+    expect(CURSOR_ACP_MAINTENANCE.installer()).toMatchObject({
+      command: "sh",
+    });
+    expect(cursor.installAction?.command).toContain(
+      "curl -fsSL https://cursor.com/install",
+    );
+    expect(await getAcpProviderStatus(missingAgent(undefined))).toEqual({
+      providerId: "acp-test",
+      installed: false,
+      executablePath: null,
+      version: null,
+      auth: "unknown",
+      message: "agent is missing",
     });
     expect(
-      __testing.buildProviderInstallationRun(
-        { ...cursorMissingInstallationStatus(), installAction: null },
-        { maintenance: undefined, command: "opencode", action: "install" },
-      ),
+      await getAcpProviderStatus({
+        ...missingAgent(CURSOR_ACP_MAINTENANCE),
+        command: null,
+      }),
     ).toEqual({
-      available: false,
-      message: "opencode install is not available on this host.",
-    });
-    expect(
-      __testing.buildProviderInstallationRun(
-        cursorMissingInstallationStatus(),
-        {
-          maintenance: undefined,
-          command: "opencode",
-          action: "install",
-        },
-      ),
-    ).toEqual({
-      available: false,
-      message: "opencode install is not available on this host.",
+      providerId: "acp-test",
+      installed: true,
+      executablePath: null,
+      version: null,
+      auth: "unknown",
+      message: "The ACP provider has no launch command.",
     });
   });
 });

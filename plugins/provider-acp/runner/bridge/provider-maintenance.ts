@@ -5,14 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
-import type {
-  ProviderHealthResult,
-  ProviderInstallationRunResult,
-  ProviderInstallationStatus,
-  ProviderUsage,
-  ProviderUsageResult,
-  ProviderUsageWindow,
-} from "../maintenance-types.js";
+import type { UsageReading, usageWindowSchema } from "@bb/plugin";
+import type { ProviderStatus } from "@bb/runner";
 import {
   clampPercent,
   downloadedInstallerCommand,
@@ -21,6 +15,8 @@ import {
 } from "../kit.js";
 import { z } from "zod";
 import { readOpenCodeGoUsage } from "./opencode-usage.js";
+
+type UsageWindow = z.input<typeof usageWindowSchema>;
 
 const execFileAsync = promisify(execFile);
 const USAGE_FETCH_TIMEOUT_MS = 15_000;
@@ -130,144 +126,89 @@ function readAccountEmail(): string | null {
 }
 
 export interface AcpMaintenanceDialect {
-  loginCommand: string;
   installer(): { command: string; args: string[]; displayCommand: string };
-  readAccount(): Promise<{ email: string | null } | null>;
-  readUsage(): Promise<ProviderUsageResult>;
+  signedIn(): Promise<boolean>;
+  readUsage(): Promise<UsageReading>;
 }
 
-function healthResult(args: {
+export interface AcpStatusTarget {
+  providerId: string;
   maintenance: AcpMaintenanceDialect | undefined;
-  status: "ready" | "not_installed" | "unauthenticated" | "unknown";
-  accountEmail?: string | null;
-  installedVersion?: string | null;
-  statusMessage?: string | null;
-}): ProviderHealthResult {
-  const maintained = args.maintenance !== undefined;
+  command: string | null;
+  missingMessage: string;
+  signedOutMessage: string;
+}
+
+function installedStatus(
+  target: AcpStatusTarget,
+  found: {
+    executablePath: string | null;
+    version: string | null;
+    auth: ProviderStatus["auth"];
+    message: string | null;
+  },
+): ProviderStatus {
+  return { providerId: target.providerId, installed: true, ...found };
+}
+
+function missingStatus(target: AcpStatusTarget): ProviderStatus {
   return {
-    supported: true,
-    health: {
-      status: args.status,
-      statusMessage: args.statusMessage ?? null,
-      accountEmail: args.accountEmail ?? null,
-      planLabel: null,
-      installedVersion: args.installedVersion ?? null,
-      minimumSupportedVersion: null,
-      canInstall: maintained,
-      canUpdate: maintained && args.status !== "not_installed",
-      loginCommand: args.maintenance?.loginCommand ?? null,
-    },
+    providerId: target.providerId,
+    installed: false,
+    executablePath: null,
+    version: null,
+    auth: "unknown",
+    message: target.missingMessage,
+    ...(target.maintenance === undefined
+      ? {}
+      : {
+          installAction: {
+            kind: "install" as const,
+            command: target.maintenance.installer().displayCommand,
+          },
+        }),
   };
 }
 
-export async function getAcpProviderHealth(args: {
-  maintenance: AcpMaintenanceDialect | undefined;
-  command: string | null;
-}): Promise<ProviderHealthResult> {
-  const maintenance = args.maintenance;
-  if (args.command === null) {
-    return healthResult({
-      maintenance,
-      status: "unknown",
-      statusMessage: "The ACP provider has no launch command.",
+export async function getAcpProviderStatus(
+  target: AcpStatusTarget,
+): Promise<ProviderStatus> {
+  const { maintenance, command } = target;
+  if (command === null) {
+    return installedStatus(target, {
+      executablePath: null,
+      version: null,
+      auth: "unknown",
+      message: "The ACP provider has no launch command.",
     });
   }
-  if ((await resolveExecutablePath(args.command)) === null) {
-    return healthResult({ maintenance, status: "not_installed" });
-  }
-  const version = await readCliVersion(args.command);
+  const executablePath = await resolveExecutablePath(command);
+  if (executablePath === null) return missingStatus(target);
+  const version = await readCliVersion(command);
   if (maintenance === undefined) {
-    return healthResult({
-      maintenance,
-      status: "ready",
-      installedVersion: version,
+    return installedStatus(target, {
+      executablePath,
+      version,
+      auth: "ready",
+      message: null,
     });
   }
   try {
-    const account = await maintenance.readAccount();
-    return healthResult({
-      maintenance,
-      status: account === null ? "unauthenticated" : "ready",
-      accountEmail: account?.email ?? null,
-      installedVersion: version,
+    const signedIn = await maintenance.signedIn();
+    return installedStatus(target, {
+      executablePath,
+      version,
+      auth: signedIn ? "ready" : "unauthenticated",
+      message: signedIn ? null : target.signedOutMessage,
     });
   } catch (error) {
-    return healthResult({
-      maintenance,
-      status: "unknown",
-      installedVersion: version,
-      statusMessage: error instanceof Error ? error.message : String(error),
+    return installedStatus(target, {
+      executablePath,
+      version,
+      auth: "unknown",
+      message: error instanceof Error ? error.message : String(error),
     });
   }
-}
-
-export async function getAcpProviderInstallationStatus(args: {
-  maintenance: AcpMaintenanceDialect | undefined;
-  command: string | null;
-}): Promise<ProviderInstallationStatus> {
-  const executableName = args.command ?? "";
-  const resolvedExecutable =
-    args.command === null ? null : await resolveExecutablePath(args.command);
-  const installed = resolvedExecutable !== null;
-  const currentVersion =
-    installed && args.command !== null
-      ? await readCliVersion(args.command)
-      : null;
-  const installAction =
-    args.maintenance !== undefined && !installed
-      ? {
-          kind: "install" as const,
-          label: "Install" as const,
-          command: args.maintenance.installer().displayCommand,
-        }
-      : null;
-  return {
-    executableName,
-    executablePath: resolvedExecutable,
-    installed,
-    installSource: installed ? "external" : "notInstalled",
-    currentVersion,
-    latestVersion: null,
-    minimumSupportedVersion: null,
-    npmPackageName: null,
-    npmGlobalPackageVersion: null,
-    installAction,
-    needsUpdate: false,
-    versionUnsupported: false,
-  };
-}
-
-export async function getAcpProviderInstallationRun(args: {
-  maintenance: AcpMaintenanceDialect | undefined;
-  command: string | null;
-  action: "install" | "update";
-}): Promise<ProviderInstallationRunResult> {
-  const status = await getAcpProviderInstallationStatus(args);
-  return buildAcpProviderInstallationRun(status, args);
-}
-
-function buildAcpProviderInstallationRun(
-  status: ProviderInstallationStatus,
-  args: {
-    maintenance: AcpMaintenanceDialect | undefined;
-    command: string | null;
-    action: "install" | "update";
-  },
-): ProviderInstallationRunResult {
-  if (
-    status.installAction?.kind !== args.action ||
-    args.maintenance === undefined
-  ) {
-    return {
-      available: false,
-      message: `${args.command ?? "This ACP agent"} ${args.action} is not available on this host.`,
-    };
-  }
-  return {
-    available: true,
-    command: args.maintenance.installer(),
-    verification: { kind: "installed" },
-  };
 }
 
 const cursorNonNegativeIntegerSchema = z
@@ -306,22 +247,17 @@ function normalizeUsage(
   rawUsage: unknown,
   rawPlan: unknown,
   accountEmail: string | null = null,
-): ProviderUsage {
+): UsageReading {
   const usage = cursorUsageResponseSchema.safeParse(rawUsage);
   if (!usage.success) {
-    return {
-      status: "error",
-      message: "Cursor usage response was malformed.",
-      planLabel: null,
-      accountEmail,
-    };
+    return { status: "error", message: "Cursor usage response was malformed." };
   }
   const plan = cursorPlanResponseSchema.safeParse(rawPlan);
   const resetsAt =
     usage.data.billingCycleEnd == null
       ? null
       : new Date(usage.data.billingCycleEnd).toISOString();
-  const windows: ProviderUsageWindow[] = [];
+  const windows: UsageWindow[] = [];
   if (usage.data.planUsage?.totalPercentUsed != null) {
     windows.push({
       label: "Plan usage",
@@ -378,77 +314,57 @@ export async function getAcpProviderUsage(args: {
   command: string | null;
   dialectId: string;
   env: NodeJS.ProcessEnv;
-}): Promise<ProviderUsageResult> {
+}): Promise<UsageReading> {
   const readUsage =
     args.dialectId === "opencode"
       ? () => readOpenCodeGoUsage(args.env)
       : args.maintenance?.readUsage;
-  if (readUsage === undefined) return { supported: false };
+  if (readUsage === undefined) return null;
   if (
     args.command === null ||
     (await resolveExecutablePath(args.command)) === null
   ) {
-    return { supported: true, usage: { status: "not_installed" } };
+    return { status: "not_installed" };
   }
   return readUsage();
 }
 
 export const CURSOR_ACP_MAINTENANCE: AcpMaintenanceDialect = {
-  loginCommand: "cursor-agent login",
   installer: () => downloadedInstallerCommand(CURSOR_INSTALL_SCRIPT_URL),
-  readAccount: async () => {
-    const accessToken = await readAccessToken();
-    return accessToken === null ? null : { email: readAccountEmail() };
-  },
+  signedIn: async () => (await readAccessToken()) !== null,
   readUsage: readCursorUsage,
 };
 
-async function readCursorUsage(): Promise<ProviderUsageResult> {
+async function readCursorUsage(): Promise<UsageReading> {
   const accessToken = await readAccessToken();
-  if (!accessToken) {
-    return { supported: true, usage: { status: "unauthenticated" } };
-  }
+  if (!accessToken) return { status: "unauthenticated" };
   try {
     const [usageResponse, planResponse] = await Promise.all([
       fetchDashboard("GetCurrentPeriodUsage", accessToken),
       fetchDashboard("GetPlanInfo", accessToken),
     ]);
     if (usageResponse.status === 401 || planResponse.status === 401) {
-      return { supported: true, usage: { status: "expired" } };
+      return { status: "expired" };
     }
     if (!usageResponse.ok) {
       return {
-        supported: true,
-        usage: {
-          status: "error",
-          message: `Cursor usage request failed (HTTP ${usageResponse.status}).`,
-          planLabel: null,
-          accountEmail: readAccountEmail(),
-        },
+        status: "error",
+        message: `Cursor usage request failed (HTTP ${usageResponse.status}).`,
       };
     }
-    return {
-      supported: true,
-      usage: normalizeUsage(
-        await usageResponse.json(),
-        planResponse.ok ? await planResponse.json() : {},
-        readAccountEmail(),
-      ),
-    };
+    return normalizeUsage(
+      await usageResponse.json(),
+      planResponse.ok ? await planResponse.json() : {},
+      readAccountEmail(),
+    );
   } catch (error) {
     return {
-      supported: true,
-      usage: {
-        status: "error",
-        message: error instanceof Error ? error.message : String(error),
-        planLabel: null,
-        accountEmail: readAccountEmail(),
-      },
+      status: "error",
+      message: error instanceof Error ? error.message : String(error),
     };
   }
 }
 
 export const __testing = {
-  buildProviderInstallationRun: buildAcpProviderInstallationRun,
   normalizeUsage,
 };

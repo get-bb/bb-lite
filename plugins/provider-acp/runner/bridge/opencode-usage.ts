@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { ProviderUsageResult } from "../maintenance-types.js";
+import type { UsageReading } from "@bb/plugin";
 import { z } from "zod";
 
 const apiCredentialSchema = z.object({
@@ -164,15 +164,10 @@ async function readLegacyApiKey(
 
 export async function readOpenCodeGoUsage(
   env: NodeJS.ProcessEnv,
-): Promise<ProviderUsageResult> {
-  const failure = (message: string): ProviderUsageResult => ({
-    supported: true,
-    usage: {
-      status: "error",
-      message,
-      planLabel: "OpenCode Go",
-      accountEmail: null,
-    },
+): Promise<UsageReading> {
+  const failure = (message: string): UsageReading => ({
+    status: "error",
+    message,
   });
   let apiKey: string | null;
   let account: ReturnType<typeof readAccount> = null;
@@ -199,10 +194,9 @@ export async function readOpenCodeGoUsage(
   } catch {
     return failure("OpenCode credentials could not be read.");
   }
-  if (apiKey === null)
-    return { supported: true, usage: { status: "unauthenticated" } };
+  if (apiKey === null) return { status: "unauthenticated" };
   if (account?.token_expiry != null && account.token_expiry <= Date.now())
-    return { supported: true, usage: { status: "expired" } };
+    return { status: "expired" };
   try {
     const response = await fetch(
       account
@@ -221,8 +215,7 @@ export async function readOpenCodeGoUsage(
         signal: AbortSignal.timeout(15_000),
       },
     );
-    if (response.status === 401)
-      return { supported: true, usage: { status: "expired" } };
+    if (response.status === 401) return { status: "expired" };
     if (response.status === 403)
       return failure(
         "OpenCode Go usage access was denied. Check that the account has an active Go subscription.",
@@ -236,26 +229,18 @@ export async function readOpenCodeGoUsage(
       return failure("OpenCode Go returned invalid usage information.");
     const { rolling, weekly, monthly } = parsed.data.usage;
     return {
-      supported: true,
-      usage: {
-        status: "ok",
-        accountEmail: account?.email ?? null,
-        accountKey: account
-          ? `opencode:organization:${account.active_org_id}:account:${account.id}`
-          : null,
-        planLabel: "OpenCode Go",
-        windows: [
-          { label: "5 hour", kind: "five-hour", window: rolling },
-          { label: "Weekly", kind: "weekly", window: weekly },
-          { label: "Monthly", kind: "custom", window: monthly },
-        ].map(({ label, kind, window }) => ({
-          label,
-          kind,
-          model: null,
-          usedPercent: Math.min(100, window.percent),
-          resetsAt: window.resetsAt,
-        })),
-      },
+      status: "ok",
+      accountEmail: account?.email ?? null,
+      planLabel: "OpenCode Go",
+      windows: [
+        { label: "5 hour", window: rolling },
+        { label: "Weekly", window: weekly },
+        { label: "Monthly", window: monthly },
+      ].map(({ label, window }) => ({
+        label,
+        usedPercent: Math.min(100, window.percent),
+        resetsAt: window.resetsAt,
+      })),
     };
   } catch {
     return failure("OpenCode Go usage could not be collected. Try again.");

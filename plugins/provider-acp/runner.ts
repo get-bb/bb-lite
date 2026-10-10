@@ -9,7 +9,6 @@ import {
   setAcpToolProxyDirectory,
 } from "./runner/engine.js";
 import { probeAcpAgent } from "./runner/probe.js";
-import { usageReading } from "./runner/usage-reading.js";
 import { runnerAgent } from "./src/agents.js";
 import { KNOWN_ACP_AGENTS } from "./src/known-agents.js";
 import type { AcpRunnerAgent } from "./src/launch-spec.js";
@@ -46,6 +45,6 @@ export default function acpRunner(bb: PluginRunnerApi): void {
       acpLaunchSpec: agent.launch,
       ...(agent.dialect === undefined ? {} : { acpDialect: agent.dialect }),
     };
-    return usageReading(await acpProviderUsage(options));
+    return acpProviderUsage(options);
   });
 }

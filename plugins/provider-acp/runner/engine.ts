@@ -81,8 +81,9 @@ import {
 } from "./session-params.js";
 import { buildCursorParameterizedModelCatalog } from "./cursor-model-selection.js";
 import {
-  getAcpProviderHealth,
+  getAcpProviderStatus,
   getAcpProviderUsage,
+  type AcpStatusTarget,
 } from "./bridge/provider-maintenance.js";
 import type { ThreadDelta } from "./thread-delta.js";
 import {
@@ -3350,8 +3351,14 @@ export async function listAcpSessionOptions(
     : [];
 }
 
-export function acpProviderHealth(providerOptions: AcpProviderOptions) {
-  return getAcpProviderHealth(maintenanceTarget(providerOptions));
+export function acpProviderHealth(
+  providerOptions: AcpProviderOptions,
+  provider: Omit<AcpStatusTarget, "maintenance" | "command">,
+) {
+  return getAcpProviderStatus({
+    ...provider,
+    ...maintenanceTarget(providerOptions),
+  });
 }
 
 export function acpProviderUsage(providerOptions: AcpProviderOptions) {

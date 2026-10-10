@@ -3,11 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProviderUsageResult } from "../../../runner/maintenance-types.js";
+import type { UsageReading } from "@bb/plugin";
 import { readOpenCodeGoUsage } from "../../../runner/bridge/opencode-usage.js";
 
 const providerUsageResultSchema = {
-  parse: (value: ProviderUsageResult) => value,
+  parse: (value: UsageReading) => value,
 };
 
 const reportedUsage = {
@@ -167,16 +167,13 @@ describe("OpenCode Go usage", () => {
         await readOpenCodeGoUsage(env),
       );
       expect(result).toMatchObject({
-        usage: {
-          status: "ok",
-          accountEmail: null,
-          accountKey: null,
-          windows: [
-            { usedPercent: 12.5 },
-            { usedPercent: 100 },
-            { usedPercent: 43.2 },
-          ],
-        },
+        status: "ok",
+        accountEmail: null,
+        windows: [
+          { usedPercent: 12.5 },
+          { usedPercent: 100 },
+          { usedPercent: 43.2 },
+        ],
       });
       expect(fetchUsage).toHaveBeenCalledExactlyOnceWith(
         "https://opencode.ai/zen/go/v1/usage",
@@ -255,18 +252,15 @@ describe("OpenCode Go usage", () => {
     const databasePath = path.join(directory, "opencode", "opencode.db");
     const before = await fs.readFile(databasePath);
     const result = await readOpenCodeGoUsage(env);
-    expect(result).toMatchObject({ usage: { status } });
+    expect(result).toMatchObject({ status });
     if (status === "ok") {
       expect(result).toMatchObject({
-        usage: {
-          accountEmail: "oauth@example.com",
-          accountKey: "opencode:organization:org-oauth:account:account-oauth",
-          windows: [
-            { usedPercent: 12.5 },
-            { usedPercent: 100 },
-            { usedPercent: 43.2 },
-          ],
-        },
+        accountEmail: "oauth@example.com",
+        windows: [
+          { usedPercent: 12.5 },
+          { usedPercent: 100 },
+          { usedPercent: 43.2 },
+        ],
       });
       expect(fetchUsage).toHaveBeenCalledExactlyOnceWith(
         "https://opencode.ai/inference/go/v1/usage",
@@ -296,13 +290,12 @@ describe("OpenCode Go usage", () => {
         },
       ]);
       expect(await readOpenCodeGoUsage(env)).toEqual({
-        supported: true,
-        usage: { status: "unauthenticated" },
+        status: "unauthenticated",
       });
       expect(fetchUsage).not.toHaveBeenCalled();
       await writeAuth({ "opencode-go": { type: "api", key: "legacy-key" } });
       expect(await readOpenCodeGoUsage(env)).toMatchObject({
-        usage: { status: "ok" },
+        status: "ok",
       });
       expect(fetchUsage).toHaveBeenCalledExactlyOnceWith(
         "https://opencode.ai/zen/go/v1/usage",
@@ -325,13 +318,8 @@ describe("OpenCode Go usage", () => {
       { integration: "opencode-go", value: "broken secret-key", active: 1 },
     ]);
     expect(await readOpenCodeGoUsage(env)).toEqual({
-      supported: true,
-      usage: {
-        status: "error",
-        message: "OpenCode credentials could not be read.",
-        planLabel: "OpenCode Go",
-        accountEmail: null,
-      },
+      status: "error",
+      message: "OpenCode credentials could not be read.",
     });
     expect(fetchUsage).not.toHaveBeenCalled();
   });
@@ -352,17 +340,13 @@ describe("OpenCode Go usage", () => {
       await readOpenCodeGoUsage(env),
     );
     expect(result).toMatchObject({
-      supported: true,
-      usage: {
-        status: "ok",
-        accountEmail: "go@example.com",
-        accountKey: "opencode:organization:org-test:account:account-test",
-        windows: [
-          { usedPercent: 12.5 },
-          { usedPercent: 100 },
-          { usedPercent: 43.2 },
-        ],
-      },
+      status: "ok",
+      accountEmail: "go@example.com",
+      windows: [
+        { usedPercent: 12.5 },
+        { usedPercent: 100 },
+        { usedPercent: 43.2 },
+      ],
     });
     expect(fetchUsage).toHaveBeenCalledExactlyOnceWith(
       "https://opencode.ai/inference/go/v1/usage",
@@ -388,7 +372,8 @@ describe("OpenCode Go usage", () => {
     ]);
     env.OPENCODE_API_KEY = "explicit-key";
     expect(await readOpenCodeGoUsage(env)).toMatchObject({
-      usage: { status: "ok", accountEmail: null, accountKey: null },
+      status: "ok",
+      accountEmail: null,
     });
     expect(fetchUsage).toHaveBeenCalledExactlyOnceWith(
       "https://opencode.ai/zen/go/v1/usage",
@@ -409,8 +394,7 @@ describe("OpenCode Go usage", () => {
     async (overrides) => {
       await writeAccount(overrides);
       expect(await readOpenCodeGoUsage(env)).toEqual({
-        supported: true,
-        usage: { status: "unauthenticated" },
+        status: "unauthenticated",
       });
       expect(fetchUsage).not.toHaveBeenCalled();
     },
@@ -419,8 +403,7 @@ describe("OpenCode Go usage", () => {
   it("reports an expired Console token without modifying OpenCode's credentials", async () => {
     await writeAccount({ expiry: 1 });
     expect(await readOpenCodeGoUsage(env)).toEqual({
-      supported: true,
-      usage: { status: "expired" },
+      status: "expired",
     });
     expect(fetchUsage).not.toHaveBeenCalled();
   });
@@ -433,7 +416,7 @@ describe("OpenCode Go usage", () => {
     database.exec("CREATE TABLE session (id TEXT PRIMARY KEY)");
     database.close();
     expect(await readOpenCodeGoUsage(env)).toMatchObject({
-      usage: { status: "ok" },
+      status: "ok",
     });
     expect(fetchUsage).toHaveBeenCalledExactlyOnceWith(
       "https://opencode.ai/zen/go/v1/usage",
@@ -454,36 +437,26 @@ describe("OpenCode Go usage", () => {
       await readOpenCodeGoUsage(env),
     );
     expect(result).toEqual({
-      supported: true,
-      usage: {
-        status: "ok",
-        accountEmail: null,
-        accountKey: null,
-        planLabel: "OpenCode Go",
-        windows: [
-          {
-            label: "5 hour",
-            kind: "five-hour",
-            model: null,
-            usedPercent: 12.5,
-            resetsAt: reportedUsage.usage.rolling.resetsAt,
-          },
-          {
-            label: "Weekly",
-            kind: "weekly",
-            model: null,
-            usedPercent: 100,
-            resetsAt: reportedUsage.usage.weekly.resetsAt,
-          },
-          {
-            label: "Monthly",
-            kind: "custom",
-            model: null,
-            usedPercent: 43.2,
-            resetsAt: reportedUsage.usage.monthly.resetsAt,
-          },
-        ],
-      },
+      status: "ok",
+      accountEmail: null,
+      planLabel: "OpenCode Go",
+      windows: [
+        {
+          label: "5 hour",
+          usedPercent: 12.5,
+          resetsAt: reportedUsage.usage.rolling.resetsAt,
+        },
+        {
+          label: "Weekly",
+          usedPercent: 100,
+          resetsAt: reportedUsage.usage.weekly.resetsAt,
+        },
+        {
+          label: "Monthly",
+          usedPercent: 43.2,
+          resetsAt: reportedUsage.usage.monthly.resetsAt,
+        },
+      ],
     });
     expect(fetchUsage).toHaveBeenCalledExactlyOnceWith(
       "https://opencode.ai/zen/go/v1/usage",
@@ -540,16 +513,14 @@ describe("OpenCode Go usage", () => {
 
   it("does not collect quota when Go credentials are absent", async () => {
     expect(await readOpenCodeGoUsage(env)).toEqual({
-      supported: true,
-      usage: { status: "unauthenticated" },
+      status: "unauthenticated",
     });
     await writeAuth({
       anthropic: { type: "api", key: "unrelated-key" },
       "opencode-go": { type: "oauth", access: "unsupported-key" },
     });
     expect(await readOpenCodeGoUsage(env)).toEqual({
-      supported: true,
-      usage: { status: "unauthenticated" },
+      status: "unauthenticated",
     });
     expect(fetchUsage).not.toHaveBeenCalled();
   });
@@ -561,11 +532,8 @@ describe("OpenCode Go usage", () => {
       "broken secret-key",
     );
     expect(await readOpenCodeGoUsage(env)).toMatchObject({
-      supported: true,
-      usage: {
-        status: "error",
-        message: "OpenCode credentials could not be read.",
-      },
+      status: "error",
+      message: "OpenCode credentials could not be read.",
     });
     expect(fetchUsage).not.toHaveBeenCalled();
   });
@@ -584,8 +552,7 @@ describe("OpenCode Go usage", () => {
       );
       const result = await readOpenCodeGoUsage(env);
       expect(result).toMatchObject({
-        supported: true,
-        usage: { status: expectedStatus },
+        status: expectedStatus,
       });
       expect(JSON.stringify(result)).not.toContain("sensitive");
       expect(JSON.stringify(result)).not.toContain("windows");
@@ -611,11 +578,8 @@ describe("OpenCode Go usage", () => {
     env.OPENCODE_API_KEY = "test-key";
     fetchUsage.mockResolvedValue(Response.json(body));
     expect(await readOpenCodeGoUsage(env)).toMatchObject({
-      supported: true,
-      usage: {
-        status: "error",
-        message: "OpenCode Go returned invalid usage information.",
-      },
+      status: "error",
+      message: "OpenCode Go returned invalid usage information.",
     });
   });
 
@@ -632,10 +596,8 @@ describe("OpenCode Go usage", () => {
     expect(
       providerUsageResultSchema.parse(await readOpenCodeGoUsage(env)),
     ).toMatchObject({
-      usage: {
-        status: "ok",
-        windows: [expect.anything(), { usedPercent: 100 }, expect.anything()],
-      },
+      status: "ok",
+      windows: [expect.anything(), { usedPercent: 100 }, expect.anything()],
     });
   });
 
@@ -644,8 +606,7 @@ describe("OpenCode Go usage", () => {
     fetchUsage.mockRejectedValue(new Error("test-key"));
     const result = await readOpenCodeGoUsage(env);
     expect(result).toMatchObject({
-      supported: true,
-      usage: { status: "error" },
+      status: "error",
     });
     expect(JSON.stringify(result)).not.toContain("test-key");
   });
