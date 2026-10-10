@@ -24,7 +24,7 @@ import { PERMISSION_MODE_OPTIONS } from "@bb/app-kit/lib/permission-mode-options
 import { getProviderIconInfo } from "../lib/provider-icon";
 import {
   fastServiceTierLabel,
-  reasoningLevelLabel,
+  reasoningLadderLabels,
 } from "../lib/reasoning-labels";
 import {
   selectPrimaryHost,
@@ -253,15 +253,18 @@ export function useThreadCreationOptions({
         (matchesInitialProvider ? initialReasoningLevel : undefined)
       : (values.reasoningLevel ?? initialReasoningLevel)) ?? "medium",
   );
-  const reasoningOptions = [
-    ...new Set(
-      activeModel?.supportedReasoningEfforts.map(
-        (effort) => effort.reasoningEffort,
-      ),
-    ),
-  ].map((level) => ({
-    value: level,
-    label: reasoningLevelLabel(level, provider),
+  const efforts = [
+    ...new Map(
+      (activeModel?.supportedReasoningEfforts ?? []).map((effort) => [
+        effort.reasoningEffort,
+        effort,
+      ]),
+    ).values(),
+  ];
+  const effortLabels = reasoningLadderLabels(efforts, provider);
+  const reasoningOptions = efforts.map((effort, index) => ({
+    value: effort.reasoningEffort,
+    label: effortLabels[index] ?? effort.reasoningEffort,
   }));
 
   const allowFastServiceTier =
