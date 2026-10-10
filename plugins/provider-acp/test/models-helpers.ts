@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProviderSession } from "@bb/runner";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 import type { AcpLaunchSpec, AcpRunnerAgent } from "../src/launch-spec.js";
 import { createHarness, FAKE_AGENT, text } from "./adapter-harness.js";
 
@@ -155,4 +155,24 @@ export function effortIds(model: {
   supportedReasoningEfforts: { reasoningEffort: string }[];
 }) {
   return model.supportedReasoningEfforts.map((e) => e.reasoningEffort);
+}
+
+export async function completeTurnWith(
+  harness: Harness,
+  session: ProviderSession,
+  prompt: string,
+  execution: Partial<Harness["execution"]> = {},
+) {
+  const finished = () =>
+    harness.events.filter((event) => event.type === "turn/completed").length;
+  const before = finished();
+  await startTurn(harness, session, prompt, execution);
+  await vi.waitFor(
+    () => {
+      harness.host.events.flush();
+      if (finished() === before) throw new Error("turn still running");
+    },
+    { timeout: 10_000, interval: 20 },
+  );
+  return agentTexts(harness).at(-1);
 }
