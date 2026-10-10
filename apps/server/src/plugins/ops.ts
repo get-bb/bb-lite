@@ -109,7 +109,6 @@ export function hostOps(ctx: HostContext, bb: PluginVerbs): void {
   bb.implement(plugins.uninstall, async ({ path }) => {
     const id = ctx.plugins.idOfDirectory(path);
     await writeExternalPluginEntry(configFile, path, null);
-    if (id === null) await ctx.plugins.reload();
-    else await ctx.plugins.refresh(id);
+    await ctx.plugins.refresh(id);
   });
 }

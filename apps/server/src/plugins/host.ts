@@ -109,9 +109,9 @@ export class PluginHost extends PluginRegistry {
     }
   }
 
-  async refresh(id: string): Promise<void> {
+  async refresh(id: string | null): Promise<void> {
     await this.discover();
-    const record = this.records.get(id);
+    const record = id === null ? undefined : this.records.get(id);
     if (record !== undefined) await this.loadWithDependents(record);
     await this.announce();
   }

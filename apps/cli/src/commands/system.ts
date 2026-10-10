@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
   confirm,
@@ -484,12 +484,12 @@ async function editPluginConfig(c: Call, add: boolean): Promise<void> {
       `Loaded directories: ${known || "none"}`,
     );
   }
-  const plugins = add ? [...others, { path, enabled: true }] : others;
-  const next = JSON.stringify({ ...config, plugins }, null, 2);
-  await writeFile(file, `${next}\n`);
-  const result = await c.op(c.ops.plugins.reload, {});
+  if (add) await c.op(c.ops.plugins.install, { path });
+  else await c.op(c.ops.plugins.uninstall, { path });
+  const { plugins } = await c.op(c.ops.plugins.list, {});
   const done = add ? "added to" : "removed from";
-  c.out(result, `${path} ${done} ${file}; plugins reloaded`);
+  const state = add ? "plugin loaded" : "plugin unloaded";
+  c.out({ ok: true, plugins }, `${path} ${done} ${file}; ${state}`);
 }
 
 export const pluginAdd: Run = async (c) => {

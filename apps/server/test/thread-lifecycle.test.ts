@@ -1,10 +1,13 @@
+import { cpSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { threads } from "@bb/plugin";
 import type { PendingInteractionPayload } from "@bb/domain";
 import type { ThreadTimelineResponse as Timeline } from "@bb/server-contract";
 import { expect, it, vi } from "vitest";
 import { insertRow, openDatabase } from "@bb/server-kit/db/index";
 import { createServer } from "../src/server.js";
-import { FakeRunner } from "./helpers.js";
+import { FakeRunner, scratch } from "./helpers.js";
 import {
   createThreadServer,
   events,
@@ -227,6 +230,31 @@ it("keeps a running turn when plugins are reloaded", async () => {
   expect(eventData(lost, interrupted)).toEqual([
     { reason: "host-daemon-restarted" },
   ]);
+});
+
+it("adds and removes a plugin without restarting the others", async () => {
+  const server = await createThreadServer();
+  const { eventData, ingest, thread } = server;
+  const id = await server.spawn();
+  await ingest(id, events.identity(), events.started("t1"));
+  const fixture = new URL("./fixtures/echo-plugin", import.meta.url);
+  const directory = join(scratch(), "echo");
+  cpSync(fileURLToPath(fixture), directory, { recursive: true });
+  const loaded = () => server.ctx.plugins.list().map((plugin) => plugin.id);
+  const added = await server.http("POST", "/ops/plugins.install", {
+    path: directory,
+  });
+  expect([added.status, loaded()]).toEqual([
+    200,
+    expect.arrayContaining(["echo"]),
+  ]);
+  const removed = await server.http("POST", "/ops/plugins.uninstall", {
+    path: directory,
+  });
+  expect(removed.status).toBe(200);
+  expect(loaded()).not.toContain("echo");
+  expect(thread(id)).toMatchObject({ status: "active", activeTurnId: "t1" });
+  expect(eventData(id, "system/thread/interrupted")).toEqual([]);
 });
 
 it("interrupts threads that were running when the server stopped", async () => {

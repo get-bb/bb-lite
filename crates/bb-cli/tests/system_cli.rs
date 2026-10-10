@@ -88,7 +88,8 @@ fn plugin_list_add_and_remove() {
     let server = FakeServer::start(vec![
         route("GET", "/plugins", listed.clone()),
         route("GET", "/server/config", config(data.to_str().unwrap())),
-        route("POST", "/plugins/reload", listed),
+        route("POST", "/ops/plugins.install", json!({ "ok": true, "result": {} })),
+        route("POST", "/ops/plugins.uninstall", json!({ "ok": true, "result": null })),
     ]);
     let (result, printed) = run(&server, &["plugin", "list"], CliEnv::default());
     result.unwrap();
@@ -97,15 +98,17 @@ fn plugin_list_add_and_remove() {
     let file = data.join("config.json");
     let (result, printed) = run(&server, &["plugin", "add", path], CliEnv::default());
     result.unwrap();
-    assert_eq!(printed, format!("{path} added to {}; plugins reloaded\n", file.display()));
-    let written = std::fs::read_to_string(&file).unwrap();
-    let expected = json!({ "plugins": [{ "path": path, "enabled": true }] });
-    assert_eq!(written, format!("{}\n", serde_json::to_string_pretty(&expected).unwrap()));
-    let (result, _) = run(&server, &["plugin", "remove", path, "--yes"], CliEnv::default());
+    assert_eq!(printed, format!("{path} added to {}; plugin loaded\n", file.display()));
+    let (result, printed) = run(&server, &["plugin", "remove", path, "--yes"], CliEnv::default());
     result.unwrap();
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "{\n  \"plugins\": []\n}\n");
-    let reloads = server.requests().into_iter().filter(|r| r.method == "POST").count();
-    assert_eq!(reloads, 2);
+    assert_eq!(printed, format!("{path} removed from {}; plugin unloaded\n", file.display()));
+    let posted: Vec<_> = server.requests().into_iter().filter(|r| r.method == "POST").collect();
+    let sent: Vec<_> = posted.iter().map(|r| (r.path.as_str(), r.body.clone())).collect();
+    let body = Some(json!({ "path": path }));
+    assert_eq!(
+        sent,
+        vec![("/ops/plugins.install", body.clone()), ("/ops/plugins.uninstall", body)]
+    );
     let (result, _) = run(&server, &["plugin", "add", data.to_str().unwrap()], CliEnv::default());
     assert_eq!(result.unwrap_err().message, format!("{} has no package.json.", data.display()));
     std::fs::remove_dir_all(root).unwrap();

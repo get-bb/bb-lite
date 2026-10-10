@@ -8,8 +8,8 @@ use serde_json::{Map, Value, json};
 
 use crate::call::CliEnv;
 use crate::call::{
-    Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, parse_json,
-    read_stdin, usage_error,
+    Call, CliError, CliResult, Handler, Output, confirm, integer, machine_flag, read_stdin,
+    usage_error,
 };
 use crate::commands::workspace::{resolve_path, text};
 use crate::http::encode;
@@ -538,34 +538,12 @@ fn edit_plugin_config(call: &mut Call, add: bool) -> CliResult<Output> {
     let config = call.http.get("/server/config", &[])?;
     let file = Path::new(&text(&config, "dataDir")).join("config.json");
     let file = file.to_string_lossy().into_owned();
-    let raw = std::fs::read_to_string(&file).unwrap_or_else(|_| "{}".into());
-    let Value::Object(mut current) = parse_json(&raw, &file)? else {
-        return Err(usage_error(format!("Invalid {file}: Invalid input: expected object")));
-    };
-    let listed = current.get("plugins").cloned().unwrap_or_else(|| json!([]));
-    let Some(listed) = listed.as_array() else {
-        let message = format!("Invalid {file} (plugins): Invalid input: expected array");
-        return Err(usage_error(message));
-    };
-    let mut plugins = Vec::new();
-    for (at, entry) in listed.iter().enumerate() {
-        let Some(known) = entry.get("path").and_then(Value::as_str) else {
-            let message = format!("Invalid {file} (plugins.{at}.path): Invalid input");
-            return Err(usage_error(message));
-        };
-        if resolve_path(known) != path {
-            plugins.push(entry.clone());
-        }
-    }
-    if add {
-        plugins.push(json!({ "path": path, "enabled": true }));
-    }
-    current.insert("plugins".into(), Value::Array(plugins));
-    let next = serde_json::to_string_pretty(&Value::Object(current)).unwrap_or_default();
-    std::fs::write(&file, format!("{next}\n")).map_err(|e| CliError::new(e.to_string()))?;
-    let result = reload(call, None)?;
-    let done = if add { "added to" } else { "removed from" };
-    Ok(Output::text(result, format!("{path} {done} {file}; plugins reloaded")))
+    let op = if add { "install" } else { "uninstall" };
+    call.http.post(&format!("/ops/plugins.{op}"), &json!({ "path": path }))?;
+    let listed = call.http.get("/plugins", &[])?;
+    let result = json!({ "ok": true, "plugins": listed["plugins"] });
+    let (done, state) = if add { ("added to", "loaded") } else { ("removed from", "unloaded") };
+    Ok(Output::text(result, format!("{path} {done} {file}; plugin {state}")))
 }
 
 fn plugin_add(call: &mut Call) -> CliResult<Output> {
