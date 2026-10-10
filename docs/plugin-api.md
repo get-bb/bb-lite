@@ -519,6 +519,13 @@ installAction? }`; `state` is `ready`, `needs_login`, `not_installed`, `update_r
   (`GET /sessions/providers/:providerId/environment-health`) returns `{ providerId, machineId,
 status, label, statusMessage }` with `status` `ready`, `disabled`, `unknown-provider` or `offline`;
   a plugin adds `label` and `statusMessage` by hooking it with `{ providerId }`.
+- A reasoning level is any non-empty id. The standard ones (`none` to `ultra`) keep their order and
+  names; a model may list its own in `supportedReasoningEfforts`, each with an optional `label` the
+  picker shows, and may list `supportedServiceTiers`. A thread's preferred permission mode falls
+  back to one the provider declares.
+- `provider-acp` is the example of a provider for many agents: its server part adds one
+  `sessions.provider` entry per agent and sends the agent list to each machine, and its runner
+  part adds one adapter per agent.
 - The runner part's `ProviderSession.compact?()` is called by `threads.compact` instead of sending
   `/compact` as a prompt; it must open and close a turn.
 - To configure the runner part (for example a list of agents to launch), keep the configuration in
