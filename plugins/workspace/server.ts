@@ -1,4 +1,9 @@
-import { machineFiles } from "@bb/runner";
+import {
+  FILE_PAYLOAD_MAX_BYTES,
+  machineFiles,
+  type FileLocation,
+} from "@bb/runner";
+import { createHash } from "node:crypto";
 import { isAbsolute, posix, resolve } from "node:path";
 import {
   files,
@@ -10,6 +15,8 @@ import {
 import { RunnerError } from "@bb/runner";
 import { implementMachineFiles, registerFileRoutes } from "./routes.js";
 import { startWorkspaceWatch } from "./watch.js";
+
+export const FILE_READ_MAX_BYTES = 16 * 1024 * 1024;
 
 const served = (path: string) =>
   path.replace(/^\/+/u, "").split("/").map(encodeURIComponent).join("/");
@@ -48,22 +55,56 @@ export default function workspace(bb: PluginServerApi): void {
     const rootPath = free ? undefined : (base.path ?? undefined);
     return { runner: runners.get(base.hostId), rootPath };
   };
+  const readChunked = async (
+    runner: ReturnType<typeof runners.get>,
+    location: FileLocation,
+  ) => {
+    const chunk = (offset: number, length: number, revision: string | null) =>
+      runner.call(machineFiles.readChunk, {
+        ...location,
+        offset,
+        length,
+        revision,
+      });
+    const { sizeBytes, revision } = await chunk(0, 0, null);
+    if (sizeBytes > FILE_READ_MAX_BYTES) {
+      const limit = `${sizeBytes} bytes; max ${FILE_READ_MAX_BYTES}`;
+      const message = `${location.path} is too large to read (${limit}).`;
+      throw new OpError("invalid_input", message);
+    }
+    const parts: Buffer[] = [];
+    for (let offset = 0; offset < sizeBytes;) {
+      const length = Math.min(FILE_PAYLOAD_MAX_BYTES, sizeBytes - offset);
+      const { dataBase64 } = await chunk(offset, length, revision);
+      const part = Buffer.from(dataBase64, "base64");
+      if (part.length !== length) {
+        throw new OpError("conflict", "File changed during read");
+      }
+      parts.push(part);
+      offset += length;
+    }
+    return Buffer.concat(parts);
+  };
   bb.http.api((app) => registerFileRoutes(app, bb));
   implementMachineFiles(bb);
   bb.implement(files.read, async (args) => {
     const { threadId, path, encoding = "utf8", source } = args;
     const { runner, rootPath } = await located(threadId, path, source);
-    const missing = (error: unknown) => {
-      const absent = error instanceof RunnerError;
-      if (absent && error.code === "path_not_found") return null;
-      throw error;
-    };
-    const file = await runner
-      .call(machineFiles.read, { path, rootPath })
-      .catch(missing);
-    if (file === null || !("content" in file)) return null;
-    const bytes = Buffer.from(file.content, file.contentEncoding);
-    return { content: bytes.toString(encoding), sha256: file.sha256 };
+    const location = { path, rootPath };
+    const failed = (error: unknown) =>
+      error instanceof RunnerError ? error.code : null;
+    try {
+      const file = await runner.call(machineFiles.read, location);
+      if (!("content" in file)) return null;
+      const bytes = Buffer.from(file.content, file.contentEncoding);
+      return { content: bytes.toString(encoding), sha256: file.sha256 };
+    } catch (error) {
+      if (failed(error) === "path_not_found") return null;
+      if (failed(error) !== "file_too_large") throw error;
+    }
+    const bytes = await readChunked(runner, location);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    return { content: bytes.toString(encoding), sha256 };
   });
   bb.implement(files.url, async ({ threadId, path, source }) => {
     const kind = source ?? (isAbsolute(path) ? "host" : "workspace");
