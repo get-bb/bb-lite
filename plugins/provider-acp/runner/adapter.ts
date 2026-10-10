@@ -174,7 +174,17 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
     },
     async listModels() {
       try {
-        return await engine.listAcpModels(standalone);
+        const catalog = await engine.listAcpModels(standalone);
+        const declared = await engine.listAcpSessionOptions(standalone);
+        return declared.length === 0
+          ? catalog
+          : {
+              ...catalog,
+              models: catalog.models.map((model) => ({
+                ...model,
+                sessionOptions: [...declared],
+              })),
+            };
       } catch (error) {
         throw openError(agent, error);
       }
@@ -193,6 +203,7 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
         permissionMode: current.permissionMode,
         envVars: env,
         providerOptions: options,
+        sessionOptions: current.sessionOptions,
       });
       const session = new AcpSession(
         threadId,

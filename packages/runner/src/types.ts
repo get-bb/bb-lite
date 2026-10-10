@@ -8,6 +8,7 @@ import type {
   PromptInput,
   ReasoningLevel,
   ServiceTier,
+  SessionOptionSelections,
   ThreadEvent,
   ToolCallResponse,
 } from "@bb/domain";
@@ -41,6 +42,7 @@ export interface ExecutionOptions {
   permissionMode: PermissionMode;
   permissionEscalation: PermissionEscalation;
   providerOptions: Record<string, unknown>;
+  sessionOptions?: SessionOptionSelections;
 }
 
 export interface CustomModelSettings {
