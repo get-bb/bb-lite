@@ -7,9 +7,9 @@ import type {
 import path from "node:path";
 
 import type {
-  AcpNativeReasoning as AcpBridgeNativeReasoning,
-  AcpPermissionCli as AcpBridgePermissionCli,
-  AcpReasoningCli as AcpBridgeReasoningCli,
+  AcpNativeReasoning,
+  AcpPermissionCli,
+  AcpReasoningCli,
 } from "../src/launch-spec.js";
 import { cursorParameterizedSelection } from "./cursor-model-selection.js";
 import type { AcpLaunchSpec } from "../src/launch-spec.js";
@@ -46,8 +46,8 @@ export interface AcpModelListParams {
   primaryModels: string[];
   reasoningProbePriorityModelIds: string[];
   parameterizedModelPicker: boolean;
-  reasoningCli?: AcpBridgeReasoningCli;
-  nativeReasoning?: AcpBridgeNativeReasoning;
+  reasoningCli?: AcpReasoningCli;
+  nativeReasoning?: AcpNativeReasoning;
 }
 
 type AcpModelSelection =
@@ -71,10 +71,10 @@ export interface AcpSessionParams {
   dialectId?: string | undefined;
   modelSelection?: AcpModelSelection | undefined;
   launchReasoningLevel?: ReasoningLevel | undefined;
-  reasoningCli?: AcpBridgeReasoningCli;
-  nativeReasoning?: AcpBridgeNativeReasoning;
+  reasoningCli?: AcpReasoningCli;
+  nativeReasoning?: AcpNativeReasoning;
   parameterizedModelPicker: boolean;
-  permissionCli?: AcpBridgePermissionCli;
+  permissionCli?: AcpPermissionCli;
   permissionMode: "accept-edits" | "full";
   workspaceWriteRoots: string[];
   envVars?: Record<string, string>;

@@ -29,8 +29,7 @@ import { dirname, isAbsolute, basename, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import {
-  acpLaunchSpecSchema,
-  type AcpLaunchSpec,
+  type AcpRunnerAgent,
   type AcpNativeReasoning as AcpNativeReasoning,
   type AcpPermissionCli as AcpPermissionCli,
   type AcpReasoningCli as AcpReasoningCli,
@@ -150,7 +149,6 @@ export interface AcpExecutionOptions {
   permissionMode: PermissionMode;
   envVars?: Record<string, string> | undefined;
   sessionOptions?: SessionOptionSelections | undefined;
-  providerOptions?: Record<string, unknown> | undefined;
 }
 
 export interface AcpSessionOutput {
@@ -172,7 +170,6 @@ interface TurnInputSettlement {
   reject(error: Error): void;
 }
 
-const outputsByBbThreadId = new Map<string, AcpSessionOutput>();
 let mcpScriptDirectory: string | null = null;
 
 function log(text: string): void {
@@ -203,6 +200,9 @@ interface AcpNativeConfigState {
 
 interface AcpThreadSession {
   bbThreadId: string;
+  agent: AcpRunnerAgent;
+  output: AcpSessionOutput;
+  detached: boolean;
   construction: AcpSessionParams;
   nativeConfig: AcpNativeConfigState;
   providerThreadId: string;
@@ -260,8 +260,12 @@ const ACP_SESSION_SETUP_TIMEOUT_MS = 300_000;
 const ACP_SESSION_CONFIG_TIMEOUT_MS = 60_000;
 const ACP_AUTHENTICATE_TIMEOUT_MS = 120_000;
 
-function sessionEvents(threadId: string): EventBuilder | undefined {
-  return outputsByBbThreadId.get(threadId)?.events;
+function threadOutput(session: AcpThreadSession): AcpSessionOutput | undefined {
+  const current = sessionsByBbThreadId.get(session.bbThreadId);
+  if (current !== undefined) {
+    return current.output;
+  }
+  return session.detached ? undefined : session.output;
 }
 
 function rememberGrokContextWindow(
@@ -285,7 +289,7 @@ function emitGrokContextWindow(session: AcpThreadSession, used: number): void {
     return;
   }
   const cost = session.model.snapshot().usage?.cost ?? undefined;
-  sessionEvents(session.bbThreadId)?.contextWindow(
+  threadOutput(session)?.events.contextWindow(
     {
       usedTokens: used,
       modelContextWindow: session.grokContextWindowSize,
@@ -302,7 +306,7 @@ function emitSessionError(session: AcpThreadSession, message: string): void {
   if (session.activePromptKind !== null) {
     session.translator.failed(message);
   }
-  outputsByBbThreadId.get(session.bbThreadId)?.failed(message);
+  threadOutput(session)?.failed(message);
 }
 
 async function toolProxyScriptArgs(): Promise<string[]> {
@@ -353,7 +357,7 @@ async function forwardDynamicToolCall(
   session.pendingToolCalls.add(controller);
   session.translator.noteInjectedToolCall(session.bbThreadId, args.tool);
   try {
-    const output = outputsByBbThreadId.get(session.bbThreadId);
+    const output = threadOutput(session);
     if (!output) {
       return {
         ok: false,
@@ -375,10 +379,7 @@ async function forwardDynamicToolCall(
   }
 }
 
-function handleToolProxySocket(
-  proxy: AcpToolProxy,
-  socket: Socket,
-): void {
+function handleToolProxySocket(proxy: AcpToolProxy, socket: Socket): void {
   const controller = new AbortController();
   socket.once("close", () => controller.abort());
   let handled = false;
@@ -441,9 +442,7 @@ async function ensureToolProxy(): Promise<AcpToolProxy> {
     server.listen(0, host, () => {
       const address = server.address();
       if (!address || typeof address === "string") {
-        rejectProxy(
-          new Error("ACP tool proxy did not bind a TCP port"),
-        );
+        rejectProxy(new Error("ACP tool proxy did not bind a TCP port"));
         return;
       }
       resolveProxy({
@@ -1612,7 +1611,7 @@ function requestInteraction(
   session: AcpThreadSession,
   payload: PendingInteractionPayload,
 ): Promise<unknown> {
-  const output = outputsByBbThreadId.get(session.bbThreadId);
+  const output = threadOutput(session);
   if (!output) {
     return Promise.reject(new Error("No active ACP session"));
   }
@@ -1919,7 +1918,10 @@ function getSessionByProviderThreadId(
   return bbThreadId ? sessionsByBbThreadId.get(bbThreadId) : undefined;
 }
 
-type AcpSessionStartRequest =
+type AcpSessionStartRequest = {
+  agent: AcpRunnerAgent;
+  output: AcpSessionOutput;
+} & (
   | { kind: "start"; params: AcpSessionParams }
   | {
       kind: "resume";
@@ -1930,7 +1932,8 @@ type AcpSessionStartRequest =
       kind: "fork";
       params: AcpSessionParams;
       sourceProviderThreadId: string;
-    };
+    }
+);
 
 async function startAgentSession(
   request: AcpSessionStartRequest,
@@ -1949,7 +1952,7 @@ async function startAgentSession(
   });
   const translator = createAcpTranslator({
     threadId: bbThreadId,
-    events: () => sessionEvents(bbThreadId),
+    events: () => threadOutput(session)?.events,
     cwd: params.cwd,
     dialect,
   });
@@ -2018,6 +2021,9 @@ async function startAgentSession(
   });
   session = {
     bbThreadId,
+    agent: request.agent,
+    output: request.output,
+    detached: false,
     construction: params,
     nativeConfig: { configOptions: undefined, models: undefined },
     providerThreadId: "",
@@ -2224,7 +2230,7 @@ async function startAgentSession(
     }
     session.providerThreadId = sessionId;
     bbThreadIdByProviderThreadId.set(sessionId, bbThreadId);
-    outputsByBbThreadId.get(bbThreadId)?.identity(sessionId);
+    threadOutput(session)?.identity(sessionId);
     publishSessionSnapshot(session);
     if (createdFreshSession) {
       emitGrokContextWindow(session, 0);
@@ -2243,6 +2249,7 @@ async function startAgentSession(
     return session;
   } catch (error) {
     session.stopping = true;
+    session.detached = true;
     session.deferStartEmit = undefined;
     await connection.kill();
     removeSession(session);
@@ -2403,7 +2410,7 @@ function publishThreadState(
     return;
   }
   session.publishedThreadState.set(kind, serialized);
-  sessionEvents(session.bbThreadId)?.extensionState(kind, payload);
+  threadOutput(session)?.events.extensionState(kind, payload);
 }
 
 async function applySessionOptionSelections(
@@ -2559,6 +2566,7 @@ function emitSessionUpdate(
 }
 
 async function releaseSession(session: AcpThreadSession): Promise<void> {
+  session.detached = true;
   if (session.stopping) {
     return;
   }
@@ -2810,31 +2818,18 @@ function reconcileExecutionSettings(
   if (options.permissionMode === "auto") {
     throw new Error('ACP does not support permission mode "auto".');
   }
-  const launchSpec = decodeLaunchSpec(options.providerOptions);
+  const { agent } = session;
   const envVars =
     Object.keys(options.envVars ?? {}).length > 0
-      ? {
-          ...(launchSpec?.env ?? {}),
-          ...options.envVars,
-        }
+      ? { ...agent.launch.env, ...options.envVars }
       : session.construction.envVars;
-  const workspaceWriteRoots =
-    options.providerOptions?.additionalWorkspaceWriteRoots !== undefined
-      ? [
-          session.cwd,
-          ...decodeAdditionalWorkspaceWriteRoots(options.providerOptions),
-        ]
-      : session.policy.workspaceWriteRoots;
-  const modelParams =
-    launchSpec === null
-      ? session.construction
-      : buildAcpModelSelectionParams(
-          launchSpec,
-          options,
-          decodeAcpModelPickerOptions(options.providerOptions)
-            .parameterizedModelPicker,
-          decodeDialectId(options.providerOptions),
-        );
+  const workspaceWriteRoots = session.construction.workspaceWriteRoots;
+  const modelParams = buildAcpModelSelectionParams(
+    agent.launch,
+    options,
+    agent.parameterizedModelPicker === true,
+    agent.dialect,
+  );
   const construction: AcpSessionParams = {
     ...session.construction,
     modelSelection: modelParams.modelSelection,
@@ -2927,6 +2922,8 @@ async function rebuildAgentSession(
   let replacement: AcpThreadSession;
   try {
     replacement = await startAgentSession({
+      agent: session.agent,
+      output: session.output,
       kind: "resume",
       params: construction,
       resumeProviderThreadId: previousProviderThreadId,
@@ -2946,9 +2943,7 @@ async function rebuildAgentSession(
       summary: reason,
     });
   }
-  outputsByBbThreadId
-    .get(session.bbThreadId)
-    ?.replaced(replacement.providerThreadId);
+  threadOutput(session)?.replaced(replacement.providerThreadId);
   return replacement;
 }
 
@@ -3121,96 +3116,43 @@ function handleAgentNotification(
   emitSessionUpdate(session, parsed.data.update, rawUpdate);
 }
 
-function decodeLaunchSpec(
-  providerOptions: Record<string, unknown> | undefined,
-): AcpLaunchSpec | null {
-  const launchSpec = acpLaunchSpecSchema.safeParse(
-    providerOptions?.["acpLaunchSpec"],
-  );
-  return launchSpec.success ? launchSpec.data : null;
-}
-
-const acpProviderOptionsSchema = z
-  .object({
-    additionalWorkspaceWriteRoots: z.array(z.string()).optional(),
-    acpDialect: z.string().min(1).optional(),
-    parameterizedModelPicker: z.boolean().optional(),
-    primaryModels: z.array(z.string().min(1)).optional(),
-    reasoningProbePriorityModelIds: z.array(z.string().min(1)).optional(),
-  })
-  .passthrough();
-
-interface AcpModelPickerOptions {
-  parameterizedModelPicker: boolean;
-  primaryModels?: string[];
-  reasoningProbePriorityModelIds: string[];
-}
-
-function decodeAcpModelPickerOptions(
-  providerOptions: Record<string, unknown> | undefined,
-): AcpModelPickerOptions {
-  const parsed = acpProviderOptionsSchema.parse(providerOptions ?? {});
-  return {
-    parameterizedModelPicker: parsed.parameterizedModelPicker === true,
-    ...(parsed.primaryModels === undefined
-      ? {}
-      : { primaryModels: [...parsed.primaryModels] }),
-    reasoningProbePriorityModelIds: [
-      ...(parsed.reasoningProbePriorityModelIds ?? []),
-    ],
-  };
-}
-
-function decodeAdditionalWorkspaceWriteRoots(
-  providerOptions: Record<string, unknown> | undefined,
-): string[] {
-  return (
-    acpProviderOptionsSchema.parse(providerOptions ?? {})
-      .additionalWorkspaceWriteRoots ?? []
-  );
-}
-
-function decodeDialectId(
-  providerOptions: Record<string, unknown> | undefined,
-): string | undefined {
-  return acpProviderOptionsSchema.parse(providerOptions ?? {}).acpDialect;
-}
-
-function maintenanceTarget(
-  providerOptions: Record<string, unknown> | undefined,
-): {
+function maintenanceFor(agent: AcpRunnerAgent): {
   maintenance: AcpMaintenanceDialect | undefined;
-  command: string | null;
+  command: string;
   dialectId: string;
   env: NodeJS.ProcessEnv;
 } {
-  const launchSpec = decodeLaunchSpec(providerOptions);
   const dialect = resolveAcpDialect({
-    dialectId: decodeDialectId(providerOptions),
-    command: launchSpec?.command ?? "",
+    dialectId: agent.dialect,
+    command: agent.launch.command,
   });
   return {
     maintenance: dialect.maintenance,
-    command: launchSpec?.command ?? null,
+    command: agent.launch.command,
     dialectId: dialect.id,
-    env: { ...process.env, ...launchSpec?.env },
+    env: { ...process.env, ...agent.launch.env },
   };
 }
 
-export type AcpProviderOptions = Record<string, unknown>;
+function modelListParams(agent: AcpRunnerAgent) {
+  return buildAcpModelListParams(agent.launch, {
+    parameterizedModelPicker: agent.parameterizedModelPicker === true,
+    ...(agent.primaryModels === undefined
+      ? {}
+      : { primaryModels: agent.primaryModels }),
+    reasoningProbePriorityModelIds: agent.reasoningProbePriorityModelIds ?? [],
+  });
+}
 
 export function setAcpToolProxyDirectory(directory: string): void {
   mcpScriptDirectory = directory;
 }
 
 export async function listAcpModels(
-  providerOptions: AcpProviderOptions,
+  agent: AcpRunnerAgent,
 ): Promise<{ models: AvailableModel[]; selectedOnlyModels: AvailableModel[] }> {
-  const params = buildAcpModelListParams(
-    decodeLaunchSpec(providerOptions),
-    decodeAcpModelPickerOptions(providerOptions),
-  );
-  const dialectId = decodeDialectId(providerOptions);
+  const params = modelListParams(agent);
+  const dialectId = agent.dialect;
   const reasoning = {
     reasoningCli: params.reasoningCli,
     nativeReasoning: params.nativeReasoning,
@@ -3248,12 +3190,9 @@ export async function listAcpModels(
 }
 
 export async function listAcpSessionOptions(
-  providerOptions: AcpProviderOptions,
+  agent: AcpRunnerAgent,
 ): Promise<ThreadSessionOption[]> {
-  const params = buildAcpModelListParams(
-    decodeLaunchSpec(providerOptions),
-    decodeAcpModelPickerOptions(providerOptions),
-  );
+  const params = modelListParams(agent);
   return params.optionsAgent
     ? loadDeclaredSessionOptions(
         params.optionsAgent,
@@ -3263,20 +3202,19 @@ export async function listAcpSessionOptions(
 }
 
 export function acpProviderHealth(
-  providerOptions: AcpProviderOptions,
+  agent: AcpRunnerAgent,
   provider: Omit<AcpStatusTarget, "maintenance" | "command">,
 ) {
-  return getAcpProviderStatus({
-    ...provider,
-    ...maintenanceTarget(providerOptions),
-  });
+  return getAcpProviderStatus({ ...provider, ...maintenanceFor(agent) });
 }
 
-export function acpProviderUsage(providerOptions: AcpProviderOptions) {
-  return getAcpProviderUsage(maintenanceTarget(providerOptions));
+export function acpProviderUsage(agent: AcpRunnerAgent) {
+  return getAcpProviderUsage(maintenanceFor(agent));
 }
 
 export interface AcpOpenRequest {
+  agent: AcpRunnerAgent;
+  additionalWorkspaceWriteRoots: readonly string[];
   threadId: string;
   cwd: string;
   dynamicTools: readonly DynamicTool[];
@@ -3296,16 +3234,10 @@ export interface AcpOpenedSession {
 export async function openAcpSession(
   request: AcpOpenRequest,
 ): Promise<AcpOpenedSession> {
-  const { options, threadId } = request;
-  const launchSpec = decodeLaunchSpec(options.providerOptions);
-  if (launchSpec === null) {
-    throw new RunnerError("failed", "This ACP agent has no launch command.");
-  }
+  const { agent, options, output, threadId } = request;
   const sessionParams = buildAcpSessionParams({
-    additionalWorkspaceWriteRoots: decodeAdditionalWorkspaceWriteRoots(
-      options.providerOptions,
-    ),
-    dialectId: decodeDialectId(options.providerOptions),
+    additionalWorkspaceWriteRoots: request.additionalWorkspaceWriteRoots,
+    dialectId: agent.dialect,
     cwd: request.cwd,
     dynamicTools: request.dynamicTools,
     options: {
@@ -3313,17 +3245,16 @@ export async function openAcpSession(
       instructions: request.instructions,
       skillRoots: request.skillRoots,
     },
-    parameterizedModelPicker: decodeAcpModelPickerOptions(
-      options.providerOptions,
-    ).parameterizedModelPicker,
-    launchSpec,
-    providerLabel: launchSpec.displayName,
+    parameterizedModelPicker: agent.parameterizedModelPicker === true,
+    launchSpec: agent.launch,
+    providerLabel: agent.launch.displayName,
     threadId,
   });
-  outputsByBbThreadId.set(threadId, request.output);
   try {
-    const session = await startAgentSession(
-      request.forkProviderThreadId !== undefined
+    const session = await startAgentSession({
+      agent,
+      output,
+      ...(request.forkProviderThreadId !== undefined
         ? {
             kind: "fork",
             params: sessionParams,
@@ -3335,16 +3266,13 @@ export async function openAcpSession(
               params: sessionParams,
               resumeProviderThreadId: request.resumeProviderThreadId,
             }
-          : { kind: "start", params: sessionParams },
-    );
+          : { kind: "start", params: sessionParams }),
+    });
     return {
       providerThreadId: session.providerThreadId,
       restorable: session.supportsLoadSession,
     };
   } catch (error) {
-    if (outputsByBbThreadId.get(threadId) === request.output) {
-      outputsByBbThreadId.delete(threadId);
-    }
     throw withAcpAuthRequiredRecovery(error);
   }
 }
@@ -3435,9 +3363,6 @@ export async function stopAcpSession(
     await (intent === "release"
       ? releaseSession(session)
       : stopSession(session));
-  }
-  if (intent === "release") {
-    outputsByBbThreadId.delete(threadId);
   }
 }
 

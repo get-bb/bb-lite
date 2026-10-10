@@ -33,11 +33,12 @@ function setConfigRequests(log: string): unknown[] {
 type Selections = NonNullable<AcpExecutionOptions["sessionOptions"]>;
 
 function requesting(session: ProviderSession, sessionOptions: Selections) {
-  const target = session as unknown as {
-    execution: (options: unknown) => AcpExecutionOptions;
-  };
-  const original = target.execution;
-  target.execution = (options) => ({ ...original(options), sessionOptions });
+  const startTurn = session.startTurn.bind(session);
+  session.startTurn = (turn) =>
+    startTurn({ ...turn, options: { ...turn.options, sessionOptions } });
+  const steer = session.steer.bind(session);
+  session.steer = (input) =>
+    steer({ ...input, options: { ...input.options, sessionOptions } });
 }
 
 const OPTIONS = [

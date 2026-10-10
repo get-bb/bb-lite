@@ -41,10 +41,6 @@ export default function acpRunner(bb: PluginRunnerApi): void {
   bb.implement(acpMachine.usage, async ({ providerId }) => {
     const agent = offered.get(providerId)?.agent;
     if (agent === undefined) return null;
-    const options = {
-      acpLaunchSpec: agent.launch,
-      ...(agent.dialect === undefined ? {} : { acpDialect: agent.dialect }),
-    };
-    return acpProviderUsage(options);
+    return acpProviderUsage(agent);
   });
 }

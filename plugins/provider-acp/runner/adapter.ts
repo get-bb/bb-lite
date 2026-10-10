@@ -18,22 +18,17 @@ import type { AcpSkillRoot } from "./session-params.js";
 
 const LAUNCH_FAILURE = /^Failed to launch ACP agent/u;
 
-function providerOptions(agent: AcpRunnerAgent, writableRoots: string[]) {
+function turnOptions(
+  options: ExecutionOptions,
+  envVars: Record<string, string>,
+): engine.AcpExecutionOptions {
   return {
-    acpLaunchSpec: agent.launch,
-    additionalWorkspaceWriteRoots: writableRoots,
-    ...(agent.dialect === undefined ? {} : { acpDialect: agent.dialect }),
-    ...(agent.parameterizedModelPicker === true
-      ? { parameterizedModelPicker: true }
-      : {}),
-    ...(agent.primaryModels === undefined
-      ? {}
-      : { primaryModels: agent.primaryModels }),
-    ...(agent.reasoningProbePriorityModelIds === undefined
-      ? {}
-      : {
-          reasoningProbePriorityModelIds: agent.reasoningProbePriorityModelIds,
-        }),
+    model: options.model,
+    reasoningLevel: options.reasoningLevel,
+    serviceTier: options.serviceTier,
+    permissionMode: options.permissionMode,
+    envVars,
+    sessionOptions: options.sessionOptions,
   };
 }
 
@@ -97,9 +92,7 @@ class AcpSession implements ProviderSession {
     private readonly threadId: string,
     private readonly signature: string,
     private readonly host: SessionHost,
-    private readonly execution: (
-      options: ExecutionOptions,
-    ) => engine.AcpExecutionOptions,
+    private readonly env: Record<string, string>,
   ) {}
 
   canApply(spec: SessionSpec) {
@@ -108,21 +101,19 @@ class AcpSession implements ProviderSession {
   }
 
   startTurn({ clientRequestId, input, options }: TurnInput) {
-    const request = { clientRequestId, input };
-    const execution = this.execution(options);
     return engine.startAcpTurn(this.threadId, {
-      ...request,
-      options: execution,
+      clientRequestId,
+      input,
+      options: turnOptions(options, this.env),
     });
   }
 
   async steer({ clientRequestId, input, options, expectedTurnId }: SteerInput) {
     if (this.host.events.activeTurnId !== expectedTurnId) return "stale";
-    const request = { clientRequestId, input };
-    const execution = this.execution(options);
     return engine.steerAcpTurn(this.threadId, {
-      ...request,
-      options: execution,
+      clientRequestId,
+      input,
+      options: turnOptions(options, this.env),
     });
   }
 
@@ -136,12 +127,11 @@ class AcpSession implements ProviderSession {
 }
 
 export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
-  const standalone = providerOptions(agent, []);
   return {
     id: agent.id,
     approvalEnforcedBy: "runner",
     status(): Promise<ProviderStatus> {
-      return engine.acpProviderHealth(standalone, {
+      return engine.acpProviderHealth(agent, {
         providerId: agent.id,
         missingMessage: missingCli(agent),
         signedOutMessage:
@@ -152,8 +142,8 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
     },
     async listModels() {
       try {
-        const catalog = await engine.listAcpModels(standalone);
-        const declared = await engine.listAcpSessionOptions(standalone);
+        const catalog = await engine.listAcpModels(agent);
+        const declared = await engine.listAcpSessionOptions(agent);
         return declared.length === 0
           ? catalog
           : {
@@ -172,23 +162,7 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
       const inherited = { ...host.processEnv };
       delete inherited["ELECTRON_RUN_AS_NODE"];
       const env = { ...inherited, ...host.env, BB_THREAD_ID: threadId };
-      const roots = [...host.writableRoots, host.threadStorageDir];
-      const options = providerOptions(agent, roots);
-      const toExecution = (current: ExecutionOptions) => ({
-        model: current.model,
-        reasoningLevel: current.reasoningLevel,
-        serviceTier: current.serviceTier,
-        permissionMode: current.permissionMode,
-        envVars: env,
-        providerOptions: options,
-        sessionOptions: current.sessionOptions,
-      });
-      const session = new AcpSession(
-        threadId,
-        signature(spec),
-        host,
-        toExecution,
-      );
+      const session = new AcpSession(threadId, signature(spec), host, env);
       const identify = (providerThreadId: string) => {
         if (session.providerThreadId === providerThreadId) return;
         session.providerThreadId = providerThreadId;
@@ -212,12 +186,17 @@ export function createAcpAdapter(agent: AcpRunnerAgent): ProviderAdapter {
       };
       try {
         const opened = await engine.openAcpSession({
+          agent,
+          additionalWorkspaceWriteRoots: [
+            ...host.writableRoots,
+            host.threadStorageDir,
+          ],
           threadId,
           cwd: spec.cwd,
           dynamicTools: spec.dynamicTools,
           instructions: spec.instructions,
           skillRoots: await skillRoots(spec.skillDirs),
-          options: toExecution(execution),
+          options: turnOptions(execution, env),
           output,
           resumeProviderThreadId: spec.providerThreadId ?? undefined,
         });
