@@ -21,7 +21,6 @@ export const appLoaders: Record<string, Load> = {
   marketplace: () => import("../../plugins/marketplace/app"),
   memory: () => import("../../plugins/memory/app"),
   "monaco-editor": () => import("../../plugins/monaco-editor/app"),
-  navigation: () => import("../../plugins/navigation/app"),
   "pdf-preview": () => import("../../plugins/pdf-preview/app"),
   "plugin-api-docs": () => import("../../plugins/plugin-api-docs/app"),
   "plugin-api-tester": () => import("../../plugins/plugin-api-tester/app"),

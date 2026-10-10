@@ -198,7 +198,7 @@ before the overnight port and were already on this API.
 | keep-awake                     | Ported               | Nothing                                                                                                                         |
 | memory                         | Ported               | Nothing                                                                                                                         |
 | monaco-editor                  | Ported (2 stages)    | Toolbar extras, tree resizing, files of a project with no environment                                                           |
-| navigation                     | Imported             | Reordering and hiding entries, which its overview still claims                                                                  |
+| navigation                     | Removed              | The rail is the only sidebar layout, as in the original; destinations are `shell.navItem` and `shell.navPanel` entries          |
 | pdf-preview                    | Ported               | Nothing                                                                                                                         |
 | plugin-api-docs                | Ported               | Runtime shapes of `z.custom` outputs and the app kernel's slots are not visible to the server                                   |
 | plugin-api-tester              | Ported               | Nothing                                                                                                                         |

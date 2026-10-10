@@ -16,16 +16,6 @@ const railItemIdListSchema = z
   .max(500);
 
 export const uiPreferenceDefinitions = {
-  "sidebar.navigationProvider": provider(
-    "__automatic__",
-    "__builtin__",
-    "navigation/navigation",
-  ),
-  "sidebar.headerProvider": provider(
-    "__builtin__",
-    "__automatic__",
-    "__builtin__",
-  ),
   "sidebar.threadListProvider": provider(
     "__automatic__",
     "__builtin__",

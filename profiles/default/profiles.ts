@@ -11,7 +11,6 @@ const ENVIRONMENT_KINDS = [
 ];
 const SCREEN = [
   "thread-list",
-  "navigation",
   "pdf-preview",
   "voice-input",
   "theme-preview",
@@ -101,9 +100,4 @@ export const CORE = [
   "side-panel",
 ];
 
-export const LOADED_FIRST = [
-  ...PROVIDERS,
-  ...ENVIRONMENT_KINDS,
-  "thread-list",
-  "navigation",
-];
+export const LOADED_FIRST = [...PROVIDERS, ...ENVIRONMENT_KINDS, "thread-list"];

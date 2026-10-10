@@ -82,7 +82,6 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   marketplace: marketplace,
   memory: memory,
   "monaco-editor": monacoEditor,
-  navigation: null,
   "pdf-preview": null,
   "plugin-api-docs": pluginApiDocs,
   "plugin-api-tester": pluginApiTester,

@@ -569,7 +569,7 @@ it("names the one slot each original view slot became", () => {
   expect(pathFor("app.slots.navPanel").now).toMatch(
     /^bb\.add\(shell\.navPanel,/,
   );
-  expect(pathFor("app.slots.sidebarHeader").now).not.toContain("|");
+  expect(pathFor("app.slots.sidebarHeader").now).toContain("shell.navItem");
   expect(pathFor("manifest.engines.bbPluginSdk").now).toContain("drop it");
 });
 

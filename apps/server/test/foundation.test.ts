@@ -187,7 +187,7 @@ it("answers errors in the API envelope", async () => {
 
 it("guards ui preferences with per-key revisions", async () => {
   const { api, ctx } = await createTestServer();
-  const key = "sidebar.headerProvider";
+  const key = "sidebar.threadListProvider";
   const value = getUiPreferenceDefault(key);
   const imported = { key: "sidebar.organizationMode", valueJson: '"machine"' };
   insertRow(ctx.db, "ui_preferences", {

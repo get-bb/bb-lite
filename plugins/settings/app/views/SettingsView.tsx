@@ -25,11 +25,6 @@ import {
 import { settings as settingsSlots, shell } from "@bb/plugin/app";
 import { useSettingsNavState } from "../components/settings/settings-nav";
 import { SlotMount, useSlotEntries, useOwned } from "@bb/app-kit/plugins/slots";
-import { sidebarHeaderProviderAtom } from "@bb/app-kit/components/sidebar/sidebarHeaderProvider";
-import {
-  BUNDLED_NAVIGATION_PROVIDER,
-  sidebarNavigationProviderAtom,
-} from "@bb/app-kit/components/sidebar/sidebarNavigationProvider";
 import {
   BUNDLED_THREAD_LIST_PROVIDER,
   threadListProviderAtom,
@@ -63,7 +58,6 @@ import { SETTINGS_ROUTE_PATH } from "@bb/app-kit/lib/route-paths";
 import { dimInactiveSplitsAtom } from "@bb/app-kit/lib/split-layout/atoms";
 import {
   AUTOMATIC_PROVIDER,
-  NO_PROVIDER,
   findAutomaticProvider,
   providerKey,
 } from "@bb/app-kit/plugins/registry";
@@ -179,7 +173,6 @@ interface ProviderChoiceProps {
   atom: WritableAtom<string, [string], void>;
   slots: readonly { pluginId: string; id: string; title: string }[];
   bundled?: string;
-  builtIn?: boolean;
 }
 
 function ProviderChoice({
@@ -188,16 +181,12 @@ function ProviderChoice({
   atom,
   slots,
   bundled,
-  builtIn,
 }: ProviderChoiceProps) {
   const [preference, setPreference] = useAtom(atom);
-  const options = [
-    ...slots.map((slot) => ({
-      value: providerKey(slot),
-      content: slot.title,
-    })),
-    ...(builtIn ? [{ value: NO_PROVIDER, content: "bb (built-in)" }] : []),
-  ];
+  const options = slots.map((slot) => ({
+    value: providerKey(slot),
+    content: slot.title,
+  }));
   const automatic = findAutomaticProvider(slots, bundled);
   const value =
     preference === AUTOMATIC_PROVIDER && automatic !== undefined
@@ -236,8 +225,6 @@ function AppearanceSettingsSection({
     dimInactiveSplitsAtom,
   );
   const threadLists = useOwned(shell.threadList);
-  const sidebarNavigations = useOwned(shell.sidebarNavigation);
-  const sidebarHeaders = useOwned(shell.sidebarHeader);
   const paletteSelectedRef = useRef(false);
   const palettes = [...builtInThemes, ...themes].map((entry) => ({
     value: entry.id,
@@ -253,23 +240,7 @@ function AppearanceSettingsSection({
       slots: threadLists,
       bundled: BUNDLED_THREAD_LIST_PROVIDER,
     },
-    {
-      label: "Navigation",
-      description:
-        "Choose who arranges the host-owned sidebar destinations on this device.",
-      atom: sidebarNavigationProviderAtom,
-      slots: sidebarNavigations,
-      bundled: BUNDLED_NAVIGATION_PROVIDER,
-    },
-    {
-      label: "Header",
-      description:
-        "Choose what appears beside the sidebar toggle on this device.",
-      atom: sidebarHeaderProviderAtom,
-      slots: sidebarHeaders,
-      builtIn: true,
-    },
-  ].filter((choice) => choice.slots.length + (choice.builtIn ? 1 : 0) > 1);
+  ].filter((choice) => choice.slots.length > 1);
   const pending = disabled || updateAppearance.isPending;
   return (
     <div className="space-y-6">

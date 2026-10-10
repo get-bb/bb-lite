@@ -250,7 +250,6 @@ const BASELINE = [
   "environment-git-worktree",
   "environment-personal-workspace",
   "thread-list",
-  "navigation",
   "secrets",
   "ask-user-question",
   "custom-instructions",
