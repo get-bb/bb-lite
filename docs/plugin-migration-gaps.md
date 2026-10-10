@@ -165,9 +165,9 @@ since settings have no JSON type. Left out:
 
 - Forks: an ACP fork is at the tip, and a provider here can only declare checkpoint forks.
 - The per-agent resolvers for native skill roots; only the static roots are declared.
-- The agent's own options and live slash commands are published as thread state
-  (`bb/session-options`, `bb/provider-commands`) and requested options are applied by the engine,
-  but nothing in the composer shows or sends them yet.
+- The agent's own options and live slash commands are served by `threads.sessionOptions` and
+  `threads.providerCommands` and choices are sent with each turn, but the composer does not show
+  them yet.
 - Raw unhandled agent updates are dropped instead of recorded.
 
 **provider-retry, provider-usage.** Both ported. Retry gets the failure details on `thread.failed`
