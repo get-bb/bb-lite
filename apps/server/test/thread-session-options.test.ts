@@ -3,15 +3,15 @@ import type { ThreadSessionOption } from "@bb/domain";
 import { describe, expect, it } from "vitest";
 import { createThreadServer, type ThreadServer } from "./thread-harness.js";
 
-const approach = (value: string): ThreadSessionOption => ({
+const approach = (
+  value: string,
+  ids: string[] = ["plan", "build"],
+): ThreadSessionOption => ({
   id: "approach",
   label: "Approach",
   type: "select",
   value,
-  values: [
-    { id: "plan", label: "Plan" },
-    { id: "build", label: "Build" },
-  ],
+  values: ids.map((id) => ({ id, label: id === "plan" ? "Plan" : "Build" })),
 });
 const web = (value: boolean): ThreadSessionOption => ({
   id: "web",
@@ -55,9 +55,7 @@ const lastOptions = (server: ThreadServer) =>
 function withCatalog(server: ThreadServer) {
   server.runner.script.listModels = async () => ({
     models: [
-      model("alpha", true, [
-        { ...approach("build"), values: [{ id: "build", label: "Build" }] },
-      ]),
+      model("alpha", true, [approach("build", ["build"])]),
       model("beta", false, [approach("plan"), web(false)]),
     ],
     selectedOnlyModels: [],
