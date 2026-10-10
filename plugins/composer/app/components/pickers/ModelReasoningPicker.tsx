@@ -450,7 +450,8 @@ export function ModelReasoningPicker({
       });
     } else if (event.key === "Enter" && highlightedIndex >= 0) {
       event.preventDefault();
-      selectModel(visibleModelOptions[highlightedIndex]!.value);
+      const highlighted = visibleModelOptions[highlightedIndex]!;
+      if (highlighted.disabled !== true) selectModel(highlighted.value);
     }
   };
   useEffect(() => {
