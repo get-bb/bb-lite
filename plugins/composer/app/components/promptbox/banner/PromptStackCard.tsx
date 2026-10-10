@@ -3,6 +3,7 @@ import { Icon } from "@bb/shared-ui/icon";
 import { cn } from "@bb/shared-ui/lib/utils";
 
 import {
+  CONTEXT_CARD_ACTION_BUTTON_CLASS,
   CONTEXT_CARD_CLASS,
   CONTEXT_CARD_INSET_CLASS,
   CONTEXT_CARD_SEGMENT_CLASS,
@@ -18,7 +19,7 @@ export const PROMPT_STACK_TRACK_CLASS = "grid-cols-[minmax(0,1fr)]";
 export const PROMPT_STACK_ROW_ACTION_TAKEOVER_CLASS =
   "relative bg-surface-raised-solid before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-4 before:bg-gradient-to-r before:from-transparent before:to-surface-raised-solid before:content-['']";
 export const PROMPT_BANNER_ACTION_BUTTON_CLASS =
-  "inline-flex items-center whitespace-nowrap rounded border border-border px-1.5 py-0.5 text-xs bg-background shadow-xs cursor-pointer text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60";
+  CONTEXT_CARD_ACTION_BUTTON_CLASS;
 
 export function PromptStackCard({
   children,
@@ -117,6 +118,7 @@ export function BannerActionSlot({
   return (
     <div
       className="ml-auto flex shrink-0 items-center gap-1.5 pr-2 text-xs text-muted-foreground"
+      data-context-merge-base={hideInCompact ? "" : undefined}
       data-promptbox-hide-compact={hideInCompact ? "" : undefined}
       data-promptbox-hide-tiny=""
     >

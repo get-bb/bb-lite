@@ -676,6 +676,10 @@ projectId, composer }`; a footer control's view gets it as its `context` prop.
   under the composer.
 - `bb.add(composer.banner, { id, view })` draws a component above the editor; it receives
   `{ composer }`.
+- `bb.add(composer.contextSegment, { id, segment, action? })` adds to the status row above a
+  thread's prompt (the row with the changed files): `segment` is drawn at the start of the row and
+  `action` at its end, in place of the merge base picker; both receive `{ threadId }` and may
+  render nothing. The GitHub plugin shows a thread's pull request this way.
 - `bb.add(composer.popup, { id, label, view })` registers a popup the host places above the prompt
   box. Open it with the handle's `openPopup(id)`; the view receives `{ composer, close }` and closes
   with `close()`, the handle's `closePopup()` or Escape.

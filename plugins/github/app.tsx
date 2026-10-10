@@ -1,5 +1,5 @@
 import { composer, type PluginAppApi, shell, sidePanel } from "@bb/plugin/app";
-import { PullRequestBanner } from "./app/banner.js";
+import { PullRequestAction, PullRequestSegment } from "./app/banner.js";
 import { GithubHeader, GithubPanel } from "./app/panel.js";
 import { PullPanelTab } from "./app/pull.js";
 
@@ -19,9 +19,9 @@ export default function githubApp(bb: PluginAppApi): void {
     view: PullPanelTab,
     layout: "flush",
   });
-  bb.add(composer.banner, {
+  bb.add(composer.contextSegment, {
     id: "pull-request",
-    isAvailable: (handle) => handle.threadId !== null,
-    view: PullRequestBanner,
+    segment: PullRequestSegment,
+    action: PullRequestAction,
   });
 }

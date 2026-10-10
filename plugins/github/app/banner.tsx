@@ -1,7 +1,9 @@
 import { callOp, useOp } from "@bb/plugin/app";
-import type { ComposerHandle } from "@bb/plugin/app";
-import { Button } from "@bb/shared-ui/button";
-import { CONTEXT_CARD_CLASS } from "@bb/shared-ui/chrome-style-tokens";
+import type { ThreadContextSegmentProps } from "@bb/plugin/app";
+import {
+  CONTEXT_CARD_ACTION_BUTTON_CLASS,
+  CONTEXT_CARD_SEGMENT_CLASS,
+} from "@bb/shared-ui/chrome-style-tokens";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,31 +24,63 @@ const MERGE_ACTIONS: readonly { method: MergeMethod; label: string }[] = [
   { method: "squash", label: "Squash merge" },
   { method: "rebase", label: "Rebase and merge" },
 ];
+const SEGMENT_CLASS = cn(
+  "flex min-w-8 items-center gap-1.5 overflow-hidden text-xs text-muted-foreground no-underline transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+  CONTEXT_CARD_SEGMENT_CLASS,
+);
+const SPLIT_CLASS =
+  "inline-flex items-center overflow-hidden rounded border border-border bg-background shadow-xs";
+const SPLIT_PART_CLASS = cn(
+  CONTEXT_CARD_ACTION_BUTTON_CLASS,
+  "rounded-none border-0 shadow-none",
+);
 
-export function PullRequestBanner({ composer }: { composer: ComposerHandle }) {
-  const threadId = composer.threadId ?? "";
-  const found = useOp(
-    pullRequests.forThread,
-    { threadId },
-    { enabled: threadId !== "" },
+function useThreadPull(threadId: string) {
+  const found = useOp(pullRequests.forThread, { threadId });
+  const environmentId = found.data?.pull?.environmentId ?? "";
+  const query = useOp(
+    pullRequests.get,
+    { environmentId },
+    { enabled: environmentId !== "" },
   );
-  const environmentId = found.data?.pull?.environmentId ?? null;
-  if (environmentId === null) return null;
-  return <EnvironmentPull environmentId={environmentId} />;
+  const pull = environmentId === "" ? null : (query.data ?? null);
+  return { environmentId, pull, refetch: query.refetch };
 }
 
-function EnvironmentPull({ environmentId }: { environmentId: string }) {
-  const query = useOp(pullRequests.get, { environmentId });
+export function PullRequestSegment({ threadId }: ThreadContextSegmentProps) {
+  const { pull } = useThreadPull(threadId);
+  if (pull === null) return null;
+  const label = pullStateLabel(pull);
+  const open = pull.state === "open" && !pull.isDraft;
+  return (
+    <a
+      href={pull.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={pull.title}
+      aria-label={`Pull request ${pull.number}: ${label}`}
+      className={SEGMENT_CLASS}
+    >
+      <Icon name="GitPullRequest" className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">
+        PR #{pull.number}
+        {open ? "" : ` · ${label}`}
+      </span>
+    </a>
+  );
+}
+
+export function PullRequestAction({ threadId }: ThreadContextSegmentProps) {
+  const { environmentId, pull, refetch } = useThreadPull(threadId);
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const pull = query.data ?? null;
-  if (pull === null) return null;
+  if (pull === null || pull.state !== "open") return null;
   const run = async (label: string, action: () => Promise<unknown>) => {
     setPending(label);
     setError(null);
     try {
       await action();
-      await query.refetch();
+      await refetch();
     } catch (failure) {
       setError(errorText(failure));
     } finally {
@@ -61,80 +95,67 @@ function EnvironmentPull({ environmentId }: { environmentId: string }) {
     run("Merging...", () =>
       callOp(pullRequests.merge, { environmentId, method }),
     );
-  const open = pull.state === "open";
-  const label = pullStateLabel(pull);
-  return (
-    <section
-      aria-label="Pull request"
-      className={cn(
-        CONTEXT_CARD_CLASS,
-        "flex items-center gap-2 px-3 py-1.5 text-xs",
-      )}
-    >
-      <Icon name="GitPullRequest" className="size-3.5 shrink-0" />
-      <a
-        href={pull.url}
-        target="_blank"
-        rel="noreferrer"
-        className="min-w-0 truncate hover:underline"
-        aria-label={`Pull request ${pull.number}: ${label}`}
-      >
-        PR #{pull.number}
-        {open && !pull.isDraft ? "" : ` · ${label}`}
-      </a>
-      <span className="min-w-0 flex-1 truncate text-muted-foreground">
-        {error ?? pull.title}
+  const busy = pending !== null;
+  const failure =
+    error === null ? null : (
+      <span role="alert" className="max-w-48 truncate text-destructive">
+        {error}
       </span>
-      {open && pull.isDraft ? (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={pending !== null}
+    );
+  if (pull.isDraft) {
+    return (
+      <>
+        {failure}
+        <button
+          type="button"
+          className={CONTEXT_CARD_ACTION_BUTTON_CLASS}
+          disabled={busy}
           onClick={() => void setDraft(false)}
         >
           {pending ?? "Mark ready"}
-        </Button>
-      ) : null}
-      {open && !pull.isDraft ? (
-        <div className="flex items-center">
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-r-none"
-            disabled={pending !== null}
-            onClick={() => void merge("merge")}
-          >
-            {pending ?? "Merge"}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-l-none border-l-0 px-1"
-                disabled={pending !== null}
-                aria-label="Choose pull request merge method"
+        </button>
+      </>
+    );
+  }
+  return (
+    <>
+      {failure}
+      <div className={SPLIT_CLASS}>
+        <button
+          type="button"
+          className={SPLIT_PART_CLASS}
+          disabled={busy}
+          onClick={() => void merge("merge")}
+        >
+          {pending ?? "Merge"}
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(SPLIT_PART_CLASS, "border-l border-border px-1")}
+              disabled={busy}
+              aria-label="Choose pull request merge method"
+            >
+              <Icon name="ChevronDown" className="size-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={2}>
+            {MERGE_ACTIONS.map((action) => (
+              <DropdownMenuItem
+                key={action.method}
+                onSelect={() => void merge(action.method)}
               >
-                <Icon name="ChevronDown" className="size-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {MERGE_ACTIONS.map((action) => (
-                <DropdownMenuItem
-                  key={action.method}
-                  onSelect={() => void merge(action.method)}
-                >
-                  {action.label}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void setDraft(true)}>
-                Convert to draft
+                {action.label}
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ) : null}
-    </section>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => void setDraft(true)}>
+              Convert to draft
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </>
   );
 }

@@ -19,3 +19,6 @@ export const CONTEXT_CARD_TOGGLE_CLASS =
 
 export const CONTEXT_CARD_CHEVRON_CLASS =
   "size-3.5 shrink-0 text-subtle-foreground transition-transform duration-200";
+
+export const CONTEXT_CARD_ACTION_BUTTON_CLASS =
+  "inline-flex items-center whitespace-nowrap rounded border border-border px-1.5 py-0.5 text-xs bg-background shadow-xs cursor-pointer text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60";

@@ -42,6 +42,11 @@ import {
   type WorkspaceChangedFilesSection,
 } from "@bb/app-kit/components/workspace/workspace-change-summary";
 import { cn } from "@bb/shared-ui/lib/utils";
+import {
+  ThreadContextActions,
+  ThreadContextSegments,
+  useHasThreadContextSegments,
+} from "../composer-slots";
 import { Icon, type IconName } from "@bb/shared-ui/icon";
 import {
   ThreadTitle,
@@ -92,6 +97,7 @@ export type ThreadPromptContextBannerExpandedSection =
   | "status";
 
 interface ThreadPromptContextBannerProps {
+  threadId?: string;
   gitSection: {
     changedFiles: WorkspaceChangedFilesSection;
     mergeBase: ContextBannerMergeBaseConfig | null;
@@ -141,6 +147,9 @@ const SEGMENT_ROW_CLASS = cn(
   "flex items-center gap-0.5 text-xs text-muted-foreground",
   PROMPT_STACK_INLAY_INSET_CLASS,
 );
+const CONTRIBUTED_ONLY_CARD_CLASS = "[&:not(:has([data-bb-plugin]>*))]:hidden";
+const CONTRIBUTED_ACTION_ROW_CLASS =
+  "[&:has([data-context-actions]_[data-bb-plugin]>*)_[data-context-merge-base]]:hidden";
 const toggleId = (section: string) => `thread-prompt-banner-${section}-toggle`;
 const bodyId = (section: string) => `thread-prompt-banner-${section}-body`;
 
@@ -398,6 +407,7 @@ function ActiveChildThreadsCard({
 }
 
 export function ThreadPromptContextBanner({
+  threadId,
   gitSection,
   gitSectionPending,
   archivedSection,
@@ -407,6 +417,7 @@ export function ThreadPromptContextBanner({
   expandedSection,
   onToggleSection,
 }: ThreadPromptContextBannerProps) {
+  const hasContextSegments = useHasThreadContextSegments();
   const isParentThreadExpanded =
     expandedSection === "parentThread" && parentThreadSection !== null;
   const parentSegment = (inline: boolean) =>
@@ -537,15 +548,21 @@ export function ThreadPromptContextBanner({
       })
     : null;
 
+  const contributed = hasContextSegments && threadId !== undefined;
+  const hasOwnSegment = parentThreadSection !== null || gitSection !== null;
   const compactContextBanner =
-    parentThreadSection !== null || gitSection !== null ? (
+    hasOwnSegment || contributed ? (
       <PromptStackCard
         ariaLabel="Thread context before sending"
-        className="overflow-hidden"
+        className={cn(
+          "overflow-hidden",
+          !hasOwnSegment && CONTRIBUTED_ONLY_CARD_CLASS,
+        )}
         style={CARD_STYLE}
       >
-        <div className={SEGMENT_ROW_CLASS}>
-          {parentSegment(gitSection === null)}
+        <div className={cn(SEGMENT_ROW_CLASS, CONTRIBUTED_ACTION_ROW_CLASS)}>
+          {parentSegment(gitSection === null && !contributed)}
+          {contributed ? <ThreadContextSegments threadId={threadId} /> : null}
           {gitSection && gitTally ? (
             <SectionToggleButton
               section="git"
@@ -559,6 +576,14 @@ export function ThreadPromptContextBanner({
               isExpanded={isGitExpanded}
               onToggle={() => onToggleSection("git")}
             />
+          ) : null}
+          {contributed ? (
+            <div
+              data-context-actions=""
+              className="ml-auto hidden shrink-0 items-center gap-1.5 pr-2 has-[[data-bb-plugin]>*]:flex"
+            >
+              <ThreadContextActions threadId={threadId} />
+            </div>
           ) : null}
           {mergeBase && mergeBaseCandidates ? (
             <BannerActionSlot hideInCompact>
