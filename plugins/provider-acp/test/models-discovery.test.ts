@@ -29,11 +29,18 @@ function alive(pid: number) {
 describe("acp model discovery", () => {
   it("authenticates before ACP-native model discovery", async () => {
     const result = await listModels({
-      env: { FAKE_ACP_AUTH_METHODS: "cached_token", FAKE_ACP_MODEL_CONFIG: "1" },
+      env: {
+        FAKE_ACP_AUTH_METHODS: "cached_token",
+        FAKE_ACP_MODEL_CONFIG: "1",
+      },
     });
     expect(result).toMatchObject({
       models: [
-        { id: "fake/default", model: "fake/default", displayName: "Fake Default" },
+        {
+          id: "fake/default",
+          model: "fake/default",
+          displayName: "Fake Default",
+        },
         { id: "fake/strong", model: "fake/strong", displayName: "Fake Strong" },
       ],
       selectedOnlyModels: [],
@@ -165,9 +172,9 @@ describe("acp model discovery", () => {
   });
 
   it("falls back to the synthetic model when the list command prints no models", async () => {
-    expect(await listModels({ modelLines: "no model lines here" })).toMatchObject(
-      { models: [{ id: "acp-default", isDefault: true }] },
-    );
+    expect(
+      await listModels({ modelLines: "no model lines here" }),
+    ).toMatchObject({ models: [{ id: "acp-default", isDefault: true }] });
   });
 
   it("keeps CLI reasoning on the resolved model variant instead of ACP config", async () => {
@@ -189,9 +196,7 @@ describe("acp model discovery", () => {
       reasoningLevel: "xhigh",
     });
     await harness.turn(session, "echo-argv");
-    expect(agentTexts(harness)).toContain(
-      "argv:--model pinme-extra-high",
-    );
+    expect(agentTexts(harness)).toContain("argv:--model pinme-extra-high");
   });
 
   it.each([
@@ -205,7 +210,9 @@ describe("acp model discovery", () => {
         env: { OPENCODE_CLIENT: "cli", OPENCODE_ENABLE_QUESTION_TOOL: "true" },
       });
       await harness.turn(await openWith(harness), "echo-question-env");
-      expect(agentTexts(harness)).toContain(JSON.stringify({ client, question }));
+      expect(agentTexts(harness)).toContain(
+        JSON.stringify({ client, question }),
+      );
     },
   );
 });

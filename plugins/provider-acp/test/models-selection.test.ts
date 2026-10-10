@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { FAKE_AGENT, text } from "./adapter-harness.js";
+import { createHarness, FAKE_AGENT, text } from "./adapter-harness.js";
 import {
   agentTexts,
   closeSessionsAfterEach,
   completeTurnWith,
   harnessFor,
+  listModels,
   loggedLines,
   logPath,
   openWith,
@@ -163,9 +164,9 @@ describe("acp model switching", () => {
   it("restores the requested ACP-native model after the agent switches itself", async () => {
     const harness = harnessFor({ env: { FAKE_ACP_MODEL_CONFIG: "1" } });
     const session = await openWith(harness, { model: "fake/default" });
-    expect(
-      await completeTurnWith(harness, session, "self-switch-model"),
-    ).toBe("selected-model:fake/strong");
+    expect(await completeTurnWith(harness, session, "self-switch-model")).toBe(
+      "selected-model:fake/strong",
+    );
     expect(
       await completeTurnWith(harness, session, "echo-selected-model"),
     ).toBe("selected-model:fake/default");
@@ -222,7 +223,9 @@ describe("acp native selection", () => {
   ])(
     "applies a changed ACP-native model before a follow-up prompt ($label)",
     async ({ env }) => {
-      const log = logPath(`native-model-switch-${env["FAKE_ACP_MODELS_FIELD"]}`);
+      const log = logPath(
+        `native-model-switch-${env["FAKE_ACP_MODELS_FIELD"]}`,
+      );
       const harness = harnessFor({
         env: { ...env, FAKE_ACP_REQUEST_LOG: log },
       });
@@ -306,5 +309,88 @@ describe("acp native selection", () => {
     });
     await harness.turn(session, "echo-selected-effort");
     expect(agentTexts(harness)).toContain("selected-effort:xhigh");
+  });
+});
+
+describe("acp configured native reasoning", () => {
+  it("applies configured native reasoning when the ACP agent does not advertise thought_level", async () => {
+    const harness = harnessFor({
+      env: {
+        FAKE_ACP_MODEL_CONFIG: "1",
+        FAKE_ACP_ACCEPT_NATIVE_REASONING: "1",
+      },
+      launch: {
+        nativeReasoning: {
+          configId: "reasoning_effort",
+          supportedLevels: ["none", "low", "medium", "high", "xhigh", "max"],
+          defaultLevel: "medium",
+        },
+      },
+    });
+    const session = await openWith(harness, {
+      model: "fake/strong",
+      reasoningLevel: "max",
+    });
+    await harness.turn(session, "echo-selected-effort");
+    expect(agentTexts(harness)).toContain("selected-effort:max");
+  });
+
+  it("warns and launches the family id when a reasoning variant is missing", async () => {
+    const launch = {
+      command: FAKE_AGENT,
+      args: [],
+      modelListArgs: ["--list-models"],
+      selectFlag: "--model",
+      env: { FAKE_ACP_MODEL_LINES: "solo-2 - Solo Two" },
+    };
+    await listModels(launch);
+    const harness = harnessFor(launch);
+    const session = await openWith(harness, {
+      model: "solo-2",
+      reasoningLevel: "max",
+    });
+    await harness.turn(session, "echo-argv");
+    expect(agentTexts(harness)).toContain("argv:--model solo-2");
+    const warnings = harness.events.filter(
+      (event) => event.type === "provider/warning",
+    );
+    expect(warnings.at(-1)).toMatchObject({
+      summary: expect.stringContaining("no max reasoning variant"),
+    });
+  });
+
+  it("preserves Electron Node mode for the dynamic-tool MCP process only", async () => {
+    vi.stubEnv("ELECTRON_RUN_AS_NODE", "1");
+    try {
+      const harness = createHarness({
+        dynamicTools: [
+          {
+            name: "update_environment_directory",
+            description: "Move this thread to another environment directory.",
+            inputSchema: {
+              type: "object",
+              properties: { path: { type: "string" } },
+              required: ["path"],
+            },
+          },
+        ],
+      });
+      const session = await openWith(harness);
+      await harness.turn(session, "echo-mcp-server-config");
+      const prefix = "mcp-server-config:";
+      const config = agentTexts(harness).find((t) => t.startsWith(prefix));
+      expect(config).toBeDefined();
+      const [server] = JSON.parse(config!.slice(prefix.length)) as {
+        env: { name: string; value: string }[];
+      }[];
+      const electron = server?.env.find(
+        ({ name }) => name === "ELECTRON_RUN_AS_NODE",
+      );
+      expect(electron?.value).toBe("1");
+      await harness.turn(session, "echo-electron-run-as-node");
+      expect(agentTexts(harness)).toContain("electron-run-as-node:missing");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

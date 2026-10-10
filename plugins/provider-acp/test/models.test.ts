@@ -220,4 +220,50 @@ describe("acp model listing", () => {
       selectedOnlyModels: [],
     });
   });
+
+  it("keeps ACP-native models without thought_level at the single managed level", async () => {
+    const result = await listModels({ env: { FAKE_ACP_MODEL_CONFIG: "1" } });
+    const strong = result.models.find((model) => model.id === "fake/strong");
+    expect(strong?.supportedReasoningEfforts).toEqual([
+      { reasoningEffort: "medium", description: expect.any(String) },
+    ]);
+  });
+
+  it("lists an ACP-native model's own thought levels when none of them are standard levels", async () => {
+    const result = await listModels({
+      env: {
+        FAKE_ACP_MODEL_CONFIG: "1",
+        FAKE_ACP_UNMAPPED_REASONING_CONFIG: "1",
+      },
+    });
+    const strong = result.models.find((model) => model.id === "fake/strong");
+    expect(strong?.supportedReasoningEfforts).toEqual([
+      { reasoningEffort: "smart", description: "smart" },
+      { reasoningEffort: "fast", description: "fast" },
+    ]);
+    expect(strong?.defaultReasoningEffort).toBe("smart");
+  });
+
+  it("shows configured native reasoning for ACP-native models without thought_level", async () => {
+    const result = await listModels({
+      env: { FAKE_ACP_MODEL_CONFIG: "1" },
+      launch: {
+        nativeReasoning: {
+          configId: "reasoning_effort",
+          supportedLevels: ["none", "low", "medium", "high", "xhigh", "max"],
+          defaultLevel: "medium",
+        },
+      },
+    });
+    const strong = result.models.find((model) => model.id === "fake/strong");
+    expect(strong?.defaultReasoningEffort).toBe("medium");
+    expect(strong?.supportedReasoningEfforts).toEqual([
+      { reasoningEffort: "none", description: "No extended thinking" },
+      { reasoningEffort: "low", description: "Low reasoning effort" },
+      { reasoningEffort: "medium", description: "Medium reasoning effort" },
+      { reasoningEffort: "high", description: "High reasoning effort" },
+      { reasoningEffort: "xhigh", description: "Extra high reasoning effort" },
+      { reasoningEffort: "max", description: "Maximum reasoning effort" },
+    ]);
+  });
 });
