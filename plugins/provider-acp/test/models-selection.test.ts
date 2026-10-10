@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { text } from "./adapter-harness.js";
+import { FAKE_AGENT, text } from "./adapter-harness.js";
 import {
   agentTexts,
   closeSessionsAfterEach,
   completeTurnWith,
   harnessFor,
+  loggedLines,
   logPath,
   openWith,
   requestsTo,
@@ -191,5 +192,119 @@ describe("acp model switching", () => {
         model: "composer-2.5",
       }),
     ).toBe("selected-model:composer-2.5");
+  });
+});
+
+describe("acp native selection", () => {
+  it.each<{ label: string; env: Record<string, string> }>([
+    {
+      label: "with session/set_config_option",
+      env: { FAKE_ACP_MODEL_CONFIG: "1" },
+    },
+    {
+      label: "falling back to session/set_model when the config option errors",
+      env: { FAKE_ACP_MODEL_CONFIG: "1", FAKE_ACP_SET_CONFIG_MODEL_ERROR: "1" },
+    },
+    { label: "from session models state", env: { FAKE_ACP_MODELS_FIELD: "1" } },
+  ])(
+    "selects ACP-native models $label before the first prompt",
+    async ({ env }) => {
+      const harness = harnessFor({ env });
+      const session = await openWith(harness, { model: "fake/strong" });
+      await harness.turn(session, "echo-selected-model");
+      expect(agentTexts(harness)).toContain("selected-model:fake/strong");
+    },
+  );
+
+  it.each<{ label: string; env: Record<string, string> }>([
+    { label: "model config option", env: { FAKE_ACP_MODEL_CONFIG: "1" } },
+    { label: "session models state", env: { FAKE_ACP_MODELS_FIELD: "1" } },
+  ])(
+    "applies a changed ACP-native model before a follow-up prompt ($label)",
+    async ({ env }) => {
+      const log = logPath(`native-model-switch-${env["FAKE_ACP_MODELS_FIELD"]}`);
+      const harness = harnessFor({
+        env: { ...env, FAKE_ACP_REQUEST_LOG: log },
+      });
+      const session = await openWith(harness, { model: "fake/strong" });
+      for (const model of ["fake/strong", "fake/default", "fake/strong"]) {
+        expect(
+          await completeTurnWith(harness, session, "echo-selected-model", {
+            model,
+          }),
+        ).toBe(`selected-model:${model}`);
+      }
+      expect(requestsTo(log, "session/new")).toHaveLength(1);
+      expect(requestsTo(log, "session/load")).toEqual([]);
+    },
+  );
+
+  it("applies changed ACP-native reasoning and service tier before a follow-up prompt", async () => {
+    const harness = harnessFor({
+      dialect: "cursor",
+      parameterizedModelPicker: true,
+      env: { FAKE_ACP_CURSOR_PARAMETERIZED_MODELS: "1" },
+    });
+    const session = await openWith(harness, {
+      model: "grok-4.6",
+      reasoningLevel: "low",
+      serviceTier: "default",
+    });
+    const next = {
+      model: "grok-4.6",
+      reasoningLevel: "high",
+      serviceTier: "fast",
+    } as const;
+    expect(
+      await completeTurnWith(harness, session, "echo-selected-effort", next),
+    ).toBe("selected-effort:high");
+    expect(
+      await completeTurnWith(harness, session, "echo-selected-fast", next),
+    ).toBe("selected-fast:true");
+  });
+
+  it("rejects a follow-up turn whose ACP-native model the agent refuses", async () => {
+    const promptLog = logPath("rejected-model-prompts");
+    const harness = harnessFor({
+      env: { FAKE_ACP_MODEL_CONFIG: "1", FAKE_ACP_PROMPT_LOG: promptLog },
+    });
+    const session = await openWith(harness, { model: "fake/strong" });
+    await expect(
+      startTurn(harness, session, "echo-selected-model", {
+        model: "fake/missing",
+      }),
+    ).rejects.toThrow("model not found: fake/missing");
+    expect(loggedLines(promptLog)).toEqual([]);
+  });
+
+  it("relaunches a CLI-selected ACP agent when a follow-up changes its model", async () => {
+    const harness = harnessFor({
+      command: FAKE_AGENT,
+      args: [],
+      modelListArgs: ["--list-models"],
+      selectFlag: "--model",
+      env: {
+        FAKE_ACP_LOAD_SESSION: "1",
+        FAKE_ACP_MODEL_LINES: "pinme - Pin Me\nother - Other",
+      },
+    });
+    const session = await openWith(harness, { model: "pinme" });
+    expect(
+      await completeTurnWith(harness, session, "echo-argv", { model: "other" }),
+    ).toBe("argv:--model other");
+    const started = harness.types().indexOf("turn/started");
+    expect(harness.types().slice(started)).toContain("thread/identity");
+  });
+
+  it("selects ACP-native reasoning with session/set_config_option before the first prompt", async () => {
+    const harness = harnessFor({
+      env: { FAKE_ACP_MODEL_CONFIG: "1", FAKE_ACP_THOUGHT_LEVEL_CONFIG: "1" },
+    });
+    const session = await openWith(harness, {
+      model: "fake/strong",
+      reasoningLevel: "max",
+    });
+    await harness.turn(session, "echo-selected-effort");
+    expect(agentTexts(harness)).toContain("selected-effort:xhigh");
   });
 });
