@@ -42,7 +42,7 @@ const nativeSkillRootsSchema = z
   })
   .strict();
 
-const levelValues = z.record(reasoningLevelSchema, z.string().min(1));
+const levelValues = z.partialRecord(reasoningLevelSchema, z.string().min(1));
 
 function checkLevels(
   spec: { supportedLevels: string[]; defaultLevel?: string },
