@@ -6,6 +6,7 @@ import connect from "../../plugins/connect/src/runner.js";
 import github from "../../plugins/github/runner.js";
 import keepAwake from "../../plugins/keep-awake/runner.js";
 import pluginDev from "../../plugins/plugin-dev/runner.js";
+import providerAcp from "../../plugins/provider-acp/runner.js";
 import providerClaudeCode from "../../plugins/provider-claude-code/runner.js";
 import providerCodex from "../../plugins/provider-codex/runner.js";
 import providerEcho from "../../plugins/provider-echo/runner.js";
@@ -21,6 +22,7 @@ export const runnerEntries: Record<string, PluginRunnerEntry> = {
   github: github,
   "keep-awake": keepAwake,
   "plugin-dev": pluginDev,
+  "provider-acp": providerAcp,
   "provider-claude-code": providerClaudeCode,
   "provider-codex": providerCodex,
   "provider-echo": providerEcho,

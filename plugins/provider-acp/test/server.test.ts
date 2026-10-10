@@ -51,7 +51,9 @@ async function acpServer(
       "GET",
       "/sessions/providers",
     );
-    return body.map((provider) => provider.id).filter((id) => id.startsWith("acp-"));
+    return body
+      .map((provider) => provider.id)
+      .filter((id) => id.startsWith("acp-"));
   };
   const configured = () =>
     calls

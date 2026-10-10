@@ -26,6 +26,7 @@ export const appLoaders: Record<string, Load> = {
   "plugin-api-docs": () => import("../../plugins/plugin-api-docs/app"),
   "plugin-api-tester": () => import("../../plugins/plugin-api-tester/app"),
   "prompt-library": () => import("../../plugins/prompt-library/app"),
+  "provider-acp": () => import("../../plugins/provider-acp/app"),
   "provider-usage": () => import("../../plugins/provider-usage/app"),
   "push-notifications": () => import("../../plugins/push-notifications/app"),
   "scheduled-send": () => import("../../plugins/scheduled-send/app"),

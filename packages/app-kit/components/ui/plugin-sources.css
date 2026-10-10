@@ -20,6 +20,7 @@
 @source "../../../../plugins/plugin-api-docs";
 @source "../../../../plugins/plugin-api-tester";
 @source "../../../../plugins/prompt-library";
+@source "../../../../plugins/provider-acp";
 @source "../../../../plugins/provider-usage";
 @source "../../../../plugins/push-notifications";
 @source "../../../../plugins/scheduled-send";
