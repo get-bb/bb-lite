@@ -1,7 +1,5 @@
 import type { ThreadEventPlanStep } from "@bb/domain";
 
-export type { DeltaPresentation } from "./kit.js";
-
 export interface DeltaFileChange {
   path: string;
   kind: "add" | "update" | "delete";

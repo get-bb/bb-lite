@@ -1,4 +1,4 @@
-import type { DeltaItemShape } from "./thread-delta.js";
+import type { DeltaItemShape } from "./item-shapes.js";
 import { basename } from "node:path";
 import { z } from "zod";
 import {

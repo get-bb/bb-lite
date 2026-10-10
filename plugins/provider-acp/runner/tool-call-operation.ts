@@ -1,6 +1,6 @@
 import { isPathWithinDirectory } from "./process.js";
 import path from "node:path";
-import { toOptionalString } from "./kit.js";
+import { toOptionalString } from "./values.js";
 import { z } from "zod";
 import type { AcpToolCallContent } from "./wire.js";
 

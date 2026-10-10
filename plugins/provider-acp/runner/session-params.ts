@@ -6,14 +6,15 @@ import type {
 } from "@bb/domain";
 import path from "node:path";
 
-import {
-  ACP_DEFAULT_MODEL_ID,
-  type AcpBridgeNativeReasoning,
-  type AcpBridgePermissionCli,
-  type AcpBridgeReasoningCli,
-} from "./bridge-protocol.js";
+import type {
+  AcpNativeReasoning as AcpBridgeNativeReasoning,
+  AcpPermissionCli as AcpBridgePermissionCli,
+  AcpReasoningCli as AcpBridgeReasoningCli,
+} from "../src/launch-spec.js";
 import { cursorParameterizedSelection } from "./cursor-model-selection.js";
 import type { AcpLaunchSpec } from "../src/launch-spec.js";
+
+export const ACP_DEFAULT_MODEL_ID = "acp-default";
 
 export interface AcpSessionExecutionOptions {
   model?: string | undefined;

@@ -4,23 +4,17 @@ import type {
   ThreadEventPlanStep,
   ThreadEventTurnStatus,
   ThreadUsageCost,
+  ThreadEventItemPresentation,
 } from "@bb/domain";
 import {
   buildEditDiff,
   type EventBuilder,
   type ItemKey,
   type ItemShape,
-} from "@bb/runner";
-import {
-  COMPACTION_PRESENTATION,
-  planStepsPresentation,
+  labels,
   presentationTitle,
-} from "./kit.js";
-import type {
-  DeltaFileChange,
-  DeltaItemShape,
-  DeltaPresentation,
-} from "./thread-delta.js";
+} from "@bb/runner";
+import type { DeltaFileChange, DeltaItemShape } from "./item-shapes.js";
 import {
   GENERIC_ACP_DIALECT,
   type AcpDelegationReport,
@@ -64,7 +58,7 @@ interface AcpItemResult {
 
 interface AcpItemClose extends AcpItemResult {
   status: ThreadEventItemStatus;
-  presentation?: DeltaPresentation | undefined;
+  presentation?: ThreadEventItemPresentation | undefined;
 }
 
 export type AcpCompactionOutcome =
@@ -174,7 +168,7 @@ function createAcpEventWriter(events: EventBuilder) {
     openItem(
       key: ItemKey,
       item: DeltaItemShape,
-      presentation?: DeltaPresentation,
+      presentation?: ThreadEventItemPresentation,
     ): void {
       const shape = toItemShape(item);
       openShapes.set(shapeKey(key), shape);
@@ -326,6 +320,13 @@ interface AcpOpenToolCall {
   openedType: DeltaItemShape["type"];
   permissionTitle?: string;
   delegation?: AcpDelegationReport;
+}
+
+function planStepsPresentation(
+  steps: readonly { step: string; status?: string }[],
+): ThreadEventItemPresentation {
+  const active = steps.find((step) => step.status === "active");
+  return { ...labels.planSteps(active?.step), suppress: true };
 }
 
 export function createAcpTranslator(options: AcpTranslatorOptions) {
@@ -921,7 +922,7 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
     out?.openItem(
       { channel: "compaction" },
       { type: "compaction" },
-      COMPACTION_PRESENTATION,
+      labels.compaction,
     );
   }
 

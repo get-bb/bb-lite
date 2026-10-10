@@ -1,7 +1,7 @@
 import type { ThreadEventItemPresentation } from "@bb/domain";
 import { labels } from "@bb/runner";
-import type { DeltaFileChange, DeltaItemShape } from "./thread-delta.js";
-import { getStringProperty, isRecord, toOptionalString } from "./kit.js";
+import type { DeltaFileChange, DeltaItemShape } from "./item-shapes.js";
+import { getStringProperty, isRecord, toOptionalString } from "./values.js";
 import { z } from "zod";
 import {
   commandPresentation,

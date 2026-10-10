@@ -154,20 +154,15 @@ a checkpoint have counterparts, and so does message editing: Pi declares checkpo
 `threads.updateMessage` uses.
 
 **provider-acp.** Ported from the original's rebuilt adapter (`provider-acp-next`), not the older
-one. The runner part is that adapter with its bridge process removed: the client on
-`@agentclientprotocol/sdk`, the session model, the translation, the per-agent dialects and the model
-catalog are the original's modules, and `runner/engine.ts` is the original bridge with its stdio
-protocol replaced by callbacks an adapter (`runner/adapter.ts`) connects to `ProviderAdapter`. The
-original's deltas are applied to the event builder by `runner/thread-delta.ts`. The carried-over
-modules still speak the original's vocabulary through `runner/kit.ts`; rewriting them against this
-API directly is a planned follow-up. Custom agents are a multiline string setting holding JSON,
-since settings have no JSON type. Left out:
+one. The client on `@agentclientprotocol/sdk`, the session model, the per-agent dialects and the
+model catalog are the original's modules. The bridge process is gone: `runner/engine.ts` holds its
+session logic behind an adapter (`runner/adapter.ts`), the translator (`runner/acp-translator.ts`)
+writes to the event builder directly, and health and usage return `ProviderStatus` and
+`UsageReading`. Custom agents are a multiline string setting holding JSON, since settings have no
+JSON type. Left out:
 
 - Forks: an ACP fork is at the tip, and a provider here can only declare checkpoint forks.
 - The per-agent resolvers for native skill roots; only the static roots are declared.
-- The agent's own options and live slash commands are served by `threads.sessionOptions` and
-  `threads.providerCommands` and choices are sent with each turn, but the composer does not show
-  them yet.
 - Raw unhandled agent updates are dropped instead of recorded.
 
 **provider-retry, provider-usage.** Both ported. Retry gets the failure details on `thread.failed`
@@ -208,7 +203,7 @@ before the overnight port and were already on this API.
 | plugin-api-docs                | Ported               | Runtime shapes of `z.custom` outputs and the app kernel's slots are not visible to the server                                   |
 | plugin-api-tester              | Ported               | Nothing                                                                                                                         |
 | prompt-library                 | Ported               | Nothing                                                                                                                         |
-| provider-acp                   | Ported               | Forks, native skill root resolvers, and showing the agent's own options and slash commands in the composer                      |
+| provider-acp                   | Ported               | Forks and native skill root resolvers                                                                                           |
 | provider-claude-code           | Built in as a plugin | Rewritten as a `ProviderAdapter` with the kernel, not ported from the original's bridge                                         |
 | provider-codex                 | Built in as a plugin | Rewritten as a `ProviderAdapter` with the kernel, not ported from the original's bridge                                         |
 | provider-pi                    | Ported (3 stages)    | In-place model switch, the extension-ui renderer, catalog caching, session relocation                                           |

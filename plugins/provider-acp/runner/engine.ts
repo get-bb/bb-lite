@@ -35,7 +35,7 @@ import {
   type AcpPermissionCli as AcpBridgePermissionCli,
   type AcpReasoningCli as AcpBridgeReasoningCli,
 } from "../src/launch-spec.js";
-import { ACP_DEFAULT_MODEL_ID } from "./bridge-protocol.js";
+
 import {
   createAcpTranslator,
   type AcpCompactionOutcome,
@@ -55,14 +55,8 @@ import {
   buildAcpPermissionInteractionPayload,
   resolveAcpPermissionDecision,
 } from "./interactions.js";
-import {
-  agentProcessEnv,
-  decodeToolCallResponsePayload,
-  execPortableFile,
-  mimeTypeFromExtension,
-  type BridgeToolCallContent,
-  type BridgeToolCallImage,
-} from "./kit.js";
+import { agentProcessEnv, execPortableFile } from "./process.js";
+import { mimeTypeFromExtension } from "./values.js";
 import {
   buildAcpModelListParams,
   buildAcpModelSelectionParams,
@@ -70,6 +64,7 @@ import {
   type AcpAgentCommandParam,
   type AcpSessionParams,
   type AcpSkillRoot,
+  ACP_DEFAULT_MODEL_ID,
 } from "./session-params.js";
 import { buildCursorParameterizedModelCatalog } from "./cursor-model-selection.js";
 import {
@@ -138,6 +133,9 @@ import {
   type AgentModelCatalog,
 } from "./bridge/model-catalog.js";
 import {
+  decodeToolCallResponsePayload,
+  type BridgeToolCallContent,
+  type BridgeToolCallImage,
   ACP_BRIDGE_MCP_SERVER_NAME,
   buildAcpMcpServerConfig,
   dynamicToolBridgeRequestSchema,
