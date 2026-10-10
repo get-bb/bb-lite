@@ -15,7 +15,7 @@ import {
 const tracked = trackSessions();
 
 async function stopped(env: Record<string, string>) {
-  const { harness, session } = await tracked.start({ env });
+  const { session } = await tracked.start({ env });
   const providerThreadId = session.providerThreadId;
   await session.close();
   return providerThreadId;
@@ -106,6 +106,13 @@ describe("acp adapter: restoring sessions", () => {
     expect(ofType(harness, "provider/warning")).toEqual([]);
   });
 
+  it("restores a session when the agent offers only session/resume", async () => {
+    const env = { FAKE_ACP_RESUME_SESSION: "1" };
+    const id = await stopped(env);
+    const session = await tracked.open(createHarness({ env }), id);
+    expect(session.providerThreadId).toBe(id);
+  });
+
   it("does not send the instructions again to a session the agent restored", async () => {
     const log = join(createHarness().dir, "prompts.log");
     const env = { FAKE_ACP_LOAD_SESSION: "1", FAKE_ACP_PROMPT_LOG: log };
@@ -114,7 +121,10 @@ describe("acp adapter: restoring sessions", () => {
     await harness.turn(session, "first");
     await session.close();
     const again = createHarness(options);
-    await again.turn(await tracked.open(again, session.providerThreadId), "second");
+    await again.turn(
+      await tracked.open(again, session.providerThreadId),
+      "second",
+    );
     expect(jsonLines(log)).toEqual([
       "<system_instructions>\nBe terse.\n</system_instructions>\nfirst",
       "second",

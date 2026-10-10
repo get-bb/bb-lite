@@ -43,54 +43,46 @@ describe("acp adapter: work the agent starts on its own", () => {
     expect(completions(harness)).toEqual(["completed", "completed"]);
   });
 
-  it(
-    "opens a turn for unprompted output and closes it after a quiet window",
-    async () => {
-      const { harness, session } = await tracked.start();
-      await harness.turn(session, "then-unprompted-stream");
-      await until(() => expect(ofType(harness, "turn/started")).toHaveLength(2));
-      await until(() => expect(streamed(harness)).toContain(" unprompted two"));
-      expect(completions(harness)).toEqual(["completed"]);
-      await until(
-        () => expect(completions(harness)).toEqual(["completed", "completed"]),
-        QUIET_MS + 5_000,
+  it("opens a turn for unprompted output and closes it after a quiet window", async () => {
+    const { harness, session } = await tracked.start();
+    await harness.turn(session, "then-unprompted-stream");
+    await until(() => expect(ofType(harness, "turn/started")).toHaveLength(2));
+    await until(() => expect(streamed(harness)).toContain(" unprompted two"));
+    expect(completions(harness)).toEqual(["completed"]);
+    await until(
+      () => expect(completions(harness)).toEqual(["completed", "completed"]),
+      QUIET_MS + 5_000,
+    );
+    expect(messages(harness)).toEqual([
+      "prompted reply",
+      "unprompted one",
+      " unprompted two",
+    ]);
+    const backgroundJob = harness
+      .items()
+      .find(
+        (item) =>
+          JSON.stringify(item).includes("Background job") ||
+          JSON.stringify(item).includes("unprompted-tool"),
       );
-      expect(messages(harness)).toEqual([
-        "prompted reply",
-        "unprompted one",
-        " unprompted two",
-      ]);
-      const backgroundJob = harness
-        .items()
-        .find(
-          (item) =>
-            JSON.stringify(item).includes("Background job") ||
-            JSON.stringify(item).includes("unprompted-tool"),
-        );
-      expect(backgroundJob).toBeDefined();
-    },
-    20_000,
-  );
+    expect(backgroundJob).toBeDefined();
+  }, 20_000);
 
-  it(
-    "keeps the agent's turn open while a tool it announced is running, and settles it as interrupted when the user sends a message",
-    async () => {
-      const { harness, session } = await tracked.start();
-      await harness.turn(session, "then-unprompted-open-tool");
-      await until(() => expect(ofType(harness, "turn/started")).toHaveLength(2));
-      await delay(QUIET_MS + 500);
-      expect(completions(harness)).toEqual(["completed"]);
-      await harness.turn(session, "after the build");
-      await until(() => expect(completions(harness)).toHaveLength(3));
-      expect(completions(harness)).toEqual([
-        "completed",
-        "interrupted",
-        "completed",
-      ]);
-      expect(messages(harness).at(-1)).toBe("echo:after the build");
-    },
-    20_000,
-  );
+  it("keeps the agent's turn open while a tool it announced is running, and settles it as interrupted when the user sends a message", async () => {
+    const { harness, session } = await tracked.start();
+    await harness.turn(session, "then-unprompted-open-tool");
+    await until(() => expect(ofType(harness, "turn/started")).toHaveLength(2));
+    await delay(QUIET_MS + 500);
+    expect(completions(harness)).toEqual(["completed"]);
+    await harness.turn(session, "after the build");
+    await until(() => expect(completions(harness)).toHaveLength(3));
+    expect(completions(harness)).toEqual([
+      "completed",
+      "interrupted",
+      "completed",
+    ]);
+    expect(messages(harness).at(-1)).toBe("echo:after the build");
+  }, 20_000);
 
   it("runs a steer that arrives during the agent's own turn as a prompt inside that turn", async () => {
     const { harness, session } = await tracked.start();
@@ -119,9 +111,7 @@ describe("acp adapter: work the agent starts on its own", () => {
     await until(() => expect(harness.interactions).toHaveLength(1));
     expect(harness.interactions[0]).toMatchObject({ kind: "approval" });
     expect(ofType(harness, "turn/started")).toHaveLength(2);
-    await until(() =>
-      expect(streamed(harness)).toContain("permission:allow"),
-    );
+    await until(() => expect(streamed(harness)).toContain("permission:allow"));
   });
 
   it("fails the agent's own turn when the agent exits during it", async () => {
@@ -150,26 +140,22 @@ describe("acp adapter: busy agents and stop reasons", () => {
     expect(ofType(harness, "turn/input/accepted")).toHaveLength(1);
   });
 
-  it(
-    "fails the turn with the agent's own error when it stays busy",
-    async () => {
-      const log = join(createHarness().dir, "prompts.log");
-      const { harness, session } = await tracked.start({
-        env: { FAKE_ACP_SESSION_BUSY_PROMPTS: "10", FAKE_ACP_PROMPT_LOG: log },
-      });
-      await session.startTurn({
-        clientRequestId: "req_busy",
-        input: text("hello"),
-        options: harness.execution,
-      });
-      await until(() => expect(completions(harness)).toEqual(["failed"]), 15_000);
-      expect(jsonLines(log)).toHaveLength(4);
-      expect(JSON.stringify(ofType(harness, "provider/error"))).toContain(
-        "already processing",
-      );
-    },
-    20_000,
-  );
+  it("fails the turn with the agent's own error when it stays busy", async () => {
+    const log = join(createHarness().dir, "prompts.log");
+    const { harness, session } = await tracked.start({
+      env: { FAKE_ACP_SESSION_BUSY_PROMPTS: "10", FAKE_ACP_PROMPT_LOG: log },
+    });
+    await session.startTurn({
+      clientRequestId: "req_busy",
+      input: text("hello"),
+      options: harness.execution,
+    });
+    await until(() => expect(completions(harness)).toEqual(["failed"]), 15_000);
+    expect(jsonLines(log)).toHaveLength(4);
+    expect(JSON.stringify(ofType(harness, "provider/error"))).toContain(
+      "already processing",
+    );
+  }, 20_000);
 
   it.each([
     ["max_tokens", "The agent stopped at its output limit"],
