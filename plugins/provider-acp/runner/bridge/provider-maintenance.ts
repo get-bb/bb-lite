@@ -7,12 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 import type { UsageReading, usageWindowSchema } from "@bb/plugin";
 import type { ProviderStatus } from "@bb/runner";
-import {
-  clampPercent,
-  downloadedInstallerCommand,
-  readCliVersion,
-  resolveExecutablePath,
-} from "../kit.js";
+import { readCliVersion, resolveExecutablePath } from "../process.js";
 import { z } from "zod";
 import { readOpenCodeGoUsage } from "./opencode-usage.js";
 
@@ -25,6 +20,27 @@ const CURSOR_DASHBOARD_URL =
 const CURSOR_KEYCHAIN_ACCOUNT = "cursor-user";
 const CURSOR_ACCESS_TOKEN_SERVICE = "cursor-access-token";
 const CURSOR_INSTALL_SCRIPT_URL = "https://cursor.com/install";
+
+function clampPercent(value: number): number {
+  return Math.min(
+    100,
+    Math.max(0, Math.round(Number.isFinite(value) ? value : 0)),
+  );
+}
+
+function downloadedInstallerCommand(url: string): {
+  command: string;
+  args: string[];
+  displayCommand: string;
+} {
+  const script = [
+    'tmp=$(mktemp "${TMPDIR:-/tmp}/provider-installation.XXXXXX")',
+    "trap 'rm -f \"$tmp\"' EXIT",
+    `curl -fsSL ${url} -o "$tmp"`,
+    'bash "$tmp"',
+  ].join(" && ");
+  return { command: "sh", args: ["-c", script], displayCommand: script };
+}
 
 function cursorAuthFilePath(): string {
   if (process.platform === "win32") {

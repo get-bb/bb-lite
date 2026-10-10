@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { agentProcessEnv } from "./kit.js";
+import { agentProcessEnv } from "./process.js";
 import {
   AcpAgentExitedError,
   createAcpAgentConnection,

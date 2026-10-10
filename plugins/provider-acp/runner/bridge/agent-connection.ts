@@ -1,4 +1,4 @@
-import { spawnManagedProcess, isClosedProcessStdinError } from "../kit.js";
+import { spawnManagedProcess, isClosedProcessStdinError } from "../process.js";
 import { RequestError } from "@agentclientprotocol/sdk";
 import { createInterface } from "node:readline";
 import { connectAcpClient, type AcpClient } from "../client/acp-client.js";

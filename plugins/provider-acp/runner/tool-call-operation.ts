@@ -1,4 +1,4 @@
-import { isPathWithinDirectory } from "./kit.js";
+import { isPathWithinDirectory } from "./process.js";
 import path from "node:path";
 import { toOptionalString } from "./kit.js";
 import { z } from "zod";

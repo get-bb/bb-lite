@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { DynamicTool } from "@bb/domain";
+import { toolCallResponseSchema, type DynamicTool } from "@bb/domain";
 import { z } from "zod";
 import { MCP_PROXY_SOURCE } from "./mcp-proxy-source.js";
 
@@ -75,4 +75,60 @@ export async function ensureMcpProxyScript(directory: string): Promise<string> {
     await writeFile(path, MCP_PROXY_SOURCE, "utf8");
   }
   return path;
+}
+
+export interface BridgeToolCallImage {
+  data: string;
+  mimeType: string;
+}
+
+export type BridgeToolCallContent =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
+const IMAGE_DATA_URL = /^data:(.+);base64,(.+)$/s;
+
+export function decodeToolCallResponsePayload(result: unknown): {
+  content: string;
+  contentBlocks: BridgeToolCallContent[];
+  images: BridgeToolCallImage[];
+  isError: boolean;
+} {
+  const parsed = toolCallResponseSchema.safeParse(result);
+  if (!parsed.success) {
+    const text = "Invalid tool call response";
+    const contentBlocks: BridgeToolCallContent[] = [{ type: "text", text }];
+    return { content: text, contentBlocks, images: [], isError: true };
+  }
+  const texts: string[] = [];
+  const contentBlocks: BridgeToolCallContent[] = [];
+  const images: BridgeToolCallImage[] = [];
+  for (const item of parsed.data.contentItems) {
+    if (item.type === "inputText") {
+      texts.push(item.text);
+      if (item.text !== "")
+        contentBlocks.push({ type: "text", text: item.text });
+      continue;
+    }
+    const match = IMAGE_DATA_URL.exec(item.imageUrl);
+    if (match === null || match[2].length === 0) {
+      texts.push(item.imageUrl);
+      contentBlocks.push({ type: "text", text: item.imageUrl });
+      continue;
+    }
+    const image = { mimeType: match[1], data: match[2] };
+    images.push(image);
+    contentBlocks.push({ type: "image", ...image });
+  }
+  const isError = !parsed.data.success;
+  if (contentBlocks.length === 0) {
+    const text = isError ? "Tool call failed" : "OK";
+    return {
+      content: text,
+      contentBlocks: [{ type: "text", text }],
+      images,
+      isError,
+    };
+  }
+  return { content: texts.join("\n"), contentBlocks, images, isError };
 }

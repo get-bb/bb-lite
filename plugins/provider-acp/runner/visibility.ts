@@ -1,13 +1,5 @@
-import {
-  createProviderVisibilityMetadata,
-  getStringProperty,
-  isRecord,
-} from "./kit.js";
-import type {
-  JsonRpcMessage,
-  ProviderRawEventDescription,
-  ProviderVisibilityMetadata,
-} from "./kit.js";
+import { getStringProperty, isRecord } from "./kit.js";
+import type { JsonRpcMessage } from "./kit.js";
 import {
   ACP_FS_WRITE_METHOD,
   ACP_TURN_COMPLETED_METHOD,
@@ -15,6 +7,36 @@ import {
   ACP_UPDATE_METHOD,
   ACP_WARNING_METHOD,
 } from "./bridge-protocol.js";
+
+export type ProviderRawEventCoverage = "normalized" | "noise" | "unknown";
+
+export interface ProviderRawEventDescription {
+  kind: string;
+  coverage: ProviderRawEventCoverage;
+}
+
+export interface ProviderVisibilityMetadata<
+  TRawEvent extends { kind: string } = { kind: string },
+> {
+  parseRawEvent(event: JsonRpcMessage): TRawEvent;
+  describeParsedRawEvent(event: TRawEvent): ProviderRawEventDescription;
+  describeRawEvent(event: JsonRpcMessage): ProviderRawEventDescription;
+}
+
+export function createProviderVisibilityMetadata<
+  TRawEvent extends { kind: string },
+>(args: {
+  parseRawEvent(event: JsonRpcMessage): TRawEvent;
+  describeParsedRawEvent(event: TRawEvent): ProviderRawEventDescription;
+}): ProviderVisibilityMetadata<TRawEvent> {
+  return {
+    parseRawEvent: args.parseRawEvent,
+    describeParsedRawEvent: args.describeParsedRawEvent,
+    describeRawEvent(event) {
+      return args.describeParsedRawEvent(args.parseRawEvent(event));
+    },
+  };
+}
 
 const NORMALIZED_ACP_METHODS = new Set<string>([
   "thread/identity",

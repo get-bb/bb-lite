@@ -1,7 +1,7 @@
 import type { ThreadEventItemPresentation } from "@bb/domain";
 import { labels } from "@bb/runner";
 import type { DeltaFileChange, DeltaItemShape } from "./thread-delta.js";
-import { extractResultText, toOptionalString } from "./kit.js";
+import { getStringProperty, isRecord, toOptionalString } from "./kit.js";
 import { z } from "zod";
 import {
   commandPresentation,
@@ -17,6 +17,58 @@ import {
   type AcpToolCallPathOptions,
 } from "./tool-call-operation.js";
 import { extractAcpContentText, type AcpToolCallUpdateEvent } from "./wire.js";
+
+const contentWrapperSchema = z
+  .object({ content: z.array(z.unknown()) })
+  .passthrough();
+const textBlockSchema = z.object({ type: z.literal("text"), text: z.string() });
+
+function describeToolReferences(blocks: unknown[]): string | null {
+  const names: string[] = [];
+  for (const block of blocks) {
+    if (!isRecord(block) || block.type !== "tool_reference") return null;
+    const name = getStringProperty(block, "tool_name");
+    if (!name) return null;
+    names.push(name);
+  }
+  return names.length === 0 ? null : `Loaded tools: ${names.join(", ")}`;
+}
+
+function describeContentBlock(block: unknown): string | null {
+  if (!isRecord(block)) return null;
+  const type = getStringProperty(block, "type");
+  if (!type) return null;
+  const path = getStringProperty(block, "path");
+  const tool = getStringProperty(block, "tool_name");
+  const url =
+    getStringProperty(block, "url") ?? getStringProperty(block, "imageUrl");
+  const detail = path ?? tool ?? url;
+  return detail ? `[${type}: ${detail}]` : `[${type}]`;
+}
+
+function extractResultText(content: unknown): string {
+  if (content === null || content === undefined) return "";
+  if (typeof content === "string") return content;
+  if (typeof content === "number" || typeof content === "boolean") {
+    return JSON.stringify(content);
+  }
+  if (!Array.isArray(content)) {
+    const wrapper = contentWrapperSchema.safeParse(content);
+    if (wrapper.success) return extractResultText(wrapper.data.content);
+    return JSON.stringify(content);
+  }
+  const references = describeToolReferences(content);
+  if (references) return references;
+  const chunks: string[] = [];
+  for (const block of content) {
+    const parsed = textBlockSchema.safeParse(block);
+    const text = parsed.success
+      ? parsed.data.text
+      : describeContentBlock(block);
+    if (text) chunks.push(text);
+  }
+  return chunks.join("\n");
+}
 
 export interface AcpClassifiedToolCall {
   item: DeltaItemShape;
