@@ -8,6 +8,7 @@ import {
   type PermissionMode,
   type ReasoningLevel,
   type ServiceTier,
+  type SessionOptionSelections,
 } from "@bb/domain";
 import type {
   CreateExecutionInputSources,
@@ -40,8 +41,16 @@ import {
   storedPermissionModeAtom,
   storedProviderIdAtom,
   storedReasoningLevelAtomFamily,
+  storedSessionOptionsAtomFamily,
   storedServiceTierAtom,
 } from "./thread-creation-options/persisted-selection-fields";
+import { resolveModelCatalogSelection } from "./thread-creation-options/model-catalog-selection";
+import {
+  buildSessionOptionMenuSections,
+  declaredSessionOptionViews,
+  splitSessionOptionsByPlacement,
+  type SessionOptionChoice,
+} from "../components/pickers/SessionOptionsMenu";
 
 const PERMISSION_CEILING_REASON =
   "Above the selected machine's permission limit. Change it in Settings → Machines.";
@@ -52,6 +61,7 @@ interface ThreadCreationSelections {
   serviceTier: ServiceTier | undefined;
   reasoningLevel: ReasoningLevel;
   permissionMode: PermissionMode;
+  sessionOptions: SessionOptionSelections;
 }
 
 type ThreadCreationField = keyof ThreadCreationSelections;
@@ -70,19 +80,6 @@ interface UseThreadCreationOptionsArgs {
   initialPermissionMode?: PermissionMode;
 }
 
-function formatModelLabel(value: string): string {
-  return value
-    .split("-")
-    .map((part) =>
-      part.toLowerCase() === "gpt"
-        ? "GPT"
-        : /^[a-z]+$/i.test(part)
-          ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-          : part,
-    )
-    .join("-");
-}
-
 function reconcileModelReasoningLevel(
   model: AvailableModel | undefined,
   preferred: ReasoningLevel,
@@ -93,62 +90,6 @@ function reconcileModelReasoningLevel(
   return supported.length === 0
     ? preferred
     : reconcileReasoningLevel(preferred, supported);
-}
-
-function resolveModelCatalogSelection({
-  models,
-  selectedOnlyModels,
-  rawSelectedModel,
-  catalogIsVerified,
-}: {
-  models: readonly AvailableModel[];
-  selectedOnlyModels: readonly AvailableModel[];
-  rawSelectedModel: string;
-  catalogIsVerified: boolean;
-}) {
-  const fullCatalog = [...models, ...selectedOnlyModels];
-  const suffixMatches = fullCatalog.filter((model) =>
-    model.model.endsWith(`/${rawSelectedModel}`),
-  );
-  const requested =
-    rawSelectedModel.length === 0 ||
-    fullCatalog.some((model) => model.model === rawSelectedModel) ||
-    suffixMatches.length !== 1
-      ? rawSelectedModel
-      : suffixMatches[0]!.model;
-  const requestedOnly = models.some((model) => model.model === requested)
-    ? undefined
-    : selectedOnlyModels.find((model) => model.model === requested);
-  const availableModels = requestedOnly ? [requestedOnly, ...models] : models;
-  const fallback =
-    availableModels.find((model) => model.isDefault) ?? availableModels[0];
-  const selectedModel =
-    (!catalogIsVerified && requested) ||
-    fallback === undefined ||
-    availableModels.some((model) => model.model === requested)
-      ? requested
-      : fallback.model;
-  const toOption = (model: AvailableModel): PickerOption<string> => ({
-    value: model.model,
-    label: formatModelLabel(model.displayName || model.model),
-  });
-  return {
-    selectedModel,
-    activeModel:
-      availableModels.find((model) => model.model === selectedModel) ??
-      fallback,
-    modelOptions: availableModels.map(toOption),
-    moreModelOptions: selectedOnlyModels
-      .filter(
-        (model) =>
-          !availableModels.some((active) => active.model === model.model),
-      )
-      .map(toOption),
-    isUnavailableModelRecovery:
-      catalogIsVerified &&
-      rawSelectedModel.length > 0 &&
-      selectedModel !== rawSelectedModel,
-  };
 }
 
 export function useThreadCreationOptions({
@@ -230,6 +171,9 @@ export function useThreadCreationOptions({
   const [storedReasoningLevel, setStoredReasoningLevel] = useAtom(
     storedReasoningLevelAtomFamily(providerId),
   );
+  const [storedSessionOptions, setStoredSessionOptions] = useAtom(
+    storedSessionOptionsAtomFamily(providerId),
+  );
   const matchesInitialProvider =
     providerId.length > 0 && providerId === initialProviderId;
   const {
@@ -238,6 +182,8 @@ export function useThreadCreationOptions({
     modelOptions,
     moreModelOptions,
     isUnavailableModelRecovery,
+    declaredSessionOptions,
+    sessionOptionSelections,
   } = resolveModelCatalogSelection({
     models: catalog?.models ?? [],
     selectedOnlyModels: catalog?.selectedOnlyModels ?? [],
@@ -245,7 +191,25 @@ export function useThreadCreationOptions({
       ? storedModel || (matchesInitialProvider ? initialModel : "")
       : (values.model ?? initialModel),
     catalogIsVerified: modelCatalogIsVerified,
+    sessionOptionSelections: usesStored
+      ? storedSessionOptions
+      : (values.sessionOptions ?? {}),
   });
+  const placedSessionOptions = splitSessionOptionsByPlacement(
+    declaredSessionOptionViews(
+      declaredSessionOptions,
+      sessionOptionSelections,
+      activeModel?.sessionOptions ?? [],
+    ),
+  );
+  const chooseSessionOption = (
+    optionId: string,
+    value: SessionOptionChoice,
+  ) => {
+    const next = { ...sessionOptionSelections, [optionId]: value };
+    if (usesStored) setStoredSessionOptions(next);
+    touch(["sessionOptions"], { sessionOptions: next });
+  };
   const reasoningLevel = reconcileModelReasoningLevel(
     activeModel,
     (usesStored
@@ -334,7 +298,7 @@ export function useThreadCreationOptions({
         ? "client-preference"
         : undefined;
   const sources: Record<
-    ThreadCreationField,
+    Exclude<ThreadCreationField, "sessionOptions">,
     ExecutionInputFieldSource | undefined
   > = {
     providerId:
@@ -430,6 +394,11 @@ export function useThreadCreationOptions({
         touch(["reasoningLevel"], { reasoningLevel: value });
       },
     },
+    agentSections: buildSessionOptionMenuSections(
+      placedSessionOptions.picker,
+      {},
+    ),
+    onAgentOptionChange: chooseSessionOption,
   };
   const permission: ExecutionPermissionConfig & { value: PermissionMode } = {
     value: permissionMode,
@@ -455,5 +424,8 @@ export function useThreadCreationOptions({
     modelLoadError,
     supportsServiceTier,
     executionInputSources,
+    sessionOptionSelections,
+    footerSessionOptions: placedSessionOptions.footer,
+    chooseSessionOption,
   };
 }

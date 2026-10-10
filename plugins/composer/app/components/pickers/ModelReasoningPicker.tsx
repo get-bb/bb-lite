@@ -398,7 +398,11 @@ export function ModelReasoningPicker({
     MODEL_CYCLE_COMMANDS,
     (index, { target }) => {
       if (!ownsChord(target, true)) return false;
-      const next = cycleValue(modelOptions, modelValue, index === 0 ? 1 : -1);
+      const next = cycleValue(
+        modelOptions.filter((option) => option.disabled !== true),
+        modelValue,
+        index === 0 ? 1 : -1,
+      );
       if (next !== null) onModelChange(next);
       return true;
     },
@@ -700,6 +704,8 @@ export function ModelReasoningPicker({
                         provider?.brandPrefix,
                       )}
                       selected={option.value === modelValue}
+                      disabled={option.disabled === true}
+                      disabledReason={option.disabledReason}
                       onClick={() => selectModel(option.value)}
                     />
                   ))}
@@ -719,6 +725,8 @@ export function ModelReasoningPicker({
                                 provider?.brandPrefix,
                               )}
                               selected={option.value === modelValue}
+                              disabled={option.disabled === true}
+                              disabledReason={option.disabledReason}
                               onClick={() => selectModel(option.value)}
                             />
                           ))
@@ -737,6 +745,8 @@ export function ModelReasoningPicker({
                             provider?.brandPrefix,
                           )}
                           selected={option.value === modelValue}
+                          disabled={option.disabled === true}
+                          disabledReason={option.disabledReason}
                           onClick={() => selectModel(option.value)}
                         />
                       ))}
@@ -1073,6 +1083,8 @@ function MenuRowButton({
   isActive,
   id,
   role,
+  disabled,
+  disabledReason,
 }: {
   label: string;
   selected: boolean;
@@ -1080,6 +1092,8 @@ function MenuRowButton({
   isActive?: boolean;
   id?: string;
   role?: AriaRole;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   const { hoverProps } = useMenuItemHover();
   const isCompactViewport = useIsCompactViewport();
@@ -1091,12 +1105,15 @@ function MenuRowButton({
       role={role}
       aria-selected={role === "option" ? Boolean(isActive) : undefined}
       onClick={onClick}
+      disabled={disabled}
+      title={disabledReason}
       className={cn(
         MENU_ROW_CLASS_NAME,
         "justify-between gap-3",
         LIST_HOVER_TRANSITION,
         MENU_ITEM_LAST_HOVERED_CLASS,
         isActive && "bg-state-active",
+        disabled && "opacity-50",
         isCompactViewport ? "py-2" : "py-[0.3125rem]",
       )}
       {...hoverProps}

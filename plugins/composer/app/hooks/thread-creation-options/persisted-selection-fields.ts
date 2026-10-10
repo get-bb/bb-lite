@@ -5,6 +5,8 @@ import {
   permissionModeSchema,
   reasoningLevelSchema,
   serviceTierSchema,
+  sessionOptionSelectionsSchema,
+  type SessionOptionSelections,
   type PermissionMode,
   type ReasoningLevel,
   type ServiceTier,
@@ -58,6 +60,45 @@ export const storedReasoningLevelAtomFamily = atomFamily((providerId: string) =>
     providerId,
     reasoningLevelSchema,
   ),
+);
+const NO_SESSION_OPTION_SELECTIONS: SessionOptionSelections = {};
+
+export function parseStoredSessionOptionSelections(
+  value: string | null,
+): SessionOptionSelections {
+  if (value === null || value.length === 0) {
+    return NO_SESSION_OPTION_SELECTIONS;
+  }
+  try {
+    const parsed = sessionOptionSelectionsSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : NO_SESSION_OPTION_SELECTIONS;
+  } catch {
+    return NO_SESSION_OPTION_SELECTIONS;
+  }
+}
+
+export function serializeSessionOptionSelections(
+  selections: SessionOptionSelections,
+): string {
+  return Object.keys(selections).length === 0 ? "" : JSON.stringify(selections);
+}
+
+export const storedSessionOptionsAtomFamily = atomFamily(
+  (providerId: string) =>
+    providerId.length === 0
+      ? atom<SessionOptionSelections>(NO_SESSION_OPTION_SELECTIONS)
+      : atomWithStorage<SessionOptionSelections>(
+          `bb.promptbox.session-options-${encodeURIComponent(providerId.trim())}-1`,
+          NO_SESSION_OPTION_SELECTIONS,
+          createTabScopedStorage<SessionOptionSelections>(
+            {
+              parse: (value) => parseStoredSessionOptionSelections(value),
+              serialize: serializeSessionOptionSelections,
+            },
+            { persistInitialValue: false },
+          ),
+          { getOnInit: true },
+        ),
 );
 export const storedServiceTierAtom = storedChoice<ServiceTier>(
   "bb.promptbox.service-tier",
