@@ -1,3 +1,4 @@
+import type { ThreadSessionOption } from "@bb/domain";
 import {
   githubDisabled,
   MERGE_METHODS,
@@ -327,7 +328,11 @@ export const providerModels: Run = async (c) => {
     const reason = `${code}${detail === null ? "" : `: ${detail}`}`;
     console.error(`Could not load models for ${providerId} (${reason})`);
   }
-  c.rows(models, ["model", "displayName", "isDefault"]);
+  const rows = models.map((model) => ({
+    ...model,
+    options: (model.sessionOptions ?? []).map(optionSummary).join("; "),
+  }));
+  c.rows(rows, ["model", "displayName", "isDefault", "options"]);
 };
 
 function setProviderEnabled(enabled: boolean): Run {
@@ -657,3 +662,9 @@ export const envPullRequestMerge: Run = async (c) => {
     .catch(githubDisabled);
   c.out(pull, `Merged pull request #${pull.number}`);
 };
+
+function optionSummary(option: ThreadSessionOption): string {
+  return option.type === "boolean"
+    ? `${option.id}=true|false`
+    : `${option.id}=${option.values.map((value) => value.id).join("|")}`;
+}

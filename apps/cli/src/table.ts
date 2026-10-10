@@ -54,6 +54,7 @@ ${EXECUTION}
 ${MACHINE}  Machine to run on
   --section <id>  Sidebar section
   --visibility <visibility>  visible or hidden (a child inherits)
+  --option <id=value>...  Agent option to start with (see provider models)
 ${ATTACHMENTS}
   $ bb thread spawn --project "$BB_PROJECT_ID" --parent-self --environment
     "$BB_ENVIRONMENT_ID" --provider codex --title "Fix test" --prompt "…"
@@ -113,6 +114,14 @@ ${SELF}
   --model <model>  Model for the next turn
   --reasoning-level <level>  Reasoning level for the next turn
   --visibility <visibility>  visible or hidden
+thread commands [id]  List the agent's own slash commands
+${SELF}
+  > [{name, description, inputHint}] (bare array)
+thread options [id]  Show or change the agent's own options
+${SELF}
+  --set <id=value>...  Choose a value; sent with the next message
+  --clear <id>...  Drop a choice not yet sent
+  > {options: [{id, label, type, value, …}], selections}
 thread stop [id]  Stop work and release the agent runtime
 ${SELF}
 thread archive [id]  Archive a thread and its children
