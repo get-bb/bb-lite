@@ -14,7 +14,6 @@ import {
   labels,
   presentationTitle,
 } from "@bb/runner";
-import type { DeltaFileChange, DeltaItemShape } from "./item-shapes.js";
 import {
   GENERIC_ACP_DIALECT,
   type AcpDelegationReport,
@@ -79,58 +78,21 @@ function defined<T extends object>(value: T): T {
   return Object.fromEntries(kept) as T;
 }
 
-function argumentsOf(args: unknown): Record<string, unknown> | undefined {
-  const plain =
-    typeof args === "object" && args !== null && !Array.isArray(args);
-  return plain ? (args as Record<string, unknown>) : undefined;
-}
-
-function fileChange(change: DeltaFileChange) {
-  const { path, kind, movePath, oldText, newText } = change;
-  const diff = change.diff ?? buildEditDiff(path, oldText, newText);
-  return defined({ path, kind, movePath, diff });
-}
-
-export function toItemShape(
-  item: DeltaItemShape,
-  close: AcpItemResult = {},
-): ItemShape {
-  switch (item.type) {
-    case "command":
+function withResult(shape: ItemShape, result: AcpItemResult): ItemShape {
+  switch (shape.type) {
+    case "commandExecution":
       return defined({
-        type: "commandExecution" as const,
-        command: item.command,
-        cwd: item.cwd,
-        aggregatedOutput: close.aggregatedOutput ?? item.aggregatedOutput,
-        exitCode: close.exitCode ?? item.exitCode,
-        durationMs: item.durationMs,
+        ...shape,
+        aggregatedOutput: result.aggregatedOutput ?? shape.aggregatedOutput,
+        exitCode: result.exitCode ?? shape.exitCode,
       });
-    case "fileChange":
-      return { type: "fileChange", changes: item.changes.map(fileChange) };
-    case "tool":
-      return defined({
-        type: "toolCall" as const,
-        tool: item.tool,
-        server: item.server,
-        arguments: argumentsOf(item.args),
-        result: item.result ?? close.resultText,
-        error: item.error,
-        durationMs: item.durationMs,
-      });
-    case "compaction":
-      return { type: "contextCompaction" };
+    case "toolCall":
+      return defined({ ...shape, result: shape.result ?? result.resultText });
     case "webSearch":
-      return { ...item, resultText: close.resultText ?? null };
     case "webFetch":
-      return {
-        type: "webFetch",
-        url: item.url,
-        prompt: item.prompt ?? null,
-        pattern: item.pattern,
-        resultText: close.resultText ?? null,
-      };
+      return { ...shape, resultText: result.resultText ?? shape.resultText };
     default:
-      return item;
+      return shape;
   }
 }
 
@@ -167,15 +129,14 @@ function createAcpEventWriter(events: EventBuilder) {
     },
     openItem(
       key: ItemKey,
-      item: DeltaItemShape,
+      shape: ItemShape,
       presentation?: ThreadEventItemPresentation,
     ): void {
-      const shape = toItemShape(item);
       openShapes.set(shapeKey(key), shape);
       events.openItem(key, shape, { presentation });
     },
-    closeItem(key: ItemKey, item: DeltaItemShape, close: AcpItemClose): void {
-      const shape = toItemShape(item, close);
+    closeItem(key: ItemKey, item: ItemShape, close: AcpItemClose): void {
+      const shape = withResult(item, close);
       const stale = openShapes.get(shapeKey(key));
       openShapes.delete(shapeKey(key));
       commandOutput.delete(shapeKey(key));
@@ -317,7 +278,7 @@ function mergeAcpToolCallEvents(
 interface AcpOpenToolCall {
   event: AcpToolCallUpdateEvent;
   clientFileWrites?: Extract<AcpToolCallContent, { type: "diff" }>[];
-  openedType: DeltaItemShape["type"];
+  openedType: ItemShape["type"];
   permissionTitle?: string;
   delegation?: AcpDelegationReport;
 }
@@ -612,7 +573,7 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
     );
     injectedToolBindings.delete(callKey(context, args.event.toolCallId));
     const closeFields =
-      classified.item.type === "command"
+      classified.item.type === "commandExecution"
         ? commandCloseFields(args.event, args.status)
         : genericCloseFields(args.event);
     out?.closeItem({ providerItemId: args.event.toolCallId }, classified.item, {
@@ -767,8 +728,8 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
         });
         if (
           event.status === "in_progress" &&
-          mergedType === "command" &&
-          open?.openedType === "command"
+          mergedType === "commandExecution" &&
+          open?.openedType === "commandExecution"
         ) {
           const normalizedEvent =
             dialect.normalizeCommandEvent?.(event) ?? event;
@@ -781,7 +742,7 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
         const progressText = extractAcpToolCallOutputText(event);
         if (
           progressText !== undefined &&
-          mergedType !== "command" &&
+          mergedType !== "commandExecution" &&
           mergedType !== "fileChange"
         ) {
           out?.progress({ providerItemId: event.toolCallId }, progressText);
@@ -921,7 +882,7 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
     out?.openTurn();
     out?.openItem(
       { channel: "compaction" },
-      { type: "compaction" },
+      { type: "contextCompaction" },
       labels.compaction,
     );
   }
@@ -960,6 +921,7 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
     if (write.path === "" || mergeFsWriteIntoOpenToolCall(context, write)) {
       return;
     }
+    const diff = buildEditDiff(write.path, write.oldText, write.content);
     writer()?.closeItem(
       { channel: "fs-write" },
       {
@@ -968,8 +930,7 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
           {
             path: write.path,
             kind: write.kind,
-            ...(write.oldText === undefined ? {} : { oldText: write.oldText }),
-            newText: write.content,
+            ...(diff === undefined ? {} : { diff }),
           },
         ],
       },
@@ -1026,7 +987,7 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
     if (boundKey === undefined || open === undefined) {
       return { toolCallId: toolCall.toolCallId, event: undefined };
     }
-    if (classifyCall(context, open.event).item.type !== "tool") {
+    if (classifyCall(context, open.event).item.type !== "toolCall") {
       return { toolCallId: open.event.toolCallId, event: open.event };
     }
     const kind =
@@ -1079,7 +1040,7 @@ export function createAcpTranslator(options: AcpTranslatorOptions) {
     if (classified.item.type !== "delegation") {
       return;
     }
-    const item: DeltaItemShape = {
+    const item: ItemShape = {
       ...classified.item,
       childRef: report.childRef,
       label: report.label,

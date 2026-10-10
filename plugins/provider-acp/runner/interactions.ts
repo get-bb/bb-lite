@@ -8,6 +8,7 @@ import type {
   PendingInteractionPayload,
   PendingInteractionResolution,
 } from "@bb/domain";
+import type { ItemShape } from "@bb/runner";
 import { toolKindPresentation } from "./presentation.js";
 import {
   type AcpToolCallOperation,
@@ -75,6 +76,10 @@ function permissionToolCallEvent(
   };
 }
 
+function approvalToolName(type: ItemShape["type"]): string {
+  return type === "commandExecution" ? "command" : type;
+}
+
 function buildToolUseSubject(
   toolCall: AcpPermissionToolCall | undefined,
   options: AcpToolCallPathOptions | undefined,
@@ -105,11 +110,11 @@ function buildToolUseSubject(
     kind: "tool_use",
     itemId: toolCall.toolCallId,
     tool:
-      described.item.type === "tool"
+      described.item.type === "toolCall"
         ? described.item.tool
         : (toolCall.kind ??
           toolCall.startedToolCall?.kind ??
-          described.item.type),
+          approvalToolName(described.item.type)),
     presentation: described.presentation,
   };
 }

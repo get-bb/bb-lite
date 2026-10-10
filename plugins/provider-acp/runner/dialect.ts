@@ -1,4 +1,4 @@
-import type { DeltaItemShape } from "./item-shapes.js";
+import type { ItemShape } from "@bb/runner";
 import { basename } from "node:path";
 import { z } from "zod";
 import {
@@ -104,7 +104,7 @@ function grokClassifyToolCall(
   const input = parsed.success ? parsed.data : undefined;
   const label =
     input?.description ?? input?.prompt ?? event.title ?? "Subagent";
-  const shape: DeltaItemShape = {
+  const shape: ItemShape = {
     type: "delegation",
     childRef: event.toolCallId,
     label,
@@ -230,7 +230,7 @@ function cursorClassifyToolCall(
     return undefined;
   }
   const label = event.title ?? "Subagent task";
-  const shape: DeltaItemShape = {
+  const shape: ItemShape = {
     type: "delegation",
     childRef: event.toolCallId,
     label,

@@ -1,6 +1,5 @@
 import type { ThreadEventItemPresentation } from "@bb/domain";
-import { labels } from "@bb/runner";
-import type { DeltaFileChange, DeltaItemShape } from "./item-shapes.js";
+import { buildEditDiff, labels, type ItemShape } from "@bb/runner";
 import { getStringProperty, isRecord, toOptionalString } from "./values.js";
 import { z } from "zod";
 import {
@@ -70,8 +69,12 @@ function extractResultText(content: unknown): string {
   return chunks.join("\n");
 }
 
+type FileChangeShape = Extract<ItemShape, { type: "fileChange" }>;
+type FileChange = FileChangeShape["changes"][number];
+type ToolCallShape = Extract<ItemShape, { type: "toolCall" }>;
+
 export interface AcpClassifiedToolCall {
-  item: DeltaItemShape;
+  item: ItemShape;
   presentation: ThreadEventItemPresentation;
 }
 
@@ -344,7 +347,7 @@ function looksLikePath(token: string): boolean {
 }
 
 function fileChangeVerb(
-  changes: readonly DeltaFileChange[],
+  changes: readonly FileChange[],
   fallback: AcpFileChangeVerb,
 ): AcpFileChangeVerb {
   if (changes.length === 0) {
@@ -363,18 +366,19 @@ function buildAcpFileChanges(
   event: AcpToolCallUpdateEvent,
   operation: Extract<AcpToolCallOperation, { kind: "file_change" }>,
   options: AcpToolCallPathOptions | undefined,
-): DeltaFileChange[] {
-  const changes: DeltaFileChange[] = [];
+): FileChange[] {
+  const changes: FileChange[] = [];
   for (const entry of event.content ?? []) {
     if (entry.type !== "diff") {
       continue;
     }
     const oldText = entry.oldText ?? undefined;
+    const path = resolveAcpToolCallPath(entry.path, options);
+    const diff = buildEditDiff(path, oldText, entry.newText);
     changes.push({
-      path: resolveAcpToolCallPath(entry.path, options),
+      path,
       kind: oldText === undefined ? "add" : "update",
-      ...(oldText === undefined ? {} : { oldText }),
-      newText: entry.newText,
+      ...(diff === undefined ? {} : { diff }),
     });
   }
   if (changes.length > 0) {
@@ -385,7 +389,7 @@ function buildAcpFileChanges(
 }
 
 function fileChangeItem(
-  changes: DeltaFileChange[],
+  changes: FileChange[],
   fallbackVerb: AcpFileChangeVerb,
 ): AcpClassifiedToolCall {
   return {
@@ -454,7 +458,13 @@ function webFetchItem(
     return null;
   }
   return {
-    item: { type: "webFetch", url, pattern: null },
+    item: {
+      type: "webFetch",
+      url,
+      prompt: null,
+      pattern: null,
+      resultText: null,
+    },
     presentation: labels.webFetch(url),
   };
 }
@@ -478,16 +488,13 @@ function reasoningItem(event: AcpToolCallUpdateEvent): AcpClassifiedToolCall {
 
 function genericToolFields(
   event: AcpToolCallUpdateEvent,
-): Pick<
-  Extract<DeltaItemShape, { type: "tool" }>,
-  "args" | "result" | "error"
-> {
+): Pick<ToolCallShape, "arguments" | "result" | "error"> {
   const args = boundAcpToolArgs(event.rawInput);
   const result = boundAcpToolPayload(event.rawOutput);
   const error =
     event.status === "failed" ? extractAcpToolCallOutputText(event) : undefined;
   return {
-    ...(args === undefined ? {} : { args }),
+    ...(args === undefined ? {} : { arguments: args }),
     ...(result === undefined ? {} : { result }),
     ...(error === undefined ? {} : { error }),
   };
@@ -500,7 +507,7 @@ function genericToolItem(
   const name = toOptionalString(event.name);
   return {
     item: {
-      type: "tool",
+      type: "toolCall",
       tool: name ?? event.rawKind ?? event.kind ?? "tool",
       ...genericToolFields(event),
     },
@@ -514,7 +521,7 @@ function bbToolItem(
 ): AcpClassifiedToolCall {
   return {
     item: {
-      type: "tool",
+      type: "toolCall",
       tool: injected.name,
       server: BB_TOOL_SERVER,
       ...genericToolFields(event),
@@ -536,7 +543,11 @@ export function classifyAcpToolCall(
     const cwd = toOptionalString(options?.cwd);
     if (cwd !== undefined) {
       return {
-        item: { type: "command", command: operation.command, cwd },
+        item: {
+          type: "commandExecution",
+          command: operation.command,
+          cwd,
+        },
         presentation: commandPresentation(operation.command),
       };
     }
