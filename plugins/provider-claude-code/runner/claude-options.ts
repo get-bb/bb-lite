@@ -58,9 +58,22 @@ const providerOptionsSchema = z.object({
 });
 
 function sdkEffort(level: ReasoningLevel) {
-  if (level === "ultracode") return "xhigh";
-  if (level === "none") return "low";
-  return level === "ultra" ? "max" : level;
+  switch (level) {
+    case "low":
+    case "medium":
+    case "high":
+    case "xhigh":
+    case "max":
+      return level;
+    case "ultracode":
+      return "xhigh";
+    case "ultra":
+      return "max";
+    case "none":
+      return "low";
+    default:
+      return "medium";
+  }
 }
 
 export function startMode(mode: PermissionMode): PermissionMode {

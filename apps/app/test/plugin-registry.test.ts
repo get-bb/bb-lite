@@ -44,8 +44,6 @@ function registerEverySlot(bb: PluginAppApi): void {
   bb.add(threadView.interaction, { id: "form", view });
   bb.add(threadView.messageDirective, { id: "card", view });
   bb.add(shell.threadList, { id: "list", ...titled });
-  bb.add(shell.sidebarNavigation, { id: "nav", ...titled });
-  bb.add(shell.sidebarHeader, { id: "head", ...titled });
   bb.add(shell.command, { id: "run", title: "Run", run: () => {} });
 }
 
@@ -95,8 +93,6 @@ describe("plugin registry", () => {
       interaction: ids(slotItems(threadView.interaction)),
       messageDirective: ids(slotItems(threadView.messageDirective)),
       threadList: ids(slotItems(shell.threadList)),
-      sidebarNavigation: ids(slotItems(shell.sidebarNavigation)),
-      sidebarHeader: ids(slotItems(shell.sidebarHeader)),
       command: ids(slotItems(shell.command)),
     }).toEqual({
       navPanel: ["panel"],
@@ -106,8 +102,6 @@ describe("plugin registry", () => {
       interaction: ["form"],
       messageDirective: ["card"],
       threadList: ["list"],
-      sidebarNavigation: ["nav"],
-      sidebarHeader: ["head"],
       command: ["run"],
     });
     const owned = { id: "panel", pluginId: "demo" };

@@ -5,8 +5,8 @@ use serde_json::{Map, Value, json};
 
 use crate::call::{
     Call, CliError, CliResult, Handler, Output, confirm, duration_ms, integer, locale_date,
-    machine_flag, machine_or_this, now_ms, send_at_ms, text_input, thread_target, usage_error,
-    valid_id,
+    machine_flag, machine_or_this, now_ms, option_assignment, send_at_ms, text_input,
+    thread_target, usage_error, valid_id,
 };
 use crate::commands::workspace::{pull_request_op, read_client_file, upload_attachment};
 use crate::http::encode;
@@ -208,6 +208,20 @@ fn spawn_parent(call: &Call) -> CliResult<Option<String>> {
     }
 }
 
+fn spawn_session_options(call: &Call) -> CliResult<Option<Value>> {
+    let mut options = Map::new();
+    for raw in call.list("option")? {
+        let (id, raw) = option_assignment(&raw)?;
+        let value = match raw.as_str() {
+            "true" => json!(true),
+            "false" => json!(false),
+            _ => json!(raw),
+        };
+        options.insert(id, value);
+    }
+    Ok((!options.is_empty()).then_some(Value::Object(options)))
+}
+
 fn thread_spawn(call: &mut Call) -> CliResult<Output> {
     let prompt = call.flag("prompt")?;
     let text = text_input(call, prompt.as_deref(), "prompt-file", "--prompt <text>")?;
@@ -236,6 +250,7 @@ fn thread_spawn(call: &mut Call) -> CliResult<Output> {
     body.insert("origin".into(), json!("cli"));
     body.insert("startedOnBehalfOf".into(), Value::Null);
     put(&mut body, "sendAt", scheduled);
+    put(&mut body, "sessionOptions", spawn_session_options(call)?);
     let thread = call.http.post("/threads", &Value::Object(body))?;
     let mut lines = vec![format!("Thread spawned: {}", text_of(&thread, "id"))];
     if let Some(scheduled) = scheduled {

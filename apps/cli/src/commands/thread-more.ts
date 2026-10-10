@@ -3,6 +3,8 @@ import type {
   PendingInteractionApprovalDecision,
   PendingInteractionResolution,
   PendingInteractionUserAnswer,
+  SessionOptionSelections,
+  SessionOptionValue,
 } from "@bb/domain";
 import {
   clip,
@@ -10,6 +12,7 @@ import {
   integer,
   loaded,
   parseJson,
+  optionAssignment,
   threadTarget,
   valid,
   validId,
@@ -230,4 +233,50 @@ export const projectHistory: Run = async (c) => {
   const limit = integer(c.flag("limit"), "--limit");
   const projectId = validId(c.arg("id"), "<id> argument");
   c.out(await c.op(c.ops.projects.promptHistory, { projectId, limit }));
+};
+
+function optionValueText(value: SessionOptionValue): string {
+  return typeof value === "boolean" ? (value ? "on" : "off") : value;
+}
+
+export const threadCommands: Run = async (c) => {
+  const threadId = threadTarget(c);
+  const { commands } = await c.op(c.ops.threads.providerCommands, {
+    threadId,
+  });
+  c.rows(commands, ["name", "description", "inputHint"]);
+};
+
+export const threadOptions: Run = async (c) => {
+  const threadId = threadTarget(c);
+  const current = await c.op(c.ops.threads.sessionOptions, { threadId });
+  const sets = c.list("set").map(optionAssignment);
+  const clear = c.list("clear");
+  let result = current;
+  if (sets.length > 0 || clear.length > 0) {
+    const set: SessionOptionSelections = {};
+    for (const [id, raw] of sets) {
+      const option = current.options.find((candidate) => candidate.id === id);
+      if (option?.type === "boolean" && raw !== "true" && raw !== "false") {
+        throw usageError(`${id} is on/off: use ${id}=true or ${id}=false.`);
+      }
+      set[id] = option?.type === "boolean" ? raw === "true" : raw;
+    }
+    result = await c.op(c.ops.threads.updateSessionOptions, {
+      threadId,
+      set,
+      clear,
+    });
+  }
+  const lines = result.options.map((option) => {
+    const pending = Object.hasOwn(result.selections, option.id);
+    const choices =
+      option.type === "select"
+        ? ` (${option.values.map((value) => value.id).join(", ")})`
+        : "";
+    const value = optionValueText(option.value);
+    return `${option.id}: ${value}${pending ? " (pending)" : ""}${choices}`;
+  });
+  const empty = "The provider has not reported any options.";
+  c.out(result, lines.length > 0 ? lines : [empty]);
 };

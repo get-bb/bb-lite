@@ -31,6 +31,7 @@ import pluginApiTester from "../../plugins/plugin-api-tester/server.js";
 import pluginDev from "../../plugins/plugin-dev/server.js";
 import projects from "../../plugins/projects/server.js";
 import promptLibrary from "../../plugins/prompt-library/server.js";
+import providerAcp from "../../plugins/provider-acp/server.js";
 import providerClaudeCode from "../../plugins/provider-claude-code/server.js";
 import providerCodex from "../../plugins/provider-codex/server.js";
 import providerEcho from "../../plugins/provider-echo/server.js";
@@ -81,13 +82,13 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   marketplace: marketplace,
   memory: memory,
   "monaco-editor": monacoEditor,
-  navigation: null,
   "pdf-preview": null,
   "plugin-api-docs": pluginApiDocs,
   "plugin-api-tester": pluginApiTester,
   "plugin-dev": pluginDev,
   projects: projects,
   "prompt-library": promptLibrary,
+  "provider-acp": providerAcp,
   "provider-claude-code": providerClaudeCode,
   "provider-codex": providerCodex,
   "provider-echo": providerEcho,

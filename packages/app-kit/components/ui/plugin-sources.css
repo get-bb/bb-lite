@@ -15,11 +15,11 @@
 @source "../../../../plugins/marketplace";
 @source "../../../../plugins/memory";
 @source "../../../../plugins/monaco-editor";
-@source "../../../../plugins/navigation";
 @source "../../../../plugins/pdf-preview";
 @source "../../../../plugins/plugin-api-docs";
 @source "../../../../plugins/plugin-api-tester";
 @source "../../../../plugins/prompt-library";
+@source "../../../../plugins/provider-acp";
 @source "../../../../plugins/provider-usage";
 @source "../../../../plugins/push-notifications";
 @source "../../../../plugins/scheduled-send";

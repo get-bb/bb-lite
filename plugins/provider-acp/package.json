@@ -1,0 +1,43 @@
+{
+  "name": "bb-plugin-provider-acp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Run bb threads with agents that speak the Agent Client Protocol.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "ACP providers",
+    "description": "Run bb threads with Cursor, opencode, omp, Grok Build, Hermes Agent and any other ACP agent.",
+    "icon": "./icons/acp.svg",
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "runner": "./runner.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "1.7.0",
+    "@bb/app-kit": "workspace:*",
+    "@bb/domain": "workspace:*",
+    "@bb/plugin": "workspace:*",
+    "@bb/runner": "workspace:*",
+    "@bb/shared-ui": "workspace:*",
+    "react": "^19.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

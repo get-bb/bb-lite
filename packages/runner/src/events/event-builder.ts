@@ -224,8 +224,23 @@ export class EventBuilder {
     this.push({ type: "thread/started", scope: threadScope() });
   }
 
-  name(threadName: string) {
-    this.send(undefined, { type: "thread/name/updated", threadName });
+  name(threadName: string, source?: "agent") {
+    const sourced = source === undefined ? {} : { source };
+    this.send(undefined, {
+      type: "thread/name/updated",
+      threadName,
+      ...sourced,
+    });
+  }
+
+  commandOutput(key: ItemKey, output: string, t?: TurnTarget) {
+    const turnId = this.target(t);
+    const itemId = this.open.get(keyOf(key))?.id ?? this.knownItemId(key);
+    if (turnId === undefined || itemId === undefined) return;
+    const parentToolCallId = this.parentOf(key.parentRef);
+    const type = "item/commandExecution/outputDelta";
+    const delta = { itemId, delta: output, reset: true, parentToolCallId };
+    this.send(turnId, { type, ...delta });
   }
 
   extensionState(kind: ExtensionKind, payload: JsonValue) {

@@ -67,7 +67,7 @@ Nothing left. The one call in this group, `threads.paneAction` (used by the mark
   `ProviderAdapter` object in a runner part. The translation is written again, not moved. The
   original SDK also shipped an ACP client and a bridge test harness; neither exists here, so an ACP
   plugin adds `@agentclientprotocol/sdk` to its runner part. Nine plugins are affected.
-  provider-pi was ported this way.
+  provider-pi was ported this way, and provider-acp shows the ACP case.
 - **Composer popups.** The original host placed popups for the plugin. Here a plugin fills the
   `composer.popup` slot and opens it from the composer handle; the host places it above the composer
   and closes it on Escape. The calls are renamed rather than missing.
@@ -153,9 +153,17 @@ built-in kind ids in a few defaults.
 a checkpoint have counterparts, and so does message editing: Pi declares checkpoint fork, which
 `threads.updateMessage` uses.
 
-**provider-acp.** Not ported: held by the owner pending a separate rewrite. What it would need is
-unchanged: an ACP client bundled in its runner part, and its custom agents as a multiline string
-setting, since settings have no JSON type.
+**provider-acp.** Ported from the original's rebuilt adapter (`provider-acp-next`), not the older
+one. The client on `@agentclientprotocol/sdk`, the session model, the per-agent dialects and the
+model catalog are the original's modules. The bridge process is gone: `runner/engine.ts` holds its
+session logic behind an adapter (`runner/adapter.ts`), the translator (`runner/acp-translator.ts`)
+writes to the event builder directly, and health and usage return `ProviderStatus` and
+`UsageReading`. Custom agents are a multiline string setting holding JSON, since settings have no
+JSON type. Left out:
+
+- Forks: an ACP fork is at the tip, and a provider here can only declare checkpoint forks.
+- The per-agent resolvers for native skill roots; only the static roots are declared.
+- Raw unhandled agent updates are dropped instead of recorded.
 
 **provider-retry, provider-usage.** Both ported. Retry gets the failure details on `thread.failed`
 and queues with a typed `sendAt`. Usage reads the `sessions.usage` sources that provider-codex and
@@ -190,12 +198,12 @@ before the overnight port and were already on this API.
 | keep-awake                     | Ported               | Nothing                                                                                                                         |
 | memory                         | Ported               | Nothing                                                                                                                         |
 | monaco-editor                  | Ported (2 stages)    | Toolbar extras, tree resizing, files of a project with no environment                                                           |
-| navigation                     | Imported             | Reordering and hiding entries, which its overview still claims                                                                  |
+| navigation                     | Removed              | The rail is the only sidebar layout, as in the original; destinations are `shell.navItem` and `shell.navPanel` entries          |
 | pdf-preview                    | Ported               | Nothing                                                                                                                         |
 | plugin-api-docs                | Ported               | Runtime shapes of `z.custom` outputs and the app kernel's slots are not visible to the server                                   |
 | plugin-api-tester              | Ported               | Nothing                                                                                                                         |
 | prompt-library                 | Ported               | Nothing                                                                                                                         |
-| provider-acp                   | Not ported           | Held by the owner pending a separate rewrite                                                                                    |
+| provider-acp                   | Ported               | Forks and native skill root resolvers                                                                                           |
 | provider-claude-code           | Built in as a plugin | Rewritten as a `ProviderAdapter` with the kernel, not ported from the original's bridge                                         |
 | provider-codex                 | Built in as a plugin | Rewritten as a `ProviderAdapter` with the kernel, not ported from the original's bridge                                         |
 | provider-pi                    | Ported (3 stages)    | In-place model switch, the extension-ui renderer, catalog caching, session relocation                                           |
@@ -225,7 +233,7 @@ Plugins here that were not plugins in the original (their features were core the
 | Gap                                           | Needed by                                | Smallest addition                                                            |
 | --------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------- |
 | Old package name and RPC style                | all 341                                  | A port per plugin; a compatibility package was not built                     |
-| An ACP client and a provider test harness     | acp and 8 marketplace                    | A helper package beside `ProviderAdapter`                                    |
+| An ACP client and a provider test harness     | 8 marketplace                            | A helper package beside `ProviderAdapter`, lifted from provider-acp          |
 | An in-app or desktop browser                  | agent-annotations, browser-automation, 2 | A `desktop` contract a desktop app implements                                |
 | Setting experiments                           | part of 3 marketplace                    | `server.updateExperiments`                                                   |
 | A pinned npm integrity in marketplace updates | marketplace                              | Record the tarball's integrity at install and check it on `update`           |

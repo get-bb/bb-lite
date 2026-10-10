@@ -146,7 +146,7 @@ export function AutomationForm({
   const supported = chosenModel?.supportedReasoningEfforts.map(
     (option) => option.reasoningEffort,
   );
-  const reasoningLevels =
+  const reasoningLevels: readonly ReasoningLevel[] =
     supported && supported.length > 0 ? supported : reasoningLevelValues;
   if (!reasoningLevels.includes(reasoningLevel)) {
     setReasoningLevel(chosenModel?.defaultReasoningEffort ?? "medium");

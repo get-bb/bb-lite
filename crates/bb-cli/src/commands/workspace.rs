@@ -530,9 +530,40 @@ fn provider_models(call: &mut Call) -> CliResult<Output> {
         let (provider, code) = (text(error, "providerId"), text(error, "code"));
         eprintln!("Could not load models for {provider} ({code}{detail})");
     }
-    let models = options.get("models").cloned().unwrap_or(Value::Null);
-    let rows = models.as_array().cloned().unwrap_or_default();
-    Ok(Output::rows(&rows, &["model", "displayName", "isDefault"], models))
+    let models = options.get("models").and_then(Value::as_array).cloned().unwrap_or_default();
+    let rows: Vec<Value> = models
+        .into_iter()
+        .map(|mut model| {
+            let declared = model.get("sessionOptions").and_then(Value::as_array);
+            let summaries: Vec<String> = declared
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .map(option_summary)
+                .collect();
+            if let Value::Object(fields) = &mut model {
+                fields.insert("options".into(), json!(summaries.join("; ")));
+            }
+            model
+        })
+        .collect();
+    let keys = ["model", "displayName", "isDefault", "options"];
+    Ok(Output::rows(&rows, &keys, Value::Array(rows.clone())))
+}
+
+fn option_summary(option: &Value) -> String {
+    let id = text(option, "id");
+    if text(option, "type") == "boolean" {
+        return format!("{id}=true|false");
+    }
+    let values = option.get("values").and_then(Value::as_array);
+    let ids: Vec<String> = values
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .map(|value| text(value, "id"))
+        .collect();
+    format!("{id}={}", ids.join("|"))
 }
 
 fn set_provider_enabled(call: &mut Call, enabled: bool) -> CliResult<Output> {

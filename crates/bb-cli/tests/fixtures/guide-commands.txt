@@ -29,6 +29,7 @@ Options:
   --machine <id-or-name>      Machine to run on (alias --host)
   --section <id>              Sidebar section
   --visibility <visibility>   visible or hidden (a child inherits)
+  --option <id=value>         Agent option to start with (see provider models) (repeatable)
   --file <path>               Attach a file; an absolute path here is uploaded first (repeatable)
   --image <path>              Attach an image the same way (repeatable)
   --send-at <when>            ISO time (2026-08-25T09:00) or delay (30s, 10m, 2h)
@@ -114,6 +115,20 @@ Options:
   --model <model>            Model for the next turn
   --reasoning-level <level>  Reasoning level for the next turn
   --visibility <visibility>  visible or hidden
+
+Usage: bb thread commands [id] [options]
+List the agent's own slash commands
+Options:
+  --self  Target the current thread (BB_THREAD_ID)
+JSON (--json): [{name, description, inputHint}] (bare array)
+
+Usage: bb thread options [id] [options]
+Show or change the agent's own options
+Options:
+  --self            Target the current thread (BB_THREAD_ID)
+  --set <id=value>  Choose a value; sent with the next message (repeatable)
+  --clear <id>      Drop a choice not yet sent (repeatable)
+JSON (--json): {options: [{id, label, type, value, …}], selections}
 
 Usage: bb thread stop [id] [options]
 Stop work and release the agent runtime

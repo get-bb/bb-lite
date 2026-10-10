@@ -519,6 +519,27 @@ installAction? }`; `state` is `ready`, `needs_login`, `not_installed`, `update_r
   (`GET /sessions/providers/:providerId/environment-health`) returns `{ providerId, machineId,
 status, label, statusMessage }` with `status` `ready`, `disabled`, `unknown-provider` or `offline`;
   a plugin adds `label` and `statusMessage` by hooking it with `{ providerId }`.
+- A reasoning level is any non-empty id. The standard ones (`none` to `ultra`) keep their order and
+  names; a model may list its own in `supportedReasoningEfforts`, each with an optional `label` the
+  picker shows, and may list `supportedServiceTiers`. A thread's preferred permission mode falls
+  back to one the provider declares.
+- `provider-acp` is the example of a provider for many agents: its server part adds one
+  `sessions.provider` entry per agent and sends the agent list to each machine, and its runner
+  part adds one adapter per agent.
+- A provider may publish two kinds of thread state with a `thread/extensionState/updated` event:
+  `bb/provider-commands` (`{ commands: [{ name, description, inputHint? }] }`, the agent's own
+  slash commands) and `bb/session-options` (`{ options }`, each a `select` with `values` or a
+  `boolean`, with its current `value`). The schemas are in `@bb/domain`. `threads.providerCommands`
+  answers the latest commands; `threads.sessionOptions` answers `{ options, selections }`, where
+  `selections` are the user's choices the provider has not applied yet and each option shows a
+  pending choice as its `value`. `threads.updateSessionOptions` takes `{ set?, clear? }` and
+  refuses a value an option does not offer. Both reads are signalled with `bb.changed` when the
+  state or the choices change.
+- A model in `listModels` may carry `sessionOptions` so options can be chosen before a thread
+  exists; `threads.create` accepts `sessionOptions`, starts on a model that fits them when the
+  model is left to bb, and refuses a named model that rules them out. Every turn carries the
+  pending choices as `ExecutionOptions.sessionOptions` (absent when there are none) until the
+  provider reports that value; providers without options ignore it.
 - The runner part's `ProviderSession.compact?()` is called by `threads.compact` instead of sending
   `/compact` as a prompt; it must open and close a turn.
 - To configure the runner part (for example a list of agents to launch), keep the configuration in
@@ -587,7 +608,7 @@ Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills
 
 | Contract     | Slots                                                                                                                                                                                                                                          |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shell`      | `route`, `navItem`, `navPanel`, `overlay`, `command`, `threadAction`, `sidebarFooter`, `threadRowStatus`; providers the user picks between: `threadList`, `sidebarNavigation`, `sidebarHeader`                                                 |
+| `shell`      | `route`, `navItem`, `navPanel`, `overlay`, `command`, `threadAction`, `sidebarFooter`, `threadRowStatus`; a provider the user picks: `threadList`                                                                                              |
 | `threadView` | `row` (a renderer per timeline row kind), `rowDetail` (per work-row kind), `pluginRow` (rows a plugin stored), `messageAction`, `header` (a component in the thread header), `interaction` (a form for `interactions.ask`), `messageDirective` |
 | `composer`   | `menuItem` (the "+" menu), `footerControl`, `sendMenuItem`, `banner`, `popup`, `textEffect`, `environmentInputs` (per environment kind), `homeSection`                                                                                         |
 | `sidePanel`  | `tab` (per tab kind: body, icon, title), `fileViewer` (per file extension), `panel` (a plugin's own panel and the action that opens it)                                                                                                        |

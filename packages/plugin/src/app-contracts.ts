@@ -139,12 +139,6 @@ export const shell = contract("shell", {
   threadList: slot<T.ShellProvider<T.ShellThreadListProps>>({
     check: identified("view"),
   }),
-  sidebarNavigation: slot<T.ShellProvider<T.SidebarNavigationProps>>({
-    check: identified("view"),
-  }),
-  sidebarHeader: slot<T.ShellProvider<T.SidebarHeaderProps>>({
-    check: identified("view"),
-  }),
   sidebarFooter: slot<SidebarFooterItem>(),
   threadRowStatus: slot<T.ThreadRowStatusEntry>(),
 });

@@ -380,3 +380,11 @@ export async function thisMachineId(call: Call): Promise<string> {
 export async function machineOrThis(call: Call): Promise<string> {
   return (await machineFlag(call)) ?? (await thisMachineId(call));
 }
+
+export function optionAssignment(raw: string): [string, string] {
+  const separator = raw.indexOf("=");
+  if (separator <= 0) {
+    throw usageError(`Expected id=value, got "${raw}".`);
+  }
+  return [raw.slice(0, separator), raw.slice(separator + 1)];
+}

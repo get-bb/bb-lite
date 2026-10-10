@@ -9,7 +9,11 @@ import {
 import { readFile } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PromptInput, ThreadEventRow } from "@bb/domain";
+import type {
+  PromptInput,
+  SessionOptionSelections,
+  ThreadEventRow,
+} from "@bb/domain";
 import type {
   CreateThreadEnvironmentArgs,
   EnvironmentStatusResponse,
@@ -21,6 +25,7 @@ import {
   loaded,
   machineFlag,
   machineOrThis,
+  optionAssignment,
   sendAtMs,
   textInput,
   threadTarget,
@@ -166,6 +171,7 @@ export const threadSpawn: Run = async (c) => {
     parentThreadId,
     sectionId: c.id("section"),
     sendAt: scheduled,
+    sessionOptions: spawnSessionOptions(c),
   });
   const lines = [`Thread spawned: ${thread.id}`];
   if (scheduled !== undefined) {
@@ -555,3 +561,14 @@ export const threadOpen: Run = async (c) => {
   const text = `Opened thread ${threadId}${shown} in ${delivered} window(s)`;
   c.out({ threadId, split: split ?? "replace", file, delivered }, text);
 };
+
+function spawnSessionOptions(c: Call): SessionOptionSelections | undefined {
+  const assignments = c.list("option").map(optionAssignment);
+  if (assignments.length === 0) return undefined;
+  return Object.fromEntries(
+    assignments.map(([id, raw]) => [
+      id,
+      raw === "true" ? true : raw === "false" ? false : raw,
+    ]),
+  );
+}

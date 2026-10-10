@@ -41,6 +41,19 @@ function formatCompactTokenCount(value: number): string {
   ).toLowerCase();
 }
 
+function formatUsageCost(cost: { amount: number; currency: string }): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: cost.currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: cost.amount < 1 ? 4 : 2,
+    }).format(cost.amount);
+  } catch {
+    return `${cost.amount} ${cost.currency}`;
+  }
+}
+
 export function ThreadContextWindowCard({
   usage,
   className,
@@ -64,6 +77,7 @@ export function ThreadContextWindowCard({
   const usedTokensLabel = formatCompactTokenCount(usage.usedTokens);
   const windowTokensLabel = formatCompactTokenCount(usage.modelContextWindow);
   const titleLabel = usage.estimated ? "Estimated context" : "Context window";
+  const costLabel = usage.cost ? formatUsageCost(usage.cost) : null;
 
   return (
     <div
@@ -129,6 +143,12 @@ export function ThreadContextWindowCard({
           </span>
           <span>{leftPercent}% left</span>
         </div>
+        {costLabel ? (
+          <div className="flex items-baseline justify-between gap-2 text-xs tabular-nums text-muted-foreground max-md:pointer-coarse:text-sm">
+            <span>Session cost</span>
+            <span>{costLabel}</span>
+          </div>
+        ) : null}
       </div>
       {details ? (
         <>

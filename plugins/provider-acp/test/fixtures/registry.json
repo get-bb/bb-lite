@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "agents": [
+    {
+      "id": "amp-acp",
+      "name": "Amp",
+      "version": "0.7.0",
+      "description": "ACP wrapper for Amp",
+      "authors": ["Amp"],
+      "license": "MIT",
+      "distribution": {
+        "npx": { "package": "amp-acp@0.7.0", "args": ["--acp"] }
+      }
+    },
+    {
+      "id": "grok-build",
+      "name": "Grok Build",
+      "version": "1.0.0",
+      "description": "Grok",
+      "authors": [],
+      "distribution": { "npx": { "package": "grok@1.0.0" } }
+    }
+  ]
+}

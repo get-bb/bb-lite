@@ -67,6 +67,7 @@ export const createThreadRequestSchema = z
     serviceTier: domain.serviceTierSchema.optional(),
     reasoningLevel: domain.reasoningLevelSchema.optional(),
     permissionMode: domain.permissionModeInputSchema.optional(),
+    sessionOptions: domain.sessionOptionSelectionsSchema.optional(),
     executionInputSources: createExecutionInputSourcesSchema.optional(),
     environment: createThreadEnvironmentArgsSchema,
     parentThreadId: z.string().min(1).optional(),

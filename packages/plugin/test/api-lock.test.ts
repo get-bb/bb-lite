@@ -124,6 +124,52 @@ it("counts more output, and more for a hook to read, as additions", () => {
   );
 });
 
+it("counts a closed list of strings opening to any string as an addition", () => {
+  const closed = { type: "string", enum: ["low", "high"] };
+  const open = { type: "string", minLength: 1 };
+  const level = (shape: object) => ({
+    type: "object",
+    properties: { level: shape, other: { anyOf: [shape, { type: "null" }] } },
+    required: ["level"],
+  });
+  const op = (shape: object) => ({
+    type: "op",
+    kind: "write",
+    hooks: "rewrite",
+    allow: "member",
+    internal: false,
+    doors: {},
+    input: level(shape),
+    output: level(shape),
+  });
+  const before = { runs: { start: op(closed) } };
+  expect(compareApi(before, { runs: { start: op(open) } })).toEqual({
+    breaking: [],
+    additive: [
+      "runs.start: new optional input",
+      "runs.start: more in the output",
+    ],
+  });
+  const narrowed = compareApi({ runs: { start: op(open) } }, before);
+  expect(narrowed.breaking).toEqual([
+    "runs.start: the input changed",
+    "runs.start: the output changed",
+  ]);
+  const entry = (level: object) => ({
+    type: "slot",
+    item: { type: "object", properties: { level }, required: ["level"] },
+  });
+  const consts = { anyOf: [{ const: "high" }, { const: "low" }] };
+  const widened = compareApi(
+    { runs: { kind: entry(consts) } },
+    { runs: { kind: entry({ type: "string" }) } },
+  );
+  expect(widened).toEqual({
+    breaking: [],
+    additive: ["runs.kind: the entry takes more"],
+  });
+});
+
 it("judges a slot entry by who writes each part of it", () => {
   const entry = (properties: object, required: string[]) => ({
     type: "object",

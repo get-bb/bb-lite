@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import * as domain from "@bb/domain";
+import type { SessionOptionSelectionPatch } from "@bb/domain";
 import {
   interactions as interactionOps,
   threads as threadOps,
@@ -35,6 +36,7 @@ import {
   toThreadResponse,
 } from "@bb/server-kit/threads/thread-display";
 import { cancelToolCall, startToolCall } from "./tool-calls.js";
+import * as sessionOptions from "./session-options.js";
 
 type ThreadRow = store.ThreadRow;
 type Outbox = core.Outbox;
@@ -381,6 +383,13 @@ export class Engine {
 
 export function createThreadEngine(bb: PluginServerApi) {
   const engine = new Engine(bb);
+  const requireLive = (threadId: string) => {
+    const thread = store.getThread(bb.db, threadId);
+    if (thread === undefined || thread.deletedAt !== null) {
+      throw threadNotFound();
+    }
+    return thread;
+  };
   const direct =
     <Args extends unknown[], Result>(
       run: (engine: Engine, ...args: Args) => Result,
@@ -435,6 +444,25 @@ export function createThreadEngine(bb: PluginServerApi) {
   bb.implement(threadOps.unarchive, ({ threadId }) => unarchive(threadId));
   bb.implement(threadOps.delete, ({ threadId, ...confirmation }) =>
     remove(threadId, confirmation),
+  );
+  bb.implement(threadOps.providerCommands, ({ threadId }) =>
+    sessionOptions.providerCommands(bb.db, requireLive(threadId).id),
+  );
+  bb.implement(threadOps.sessionOptions, ({ threadId }) =>
+    sessionOptions.sessionOptions(bb.db, requireLive(threadId).id),
+  );
+  const updateOptions = writes(
+    (threadId: string, patch: SessionOptionSelectionPatch) => {
+      const thread = requireLive(threadId);
+      sessionOptions.updateSelections(engine, thread, patch);
+      return sessionOptions.sessionOptions(bb.db, thread.id);
+    },
+  );
+  bb.implement(threadOps.updateSessionOptions, ({ threadId, set, clear }) =>
+    updateOptions(threadId, {
+      ...set,
+      ...Object.fromEntries((clear ?? []).map((id) => [id, null])),
+    }),
   );
   bb.implement(threadOps.hold, () => null);
   bb.implement(threadOps.release, ({ threadId }, { caller }) => {

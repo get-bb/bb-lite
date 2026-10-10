@@ -84,6 +84,13 @@ import {
   resolveEffectiveEnvironmentValue,
 } from "./new-thread-environment";
 
+import {
+  SessionOptionsMenu,
+  type SessionOptionChoices,
+} from "../pickers/SessionOptionsMenu";
+
+const NO_SESSION_OPTION_CHOICES: SessionOptionChoices = {};
+
 function sanitizeStoredEnvironmentValue(stored: string): string {
   return parseEnvironmentValue(stored)?.type === "provider" ? stored : "";
 }
@@ -345,6 +352,9 @@ export function useNewThreadComposer({
     selectedProviderId,
     serviceTier,
     supportsServiceTier,
+    sessionOptionSelections,
+    footerSessionOptions,
+    chooseSessionOption,
   } = useThreadCreationOptions({
     routing:
       providerHostId !== null
@@ -488,6 +498,9 @@ export function useNewThreadComposer({
         reasoningLevel,
         permissionMode: permission.value,
         ...(supportsServiceTier && serviceTier ? { serviceTier } : {}),
+        ...(Object.keys(sessionOptionSelections).length === 0
+          ? {}
+          : { sessionOptions: sessionOptionSelections }),
         executionInputSources,
         environment: submissionEnvironment,
         input,
@@ -662,6 +675,13 @@ export function useNewThreadComposer({
             />
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {footerSessionOptions.length === 0 ? null : (
+              <SessionOptionsMenu
+                options={footerSessionOptions}
+                choices={NO_SESSION_OPTION_CHOICES}
+                onChange={chooseSessionOption}
+              />
+            )}
             <ComposerFooterControls
               row="status"
               side="end"

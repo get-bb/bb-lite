@@ -1,5 +1,9 @@
 import type { ReactNode, Ref } from "react";
-import { useIsSidebarShowing } from "../ui/sidebar";
+import {
+  useIsSidebarShowing,
+  useSidebarKeepsCollapsedRail,
+} from "../ui/sidebar";
+import { shouldReserveCollapsedHeaderStart } from "../ui/sidebar-collapse";
 import {
   COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
   COARSE_POINTER_HEADER_REDUCED_GLYPH_ICON_BUTTON_CLASS,
@@ -34,6 +38,7 @@ export function AppPageHeader({
 }) {
   const isSidebarShowing = useIsSidebarShowing();
   const isCompactViewport = useIsCompactViewport();
+  const sidebarKeepsCollapsedRail = useSidebarKeepsCollapsedRail();
   return (
     <header
       ref={headerRef}
@@ -51,9 +56,12 @@ export function AppPageHeader({
           CHROME_ROW_CLASS,
           "relative z-10 gap-1 md:gap-2",
           "transition-[padding] duration-200 ease-linear",
-          ownsWindowTopLeft &&
-            (isCompactViewport || !isSidebarShowing) &&
-            BROWSER_COLLAPSED_HEADER_RESERVE_CLASS,
+          shouldReserveCollapsedHeaderStart({
+            ownsWindowTopLeft,
+            isCompactViewport,
+            isSidebarShowing,
+            sidebarKeepsCollapsedRail,
+          }) && BROWSER_COLLAPSED_HEADER_RESERVE_CLASS,
         )}
       >
         {center ? (

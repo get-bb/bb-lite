@@ -79,7 +79,9 @@ export function extractThreadContextWindowUsage(
     return null;
   }
   const { snapshot, estimated } = latest;
+  const cost = signals.find((signal) => signal.cost !== undefined)?.cost;
   return {
+    ...(cost === undefined ? {} : { cost }),
     ...(snapshot &&
     snapshot.usedTokens === usedTokens &&
     snapshot.contextWindowTokens === modelContextWindow

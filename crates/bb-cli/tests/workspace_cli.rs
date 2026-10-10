@@ -109,8 +109,14 @@ fn machine_share_and_unshare_patch_the_sharing_of_a_machine() {
 
 #[test]
 fn provider_list_and_models_route_by_machine() {
-    let models = json!({ "models": [{ "model": "m1", "displayName": "M1", "isDefault": true }],
-        "modelLoadError": null });
+    let options = json!([
+        { "id": "effort", "type": "select", "values": [{ "id": "low" }, { "id": "high" }] },
+        { "id": "fast", "type": "boolean" },
+    ]);
+    let models = json!({ "models": [
+        { "model": "m1", "displayName": "M1", "isDefault": true },
+        { "model": "m2", "displayName": "M2", "isDefault": false, "sessionOptions": options },
+    ], "modelLoadError": null });
     let server = FakeServer::start(vec![
         route("GET", "/sessions/providers", json!([{ "id": "codex", "displayName": "Codex" }])),
         route("GET", "/sessions/execution-options", models),
@@ -121,12 +127,22 @@ fn provider_list_and_models_route_by_machine() {
     let words = ["provider", "models", "codex", "--machine", "host_1"];
     let (result, printed) = run(&server, &words, CliEnv::default());
     result.unwrap();
-    assert_eq!(printed, "\nMODEL  DISPLAYNAME  ISDEFAULT\nm1     M1           true\n\n");
+    let expected = "\nMODEL  DISPLAYNAME  ISDEFAULT  OPTIONS\nm1     M1           true\n\
+                    m2     M2           false      effort=low|high; fast=true|false\n\n";
+    assert_eq!(printed, expected);
+    let words = ["provider", "models", "codex", "--json"];
+    let (result, printed) = run(&server, &words, CliEnv::default());
+    result.unwrap();
+    let rows: serde_json::Value = serde_json::from_str(&printed).unwrap();
+    assert_eq!(rows[0]["options"], json!(""));
+    assert_eq!(rows[1]["options"], json!("effort=low|high; fast=true|false"));
+    assert_eq!(rows[1]["sessionOptions"], options);
     assert_eq!(
         server.requests(),
         [
             request("GET", "/sessions/providers", None),
             request("GET", "/sessions/execution-options?hostId=host_1&providerId=codex", None),
+            request("GET", "/sessions/execution-options?providerId=codex", None),
         ]
     );
 }

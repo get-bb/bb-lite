@@ -160,7 +160,12 @@ async function completeProvisioning(
     const starting = { kind: "turn-starting" as const };
     engine.relabelWaits(out, threadId, ["provisioning"], starting);
     engine.transition(out, threadId, "run.started");
-    const options = toRunnerOptions(db, attached.providerId, job.message);
+    const options = toRunnerOptions(
+      db,
+      attached.providerId,
+      job.message,
+      threadId,
+    );
     const clientRequestId = job.requestId;
     const mode = { kind: "start" as const };
     const turn = { session, clientRequestId, input, options, mode };

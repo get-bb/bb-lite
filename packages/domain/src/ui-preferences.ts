@@ -11,22 +11,23 @@ function provider(defaultValue: string, legacy: string, current: string) {
   return { schema, defaultValue };
 }
 
+const railItemIdListSchema = z
+  .array(z.string().min(1).max(UI_PREFERENCE_STRING_MAX_LENGTH))
+  .max(500);
+
 export const uiPreferenceDefinitions = {
-  "sidebar.navigationProvider": provider(
-    "__automatic__",
-    "__builtin__",
-    "navigation/navigation",
-  ),
-  "sidebar.headerProvider": provider(
-    "__builtin__",
-    "__automatic__",
-    "__builtin__",
-  ),
   "sidebar.threadListProvider": provider(
     "__automatic__",
     "__builtin__",
     "thread-list/thread-list",
   ),
+  "sidebar.railItems": {
+    schema: z.object({
+      order: railItemIdListSchema,
+      hidden: railItemIdListSchema,
+    }),
+    defaultValue: { order: [], hidden: ["__bb__/search-threads"] },
+  },
 };
 
 export type UiPreferenceKey = keyof typeof uiPreferenceDefinitions;

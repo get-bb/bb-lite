@@ -15,6 +15,8 @@ import type * as UsePromptTypeaheadModule from "./app/components/promptbox/usePr
 import type * as UseThreadCreationOptionsModule from "./app/hooks/useThreadCreationOptions";
 import type * as RootComposeViewModule from "./app/views/RootComposeView";
 import type * as ModelReasoningPickerModule from "./app/components/pickers/ModelReasoningPicker";
+import type * as SessionOptionsMenuModule from "./app/components/pickers/SessionOptionsMenu";
+import type * as UseThreadSessionOptionChoicesModule from "./app/hooks/useThreadSessionOptionChoices";
 import type * as PermissionModePickerModule from "./app/components/pickers/PermissionModePicker";
 import type * as NewThreadComposerModule from "./app/components/promptbox/NewThreadComposer";
 
@@ -95,6 +97,12 @@ export const RootComposeView = part<
 export const ModelReasoningPicker = part<
   typeof ModelReasoningPickerModule.ModelReasoningPicker
 >("composer", "ModelReasoningPicker");
+export const SessionOptionsMenu = part<
+  typeof SessionOptionsMenuModule.SessionOptionsMenu
+>("composer", "SessionOptionsMenu");
+export const useThreadSessionOptionChoices = callPart<
+  typeof UseThreadSessionOptionChoicesModule.useThreadSessionOptionChoices
+>("composer", "useThreadSessionOptionChoices");
 export const PermissionModePicker = part<
   typeof PermissionModePickerModule.PermissionModePicker
 >("composer", "PermissionModePicker");

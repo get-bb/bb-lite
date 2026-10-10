@@ -50,6 +50,7 @@ export function usePromptTypeahead({
     promptActions,
     environmentId,
     hostId,
+    threadId: currentThreadId ?? null,
     query: commandState.query,
   });
   const typeahead: TypeaheadConfig = {

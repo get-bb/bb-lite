@@ -12,6 +12,8 @@ Commands:
   history       List a thread's prompt history
   list          List threads
   update        Change title, parent, section, model or visibility
+  commands      List the agent's own slash commands
+  options       Show or change the agent's own options
   stop          Stop work and release the agent runtime
   archive       Archive a thread and its children
   unarchive     Unarchive a thread

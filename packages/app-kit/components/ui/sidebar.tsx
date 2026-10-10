@@ -15,9 +15,15 @@ import {
   isHorizontallyScrollableElement,
 } from "./gesture-dom";
 import { useHorizontalDismissDrag } from "./use-horizontal-dismiss-drag";
+import {
+  resolveDesktopCollapsedRailWidth,
+  resolveSidebarCollapsible,
+  resolveSidebarCollapsibleBodyWidth,
+} from "./sidebar-collapse";
 
-const SIDEBAR_MOBILE_VIEWPORT_FRACTION = 0.76;
-const SIDEBAR_WIDTH_MOBILE = `min(${SIDEBAR_MOBILE_VIEWPORT_FRACTION * 100}vw, 320px)`;
+const SIDEBAR_MOBILE_VIEWPORT_FRACTION = 0.86;
+const SIDEBAR_MOBILE_MAX_WIDTH_PX = 360;
+const SIDEBAR_WIDTH_MOBILE = `min(${SIDEBAR_MOBILE_VIEWPORT_FRACTION * 100}vw, ${SIDEBAR_MOBILE_MAX_WIDTH_PX}px)`;
 const SIDEBAR_MOBILE_SWIPE_BROWSER_EDGE_GUARD_PX = 24;
 const SIDEBAR_MOBILE_SWIPE_OPEN_EDGE_ZONE_PX = 72;
 const SIDEBAR_MOBILE_SWIPE_OPEN_INTENT_PX = 12;
@@ -63,10 +69,13 @@ const sidebarMobileWidthStyle: SidebarMobileWidthStyle = {
 
 function getSidebarMobilePanelWidth(): number {
   if (typeof window === "undefined") {
-    return 320;
+    return SIDEBAR_MOBILE_MAX_WIDTH_PX;
   }
 
-  return Math.min(window.innerWidth * SIDEBAR_MOBILE_VIEWPORT_FRACTION, 320);
+  return Math.min(
+    window.innerWidth * SIDEBAR_MOBILE_VIEWPORT_FRACTION,
+    SIDEBAR_MOBILE_MAX_WIDTH_PX,
+  );
 }
 
 function clampSidebarMobileSwipeProgress(value: number): number {
@@ -373,6 +382,14 @@ const SidebarWidthContext = React.createContext("16rem");
 
 const SidebarShowingContext = React.createContext<boolean | null>(null);
 
+const SidebarCollapsedRailWidthContext = React.createContext<string | null>(
+  null,
+);
+
+function useSidebarKeepsCollapsedRail(): boolean {
+  return React.useContext(SidebarCollapsedRailWidthContext) !== null;
+}
+
 function useSidebar() {
   const context = React.useContext(SidebarContext);
   if (!context) {
@@ -405,6 +422,7 @@ function SidebarProvider({
   open,
   onOpenChange: setOpen,
   width,
+  collapsedRailWidth,
   className,
   style,
   children,
@@ -413,8 +431,13 @@ function SidebarProvider({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   width: string;
+  collapsedRailWidth?: string;
 }) {
   const isCompactViewport = useIsCompactViewport();
+  const desktopCollapsedRailWidth = resolveDesktopCollapsedRailWidth({
+    isCompactViewport,
+    collapsedRailWidth,
+  });
   const [openMobile, setOpenMobile] = React.useState(false);
   const [suppressMobileOpenAnimation, setSuppressMobileOpenAnimation] =
     React.useState(false);
@@ -577,21 +600,25 @@ function SidebarProvider({
     <SidebarContext.Provider value={contextValue}>
       <SidebarShowingContext.Provider value={isSidebarShowing}>
         <SidebarWidthContext.Provider value={width}>
-          <div
-            style={
-              {
-                ...sidebarMobileWidthStyle,
-                ...style,
-              } as React.CSSProperties
-            }
-            className={cn(
-              "group/sidebar-wrapper flex h-full min-h-0 w-full max-md:overflow-clip",
-              className,
-            )}
-            {...props}
+          <SidebarCollapsedRailWidthContext.Provider
+            value={desktopCollapsedRailWidth}
           >
-            {children}
-          </div>
+            <div
+              style={
+                {
+                  ...sidebarMobileWidthStyle,
+                  ...style,
+                } as React.CSSProperties
+              }
+              className={cn(
+                "group/sidebar-wrapper flex h-full min-h-0 w-full max-md:overflow-clip",
+                className,
+              )}
+              {...props}
+            >
+              {children}
+            </div>
+          </SidebarCollapsedRailWidthContext.Provider>
         </SidebarWidthContext.Provider>
       </SidebarShowingContext.Provider>
     </SidebarContext.Provider>
@@ -618,7 +645,13 @@ function Sidebar({
     setSuppressMobileCloseAnimation,
   } = useSidebar();
   const width = React.useContext(SidebarWidthContext);
-  const widthStyle = { "--sidebar-width": width } as React.CSSProperties;
+  const collapsedRailWidth = React.useContext(SidebarCollapsedRailWidthContext);
+  const widthStyle = {
+    "--sidebar-width": width,
+    ...(collapsedRailWidth === null
+      ? {}
+      : { "--sidebar-rail-width": collapsedRailWidth }),
+  } as React.CSSProperties;
   const handleOpenMobileChange = React.useCallback(
     (nextOpen: boolean) => {
       if (nextOpen) {
@@ -674,7 +707,10 @@ function Sidebar({
       ref={ref}
       className="group peer text-sidebar-foreground"
       data-state={state}
-      data-collapsible={state === "collapsed" ? "offcanvas" : ""}
+      data-collapsible={resolveSidebarCollapsible({
+        state,
+        collapsedRailWidth,
+      })}
       data-variant="sidebar"
       data-side="left"
     >
@@ -684,6 +720,7 @@ function Sidebar({
         className={cn(
           "relative hidden h-full w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear md:block",
           "group-data-[collapsible=offcanvas]:w-0",
+          "group-data-[collapsible=rail]:w-(--sidebar-rail-width)",
         )}
       />
       <div
@@ -692,6 +729,7 @@ function Sidebar({
           "fixed inset-y-0 z-10 flex h-(--bb-shell-height) w-(--sidebar-width) select-none flex-col bg-sidebar text-sidebar-foreground [transition:left_200ms_linear,right_200ms_linear,width_200ms_linear,visibility_0s_linear_0s]",
           "group-data-[collapsible=offcanvas]:invisible group-data-[collapsible=offcanvas]:[transition:left_200ms_linear,right_200ms_linear,width_200ms_linear,visibility_0s_linear_200ms]",
           "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]",
+          "group-data-[collapsible=rail]:w-(--sidebar-rail-width)",
           "border-border-seam group-data-[side=left]:border-r",
           className,
         )}
@@ -704,6 +742,40 @@ function Sidebar({
         >
           {children}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SidebarCollapsibleBody({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div">) {
+  const { open } = useSidebar();
+  const width = React.useContext(SidebarWidthContext);
+  const collapsedRailWidth = React.useContext(SidebarCollapsedRailWidthContext);
+  return (
+    <div
+      data-sidebar="collapsible-body"
+      inert={collapsedRailWidth !== null && !open ? true : undefined}
+      className={cn(
+        "relative min-w-0 flex-1 [clip-path:inset(0_-6px_0_0)] [transition:visibility_0s_linear_0s]",
+        "group-data-[collapsible=rail]:invisible group-data-[collapsible=rail]:[transition:visibility_0s_linear_200ms]",
+        className,
+      )}
+      {...props}
+    >
+      <div
+        className="absolute inset-y-0 right-0 flex"
+        style={{
+          width: resolveSidebarCollapsibleBodyWidth({
+            width,
+            collapsedRailWidth,
+          }),
+        }}
+      >
+        {children}
       </div>
     </div>
   );
@@ -1619,6 +1691,7 @@ function SidebarMenuButton({
 
 export {
   Sidebar,
+  SidebarCollapsibleBody,
   SidebarContent,
   SidebarFooter,
   SidebarInset,
@@ -1631,4 +1704,5 @@ export {
   useIsSidebarShowing,
   useOptionalIsSidebarShowing,
   useSidebar,
+  useSidebarKeepsCollapsedRail,
 };

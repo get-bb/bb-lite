@@ -134,6 +134,11 @@
       "types": "./src/components/ui/skeleton.tsx",
       "default": "./src/components/ui/skeleton.tsx"
     },
+    "./sidebar-sortable-list": {
+      "source": "./src/components/ui/sidebar-sortable-list.tsx",
+      "types": "./src/components/ui/sidebar-sortable-list.tsx",
+      "default": "./src/components/ui/sidebar-sortable-list.tsx"
+    },
     "./switch": {
       "source": "./src/components/ui/switch.tsx",
       "types": "./src/components/ui/switch.tsx",

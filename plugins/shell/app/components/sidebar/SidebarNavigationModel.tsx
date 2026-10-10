@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useStore } from "jotai";
+import { useAtom, useStore } from "jotai";
 import type {
   SidebarNavigationActions,
   SidebarNavigationIconProps,
@@ -21,6 +21,13 @@ import { invalidatePluginList } from "@bb/app-kit/hooks/queries/plugin-settings-
 import type { AppShortcutPresentation } from "@bb/app-kit/lib/app-keybindings";
 import { appQueryClient } from "@bb/app-kit/lib/app-query-client";
 import { usePluginNavPanelChrome } from "@bb/app-kit/lib/plugin-nav-panel-chrome";
+import { createSyncedPreferenceAtom } from "@bb/app-kit/lib/ui-preferences";
+import {
+  arrangeRailItems,
+  moveRailItem,
+  moveRailItemTo,
+  setRailItemVisible,
+} from "../../lib/rail-arrangement";
 import {
   getPluginPanelRoutePath,
   getRootComposeRoutePath,
@@ -34,12 +41,21 @@ interface SidebarNavigationEntry {
   route: string | null;
 }
 
+export interface SidebarNavigationArrangement {
+  setVisible(itemId: string, isVisible: boolean): void;
+  move(itemId: string, offset: number): void;
+  moveTo(itemId: string, overId: string): void;
+}
+
 export interface SidebarNavigationModel {
   state: SidebarNavigationState;
   entries: readonly SidebarNavigationEntry[];
+  arrangement: SidebarNavigationArrangement;
 }
 
 export const NEW_THREAD_NAVIGATION_ITEM_ID = "__bb__/new-thread";
+
+const railItemsAtom = createSyncedPreferenceAtom("sidebar.railItems");
 
 const SidebarNavigationModelContext =
   createContext<SidebarNavigationModel | null>(null);
@@ -131,7 +147,8 @@ export function SidebarNavigationModelProvider({
     "thread.search",
     null,
   );
-  const entries: SidebarNavigationEntry[] = [
+  const [railItems, setRailItems] = useAtom(railItemsAtom);
+  const unarranged: SidebarNavigationEntry[] = [
     hostEntry("new-thread", "New thread", newThreadShortcut, false),
     hostEntry(
       "search-threads",
@@ -167,6 +184,30 @@ export function SidebarNavigationModelProvider({
       }),
     })),
   ];
+  const arranged = arrangeRailItems(
+    unarranged.map((entry) => ({ id: entry.item.id, entry })),
+    railItems,
+    [NEW_THREAD_NAVIGATION_ITEM_ID],
+  );
+  const visibleIds = new Set(arranged.visibleIds);
+  const entries = arranged.ordered.map(({ entry }) => ({
+    ...entry,
+    item: { ...entry.item, isVisible: visibleIds.has(entry.item.id) },
+  }));
+  const arrangeableIds = entries
+    .map((entry) => entry.item.id)
+    .filter((id) => id !== NEW_THREAD_NAVIGATION_ITEM_ID);
+  const arrangement: SidebarNavigationArrangement = {
+    setVisible(itemId, isVisible) {
+      setRailItems(setRailItemVisible(railItems, itemId, isVisible));
+    },
+    move(itemId, offset) {
+      setRailItems(moveRailItem(railItems, arrangeableIds, itemId, offset));
+    },
+    moveTo(itemId, overId) {
+      setRailItems(moveRailItemTo(railItems, arrangeableIds, itemId, overId));
+    },
+  };
   const find = (itemId: string) =>
     entries.find((entry) => entry.item.id === itemId);
   const actions: SidebarNavigationActions = {
@@ -210,6 +251,7 @@ export function SidebarNavigationModelProvider({
       actions,
     },
     entries,
+    arrangement,
   };
   return (
     <SidebarNavigationModelContext.Provider value={model}>

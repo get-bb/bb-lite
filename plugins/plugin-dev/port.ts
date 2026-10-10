@@ -228,8 +228,6 @@ const VIEW_SLOTS: Rule[] = Object.entries({
   pendingInteraction: "threadView.interaction, { id, view }",
   messageDirective: "threadView.messageDirective, { id, view }",
   threadList: "shell.threadList, { id, title, view }",
-  sidebarNavigation: "shell.sidebarNavigation, { id, title, view }",
-  sidebarHeader: "shell.sidebarHeader, { id, title, view }",
 }).map(([name, target]) => [
   new RegExp(`^app\\.slots\\.${name}$`, "u"),
   "renamed",
@@ -486,6 +484,11 @@ const RULES: Rule[] = [
     /^app\.slots\.fileOpener$/u,
     "renamed",
     "bb.add(sidePanel.fileViewer, { id, extensions, view })",
+  ],
+  [
+    /^app\.slots\.(sidebarNavigation|sidebarHeader)$/u,
+    "changed",
+    "the rail is the only sidebar layout: add destinations with bb.add(shell.navItem, …) or bb.add(shell.navPanel, …)",
   ],
   [
     /^app\.slots\.sidebarFooterAction$|^app\.sidebarFooter\.register$/u,

@@ -10,6 +10,7 @@ import {
 import type { Outbox } from "./core.js";
 import type { Engine } from "./engine.js";
 import { interruptAll } from "./interactions.js";
+import { onProviderState } from "./session-options.js";
 
 type EventOf<Type extends RunnerThreadEvent["type"]> = Extract<
   RunnerThreadEvent,
@@ -128,6 +129,9 @@ function applyEffect(
       return;
     case "turn/completed":
       onTurnCompleted(engine, out, thread, event);
+      return;
+    case "thread/extensionState/updated":
+      onProviderState(engine, out, thread, event.kind);
       return;
     case "system/error": {
       if (!FATAL_SYSTEM_ERROR_CODES.includes(event.code ?? "")) return;

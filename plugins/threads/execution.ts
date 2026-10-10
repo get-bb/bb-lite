@@ -8,8 +8,12 @@ import { getProjectExecutionDefaults } from "@bb/server-kit/db/projects";
 import { getAppSettings } from "@bb/server-kit/db/settings";
 import { getThread, type ThreadRow } from "@bb/server-kit/db/threads";
 import { ApiError, invalidRequest } from "@bb/server-kit/http/errors";
-import { listProviderDefinitions } from "@bb/server-kit/providers/catalog";
+import {
+  findProviderDefinition,
+  listProviderDefinitions,
+} from "@bb/server-kit/providers/catalog";
 import { providerOptionsFor } from "@bb/server-kit/providers/settings";
+import { pendingSelections } from "./session-options.js";
 
 export type ExecutionTuple = Omit<
   domain.ResolvedThreadExecutionOptions,
@@ -56,24 +60,42 @@ function namedFields(request: ExecutionRequest): Partial<ExecutionTuple> {
   };
 }
 
+function supportedPermissionMode(
+  modes: readonly domain.PermissionMode[] | undefined,
+  preferred: domain.PermissionMode,
+): domain.PermissionMode {
+  if (modes === undefined || modes.includes(preferred)) return preferred;
+  for (const fallback of ["auto", "full"] as const) {
+    if (modes.includes(fallback)) return fallback;
+  }
+  return modes[0] ?? preferred;
+}
+
 function resolve(
   db: Db,
   hostId: string | null,
+  providerId: string,
   model: string,
   layers: Stored[],
 ): ExecutionTuple {
   const pick = <Field extends ExecutionField>(field: Field) =>
     layers.map((layer) => layer[field]).find((value) => value != null);
   const host = hostId === null ? undefined : findHost(db, "id", hostId);
-  const permissionMode = pick("permissionMode") ?? "auto";
+  const provider = findProviderDefinition(db, providerId);
+  const permissionModes = provider?.info.capabilities.permissionModes;
+  const preferred = pick("permissionMode") ?? "auto";
+  const permissionMode = supportedPermissionMode(permissionModes, preferred);
   const ceiling = host?.maxPermissionMode ?? "full";
   const fast = getAppSettings(db).allowFastServiceTier;
   return {
     model,
     reasoningLevel: pick("reasoningLevel") ?? "medium",
     permissionMode:
-      domain.clampPermissionModeToCeiling({ ceiling, permissionMode }) ??
-      permissionMode,
+      domain.clampPermissionModeToCeiling({
+        ceiling,
+        permissionMode,
+        permissionModes,
+      }) ?? permissionMode,
     serviceTier: (fast ? pick("serviceTier") : null) ?? "default",
   };
 }
@@ -104,7 +126,8 @@ export function findTurnExecution(
   if (model == null) return null;
   const environment =
     environmentId === null ? undefined : getEnvironment(db, environmentId);
-  return resolve(db, environment?.hostId ?? null, model, layers);
+  const hostId = environment?.hostId ?? null;
+  return resolve(db, hostId, thread.providerId, model, layers);
 }
 
 export function resolveTurnExecution(
@@ -183,7 +206,8 @@ export async function resolveCreateExecution(
     defaults.model ??
     (await catalogDefaultModel(bb, hostId, providerId));
   const layers = [asked, inherited, defaults];
-  return { providerId, execution: resolve(db, hostId, model, layers) };
+  const execution = resolve(db, hostId, providerId, model, layers);
+  return { providerId, execution };
 }
 
 export function recordedExecution(
@@ -196,10 +220,13 @@ export function toRunnerOptions(
   db: Db,
   providerId: string,
   { execution, initiator }: TurnOptionsSource,
+  threadId: string,
 ): ExecutionOptions {
+  const sessionOptions = pendingSelections(db, threadId);
   return {
     ...execution,
     permissionEscalation: initiator === "user" ? "ask" : "deny",
     providerOptions: providerOptionsFor(db, providerId),
+    ...(Object.keys(sessionOptions).length > 0 ? { sessionOptions } : {}),
   };
 }

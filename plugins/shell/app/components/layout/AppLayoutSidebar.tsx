@@ -2,7 +2,7 @@ import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import { AppNavRail } from "../sidebar/AppNavRail";
 import { AppSidebar } from "../sidebar/AppSidebar";
 import { SettingsSidebar } from "bb-plugin-settings/contract";
-import { Sidebar, useSidebar } from "@bb/app-kit/components/ui/sidebar";
+import { useSidebar } from "@bb/app-kit/components/ui/sidebar";
 
 type AppLayoutSidebarMode = "app" | "settings";
 
@@ -27,37 +27,16 @@ export function AppLayoutSidebar({
   }
   const renderedMode = holdCurrentMode ? lastVisibleMode : mode;
 
-  if (isCompactViewport) {
-    return (
-      <Sidebar>
-        <AppSidebar
-          onResizeMouseDown={onResizeMouseDown}
-          isResizing={isResizing}
-          settingsRoutePath={settingsRoutePath}
-          mobileHosted={{ hidden: renderedMode !== "app" }}
-        />
-        {renderedMode === "settings" ? (
-          <SettingsSidebar
-            onResizeMouseDown={onResizeMouseDown}
-            isResizing={isResizing}
-            appRoutePath={appRoutePath}
-          />
-        ) : null}
-      </Sidebar>
-    );
-  }
-
   return (
     <AppSidebar
       onResizeMouseDown={onResizeMouseDown}
       isResizing={isResizing}
-      settingsRoutePath={settingsRoutePath}
       navRail={{
         hidden: renderedMode !== "app",
         rail: (
           <AppNavRail
-            isAppMode={renderedMode === "app"}
-            isSettingsActive={renderedMode === "settings"}
+            isAppMode={mode === "app"}
+            isSettingsActive={mode === "settings"}
             settingsRoutePath={settingsRoutePath}
           />
         ),

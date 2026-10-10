@@ -480,6 +480,15 @@ pub fn machine_or_this(call: &Call) -> CliResult<String> {
     }
 }
 
+pub fn option_assignment(raw: &str) -> CliResult<(String, String)> {
+    match raw.find('=') {
+        Some(separator) if separator > 0 => {
+            Ok((raw[..separator].to_string(), raw[separator + 1..].to_string()))
+        }
+        _ => Err(usage_error(format!("Expected id=value, got \"{raw}\"."))),
+    }
+}
+
 pub fn not_implemented(call: &mut Call) -> CliResult<Output> {
     let path = &call.spec.path;
     let message = format!("'bb {path}' is not implemented in the Rust CLI yet.");

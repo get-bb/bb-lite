@@ -44,6 +44,10 @@ import {
   type QueuedMessageProcessingAction,
 } from "bb-plugin-composer/contract";
 import { ThreadEnvironmentSummary } from "bb-plugin-composer/contract";
+import {
+  SessionOptionsMenu,
+  useThreadSessionOptionChoices,
+} from "bb-plugin-composer/contract";
 import type { MachineLabelHost } from "@bb/app-kit/components/machines/MachineLabel";
 import type { WorkspaceCheckoutDisplay } from "@bb/app-kit/lib/workspace-checkout-display";
 import { useThreadCreationOptions } from "bb-plugin-composer/contract";
@@ -327,6 +331,7 @@ export function ThreadDetailPromptArea({
     modelFallback !== null && overriddenFallbackIdentity !== fallbackIdentity
       ? modelFallback.fallbackModel
       : (activeModel?.model ?? selectedModel);
+  const sessionOptionChoices = useThreadSessionOptionChoices(thread.id);
   const typeaheadArgs = {
     projectId: thread.projectId,
     mentionsProjectId: projectId,
@@ -566,6 +571,12 @@ export function ThreadDetailPromptArea({
 
   const execution: FollowUpPromptBoxProps["execution"] = {
     ...baseExecution,
+    ...(sessionOptionChoices.pickerSections.length === 0
+      ? {}
+      : {
+          agentSections: sessionOptionChoices.pickerSections,
+          onAgentOptionChange: sessionOptionChoices.choose,
+        }),
     provider: {
       ...baseExecution.provider,
       selectedId: thread.providerId,
@@ -841,6 +852,15 @@ export function ThreadDetailPromptArea({
       }
       contextWindowUsage={contextWindowUsage ?? null}
       execution={execution}
+      sessionOptionsControl={
+        sessionOptionChoices.footerOptions.length === 0 ? null : (
+          <SessionOptionsMenu
+            options={sessionOptionChoices.footerOptions}
+            choices={sessionOptionChoices.choices}
+            onChange={sessionOptionChoices.choose}
+          />
+        )
+      }
       permission={permission}
       permissionReadOnly={permissionReadOnly}
       typeahead={typeahead}
