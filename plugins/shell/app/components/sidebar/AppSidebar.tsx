@@ -32,18 +32,13 @@ import {
 } from "./sidebarThreadShortcuts";
 import {
   useAppCommandHandler,
-  useAppCommandShortcut,
   useAppCommandShortcuts,
   useIsAppCommandModifierHeld,
   useIndexedAppCommandHandlers,
 } from "@bb/app-kit/components/commands/AppCommandProvider";
 import { useRouteState } from "@bb/app-kit/hooks/useRouteState";
-import { SidebarNavigationRegion } from "./SidebarNavigationRegion";
 import { SidebarNavigationModelProvider } from "./SidebarNavigationModel";
-import { SidebarHeaderSlot } from "./SidebarHeaderSlot";
 import { NavRailNewThreadButton } from "./AppNavRail";
-import { UserAvatarStack } from "@bb/app-kit/components/users/UserAvatar";
-import { useOtherOnlineUsers } from "@bb/app-kit/components/users/user-attribution";
 
 const BUG_REPORT_NEW_ISSUE_URL = "https://github.com/get-bb/bb/issues/new";
 const NO_SHORTCUT_KEYS: ReadonlyMap<string, AppShortcutPresentation> =
@@ -101,15 +96,11 @@ function FooterItem({
 export function AppSidebar({
   onResizeMouseDown,
   isResizing,
-  settingsRoutePath,
-  mobileHosted,
   navRail,
 }: {
   onResizeMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
   isResizing: boolean;
-  settingsRoutePath: string;
-  mobileHosted?: { hidden: boolean };
-  navRail?: { hidden: boolean; rail: ReactNode; alternateBody: ReactNode };
+  navRail: { hidden: boolean; rail: ReactNode; alternateBody: ReactNode };
 }) {
   const { threadId: activeThreadId } = useRouteState();
   const navigate = useNavigate();
@@ -118,8 +109,7 @@ export function AppSidebar({
   const footerItems = [...footerEntries].sort(
     (left, right) => (left.item.order ?? 1_000) - (right.item.order ?? 1_000),
   );
-  const isHiddenHostedBody =
-    mobileHosted?.hidden === true || navRail?.hidden === true;
+  const isHiddenHostedBody = navRail.hidden;
   const [threadShortcutKeysById, setThreadShortcutKeysById] =
     useState(NO_SHORTCUT_KEYS);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
@@ -128,8 +118,6 @@ export function AppSidebar({
     THREAD_JUMP_APP_COMMAND_IDS,
   );
   const isModifierHeld = useIsAppCommandModifierHeld();
-  const settingsShortcut = useAppCommandShortcut("settings.open");
-  const onlineUsers = useOtherOnlineUsers();
 
   useEffect(() => {
     const targets = isModifierHeld
@@ -200,25 +188,20 @@ export function AppSidebar({
     <>
       <SidebarTopReserveRow
         testId="app-sidebar-top-reserve-row"
-        besideNavRail={navRail !== undefined}
-        renderHeaderSlot={(startInsetClassName) =>
-          navRail ? (
-            <div
-              data-testid="nav-rail-header"
-              data-sidebar-header-slot=""
-              className={cn(
-                "flex h-full min-w-0 flex-1 items-center",
-                startInsetClassName,
-              )}
-            >
-              <NavRailNewThreadButton />
-            </div>
-          ) : (
-            <SidebarHeaderSlot startInsetClassName={startInsetClassName} />
-          )
-        }
+        besideNavRail
+        renderHeaderSlot={(startInsetClassName) => (
+          <div
+            data-testid="nav-rail-header"
+            data-sidebar-header-slot=""
+            className={cn(
+              "flex h-full min-w-0 flex-1 items-center",
+              startInsetClassName,
+            )}
+          >
+            <NavRailNewThreadButton />
+          </div>
+        )}
       />
-      {navRail ? null : <SidebarNavigationRegion onNavigate={closeOnMobile} />}
       <SidebarContent>
         <PluginThreadList onNavigate={closeOnMobile} />
       </SidebarContent>
@@ -227,21 +210,6 @@ export function AppSidebar({
         <SidebarMenu className="flex-row items-center gap-1">
           <SidebarMenuItem className="min-w-8 flex-1 max-md:pointer-coarse:min-w-9">
             <SidebarMenu className="flex-row items-center gap-1">
-              {navRail ? null : (
-                <FooterItem
-                  id="settings"
-                  icon="Settings"
-                  label="Settings"
-                  ariaLabel={
-                    settingsShortcut
-                      ? `Settings (${settingsShortcut.label})`
-                      : "Settings"
-                  }
-                  ariaKeyShortcuts={settingsShortcut?.ariaKeyshortcuts}
-                  href={settingsRoutePath}
-                  onClick={closeOnMobile}
-                />
-              )}
               {footerItems.map(({ plugin, item }) =>
                 item.view === undefined ? (
                   <FooterItem
@@ -277,14 +245,6 @@ export function AppSidebar({
               />
             </SidebarMenu>
           </SidebarMenuItem>
-          {navRail ? null : (
-            <UserAvatarStack
-              users={onlineUsers}
-              label="Online now"
-              tooltipSide="top"
-              ringClassName="ring-sidebar"
-            />
-          )}
           <SidebarPluginAttentionGlyph
             className={SIDEBAR_FOOTER_ACTION_CLASS}
             onNavigate={closeOnMobile}
@@ -302,30 +262,19 @@ export function AppSidebar({
   return (
     <SidebarThreadShortcutKeysContext.Provider value={threadShortcutKeysById}>
       <SidebarNavigationModelProvider onNavigate={closeOnMobile}>
-        {mobileHosted ? (
-          <div
-            ref={sidebarRef}
-            data-testid="app-sidebar-body"
-            hidden={mobileHosted.hidden}
-            className="flex min-h-0 flex-1 flex-col"
-          >
-            {body}
-          </div>
-        ) : (
-          <Sidebar ref={sidebarRef}>
-            <div className="flex min-h-0 flex-1">
-              {navRail?.rail}
-              <div
-                data-testid="app-sidebar-body"
-                hidden={navRail?.hidden}
-                className="flex min-h-0 min-w-0 flex-1 flex-col"
-              >
-                {body}
-              </div>
-              {navRail?.alternateBody}
+        <Sidebar ref={sidebarRef}>
+          <div className="flex min-h-0 flex-1">
+            {navRail.rail}
+            <div
+              data-testid="app-sidebar-body"
+              hidden={navRail.hidden}
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
+            >
+              {body}
             </div>
-          </Sidebar>
-        )}
+            {navRail.alternateBody}
+          </div>
+        </Sidebar>
       </SidebarNavigationModelProvider>
     </SidebarThreadShortcutKeysContext.Provider>
   );
