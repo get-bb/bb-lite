@@ -1,84 +1,64 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { threadScope, turnScope, type ThreadEvent } from "@bb/domain";
-import type { ProviderRuntimeEvent } from "../../runner/kit.js";
+import { createEventRecorder } from "./event-recorder.js";
 import {
-  createDeltaAssembler,
-  type DeltaAssembler,
-} from "./delta-assembler.js";
-import {
-  ACP_COMPACTION_COMPLETED_METHOD,
-  ACP_COMPACTION_STARTED_METHOD,
-  ACP_FS_WRITE_METHOD,
-  ACP_TURN_COMPLETED_METHOD,
-  ACP_TURN_STARTED_METHOD,
-  ACP_UPDATE_METHOD,
-  ACP_WARNING_METHOD,
-} from "../../runner/bridge-protocol.js";
-import {
-  createAcpDeltaTranslator,
-  type AcpDeltaTranslator,
-} from "../../runner/delta-translation.js";
-import { resolveAcpDialect } from "../../runner/dialect.js";
+  createAcpTranslator,
+  type AcpCompactionOutcome,
+  type AcpTranslator,
+} from "../../runner/acp-translator.js";
+import { resolveAcpDialect, type AcpDialect } from "../../runner/dialect.js";
 import { ACP_TOOL_PAYLOAD_MAX_CHARS } from "../../runner/tool-classification.js";
-import type { AcpToolCallUpdateEvent } from "../../runner/wire.js";
+import {
+  acpSessionUpdateSchema,
+  type AcpToolCallUpdateEvent,
+} from "../../runner/wire.js";
 
 const THREAD_ID = "t-acp-translation";
-const ENTROPY = "acp-test";
 const ITEM_ID_PATTERN = /^da[0-9a-f]{8}-i\d+$/;
 
+type AcpInput = (translator: AcpTranslator) => void;
+
 interface AcpEquivalenceHarness {
-  assembler: DeltaAssembler;
-  translator: AcpDeltaTranslator;
-  translate(event: ProviderRuntimeEvent): ThreadEvent[];
+  translator: AcpTranslator;
+  translate(input: AcpInput): ThreadEvent[];
   openTurnId(): string;
 }
 
 const SESSION_CWD = "/workspace";
 
-function createHarness(): AcpEquivalenceHarness {
-  const translator = createAcpDeltaTranslator({ cwd: SESSION_CWD });
-  const assembler = createDeltaAssembler({
+function createHarness(
+  options: { cwd?: string; dialect?: AcpDialect } = {},
+): AcpEquivalenceHarness {
+  const recorder = createEventRecorder({
     providerId: "acp",
-    entropyPrefix: ENTROPY,
     textDeltaFlushMs: 0,
   });
+  const translator = createAcpTranslator({
+    threadId: THREAD_ID,
+    events: () => recorder.events,
+    cwd: options.cwd ?? SESSION_CWD,
+    dialect: options.dialect,
+  });
   return {
-    assembler,
     translator,
-    translate(event) {
-      return assembler.assemble({
-        threadId: THREAD_ID,
-        deltas: translator.translateAcpEvent(event, { threadId: THREAD_ID }),
-      });
-    },
-    openTurnId() {
-      return assembler.getOpenTurnId(THREAD_ID) ?? "";
-    },
+    translate: (input) => recorder.collect(() => input(translator)),
+    openTurnId: () => recorder.events.activeTurnId ?? "",
   };
 }
 
-function turnStartedEvent(): ProviderRuntimeEvent {
-  return {
-    jsonrpc: "2.0",
-    method: ACP_TURN_STARTED_METHOD,
-    params: { threadId: THREAD_ID },
-  };
+function turnStartedEvent(): AcpInput {
+  return (translator) => translator.turnStarted();
 }
 
-function turnCompletedEvent(stopReason: string): ProviderRuntimeEvent {
-  return {
-    jsonrpc: "2.0",
-    method: ACP_TURN_COMPLETED_METHOD,
-    params: { threadId: THREAD_ID, stopReason },
-  };
+function turnCompletedEvent(stopReason: string): AcpInput {
+  return (translator) => translator.turnCompleted(stopReason);
 }
 
-function updateEvent(update: Record<string, unknown>): ProviderRuntimeEvent {
-  return {
-    jsonrpc: "2.0",
-    method: ACP_UPDATE_METHOD,
-    params: { threadId: THREAD_ID, update },
+function updateEvent(update: Record<string, unknown>): AcpInput {
+  return (translator) => {
+    const parsed = acpSessionUpdateSchema.safeParse(update);
+    if (parsed.success) translator.update(parsed.data);
   };
 }
 
@@ -89,18 +69,14 @@ function fsWriteEvent(
     oldText?: string;
     content?: string;
   } = {},
-): ProviderRuntimeEvent {
-  return {
-    jsonrpc: "2.0",
-    method: ACP_FS_WRITE_METHOD,
-    params: {
-      threadId: THREAD_ID,
+): AcpInput {
+  return (translator) =>
+    translator.fileWritten({
       path,
       kind: options.kind ?? "add",
       ...(options.oldText === undefined ? {} : { oldText: options.oldText }),
       content: options.content ?? "hello\n",
-    },
-  };
+    });
 }
 
 function completedItems(events: ThreadEvent[]) {
@@ -351,22 +327,12 @@ describe("acp delta translation (bridge-shared invariants)", () => {
 });
 
 describe("acp delta translation (moved from the legacy adapter suite)", () => {
-  function compactionStartedEvent(): ProviderRuntimeEvent {
-    return {
-      jsonrpc: "2.0",
-      method: ACP_COMPACTION_STARTED_METHOD,
-      params: { threadId: THREAD_ID },
-    };
+  function compactionStartedEvent(): AcpInput {
+    return (translator) => translator.compactionStarted();
   }
 
-  function compactionCompletedEvent(
-    params: Record<string, unknown>,
-  ): ProviderRuntimeEvent {
-    return {
-      jsonrpc: "2.0",
-      method: ACP_COMPACTION_COMPLETED_METHOD,
-      params: { threadId: THREAD_ID, ...params },
-    };
+  function compactionCompletedEvent(outcome: AcpCompactionOutcome): AcpInput {
+    return (translator) => translator.compactionCompleted(outcome);
   }
 
   it("completes streamed items before ending a compaction turn", () => {
@@ -981,17 +947,13 @@ describe("acp delta translation (moved from the legacy adapter suite)", () => {
       startedItem?.type === "item/started" ? startedItem.item.id : "";
 
     expect(
-      harness.translate({
-        jsonrpc: "2.0",
-        method: ACP_FS_WRITE_METHOD,
-        params: {
-          threadId: THREAD_ID,
-          path: "/workspace/poem.md",
+      harness.translate(
+        fsWriteEvent("/workspace/poem.md", {
           kind: "update",
           oldText: "# Lions\n",
           content: "# Rabbits\n",
-        },
-      }),
+        }),
+      ),
     ).toEqual([]);
 
     const completedEvents = harness.translate(
@@ -1089,11 +1051,9 @@ describe("acp delta translation (moved from the legacy adapter suite)", () => {
     const harness = createHarness();
 
     expect(
-      harness.translate({
-        jsonrpc: "2.0",
-        method: ACP_WARNING_METHOD,
-        params: { threadId: THREAD_ID, summary: "History not restored" },
-      }),
+      harness.translate((translator) =>
+        translator.warning({ summary: "History not restored" }),
+      ),
     ).toEqual([
       {
         type: "provider/warning",
@@ -1110,11 +1070,7 @@ describe("acp delta translation (moved from the legacy adapter suite)", () => {
     const harness = startedHarness();
     const turnId = harness.openTurnId();
     expect(
-      harness.translate({
-        jsonrpc: "2.0",
-        method: "error",
-        params: { threadId: THREAD_ID, message: "agent exploded" },
-      }),
+      harness.translate((translator) => translator.failed("agent exploded")),
     ).toEqual([
       {
         type: "provider/error",
@@ -1240,19 +1196,20 @@ describe("acp delta translation (session title)", () => {
 });
 
 describe("acp delta translation (presentation)", () => {
-  function itemDeltas(
-    deltas: ReturnType<AcpDeltaTranslator["translateAcpEvent"]>,
-  ) {
-    return deltas.filter(
-      (delta) => delta.kind === "item.open" || delta.kind === "item.close",
-    );
+  function itemDeltas(events: ThreadEvent[]) {
+    return events.flatMap((event) => {
+      if (event.type !== "item/started" && event.type !== "item/completed") {
+        return [];
+      }
+      const kind = event.type === "item/started" ? "item.open" : "item.close";
+      const presentation =
+        "presentation" in event.item ? event.item.presentation : undefined;
+      return [{ kind, presentation }];
+    });
   }
 
   it("attaches a presentation to every item.open and item.close", () => {
-    const translator = createAcpDeltaTranslator({ cwd: SESSION_CWD });
-    const context = { threadId: THREAD_ID };
-    const translate = (event: ProviderRuntimeEvent) =>
-      translator.translateAcpEvent(event, context);
+    const { translate } = createHarness();
 
     translate(turnStartedEvent());
     const lifecycle = [
@@ -1293,11 +1250,7 @@ describe("acp delta translation (presentation)", () => {
       ),
       ...translate(fsWriteEvent("/tmp/new.ts")),
       ...translate(turnCompletedEvent("end_turn")),
-      ...translate({
-        jsonrpc: "2.0",
-        method: ACP_COMPACTION_STARTED_METHOD,
-        params: { threadId: THREAD_ID },
-      }),
+      ...translate((translator) => translator.compactionStarted()),
     ];
 
     const items = itemDeltas(lifecycle);
@@ -1355,11 +1308,10 @@ describe("acp delta translation (presentation)", () => {
   });
 
   it("strips the agent's code ticks from a command headline and names deleted files", () => {
-    const translator = createAcpDeltaTranslator({ cwd: SESSION_CWD });
-    const context = { threadId: THREAD_ID };
-    translator.translateAcpEvent(turnStartedEvent(), context);
+    const { translate } = createHarness();
+    translate(turnStartedEvent());
     const [command] = itemDeltas(
-      translator.translateAcpEvent(
+      translate(
         updateEvent({
           sessionUpdate: "tool_call",
           toolCallId: "call-title",
@@ -1367,13 +1319,12 @@ describe("acp delta translation (presentation)", () => {
           kind: "execute",
           status: "pending",
         }),
-        context,
       ),
     );
     expect(command?.presentation?.title).toBe("touch approved.txt");
 
     const [deletion] = itemDeltas(
-      translator.translateAcpEvent(
+      translate(
         updateEvent({
           sessionUpdate: "tool_call",
           toolCallId: "call-delete",
@@ -1382,7 +1333,6 @@ describe("acp delta translation (presentation)", () => {
           status: "completed",
           locations: [{ path: "/workspace/old.ts" }],
         }),
-        context,
       ),
     );
     expect(deletion?.presentation).toEqual({
@@ -1974,17 +1924,9 @@ describe("acp delta translation (raw payloads and real results)", () => {
   });
 
   it("resolves a relative location and grok's target_file against the session cwd", () => {
-    const translator = createAcpDeltaTranslator({ cwd: "/workspace/app" });
-    const assembler = createDeltaAssembler({
-      providerId: "acp",
-      entropyPrefix: ENTROPY,
-      textDeltaFlushMs: 0,
+    const { translate } = createHarness({
+      cwd: "/workspace/app",
     });
-    const translate = (event: ProviderRuntimeEvent) =>
-      assembler.assemble({
-        threadId: THREAD_ID,
-        deltas: translator.translateAcpEvent(event, { threadId: THREAD_ID }),
-      });
     translate(turnStartedEvent());
 
     expect(
@@ -2053,20 +1995,10 @@ describe("acp delta translation (raw payloads and real results)", () => {
   });
 
   it("opens a grok tool call as the kind its dialect reports", () => {
-    const translator = createAcpDeltaTranslator({
+    const { translate } = createHarness({
       cwd: "/workspace/app",
       dialect: resolveAcpDialect({ command: "/usr/local/bin/grok" }),
     });
-    const assembler = createDeltaAssembler({
-      providerId: "acp",
-      entropyPrefix: ENTROPY,
-      textDeltaFlushMs: 0,
-    });
-    const translate = (event: ProviderRuntimeEvent) =>
-      assembler.assemble({
-        threadId: THREAD_ID,
-        deltas: translator.translateAcpEvent(event, { threadId: THREAD_ID }),
-      });
     translate(turnStartedEvent());
 
     const opened = translate(
@@ -2241,25 +2173,10 @@ describe("acp delta translation (raw payloads and real results)", () => {
 
 describe("acp delta translation (dialects)", () => {
   function dialectHarness(dialectId: string): AcpEquivalenceHarness {
-    const translator = createAcpDeltaTranslator({
+    const harness = createHarness({
       cwd: "/workspace",
       dialect: resolveAcpDialect({ dialectId, command: "node" }),
     });
-    const assembler = createDeltaAssembler({
-      providerId: "acp",
-      entropyPrefix: ENTROPY,
-      textDeltaFlushMs: 0,
-    });
-    const harness: AcpEquivalenceHarness = {
-      assembler,
-      translator,
-      translate: (event) =>
-        assembler.assemble({
-          threadId: THREAD_ID,
-          deltas: translator.translateAcpEvent(event, { threadId: THREAD_ID }),
-        }),
-      openTurnId: () => assembler.getOpenTurnId(THREAD_ID) ?? "",
-    };
     harness.translate(turnStartedEvent());
     return harness;
   }
@@ -2469,15 +2386,14 @@ describe("acp delta translation (dialects)", () => {
     const openedId =
       opened[0]?.type === "item/started" ? opened[0].item.id : "";
 
-    const reported = harness.assembler.assemble({
-      threadId: THREAD_ID,
-      deltas: harness.translator.noteDelegationReport(THREAD_ID, {
+    const reported = harness.translate((translator) =>
+      translator.noteDelegationReport(THREAD_ID, {
         toolCallId: "call-task",
         childRef: "78d1cd3b-94d2-4c87-82a2-c83fe54712f1",
         label: "Read README first line",
         detail: "model default",
       }),
-    });
+    );
     expect(reported).toEqual([
       expect.objectContaining({
         type: "item/started",
@@ -2526,11 +2442,13 @@ describe("acp delta translation (dialects)", () => {
     );
 
     expect(
-      harness.translator.noteDelegationReport(THREAD_ID, {
-        toolCallId: "call-task",
-        childRef: "agent-1",
-        label: "Read README first line",
-      }),
+      harness.translate((translator) =>
+        translator.noteDelegationReport(THREAD_ID, {
+          toolCallId: "call-task",
+          childRef: "agent-1",
+          label: "Read README first line",
+        }),
+      ),
     ).toEqual([]);
   });
 
@@ -2601,18 +2519,11 @@ describe("acp delta translation (bb-injected tools)", () => {
   };
 
   function injectedHarness() {
-    const harness = createHarness();
-    const translator = createAcpDeltaTranslator({ cwd: SESSION_CWD });
+    const { translate, translator } = createHarness();
     translator.configureInjectedTools([
       { name: "ask_user_question", presentation: ASK_PRESENTATION },
       { name: "bb_workflow_run" },
     ]);
-    const assembler = harness.assembler;
-    const translate = (event: ProviderRuntimeEvent) =>
-      assembler.assemble({
-        threadId: THREAD_ID,
-        deltas: translator.translateAcpEvent(event, { threadId: THREAD_ID }),
-      });
     translate(turnStartedEvent());
     return { translate, translator };
   }
