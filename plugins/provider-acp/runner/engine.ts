@@ -2,6 +2,8 @@ import {
   isStandaloneBuiltinCompactCommand,
   pendingInteractionResolutionSchema,
   reasoningEffortsForLevels,
+  THREAD_PROVIDER_COMMANDS_STATE_KIND,
+  THREAD_SESSION_OPTIONS_STATE_KIND,
   userQuestionPendingInteractionResolutionSchema,
 } from "@bb/domain";
 import type {
@@ -15,6 +17,8 @@ import type {
   PromptInput,
   ReasoningLevel,
   ServiceTier,
+  SessionOptionSelections,
+  ThreadSessionOption,
   ToolCallResponse,
 } from "@bb/domain";
 import { RunnerError, debug } from "@bb/runner";
@@ -116,13 +120,9 @@ import {
 } from "./session/session-model.js";
 import { isJsonObject } from "./session/decode.js";
 import {
-  THREAD_PROVIDER_COMMANDS_STATE_KIND,
-  THREAD_SESSION_OPTIONS_STATE_KIND,
   isUserSelectableSessionOption,
   toThreadProviderCommandsState,
   toThreadSessionOptionsState,
-  type SessionOptionSelections,
-  type ThreadSessionOption,
 } from "./session/thread-state.js";
 import type { AcpSessionEvent } from "./session/session-types.js";
 import {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { completedTurnDisplaySchema } from "./completed-turn-display.js";
+import { threadSessionOptionSchema } from "./thread-provider-state.js";
 import {
   permissionModeSchema,
   promptMentionCommandTriggerSchema,
@@ -33,6 +34,7 @@ export const availableModelSchema = z.object({
   defaultReasoningEffort: reasoningLevelSchema,
   supportedServiceTiers: z.array(modelServiceTierSchema).optional(),
   isDefault: z.boolean(),
+  sessionOptions: z.array(threadSessionOptionSchema).max(64).optional(),
 });
 export type AvailableModel = z.infer<typeof availableModelSchema>;
 

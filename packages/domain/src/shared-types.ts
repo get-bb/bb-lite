@@ -14,6 +14,17 @@ export type StandardReasoningLevel = (typeof reasoningLevelValues)[number];
 export const reasoningLevelSchema = z.string().min(1);
 export type ReasoningLevel = z.infer<typeof reasoningLevelSchema>;
 
+export const sessionOptionValueSchema = z.union([z.string(), z.boolean()]);
+export type SessionOptionValue = z.infer<typeof sessionOptionValueSchema>;
+
+export const sessionOptionSelectionsSchema = z.record(
+  z.string().min(1),
+  sessionOptionValueSchema,
+);
+export type SessionOptionSelections = z.infer<
+  typeof sessionOptionSelectionsSchema
+>;
+
 export function isStandardReasoningLevel(
   level: ReasoningLevel,
 ): level is StandardReasoningLevel {

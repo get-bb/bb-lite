@@ -1,47 +1,9 @@
-import type { ExtensionKind } from "@bb/domain";
-
-export const THREAD_PROVIDER_COMMANDS_STATE_KIND =
-  "bb/provider-commands" satisfies ExtensionKind;
-export const THREAD_SESSION_OPTIONS_STATE_KIND =
-  "bb/session-options" satisfies ExtensionKind;
-
-export type ThreadProviderCommand = {
-  name: string;
-  description: string;
-  inputHint?: string;
-};
-
-export type ThreadProviderCommandsState = {
-  commands: ThreadProviderCommand[];
-};
-
-export type ThreadSessionOptionValue = {
-  id: string;
-  label: string;
-  description?: string;
-  group?: string;
-};
-
-type ThreadSessionOptionBase = {
-  id: string;
-  label: string;
-  description?: string;
-  category?: string;
-};
-
-export type ThreadSessionOption =
-  | (ThreadSessionOptionBase & {
-      type: "select";
-      value: string;
-      values: ThreadSessionOptionValue[];
-    })
-  | (ThreadSessionOptionBase & { type: "boolean"; value: boolean });
-
-export type ThreadSessionOptionsState = {
-  options: ThreadSessionOption[];
-};
-
-export type SessionOptionSelections = Record<string, string | boolean>;
+import type {
+  ThreadProviderCommandsState,
+  ThreadSessionOption,
+  ThreadSessionOptionsState,
+  ThreadSessionOptionValue,
+} from "@bb/domain";
 import type {
   AcpAvailableCommand,
   AcpBooleanConfigOption,
