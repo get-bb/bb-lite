@@ -24,6 +24,8 @@ const RETRY_BASE_MS = 30_000;
 const RETRY_MAX_MS = 5 * 60_000;
 const ISSUE_LIMIT = 100;
 const PR_LIMIT = 50;
+const ITEMS_CHUNK_CHARS = 200_000;
+const ITEMS_PREFIX = "items:";
 const GH_HINT =
   "Install the GitHub CLI (https://cli.github.com) and run `gh auth login`, " +
   "then `bb plugin reload github`.";
@@ -101,6 +103,23 @@ function toItem(repo: string, kind: Item["kind"], raw: unknown): Item {
   };
 }
 
+function chunked(items: Item[]): Item[][] {
+  const chunks: Item[][] = [];
+  let size = 0;
+  for (const item of items) {
+    const length = JSON.stringify(item).length + 1;
+    const last = chunks.at(-1);
+    if (last === undefined || size + length > ITEMS_CHUNK_CHARS) {
+      chunks.push([item]);
+      size = length;
+    } else {
+      last.push(item);
+      size += length;
+    }
+  }
+  return chunks;
+}
+
 function toPull(raw: unknown): PullRequest {
   const entry = ghPull.parse(raw);
   const repo = repoOfUrl(entry.url);
@@ -175,11 +194,29 @@ export default function githubServer(bb: PluginServerApi): void {
       .array(schema)
       .catch([])
       .parse((await bb.storage.kv.get(key)) ?? []);
-  const cachedItems = () =>
-    kvArray(
-      "items",
-      z.custom<Item>((value) => typeof value === "object"),
+  const cachedItem = z.custom<Item>((value) => typeof value === "object");
+  const chunkIndex = (key: string) => Number(key.slice(ITEMS_PREFIX.length));
+  const cachedItems = async () => {
+    const keys = await bb.storage.kv.list(ITEMS_PREFIX);
+    if (keys.length === 0) return kvArray("items", cachedItem);
+    const ordered = [...keys].sort(
+      (left, right) => chunkIndex(left) - chunkIndex(right),
     );
+    const chunks = await Promise.all(
+      ordered.map((key) => kvArray(key, cachedItem)),
+    );
+    return chunks.flat();
+  };
+  const cacheItems = async (items: Item[]) => {
+    const chunks = chunked(items);
+    for (const [index, chunk] of chunks.entries()) {
+      await bb.storage.kv.set(`${ITEMS_PREFIX}${index}`, chunk);
+    }
+    const stale = (await bb.storage.kv.list(ITEMS_PREFIX)).filter(
+      (key) => chunkIndex(key) >= chunks.length,
+    );
+    for (const key of [...stale, "items"]) await bb.storage.kv.delete(key);
+  };
   const links = () =>
     kvArray(
       "links",
@@ -242,7 +279,7 @@ export default function githubServer(bb: PluginServerApi): void {
           ...(await list("pr", PR_LIMIT)),
         );
       }
-      await bb.storage.kv.set("items", items);
+      await cacheItems(items);
       await bb.storage.kv.set("lastSyncAt", new Date(bb.now()).toISOString());
       bb.changed(github.issues);
       bb.changed(github.pulls);
