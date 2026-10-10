@@ -112,7 +112,7 @@ it("reports a missing file and refuses unsafe paths", async () => {
   expect((await preview({ file: "a.html", source: "disk" })).status).toBe(400);
 });
 
-it("prepares a thread-storage preview from its absolute path", async () => {
+it("prepares a thread-storage preview, also once the environment is gone", async () => {
   const server = await inlineVisServer();
   const [host] = server.rows<{ root: string }>(
     "SELECT thread_storage_root AS root FROM hosts",
@@ -123,10 +123,17 @@ it("prepares a thread-storage preview from its absolute path", async () => {
     source: "thread-storage",
     file: "reports/r.html",
   });
-  expect(body.result).toEqual({
+  const found = {
     kind: "html",
     file: "reports/r.html",
     source: "thread-storage",
     url: `/api/v1/threads/${server.threadId}/host-files${absolute}`,
+  };
+  expect(body.result).toEqual(found);
+  server.ctx.db.run("UPDATE environments SET status = 'destroyed'");
+  const later = await server.preview({
+    source: "thread-storage",
+    file: "reports/r.html",
   });
+  expect(later.body.result).toEqual(found);
 });
