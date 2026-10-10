@@ -74,7 +74,7 @@ export function createHarness(options: HarnessOptions = {}) {
     },
     async requestInteraction({ payload }) {
       interactions.push(payload);
-      const allow = { decision: "allow_once" };
+      const allow = { decision: "allow_once", grantedPermissions: null };
       const fallback = pendingInteractionResolutionSchema.parse(allow);
       return options.answer?.(payload) ?? fallback;
     },
