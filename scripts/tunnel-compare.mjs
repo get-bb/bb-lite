@@ -112,10 +112,10 @@ const cases = [
     name: "35 KB API call, one at a time",
     async run(route, machine) {
       const session = await connect(route);
-      await get(session, route, "/api/v1/system/config", machine);
+      await get(session, route, "/api/v1/server/config", machine);
       const samples = [];
       for (let index = 0; index < runs; index += 1) {
-        const path = "/api/v1/system/config";
+        const path = "/api/v1/server/config";
         samples.push((await get(session, route, path, machine)).ms);
       }
       session.close();
@@ -131,7 +131,7 @@ const cases = [
       for (let round = 0; round < Math.max(5, runs / 4); round += 1) {
         const started = performance.now();
         const batch = Array.from({ length: 20 }, () =>
-          get(session, route, "/api/v1/system/config", machine),
+          get(session, route, "/api/v1/server/config", machine),
         );
         await Promise.all(batch);
         samples.push(performance.now() - started);
