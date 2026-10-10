@@ -1,17 +1,7 @@
-import type {
-  DeltaFileChange,
-  DeltaItemShape,
-  DeltaPresentation,
-} from "./thread-delta.js";
-import {
-  REASONING_PRESENTATION,
-  extractResultText,
-  fileReadPresentation,
-  searchPresentation,
-  toOptionalString,
-  toolPresentation,
-  webFetchPresentation,
-} from "./kit.js";
+import type { ThreadEventItemPresentation } from "@bb/domain";
+import { labels } from "@bb/runner";
+import type { DeltaFileChange, DeltaItemShape } from "./thread-delta.js";
+import { extractResultText, toOptionalString } from "./kit.js";
 import { z } from "zod";
 import {
   commandPresentation,
@@ -30,12 +20,12 @@ import { extractAcpContentText, type AcpToolCallUpdateEvent } from "./wire.js";
 
 export interface AcpClassifiedToolCall {
   item: DeltaItemShape;
-  presentation: DeltaPresentation;
+  presentation: ThreadEventItemPresentation;
 }
 
 export interface AcpInjectedTool {
   name: string;
-  presentation?: DeltaPresentation;
+  presentation?: ThreadEventItemPresentation;
 }
 
 const BB_TOOL_SERVER = "bb";
@@ -369,7 +359,7 @@ function fileReadItem(
   }
   return {
     item: { type: "fileRead", path },
-    presentation: fileReadPresentation(path),
+    presentation: labels.fileRead(path),
   };
 }
 
@@ -396,7 +386,7 @@ function searchItem(
       query,
       ...(root === undefined ? {} : { path: root }),
     },
-    presentation: searchPresentation({ mode, query }),
+    presentation: labels.search(mode, query),
   };
 }
 
@@ -413,7 +403,7 @@ function webFetchItem(
   }
   return {
     item: { type: "webFetch", url, pattern: null },
-    presentation: webFetchPresentation(url),
+    presentation: labels.webFetch(url),
   };
 }
 
@@ -430,7 +420,7 @@ function reasoningItem(event: AcpToolCallUpdateEvent): AcpClassifiedToolCall {
       summary: [],
       content: thought === undefined ? [] : [thought],
     },
-    presentation: REASONING_PRESENTATION,
+    presentation: labels.reasoning,
   };
 }
 
@@ -477,7 +467,7 @@ function bbToolItem(
       server: BB_TOOL_SERVER,
       ...genericToolFields(event),
     },
-    presentation: injected.presentation ?? toolPresentation(injected.name),
+    presentation: injected.presentation ?? labels.tool(injected.name),
   };
 }
 

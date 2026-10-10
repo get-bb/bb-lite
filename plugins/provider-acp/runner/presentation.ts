@@ -1,5 +1,5 @@
-import type { DeltaPresentation } from "./thread-delta.js";
-import { presentationFileName, presentationTitle, withTitle } from "./kit.js";
+import type { ThreadEventItemPresentation } from "@bb/domain";
+import { fileName, presentation } from "@bb/runner";
 import type { AcpToolKind } from "./wire.js";
 
 function stripCodeTicks(text: string): string {
@@ -9,13 +9,14 @@ function stripCodeTicks(text: string): string {
     : trimmed;
 }
 
-export function commandPresentation(command: string): DeltaPresentation {
-  return withTitle(
-    {
-      label: { pending: "Running command", completed: "Ran command" },
-      icon: { glyph: "Terminal" },
-    },
-    presentationTitle(stripCodeTicks(command)),
+export function commandPresentation(
+  command: string,
+): ThreadEventItemPresentation {
+  return presentation(
+    "Running command",
+    "Ran command",
+    "Terminal",
+    stripCodeTicks(command),
   );
 }
 
@@ -24,51 +25,40 @@ export type AcpFileChangeVerb = "add" | "update" | "delete";
 export function fileChangePresentation(args: {
   verb: AcpFileChangeVerb;
   paths: readonly string[];
-}): DeltaPresentation {
-  const names = [...new Set(args.paths.map(presentationFileName))];
+}): ThreadEventItemPresentation {
+  const names = [...new Set(args.paths.map(fileName))];
   const plural = names.length > 1;
-  const label =
-    args.verb === "add"
-      ? {
-          pending: plural ? "Writing files" : "Writing file",
-          completed: plural ? "Wrote files" : "Wrote file",
-        }
-      : args.verb === "delete"
-        ? {
-            pending: plural ? "Deleting files" : "Deleting file",
-            completed: plural ? "Deleted files" : "Deleted file",
-          }
-        : {
-            pending: plural ? "Editing files" : "Editing file",
-            completed: plural ? "Edited files" : "Edited file",
-          };
-  return withTitle(
-    {
-      label,
-      icon: { glyph: args.verb === "delete" ? "Trash2" : "EditFile" },
-    },
-    names.length === 0 ? undefined : presentationTitle(names.join(", ")),
-  );
+  const title = names.length === 0 ? undefined : names.join(", ");
+  if (args.verb === "add") {
+    return plural
+      ? presentation("Writing files", "Wrote files", "EditFile", title)
+      : presentation("Writing file", "Wrote file", "EditFile", title);
+  }
+  if (args.verb === "delete") {
+    return plural
+      ? presentation("Deleting files", "Deleted files", "Trash2", title)
+      : presentation("Deleting file", "Deleted file", "Trash2", title);
+  }
+  return plural
+    ? presentation("Editing files", "Edited files", "EditFile", title)
+    : presentation("Editing file", "Edited file", "EditFile", title);
 }
 
 export function delegationPresentation(args: {
   label: string;
   detail?: string;
-}): DeltaPresentation {
-  const presentation = withTitle(
-    {
-      label: { pending: "Running subagent", completed: "Subagent finished" },
-      icon: { glyph: "UserRound" },
-    },
-    presentationTitle(args.label),
+}): ThreadEventItemPresentation {
+  const base = presentation(
+    "Running subagent",
+    "Subagent finished",
+    "UserRound",
+    args.label,
   );
-  return args.detail === undefined
-    ? presentation
-    : { ...presentation, detail: args.detail };
+  return args.detail === undefined ? base : { ...base, detail: args.detail };
 }
 
 interface KindPresentationSpec {
-  label: DeltaPresentation["label"];
+  label: ThreadEventItemPresentation["label"];
   glyph: string;
 }
 
@@ -120,14 +110,11 @@ export function toolKindPresentation(args: {
   kind: AcpToolKind | undefined;
   name?: string | undefined;
   title: string | undefined;
-}): DeltaPresentation {
+}): ThreadEventItemPresentation {
   const spec = KIND_PRESENTATIONS[args.kind ?? "other"];
   const label =
     args.name === undefined
       ? spec.label
       : { pending: `Running ${args.name}`, completed: `Ran ${args.name}` };
-  return withTitle(
-    { label, icon: { glyph: spec.glyph } },
-    args.title === undefined ? undefined : presentationTitle(args.title),
-  );
+  return presentation(label.pending, label.completed, spec.glyph, args.title);
 }

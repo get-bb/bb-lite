@@ -48,45 +48,13 @@ export function toOptionalString(value: unknown): string | undefined {
 
 export const presentationTitle = runnerTitle;
 
-export function withTitle(
-  presentation: DeltaPresentation,
-  title: string | undefined,
-): DeltaPresentation {
-  return title === undefined ? presentation : { ...presentation, title };
-}
-
-export function presentationFileName(path: string): string {
-  const segments = path.split("/").filter((segment) => segment.length > 0);
-  return segments[segments.length - 1] ?? path;
-}
-
 export const COMPACTION_PRESENTATION: DeltaPresentation = labels.compaction;
-export const REASONING_PRESENTATION: DeltaPresentation = labels.reasoning;
-
-export function fileReadPresentation(path: string): DeltaPresentation {
-  return labels.fileRead(path);
-}
-
-export function searchPresentation(args: {
-  mode: "content" | "path";
-  query: string;
-}): DeltaPresentation {
-  return labels.search(args.mode, args.query);
-}
-
-export function webFetchPresentation(url: string): DeltaPresentation {
-  return labels.webFetch(url);
-}
 
 export function planStepsPresentation(
   steps: readonly { step: string; status?: string }[],
 ): DeltaPresentation {
   const active = steps.find((step) => step.status === "active");
   return { ...labels.planSteps(active?.step), suppress: true };
-}
-
-export function toolPresentation(tool: string): DeltaPresentation {
-  return labels.tool(tool);
 }
 
 const contentWrapperSchema = z
