@@ -103,6 +103,7 @@ thread spawn|create|new  Create a thread and send its first prompt
     r#"  Machine to run on
   --section <id>  Sidebar section
   --visibility <visibility>  visible or hidden (a child inherits)
+  --option <id=value>...  Agent option to start with (see provider models)
 "#,
     attachments!(),
     r#"
@@ -178,6 +179,18 @@ thread update [id]  Change title, parent, section, model or visibility
   --model <model>  Model for the next turn
   --reasoning-level <level>  Reasoning level for the next turn
   --visibility <visibility>  visible or hidden
+thread commands [id]  List the agent's own slash commands
+"#,
+    self_flag!(),
+    r#"
+  > [{name, description, inputHint}] (bare array)
+thread options [id]  Show or change the agent's own options
+"#,
+    self_flag!(),
+    r#"
+  --set <id=value>...  Choose a value; sent with the next message
+  --clear <id>...  Drop a choice not yet sent
+  > {options: [{id, label, type, value, …}], selections}
 thread stop [id]  Stop work and release the agent runtime
 "#,
     self_flag!(),

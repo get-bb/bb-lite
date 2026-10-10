@@ -187,6 +187,114 @@ fn spawn_with_parent_self() {
 }
 
 #[test]
+fn spawn_sends_session_options() {
+    let fake = Fake::json(thread("thr_new", "pending"));
+    let argv = [
+        "thread",
+        "spawn",
+        "--project",
+        "proj_1",
+        "--prompt",
+        "go",
+        "--option",
+        "effort=high",
+        "--option",
+        "fast=true",
+        "--option",
+        "plan=false",
+        "--option",
+        "note=a=b",
+    ];
+    ok(&fake.url, None, &argv);
+    let body = fake.only().body.expect("body");
+    let options = json!({ "effort": "high", "fast": true, "plan": false, "note": "a=b" });
+    assert_eq!(body["sessionOptions"], options);
+    ok(&fake.url, None, &["thread", "spawn", "--project", "proj_1", "--prompt", "go"]);
+    let body = fake.requests().pop().expect("request").body.expect("body");
+    assert!(body.get("sessionOptions").is_none());
+    for bad in ["effort", "=high"] {
+        let argv = ["thread", "spawn", "--project", "proj_1", "--prompt", "go", "--option", bad];
+        let error = fail(&fake.url, None, &argv);
+        assert_eq!(error.message, format!("Expected id=value, got \"{bad}\"."));
+        assert_eq!(error.code, "invalid_value");
+    }
+}
+
+#[test]
+fn commands_list_the_provider_commands() {
+    let commands = json!([
+        { "name": "review", "description": "Review changes", "inputHint": "<path>" },
+        { "name": "init", "description": "Write notes" },
+    ]);
+    let fake = Fake::json(json!({ "commands": commands }));
+    let out = ok(&fake.url, Some("thr_a"), &["thread", "commands", "--self"]);
+    assert_eq!(fake.only(), request("GET", "/threads/thr_a/provider-commands", "", None));
+    let expected = "\nNAME    DESCRIPTION     INPUTHINT\nreview  Review changes  <path>\n\
+                    init    Write notes     -\n\n";
+    assert_eq!(out, expected);
+    let out = ok(&fake.url, None, &["thread", "commands", "thr_a", "--json"]);
+    assert_eq!(serde_json::from_str::<Value>(&out).expect("json"), commands);
+    let fake = Fake::json(json!({ "commands": [] }));
+    assert_eq!(ok(&fake.url, None, &["thread", "commands", "thr_a"]), "None found\n");
+}
+
+fn session_options(selections: Value) -> Value {
+    json!({
+        "options": [
+            { "id": "effort", "label": "Effort", "type": "select", "value": "low",
+              "values": [{ "id": "low", "label": "Low" }, { "id": "high", "label": "High" }] },
+            { "id": "fast", "label": "Fast", "type": "boolean", "value": false },
+        ],
+        "selections": selections,
+    })
+}
+
+#[test]
+fn options_show_and_change_the_session_options() {
+    let fake = Fake::json(session_options(json!({ "fast": true })));
+    let out = ok(&fake.url, None, &["thread", "options", "thr_a"]);
+    assert_eq!(fake.only(), request("GET", "/threads/thr_a/session-options", "", None));
+    assert_eq!(out, "effort: low (low, high)\nfast: off (pending)\n");
+    let out = ok(&fake.url, None, &["thread", "options", "thr_a", "--json"]);
+    let data: Value = serde_json::from_str(&out).expect("json");
+    assert_eq!(data, session_options(json!({ "fast": true })));
+
+    let fake = Fake::json(session_options(json!({})));
+    let argv = [
+        "thread",
+        "options",
+        "thr_a",
+        "--set",
+        "effort=high",
+        "--set",
+        "fast=true",
+        "--clear",
+        "plan",
+    ];
+    ok(&fake.url, None, &argv);
+    let body = json!({ "set": { "effort": "high", "fast": true }, "clear": ["plan"] });
+    assert_eq!(
+        fake.requests(),
+        [
+            request("GET", "/threads/thr_a/session-options", "", None),
+            request("PATCH", "/threads/thr_a/session-options", "", Some(body)),
+        ]
+    );
+
+    let fake = Fake::json(session_options(json!({})));
+    let error = fail(&fake.url, None, &["thread", "options", "thr_a", "--set", "fast=yes"]);
+    assert_eq!(error.message, "fast is on/off: use fast=true or fast=false.");
+    assert_eq!(error.code, "invalid_value");
+    let error = fail(&fake.url, None, &["thread", "options", "thr_a", "--set", "fast"]);
+    assert_eq!(error.message, "Expected id=value, got \"fast\".");
+    assert!(fake.requests().iter().all(|sent| sent.method == "GET"));
+
+    let fake = Fake::json(json!({ "options": [], "selections": {} }));
+    let out = ok(&fake.url, None, &["thread", "options", "thr_a"]);
+    assert_eq!(out, "The provider has not reported any options.\n");
+}
+
+#[test]
 fn wait_polls_until_status_and_reports_failures() {
     let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let seen = calls.clone();

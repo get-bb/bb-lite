@@ -1,8 +1,8 @@
 use serde_json::{Map, Value, json};
 
 use crate::call::{
-    Call, CliResult, Handler, Output, clip, confirm, integer, iso_date, parse_json, thread_target,
-    usage_error, valid_id,
+    Call, CliResult, Handler, Output, clip, confirm, integer, iso_date, option_assignment,
+    parse_json, thread_target, usage_error, valid_id,
 };
 use crate::http::encode;
 use crate::render::{queue_wait, shown, text};
@@ -23,6 +23,8 @@ pub fn handlers() -> Vec<(&'static str, Handler)> {
         ("threadSectionCreate", thread_section_create),
         ("threadSectionRename", thread_section_rename),
         ("threadSectionDelete", thread_section_delete),
+        ("threadCommands", thread_commands),
+        ("threadOptions", thread_options),
     ]
 }
 
@@ -366,4 +368,75 @@ fn thread_history(call: &mut Call) -> CliResult<Output> {
 
 fn project_history(call: &mut Call) -> CliResult<Output> {
     prompt_history_of(call, "projects")
+}
+
+fn option_value_text(value: &Value) -> String {
+    match value {
+        Value::Bool(true) => "on".into(),
+        Value::Bool(false) => "off".into(),
+        other => shown(other),
+    }
+}
+
+fn thread_commands(call: &mut Call) -> CliResult<Output> {
+    let thread_id = thread_target(call)?;
+    let result =
+        call.http.get(&format!("/threads/{}/provider-commands", encode(&thread_id)), &[])?;
+    let commands = result.get("commands").cloned().unwrap_or(Value::Null);
+    let rows = commands.as_array().cloned().unwrap_or_default();
+    Ok(Output::rows(&rows, &["name", "description", "inputHint"], commands))
+}
+
+fn thread_options(call: &mut Call) -> CliResult<Output> {
+    let thread_id = thread_target(call)?;
+    let path = format!("/threads/{}/session-options", encode(&thread_id));
+    let current = call.http.get(&path, &[])?;
+    let sets = call
+        .list("set")?
+        .iter()
+        .map(|raw| option_assignment(raw))
+        .collect::<Result<Vec<_>, _>>()?;
+    let clear = call.list("clear")?;
+    let mut result = current;
+    if !sets.is_empty() || !clear.is_empty() {
+        let options = result["options"].as_array().cloned().unwrap_or_default();
+        let mut set = Map::new();
+        for (id, raw) in sets {
+            let option =
+                options.iter().find(|candidate| text(candidate, "id") == Some(id.as_str()));
+            let boolean = option.is_some_and(|option| text(option, "type") == Some("boolean"));
+            if boolean && raw != "true" && raw != "false" {
+                return Err(usage_error(format!("{id} is on/off: use {id}=true or {id}=false.")));
+            }
+            let value = if boolean { json!(raw == "true") } else { json!(raw) };
+            set.insert(id, value);
+        }
+        result = call.http.patch(&path, &json!({ "set": set, "clear": clear }))?;
+    }
+    let selections = result["selections"].as_object();
+    let lines: Vec<String> = result["options"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .map(|option| {
+            let id = field(option, "id");
+            let pending = selections.is_some_and(|selections| selections.contains_key(&id));
+            let choices = match (text(option, "type"), option["values"].as_array()) {
+                (Some("select"), Some(values)) => {
+                    let ids: Vec<String> = values.iter().map(|value| field(value, "id")).collect();
+                    format!(" ({})", ids.join(", "))
+                }
+                _ => String::new(),
+            };
+            let value =
+                option.get("value").map(option_value_text).unwrap_or_else(|| "undefined".into());
+            let pending = if pending { " (pending)" } else { "" };
+            format!("{id}: {value}{pending}{choices}")
+        })
+        .collect();
+    if lines.is_empty() {
+        return Ok(Output::text(result, "The provider has not reported any options."));
+    }
+    Ok(Output::lines(result, &lines))
 }
