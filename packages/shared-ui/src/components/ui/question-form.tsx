@@ -268,10 +268,10 @@ export function QuestionForm({
         event.preventDefault();
         handleAdvance();
       }}
-      className="flex max-h-[calc(100dvh-6rem)] min-h-0 flex-col text-xs text-muted-foreground"
+      className="text-xs text-muted-foreground"
     >
       {questions.length > 1 ? (
-        <div className="mb-2 flex shrink-0 items-center gap-2">
+        <div className="mb-2 flex items-center gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             {questions.map((each, index) => (
               <div
@@ -310,94 +310,92 @@ export function QuestionForm({
           </span>
         </div>
       ) : null}
-      <div className="min-h-0 touch-pan-y overflow-y-auto overscroll-contain">
-        <fieldset disabled={disabled} className="min-w-0">
-          <legend className="sr-only">{question.prompt}</legend>
-          {question.prompt ? (
-            <div className="text-sm font-semibold text-foreground">
-              {question.prompt}
-            </div>
-          ) : null}
-          <div className="mt-2 space-y-0.5">
-            {question.options.map((option, index) => {
-              const checked = state.selected.includes(option.value);
-              return (
-                <div key={option.value}>
-                  <QuestionOptionRow
-                    checked={checked}
-                    label={option.label}
-                    description={option.description}
-                    multiSelect={question.multiSelect}
-                    onSelect={() =>
-                      updateAnswer(
-                        setFormState,
-                        question,
-                        toggleOption(question, option.value),
-                      )
-                    }
-                    shortcut={shortcuts.get(String(index))}
-                  />
-                  {checked && option.preview ? (
-                    <pre
-                      className="mx-2.5 mb-1 mt-1 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-surface-raised px-2.5 py-2 font-mono text-xs leading-relaxed text-foreground"
-                      style={{ maxHeight: "220px" }}
-                    >
-                      {option.preview}
-                    </pre>
-                  ) : null}
-                </div>
-              );
-            })}
-            {question.allowFreeText && question.options.length > 0 ? (
-              <QuestionOptionRow
-                checked={state.otherSelected}
-                label="Other…"
-                multiSelect={question.multiSelect}
-                onSelect={() =>
-                  updateAnswer(setFormState, question, selectOther(question))
-                }
-                shortcut={shortcuts.get(String(question.options.length))}
-              />
-            ) : null}
+      <fieldset disabled={disabled} className="min-w-0">
+        <legend className="sr-only">{question.prompt}</legend>
+        {question.prompt ? (
+          <div className="text-sm font-semibold text-foreground">
+            {question.prompt}
           </div>
-          {state.otherSelected ? (
-            <textarea
-              ref={freeTextRef}
-              aria-label={`${question.shortLabel} answer`}
-              value={state.otherText}
-              rows={1}
-              autoFocus={!isPointerCoarse}
-              autoComplete="off"
-              onChange={(event) => {
-                const otherText = event.target.value;
-                updateAnswer(setFormState, question, (current) => ({
-                  ...current,
-                  otherText,
-                }));
-                autoGrow(event.target);
-              }}
-              onKeyDown={(event) => {
-                if (
-                  event.nativeEvent.isComposing ||
-                  event.key !== "Enter" ||
-                  (!event.metaKey && !event.ctrlKey)
-                ) {
-                  return;
-                }
-                event.preventDefault();
-                handleAdvance();
-              }}
-              placeholder="Type your own answer…"
-              className="mt-2 w-full resize-none overflow-y-auto rounded-md border border-border bg-surface-raised px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:border-ring/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40"
-              style={{
-                minHeight: `${FREE_TEXT_MIN_HEIGHT}px`,
-                maxHeight: `${FREE_TEXT_MAX_HEIGHT}px`,
-              }}
+        ) : null}
+        <div className="mt-2 space-y-0.5">
+          {question.options.map((option, index) => {
+            const checked = state.selected.includes(option.value);
+            return (
+              <div key={option.value}>
+                <QuestionOptionRow
+                  checked={checked}
+                  label={option.label}
+                  description={option.description}
+                  multiSelect={question.multiSelect}
+                  onSelect={() =>
+                    updateAnswer(
+                      setFormState,
+                      question,
+                      toggleOption(question, option.value),
+                    )
+                  }
+                  shortcut={shortcuts.get(String(index))}
+                />
+                {checked && option.preview ? (
+                  <pre
+                    className="mx-2.5 mb-1 mt-1 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-surface-raised px-2.5 py-2 font-mono text-xs leading-relaxed text-foreground"
+                    style={{ maxHeight: "220px" }}
+                  >
+                    {option.preview}
+                  </pre>
+                ) : null}
+              </div>
+            );
+          })}
+          {question.allowFreeText && question.options.length > 0 ? (
+            <QuestionOptionRow
+              checked={state.otherSelected}
+              label="Other…"
+              multiSelect={question.multiSelect}
+              onSelect={() =>
+                updateAnswer(setFormState, question, selectOther(question))
+              }
+              shortcut={shortcuts.get(String(question.options.length))}
             />
           ) : null}
-        </fieldset>
-      </div>
-      <div className="mt-3 flex shrink-0 items-center justify-between gap-2">
+        </div>
+        {state.otherSelected ? (
+          <textarea
+            ref={freeTextRef}
+            aria-label={`${question.shortLabel} answer`}
+            value={state.otherText}
+            rows={1}
+            autoFocus={!isPointerCoarse}
+            autoComplete="off"
+            onChange={(event) => {
+              const otherText = event.target.value;
+              updateAnswer(setFormState, question, (current) => ({
+                ...current,
+                otherText,
+              }));
+              autoGrow(event.target);
+            }}
+            onKeyDown={(event) => {
+              if (
+                event.nativeEvent.isComposing ||
+                event.key !== "Enter" ||
+                (!event.metaKey && !event.ctrlKey)
+              ) {
+                return;
+              }
+              event.preventDefault();
+              handleAdvance();
+            }}
+            placeholder="Type your own answer…"
+            className="mt-2 w-full resize-none overflow-y-auto rounded-md border border-border bg-surface-raised px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:border-ring/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40"
+            style={{
+              minHeight: `${FREE_TEXT_MIN_HEIGHT}px`,
+              maxHeight: `${FREE_TEXT_MAX_HEIGHT}px`,
+            }}
+          />
+        ) : null}
+      </fieldset>
+      <div className="mt-3 flex items-center justify-between gap-2">
         <Button
           type="button"
           size="sm"
