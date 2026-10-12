@@ -3,7 +3,7 @@ import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { PLUGIN_ZOD_MODULES } from "@bb/plugin";
-import { profiles } from "@bb/profile-default/profiles";
+import { CORE, profiles } from "@bb/profile-default/profiles";
 import { corePlugins, profilePlugins } from "@bb/profile-default/server";
 import { expect, it } from "vitest";
 import { SERVER_RUNTIME_MODULES } from "../src/plugins/runtime.js";
@@ -26,6 +26,22 @@ it("picks the in-repo plugins a profile names", () => {
   expect(ids("default")).toContain("thread-list");
   expect(ids("default").sort()).toEqual([...profiles.default.plugins].sort());
   expect(() => profilePlugins("nope")).toThrow('Unknown profile "nope"');
+});
+
+it("loads every plugin directory in the default profile or as core", () => {
+  const root = fileURLToPath(new URL("../../../plugins", import.meta.url));
+  const loaded = new Set([...profiles.default.plugins, ...CORE]);
+  const unloaded = readdirSync(root).filter((directory) => {
+    try {
+      const manifest = join(root, directory, "package.json");
+      const parsed: unknown = JSON.parse(readFileSync(manifest, "utf8"));
+      const described = typeof parsed === "object" && parsed !== null;
+      return described && "bb" in parsed && !loaded.has(directory);
+    } catch {
+      return false;
+    }
+  });
+  expect(unloaded).toEqual([]);
 });
 
 it("registers every plugin directory through the generated tables", () => {

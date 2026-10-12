@@ -42,6 +42,7 @@ const PRODUCT = [
   "bb-account",
   "bb-ai",
   "connect",
+  "mcp",
   "account-pool",
   "tasks",
   "concurrency-limit",
