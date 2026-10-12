@@ -1,10 +1,11 @@
-export const VIA_TUNNEL_HEADER = "x-bb-via-tunnel";
-export const GATE_AUTH_HEADER = "x-bb-gate-auth";
-export const GATE_OAUTH_AUTH_KIND = "oauth";
-export const GATE_OAUTH_SCOPE_HEADER = "x-bb-gate-oauth-scope";
-export const GATE_OAUTH_GRANT_HEADER = "x-bb-gate-oauth-grant";
-export const GATE_OAUTH_CLIENT_HEADER = "x-bb-gate-oauth-client";
-export const MCP_SCOPE = "bb";
+import {
+  GATE_AUTH_HEADER,
+  GATE_OAUTH_AUTH_KIND,
+  GATE_OAUTH_SCOPE_HEADER,
+  MCP_SCOPE,
+} from "@bb/tunnel-contract";
+
+const VIA_TUNNEL_HEADER = "x-bb-via-tunnel";
 
 export interface McpAccessProblem {
   status: 403;

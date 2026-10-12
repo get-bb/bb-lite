@@ -1,4 +1,5 @@
 import { createPluginHarness } from "@bb/plugin/testing";
+import { MCP_LOCAL_PATH } from "@bb/tunnel-contract";
 import {
   Client,
   StreamableHTTPClientTransport,
@@ -151,7 +152,7 @@ async function startServer() {
   const { ctx, url } = server;
   ctx.config.port = Number(new URL(url).port);
   await ctx.plugins.reload("mcp");
-  const endpoint = `${url}/api/v1/plugins/mcp/http/mcp`;
+  const endpoint = `${url}${MCP_LOCAL_PATH}`;
   const post = async (headers: Record<string, string>) => {
     const init = { method: "POST", headers: { ...JSON_BODY, ...headers } };
     return (await fetch(endpoint, { ...init, body: PING })).status;

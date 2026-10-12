@@ -1,5 +1,10 @@
 import { fail, plugins, type PluginServerApi } from "@bb/plugin";
 import { currentPrincipal } from "@bb/server-kit/http/trust";
+import {
+  MCP_GRANTS_PATH,
+  MCP_GRANTS_REVOKE_PATH,
+  MCP_PUBLIC_PATH,
+} from "@bb/tunnel-contract";
 import { connect, type AccountLink } from "bb-plugin-connect/contract.js";
 import { join } from "node:path";
 import { z } from "zod";
@@ -14,8 +19,6 @@ import { createBbMcpHttpHandler } from "./src/mcp-handler.js";
 
 const MCP_SERVER_VERSION = "0.1.0";
 const MCP_ROUTE_PATH = "/mcp";
-const GRANTS_PATH = "/api/connect/mcp/grants";
-const GRANTS_REVOKE_PATH = "/api/connect/mcp/grants/revoke";
 const RELAY_TIMEOUT_MS = 15_000;
 const NOT_LINKED = "This bb is not connected to a bb account.";
 const LINK_HINT =
@@ -146,7 +149,9 @@ export function createMcp(given: Partial<McpOptions> = {}) {
 
     const remote = async (): Promise<Pick<McpStatus, "remoteUrl">> => {
       const { url } = await bb.call(connect.status, {});
-      return { remoteUrl: url === null ? null : `${trimmed(url)}/mcp` };
+      const remoteUrl =
+        url === null ? null : `${trimmed(url)}${MCP_PUBLIC_PATH}`;
+      return { remoteUrl };
     };
 
     bb.implement(mcp.status, async (): Promise<McpStatus> => {
@@ -166,7 +171,12 @@ export function createMcp(given: Partial<McpOptions> = {}) {
     bb.implement(
       mcp.clients,
       async (_input, { signal }): Promise<McpGrant[]> => {
-        const body = await relay(GRANTS_PATH, null, grantsBodySchema, signal);
+        const body = await relay(
+          MCP_GRANTS_PATH,
+          null,
+          grantsBodySchema,
+          signal,
+        );
         return body.grants;
       },
     );
@@ -174,7 +184,7 @@ export function createMcp(given: Partial<McpOptions> = {}) {
     bb.implement(mcp.revoke, async ({ grantId }, { signal }) => {
       const sent = { grantId };
       const body = await relay(
-        GRANTS_REVOKE_PATH,
+        MCP_GRANTS_REVOKE_PATH,
         sent,
         revokeBodySchema,
         signal,

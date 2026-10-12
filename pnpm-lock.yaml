@@ -1873,6 +1873,9 @@ importers:
       '@bb/server-kit':
         specifier: workspace:*
         version: link:../../packages/server-kit
+      '@bb/tunnel-contract':
+        specifier: workspace:*
+        version: link:../../packages/tunnel-contract
       '@jitl/quickjs-singlefile-cjs-release-sync':
         specifier: ^0.32.0
         version: 0.32.0
