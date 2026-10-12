@@ -71,6 +71,8 @@ it("prepares workspace HTML and Markdown previews", async () => {
     url: expect.stringMatching(
       /^\/api\/v1\/environments\/.+\/files\/charts\/out\.html$/,
     ),
+    content: "<h1>chart</h1>",
+    sha256: "x",
   });
   expect(reads).toContainEqual(
     expect.objectContaining({ path: "charts/out.html", rootPath: "/repo" }),
@@ -128,6 +130,8 @@ it("prepares a thread-storage preview, also once the environment is gone", async
     file: "reports/r.html",
     source: "thread-storage",
     url: `/api/v1/threads/${server.threadId}/host-files${absolute}`,
+    content: "<p>report</p>",
+    sha256: "x",
   };
   expect(body.result).toEqual(found);
   server.ctx.db.run("UPDATE environments SET status = 'destroyed'");

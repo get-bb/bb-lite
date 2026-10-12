@@ -48,7 +48,6 @@ import { Button } from "@bb/shared-ui/button";
 import {
   COARSE_POINTER_PROMPT_ACTION_BUTTON_CLASS,
   COARSE_POINTER_PROMPT_ICON_ACTION_BUTTON_CLASS,
-  COARSE_POINTER_TEXT_BASE_CLASS,
 } from "@bb/shared-ui/coarse-pointer-sizing";
 import { usePointerCoarse } from "@bb/shared-ui/hooks/use-pointer-coarse";
 import { Icon } from "@bb/shared-ui/icon";
@@ -1676,7 +1675,7 @@ export function PromptBoxInternal({
             attachFiles(event.dataTransfer?.files);
           }}
           className={cn(
-            "group/promptbox relative w-full rounded-xl border border-border bg-background shadow-lift",
+            "group/promptbox relative w-full rounded-2xl border border-border-raised bg-background shadow-lift",
             showCompactLayout && "overflow-hidden",
           )}
         >
@@ -1735,8 +1734,7 @@ export function PromptBoxInternal({
                   data-promptbox-editor-scroll=""
                   className={cn(
                     "w-full overflow-y-auto bg-transparent px-4 pb-1 pr-14 pt-3 outline-none",
-                    COARSE_POINTER_TEXT_BASE_CLASS,
-                    "leading-relaxed",
+                    "text-md",
                     showCompactLayout && "h-12 overflow-hidden pb-0 pr-14 pt-0",
                   )}
                   style={

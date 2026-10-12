@@ -239,7 +239,7 @@ export function ComposerPopupHost({
       role="dialog"
       aria-label={item.label}
       data-composer-popup={item.id}
-      className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-80 overflow-y-auto rounded-xl border border-border bg-popover shadow-lift"
+      className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-80 overflow-y-auto rounded-2xl border border-border-raised bg-popover shadow-md"
     >
       <SlotMount
         pluginId={plugin}

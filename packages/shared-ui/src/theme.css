@@ -33,6 +33,7 @@
   --color-diff-removed: var(--diff-removed);
   --color-border: var(--border);
   --color-border-hairline: var(--border-hairline);
+  --color-border-raised: var(--border-raised);
   --color-border-seam: var(--border-seam);
   --color-border-seam-vertical: var(--border-seam-vertical);
   --color-input: var(--input);
@@ -50,6 +51,7 @@
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-selected: var(--sidebar-selected);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -72,6 +74,8 @@
 
 @theme {
   --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-md--line-height: 1.375rem;
   --text-base: 0.9375rem;
   --text-base--line-height: 1.375rem;
   --text-2xs: 0.625rem;
@@ -86,6 +90,8 @@
     --text-xs--line-height: 1.25rem;
     --text-sm: 0.9375rem;
     --text-sm--line-height: 1.375rem;
+    --text-md: 1rem;
+    --text-md--line-height: 1.5rem;
     --text-base: 1rem;
     --text-base--line-height: 1.5rem;
   }
@@ -126,6 +132,7 @@
   --diff-removed: oklch(0.4 0.17 28);
   --border: color-mix(in oklch, var(--ink) 14%, var(--canvas));
   --border-hairline: color-mix(in oklch, var(--ink) 14.7%, var(--canvas));
+  --border-raised: color-mix(in oklch, var(--ink) 11%, var(--canvas));
   --border-seam: color-mix(in oklch, var(--ink) 9.5%, var(--canvas));
   --border-seam-vertical: var(--border-seam);
   --input: color-mix(in oklch, var(--ink) 29.5%, var(--canvas));
@@ -171,7 +178,11 @@
     var(--ink) 19.2%,
     var(--canvas)
   );
-  --sidebar: color-mix(in oklch, var(--ink) 2.2%, var(--canvas));
+  --sidebar: color-mix(in oklch, var(--ink) 3.8%, var(--canvas));
+  --sidebar-selected: var(--canvas);
+  --sidebar-selected-shadow:
+    0px 0px 0px 1px color-mix(in oklab, var(--ink) 9%, transparent),
+    var(--shadow-contact);
   --sidebar-foreground: var(--ink);
   --sidebar-accent: color-mix(in oklch, var(--ink) 8%, var(--canvas));
   --sidebar-accent-foreground: var(--ink);
@@ -191,17 +202,24 @@
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
   --radius: 0.5rem;
-  --bb-sidebar-row-height: 1.75rem;
+  --bb-sidebar-row-height: 1.875rem;
   --bb-sidebar-row-height-coarse: 2.5rem;
-  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
-  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
+  --shadow-contact: 0px 1px 2px 0px
+    color-mix(in oklab, var(--ink) 6%, transparent);
+  --shadow-2xs: var(--shadow-contact);
+  --shadow-xs: var(--shadow-contact);
   --shadow-sm:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
+    var(--shadow-contact),
+    0px 4px 12px -6px color-mix(in oklab, var(--ink) 16%, transparent);
   --shadow-md:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 2px 4px -1px hsl(0 0% 20% / 0.15);
-  --shadow-lift: 0px -4px 12px -4px hsl(0 0% 20% / 0.07);
+    var(--shadow-contact),
+    0px 8px 24px -8px color-mix(in oklab, var(--ink) 22%, transparent);
+  --shadow-lift:
+    var(--shadow-contact),
+    0px 12px 28px -18px color-mix(in oklab, var(--ink) 45%, transparent);
   --shadow-lg:
-    0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 4px 6px -1px hsl(0 0% 20% / 0.15);
+    var(--shadow-contact),
+    0px 16px 40px -12px color-mix(in oklab, var(--ink) 26%, transparent);
   --spacing: 0.25rem;
   --icon-stroke-width: 1.75;
   --ansi-0: #000000;
@@ -267,6 +285,7 @@
   --diff-removed: oklch(0.72 0.19 22);
   --border: color-mix(in oklch, var(--ink) 19.4%, var(--canvas));
   --border-hairline: color-mix(in oklch, var(--ink) 21%, var(--canvas));
+  --border-raised: color-mix(in oklch, var(--ink) 16%, var(--canvas));
   --border-seam: color-mix(in oklch, var(--ink) 11%, var(--canvas));
   --input: color-mix(in oklch, var(--ink) 32.6%, var(--canvas));
   --surface-destructive: color-mix(
@@ -297,7 +316,10 @@
     var(--ink) 25.2%,
     var(--canvas)
   );
-  --sidebar: color-mix(in oklch, var(--ink) 4.3%, var(--canvas));
+  --sidebar: color-mix(in oklch, var(--ink) 3%, var(--canvas));
+  --sidebar-selected: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --sidebar-selected-shadow:
+    0px 0px 0px 1px oklch(0 0 0 / 0.09), var(--shadow-contact);
   --sidebar-accent: color-mix(in oklch, var(--ink) 12%, var(--canvas));
   --sidebar-border: color-mix(in oklch, var(--ink) 18.1%, var(--canvas));
   --sidebar-search-match: color-mix(
@@ -305,15 +327,15 @@
     oklch(0.8 0.13 88),
     var(--canvas) 80%
   );
-  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.2);
-  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.2);
-  --shadow-sm:
-    0px 2px 0px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.4);
-  --shadow-md:
-    0px 2px 0px 0px hsl(0 0% 0% / 0.3), 0px 2px 4px -1px hsl(0 0% 0% / 0.5);
-  --shadow-lift: 0px -4px 12px -4px hsl(0 0% 0% / 0.26);
-  --shadow-lg:
-    0px 2px 0px 0px hsl(0 0% 0% / 0.3), 0px 4px 6px -1px hsl(0 0% 0% / 0.5);
+  --shadow-contact:
+    inset 0px 1px 0px 0px oklch(1 0 0 / 0.06),
+    0px 1px 2px 0px oklch(0 0 0 / 0.4);
+  --shadow-2xs: var(--shadow-contact);
+  --shadow-xs: var(--shadow-contact);
+  --shadow-sm: var(--shadow-contact), 0px 4px 12px -6px oklch(0 0 0 / 0.7);
+  --shadow-md: var(--shadow-contact), 0px 8px 24px -8px oklch(0 0 0 / 0.8);
+  --shadow-lift: var(--shadow-contact), 0px 12px 28px -18px oklch(0 0 0 / 0.95);
+  --shadow-lg: var(--shadow-contact), 0px 16px 40px -12px oklch(0 0 0 / 0.85);
   --ansi-0: #858585;
   --ansi-1: #d85e5e;
   --ansi-2: #0dbc79;

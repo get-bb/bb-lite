@@ -973,8 +973,8 @@ function QueuedMessagesListSurface({
       className={cn(
         "relative z-10 flex min-h-0 flex-col overflow-hidden bg-surface-raised-solid shadow-lift",
         isEditing || !attachedToComposer
-          ? "mb-0 rounded-xl pb-4"
-          : "-mb-5 rounded-xl rounded-b-none border-b-0 pb-3",
+          ? "mb-0 rounded-2xl pb-4"
+          : "-mb-5 rounded-2xl rounded-b-none border-b-0 pb-3",
         "transition-[height,margin,border-radius,padding] duration-[260ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
       )}
     >

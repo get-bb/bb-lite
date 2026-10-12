@@ -292,7 +292,7 @@ function PopoverContent({
             loopTabFocus(event);
           }}
           className={cn(
-            "w-96 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95",
+            "w-96 rounded-[calc(var(--radius)+2px)] border border-border-raised bg-popover p-4 text-popover-foreground shadow-md outline-none data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95",
             className,
           )}
           {...props}

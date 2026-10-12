@@ -119,7 +119,7 @@ function AppToastContent({
 }) {
   const hasActions = action !== undefined || cancel !== undefined;
   return (
-    <div className="w-[var(--width,356px)] max-w-[calc(100vw-32px)] shrink-0 rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-sm max-[600px]:w-[calc(100vw-32px)]">
+    <div className="w-[var(--width,356px)] max-w-[calc(100vw-32px)] shrink-0 rounded-[calc(var(--radius)+2px)] border border-border-raised bg-popover px-4 py-3 text-popover-foreground shadow-sm max-[600px]:w-[calc(100vw-32px)]">
       <div className="flex min-w-0 items-start gap-3">
         <div className="mt-0.5 flex size-4 shrink-0 items-center justify-center text-foreground">
           <Icon
