@@ -6,6 +6,7 @@ import type {
   Viewer,
 } from "./dashboard-types.js";
 import * as hosted from "./hosted.js";
+import * as oauth from "./oauth.js";
 import * as site from "./site.js";
 import * as store from "./store.js";
 
@@ -15,6 +16,7 @@ type Outcome<Value> = Value | (Failure & { status: number });
 const HOUR_MS = 60 * 60_000;
 const LABEL_RULE = "Use 1 to 32 letters, digits or single dashes.";
 const SERVER_ACTION = /^\/api\/dashboard\/servers\/([^/]+)\/([a-z]+)$/u;
+const APP = /^\/api\/dashboard\/apps\/([^/]+)\/revoke$/u;
 const PERSON = /^\/api\/dashboard\/people\/([^/]+)$/u;
 
 function fail(status: number, error: string, message: string) {
@@ -107,8 +109,10 @@ export async function dashboardOf(
   const count = servers.filter((server) => server.hosted_state !== null).length;
   const canCreate =
     hosted.isAvailable(env) && viewer.canHost && count < hosted.perAccount(env);
+  const apps = await oauth.appsOf(context, user.id);
   return {
     viewer,
+    apps,
     baseHost,
     servers: servers.map((server) => serverView(context, server, image)),
     people: users.map((other) => ({
@@ -234,6 +238,13 @@ async function actOnServer(
   return { ok: true };
 }
 
+export function asked<Value extends object>(
+  outcome: Value | { problem: string },
+): Outcome<Value> {
+  if (!("problem" in outcome)) return outcome;
+  return fail(400, "invalid_request", outcome.problem);
+}
+
 function signOut(context: Site) {
   const headers = new Headers({ "cache-control": "no-store" });
   headers.append("set-cookie", site.sessionCookie(context, "", 0));
@@ -270,6 +281,10 @@ export async function dashboardApi(
     const code = new URL(request.url).searchParams.get("code") ?? "";
     return answer(await linkViewOf(context, user, code));
   }
+  if (method === "GET" && path === "/api/dashboard/oauth/consent") {
+    const { searchParams } = new URL(request.url);
+    return answer(asked(await oauth.consentOf(context, user, searchParams)));
+  }
   if (!posting) return answer(fail(404, "not_found", "Not found."));
   const parsed: unknown = await request.json().catch(() => null);
   const body: Record<string, unknown> =
@@ -281,6 +296,17 @@ export async function dashboardApi(
   }
   if (path === "/api/dashboard/link") {
     return answer(await answerLink(context, user, body));
+  }
+  if (path === "/api/dashboard/oauth/decision") {
+    const query = typeof body.query === "string" ? body.query : "";
+    const params = new URLSearchParams(query);
+    const approved = body.approved === true;
+    return answer(asked(await oauth.decide(context, user, params, approved)));
+  }
+  const [, appId = ""] = APP.exec(path) ?? [];
+  if (appId !== "") {
+    const revoked = await oauth.revokeForUser(db, user.id, appId);
+    return site.json({ revoked });
   }
   if (path === "/api/dashboard/servers") {
     return answer(await createServer(context, user, body));

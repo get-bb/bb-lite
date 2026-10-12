@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AddServer } from "../components/add-server";
+import { ConnectedApps } from "../components/connected-apps";
 import { People } from "../components/people";
 import { ServerList } from "../components/servers";
 import { Section, Shell } from "../components/shell";
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/")({
 function DashboardPage() {
   const dashboard = Route.useLoaderData();
   const router = useRouter();
-  const { servers, baseHost, people } = dashboard;
+  const { servers, baseHost, people, apps } = dashboard;
   const starting = servers.some((server) => server.state === "creating");
   useEffect(() => {
     if (!starting) return;
@@ -38,6 +39,14 @@ function DashboardPage() {
       <Section title="Add a server">
         <AddServer dashboard={dashboard} />
       </Section>
+      {apps.length === 0 ? null : (
+        <Section
+          title="Connected apps"
+          description="Apps you let use a server through MCP. Revoking one signs it out."
+        >
+          <ConnectedApps apps={apps} />
+        </Section>
+      )}
       {people.length === 0 ? null : (
         <Section
           title="People"

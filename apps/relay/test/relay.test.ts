@@ -1,4 +1,5 @@
 import { server as serverSlots } from "../../../packages/plugin/src/index.js";
+import { createHash } from "node:crypto";
 import dns from "node:dns";
 import { once } from "node:events";
 import { readdirSync, readFileSync } from "node:fs";
@@ -544,6 +545,7 @@ async function rawLink(relay: { apex: string; origin(name: string): string }) {
   const polled = await browser().visit(`${api}/poll`, poll);
   const credential = String(polled.body.credential);
   const address = relay.origin("raw");
+  const frames: wire.OpenHttpFrame[] = [];
   const dial = (answers: boolean) => {
     const url = `${address.replace("http", "ws")}/__tunnel?v=1`;
     const headers = { authorization: `Bearer ${credential}` };
@@ -554,6 +556,7 @@ async function rawLink(relay: { apex: string; origin(name: string): string }) {
       if (!isBinary || !answers) return;
       const frame = wire.decodeFrame(data);
       if (frame.type !== "open-http") return;
+      frames.push(frame);
       const { streamId } = frame;
       const reply = Buffer.from(`served ${frame.path}`);
       const head = { status: 200, headers: [] };
@@ -564,7 +567,7 @@ async function rawLink(relay: { apex: string; origin(name: string): string }) {
     });
     return tunnel;
   };
-  return { alice, credential, address, dial };
+  return { alice, credential, address, dial, frames };
 }
 
 it("rides through a dropped tunnel and closes a revoked one", async () => {
@@ -997,4 +1000,325 @@ it.skipIf(FRP_BIN === undefined)(
     });
   },
   60_000,
+);
+
+async function oauthClient() {
+  const app = createServer((_request, response) => {
+    const { port } = app.address() as AddressInfo;
+    const own = `http://127.0.0.1:${port}`;
+    const document = {
+      client_id: `${own}/client.json`,
+      client_name: "Test ‮App",
+      redirect_uris: [`${own}/callback`],
+    };
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(document));
+  }).listen(0, "127.0.0.1");
+  onTestFinished(() => void app.close());
+  await once(app, "listening");
+  const own = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
+  const verifier = "v".repeat(64);
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const clientId = `${own}/client.json`;
+  const redirectUri = `${own}/callback`;
+  const query = (resource: string, changed: Record<string, string> = {}) => {
+    const asked = {
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      state: "st-1",
+      scope: "bb",
+      resource,
+      ...changed,
+    };
+    return `?${new URLSearchParams(asked).toString()}`;
+  };
+  return { clientId, redirectUri, verifier, query };
+}
+
+it("signs an app in with OAuth and serves it MCP through the gate", async () => {
+  const secrets = { MCP_TOKEN_SECRET: "mcp-secret", GATE_SECRET: "gate" };
+  const relay = await startRelay({
+    ...secrets,
+    FRP_BASE_DOMAIN: "fly.frp.test",
+  });
+  const { apex } = relay;
+  const { alice, credential, address, dial, frames } = await rawLink(relay);
+  dial(true);
+  const bo = await account(apex, "Bo");
+  const client = await oauthClient();
+  const dashboard = `${apex}/api/dashboard`;
+  const own = `${address}/mcp`;
+  const frp = "http://raw.fly.frp.test/mcp";
+  const anyone = browser();
+
+  const issuer = await anyone.visit(
+    `${apex}/.well-known/oauth-authorization-server`,
+  );
+  expect(issuer.body).toMatchObject({
+    issuer: apex,
+    token_endpoint: `${apex}/oauth/token`,
+    code_challenge_methods_supported: ["S256"],
+  });
+  const metadata = `${address}/.well-known/oauth-protected-resource/mcp`;
+  expect((await anyone.visit(metadata)).body).toMatchObject({
+    resource: own,
+    authorization_servers: [apex],
+  });
+  const bare = await anyone.visit(own, { method: "POST" });
+  expect(bare.status).toBe(401);
+  expect(bare.headers.get("www-authenticate")).toBe(
+    `Bearer resource_metadata="${metadata}", scope="bb"`,
+  );
+  const share = `${relay.origin("raw--3000")}/mcp`;
+  expect((await anyone.visit(share, { method: "POST" })).body).toMatchObject({
+    code: "unauthenticated",
+  });
+  for (const path of [
+    "/api/v1/plugins/mcp/http/mcp",
+    "/api/v1/plugins/%256dcp/http/MCP/x",
+    "/api/v1//plugins/./mcp;v=1/http/mcp",
+  ]) {
+    const session = { cookie: alice.cookies() };
+    const machine = { "x-bb-connect-machine": "bbmach_guess" };
+    for (const headers of [{}, session, machine]) {
+      const refused = await anyone.visit(`${address}${path}`, { headers });
+      expect(refused.status, path).toBe(404);
+    }
+  }
+
+  const consent = (person: typeof alice, query: string) =>
+    person.visit(`${dashboard}/oauth/consent${query}`);
+  expect((await consent(alice, client.query(own))).body).toEqual({
+    clientName: "Test App",
+    clientIdHost: new URL(client.clientId).host,
+    redirectHost: new URL(client.redirectUri).host,
+    loopbackRedirect: true,
+    serverLabel: "raw",
+    address: new URL(address).host,
+  });
+  expect((await consent(alice, client.query(frp))).body).toMatchObject({
+    address: "raw.fly.frp.test",
+  });
+  const refusals: [typeof alice, string, RegExp][] = [
+    [bo, client.query(own), /not a bb server owned by this account/u],
+    [alice, client.query("http://raw.elsewhere.test/mcp"), /invalid_target/u],
+    [alice, client.query(`${address}/other`), /invalid_target/u],
+    [alice, client.query(own, { code_challenge_method: "plain" }), /S256/u],
+    [alice, client.query(own, { redirect_uri: `${own}x` }), /not registered/u],
+    [alice, client.query(own, { response_type: "token" }), /must be code/u],
+    [alice, client.query(own, { scope: "admin" }), /invalid_scope/u],
+    [alice, client.query(own, { client_id: "http://10.0.0.1/c" }), /https/u],
+  ];
+  for (const [person, query, reason] of refusals) {
+    const refused = await consent(person, query);
+    expect(refused.status, query).toBe(400);
+    expect(String(refused.body.message)).toMatch(reason);
+  }
+  expect((await consent(anyone, client.query(own))).status).toBe(401);
+
+  const decide = async (resource: string, approved = true) => {
+    const json = { query: client.query(resource), approved };
+    const decided = await alice.visit(`${dashboard}/oauth/decision`, { json });
+    return new URL(String(decided.body.url)).searchParams;
+  };
+  const forged = await alice.visit(`${dashboard}/oauth/decision`, {
+    json: { query: client.query(own), approved: true },
+    headers: { origin: "https://evil.example" },
+  });
+  expect(forged.status).toBe(403);
+  const denied = await decide(own, false);
+  expect(denied.get("error")).toBe("access_denied");
+  expect(denied.get("code")).toBeNull();
+  const token = (form: Record<string, string>) =>
+    anyone.visit(`${apex}/oauth/token`, { form });
+  const exchange = (code: string | null, changed = {}) =>
+    token({
+      grant_type: "authorization_code",
+      code: String(code),
+      client_id: client.clientId,
+      redirect_uri: client.redirectUri,
+      code_verifier: client.verifier,
+      ...changed,
+    });
+  const approved = await decide(own);
+  expect(approved.get("state")).toBe("st-1");
+  expect(approved.get("iss")).toBe(apex);
+  const wrongVerifier = { code_verifier: "w".repeat(64) };
+  expect((await exchange(approved.get("code"), wrongVerifier)).body).toEqual(
+    expect.objectContaining({ error: "invalid_grant" }),
+  );
+  expect((await exchange(approved.get("code"))).status).toBe(400);
+  const granted = await exchange((await decide(own)).get("code"));
+  expect(granted.status, granted.text).toBe(200);
+  expect(granted.headers.get("cache-control")).toBe("no-store");
+  expect(granted.body).toMatchObject({ token_type: "Bearer", scope: "bb" });
+  const access = String(granted.body.access_token);
+  const refresh = String(granted.body.refresh_token);
+  const stored = "SELECT token_hash FROM oauth_refresh_tokens";
+  const hashes = await relay.database.prepare(stored).all();
+  expect(JSON.stringify(hashes.results)).not.toContain(refresh);
+
+  const call = (bearer: string, url = `${own}?x=1`) => {
+    const headers = {
+      authorization: `Bearer ${bearer}`,
+      cookie: `${alice.cookies()}; theme=dark`,
+      "x-bb-gate-owner": "1",
+      "x-bb-gate-oauth-grant": "forged",
+    };
+    return anyone.visit(url, { method: "POST", json: {}, headers });
+  };
+  const served = await call(access);
+  expect(served.text).toBe("served /api/v1/plugins/mcp/http/mcp?x=1");
+  const sent = Object.fromEntries(frames.at(-1)?.headers ?? []);
+  expect(sent).toMatchObject({
+    "x-bb-gate-auth": "oauth",
+    "x-bb-gate-oauth-scope": "bb",
+    "x-bb-gate-oauth-client": "Test App",
+  });
+  const grantId = sent["x-bb-gate-oauth-grant"];
+  expect(grantId).toMatch(/^[0-9a-f-]{36}$/u);
+  for (const name of ["authorization", "cookie", "x-bb-gate-owner"]) {
+    expect(sent[name], name).toBeUndefined();
+  }
+  const tampered = `${access.slice(0, -2)}xx`;
+  for (const bad of ["", "nope", tampered, refresh]) {
+    const refused = await call(bad);
+    expect(refused.status, bad).toBe(401);
+    expect(refused.headers.get("www-authenticate")).toContain("invalid_token");
+  }
+
+  const resolve = async (asked: Json) => {
+    const response = await fetch(`${apex}/api/gate/resolve`, {
+      method: "POST",
+      headers: { authorization: "Bearer gate" },
+      body: JSON.stringify({ label: "raw", ...asked }),
+    });
+    return (await response.json()) as Json;
+  };
+  const viaOwn = await resolve({ oauth: access, resource: own });
+  expect(viaOwn.oauth).toEqual({
+    grantId,
+    scope: "bb",
+    clientName: "Test App",
+  });
+  expect((await resolve({ oauth: access, resource: frp })).oauth).toBeNull();
+  expect("oauth" in (await resolve({}))).toBe(false);
+  const frpGrant = await exchange((await decide(frp)).get("code"));
+  const frpAccess = String(frpGrant.body.access_token);
+  const viaFrp = await resolve({ oauth: frpAccess, resource: frp });
+  expect(viaFrp.oauth).toMatchObject({ scope: "bb" });
+  expect((await call(frpAccess)).status).toBe(401);
+
+  const bearer = { authorization: `Bearer ${credential}` };
+  for (const base of [apex, address]) {
+    const listed = await anyone.visit(`${base}/api/connect/mcp/grants`, {
+      headers: bearer,
+    });
+    expect(listed.body.grants).toHaveLength(2);
+    expect(listed.body.grants).toContainEqual({
+      id: grantId,
+      clientId: client.clientId,
+      clientName: "Test App",
+      scope: "bb",
+      createdAt: expect.any(Number),
+      lastUsedAt: expect.any(Number),
+    });
+  }
+  const unknown = { headers: { authorization: "Bearer bbcred_nope" } };
+  const closed = await anyone.visit(`${apex}/api/connect/mcp/grants`, unknown);
+  expect(closed.status).toBe(401);
+  const revokeUrl = `${apex}/api/connect/mcp/grants/revoke`;
+  const frpId = (viaFrp.oauth as Json).grantId;
+  const revoking = { headers: bearer, json: { grantId: frpId } };
+  expect((await anyone.visit(revokeUrl, revoking)).body).toEqual({
+    revoked: true,
+  });
+  expect((await anyone.visit(revokeUrl, revoking)).body).toEqual({
+    revoked: false,
+  });
+  expect((await resolve({ oauth: frpAccess, resource: frp })).oauth).toBeNull();
+
+  const renew = (offered: string) =>
+    token({
+      grant_type: "refresh_token",
+      refresh_token: offered,
+      client_id: client.clientId,
+    });
+  const renewed = await renew(refresh);
+  expect(renewed.status, renewed.text).toBe(200);
+  const next = String(renewed.body.refresh_token);
+  expect(next).not.toBe(refresh);
+  expect((await renew(refresh)).body.refresh_token).toBe(next);
+  expect((await call(String(renewed.body.access_token))).status).toBe(200);
+  const apps = (await alice.visit(dashboard)).body.apps as Json[];
+  expect(apps).toMatchObject([{ id: grantId, serverLabel: "raw" }]);
+  expect((await bo.visit(dashboard)).body.apps).toEqual([]);
+  const strangers = await bo.visit(`${dashboard}/apps/${grantId}/revoke`, {
+    json: {},
+  });
+  expect(strangers.body).toEqual({ revoked: false });
+  const aged = "UPDATE oauth_refresh_tokens SET rotated_at = rotated_at - ?";
+  await relay.database.prepare(aged).bind(120_000).run();
+  expect((await renew(refresh)).body).toMatchObject({ error: "invalid_grant" });
+  expect((await renew(next)).body).toMatchObject({ error: "invalid_grant" });
+  expect((await call(access)).status).toBe(401);
+  expect((await alice.visit(dashboard)).body.apps).toEqual([]);
+
+  const third = await exchange((await decide(own)).get("code"));
+  const thirdAccess = String(third.body.access_token);
+  expect((await call(thirdAccess)).status).toBe(200);
+  const revoked = await anyone.visit(`${apex}/oauth/revoke`, {
+    form: { token: String(third.body.refresh_token) },
+  });
+  expect(revoked.status).toBe(200);
+  expect((await call(thirdAccess)).status).toBe(401);
+  const fourth = await exchange((await decide(own)).get("code"));
+  const [app] = (await alice.visit(dashboard)).body.apps as Json[];
+  const removal = await alice.visit(`${dashboard}/apps/${app?.id}/revoke`, {
+    json: {},
+  });
+  expect(removal.body).toEqual({ revoked: true });
+  expect((await call(String(fourth.body.access_token))).status).toBe(401);
+});
+
+it("says so when the relay has no MCP token secret", async () => {
+  const relay = await startRelay();
+  const { address, dial } = await rawLink(relay);
+  dial(true);
+  const form = { grant_type: "refresh_token", refresh_token: "x" };
+  const refused = await browser().visit(`${relay.apex}/oauth/token`, { form });
+  expect(refused.status).toBe(503);
+  expect(refused.body).toMatchObject({ error: "server_error" });
+  const headers = { authorization: "Bearer bbmcp_x.y" };
+  const init = { method: "POST", headers };
+  const called = await browser().visit(`${address}/mcp`, init);
+  expect(called.status).toBe(503);
+  expect(called.body).toMatchObject({ code: "mcp_unavailable" });
+});
+
+it.runIf(BUILT)(
+  "shows the consent page to a signed-in owner only",
+  async () => {
+    const relay = await startRelay({ MCP_TOKEN_SECRET: "mcp-secret" });
+    const { alice, address } = await rawLink(relay);
+    const client = await oauthClient();
+    const page = `${relay.apex}/oauth/authorize`;
+    const query = client.query(`${address}/mcp`);
+    const guest = await browser().visit(`${page}${query}`);
+    expect(guest.headers.get("location")).toContain("/login?next=");
+    const shown = await alice.visit(`${page}${query}`);
+    expect(shown.status).toBe(200);
+    expect(shown.text).toContain("Test App");
+    expect(shown.text).toContain("use your bb?");
+    expect(shown.headers.get("x-frame-options")).toBe("DENY");
+    expect(shown.headers.get("cache-control")).toBe("no-store");
+    const wrong = client.query(`${address}/mcp`, {
+      redirect_uri: "https://x.test/",
+    });
+    const refused = await alice.visit(`${page}${wrong}`);
+    expect(refused.text).toContain("redirect_uri is not registered");
+  },
 );

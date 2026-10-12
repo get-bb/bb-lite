@@ -2,7 +2,7 @@ const ID_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
 const USER_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const encoder = new TextEncoder();
 
-function base64Url(bytes: Uint8Array): string {
+export function base64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary)

@@ -2,13 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { env } from "cloudflare:workers";
 import { dashboardOf, linkViewOf, viewerOf } from "../src/dashboard.js";
-import type { LinkView } from "../src/dashboard-types.js";
+import type { ConsentView, LinkView } from "../src/dashboard-types.js";
+import { consentOf } from "../src/oauth.js";
 import * as site from "../src/site.js";
 
 export type LinkState =
   | { signedIn: false }
   | { signedIn: true; view: LinkView }
   | { signedIn: true; problem: string };
+
+export type ConsentState =
+  | { signedIn: false; query: string }
+  | { signedIn: true; query: string; consent: ConsentView }
+  | { signedIn: true; query: string; problem: string };
 
 async function visitor() {
   const request = getRequest();
@@ -38,6 +44,20 @@ export const loadLink = createServerFn({ method: "GET" })
     const view = await linkViewOf(context, user, code);
     if ("error" in view) return { signedIn: true, problem: view.message };
     return { signedIn: true, view };
+  });
+
+export const loadConsent = createServerFn({ method: "GET" })
+  .validator((browserQuery: string | null) => browserQuery)
+  .handler(async ({ data: browserQuery }): Promise<ConsentState> => {
+    const { context, user } = await visitor();
+    const query = browserQuery ?? new URL(getRequest().url).search;
+    if (user === null) return { signedIn: false, query };
+    const params = new URLSearchParams(query);
+    const consent = await consentOf(context, user, params);
+    if ("problem" in consent) {
+      return { signedIn: true, query, problem: consent.problem };
+    }
+    return { signedIn: true, query, consent };
   });
 
 export async function post<Reply = { ok: true }>(

@@ -487,6 +487,10 @@ importers:
         version: 8.18.1
 
   apps/tunnel:
+    dependencies:
+      '@bb/tunnel-contract':
+        specifier: workspace:*
+        version: link:../../packages/tunnel-contract
     devDependencies:
       '@bb/tsconfig':
         specifier: workspace:*

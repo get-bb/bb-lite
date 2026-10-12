@@ -38,6 +38,47 @@ It speaks the same account API and tunnel protocol as getbb.app (`packages/tunne
   answers 404 without the Worker secret `GATE_SECRET` or with a wrong one. The frp gate on Fly uses it
   (`docs/tunnel.md`).
 
+## MCP and OAuth
+
+An MCP client (ChatGPT, Claude, any other) connects to `https://<server address>/mcp`. The relay apex
+is the OAuth authorization server; the gate in front of the server checks the access token and
+forwards the call to the bb server's `mcp` plugin. The paths, header names and the scope live in
+`packages/tunnel-contract/src/mcp.ts`, shared by both gates.
+
+- **Discovery.** `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp`
+  on a server address name the relay apex as authorization server; `/.well-known/oauth-authorization-server`
+  on the apex lists the endpoints. `/mcp` without a token, or with one that is refused, answers 401
+  with `WWW-Authenticate: Bearer ... resource_metadata="..."`.
+- **Sign-in.** `GET /oauth/authorize` is a page of the app (`app/routes/oauth.authorize.tsx`, never
+  framed, never cached). The client is a client id metadata document: an `https` URL with a path, no
+  IP address or loopback host, fetched without following redirects, at most 5 KB, within 5 seconds, as
+  JSON, naming itself and its redirect URIs. The redirect URI must match one of them exactly (a
+  loopback one may differ in port), PKCE with `S256` is required, and `resource` must be the `/mcp`
+  URL of a server **the signed-in person owns**, on either of its addresses (`<label>.<BASE_DOMAIN>`
+  or, with `FRP_BASE_DOMAIN` set, `<label>.<FRP_BASE_DOMAIN>`). The page reads its facts from
+  `GET /api/dashboard/oauth/consent` and answers with `POST /api/dashboard/oauth/decision`, which
+  like every dashboard POST needs the account cookie and the apex as `Origin`.
+- **Tokens.** `POST /oauth/token` (form encoded, `no-store`) trades the code (60 seconds, single use,
+  stored hashed) for an access token (one hour) and a refresh token (60 days, stored hashed). The
+  access token is signed with the Worker secret `MCP_TOKEN_SECRET` and bound to the owner, the server,
+  the grant and the resource, so a token issued for one address of a server is refused on the other.
+  A refresh rotates the refresh token; the old one still answers with the same successor for 60
+  seconds (a retry), and after that using it revokes the whole grant. `POST /oauth/revoke` takes
+  either token. One person keeps at most 10 live grants per client and server; older ones are revoked.
+  Without `MCP_TOKEN_SECRET` the token endpoint and `/mcp` answer 503 and the consent page says why.
+- **The gate.** With a valid token the gate forwards `/mcp` to `/api/v1/plugins/mcp/http/mcp` with
+  `authorization`, every cookie and any `x-bb-gate-*` the caller sent removed, and `x-bb-gate-auth:
+oauth`, `x-bb-gate-oauth-scope`, `x-bb-gate-oauth-grant` and `x-bb-gate-oauth-client` set. It reads
+  the grant on every call, so a revocation holds at once. A request from outside for the plugin's
+  local path, however it is encoded, gets 404 whoever sends it. On a share address these paths are
+  ordinary paths. A sleeping hosted server is not woken by an MCP call; it answers 503 until a visit
+  wakes it.
+- **Grants.** The dashboard lists them as "Connected apps" (`POST /api/dashboard/apps/<id>/revoke`).
+  The bb server reads and revokes its own with its link credential, on the apex or on its address:
+  `GET /api/connect/mcp/grants` and `POST /api/connect/mcp/grants/revoke` with `{ "grantId" }`.
+- **The frp gate** cannot read D1 and does not hold the signing secret: it sends the token and the
+  resource it serves to `POST /api/gate/resolve` (`oauth`, `resource`) and gets the grant or `null`.
+
 ## Isolation
 
 Every server and share is a sibling subdomain running code the relay does not control, so:
@@ -121,6 +162,11 @@ bb-next --remote --config wrangler.jsonc` applies new migrations. The route only
   `packages/tunnel-contract` or `packages/shared-ui` (and on demand): typecheck, the relay tests, the
   build, the tests again on the built Worker, migrations, deploy, then a check that `/login` answers.
   It needs the repository secret `CLOUDFLARE_API_TOKEN` (Workers Scripts, Workers Routes and D1 edit).
+
+- MCP needs three things on a deployment: migration `0005_mcp_oauth.sql` (the deploy workflow applies
+  migrations), the Worker secret `MCP_TOKEN_SECRET` (`wrangler secret put MCP_TOKEN_SECRET`, a long
+  random value used for nothing else; changing it signs every app out), and `FRP_BASE_DOMAIN` in
+  `wrangler.jsonc` naming the frp gate's domain so tokens can be issued for those addresses.
 
 ## Not there yet
 

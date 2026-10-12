@@ -1,5 +1,7 @@
+import * as wire from "@bb/tunnel-contract";
 import { apex, connectApi } from "./account.js";
 import * as hosted from "./hosted.js";
+import * as oauth from "./oauth.js";
 import * as pages from "./pages.js";
 import * as site from "./site.js";
 import * as store from "./store.js";
@@ -103,6 +105,66 @@ function forward(
   return toTunnel(context, server.id, forwarded, progress);
 }
 
+function forwardMcp(
+  request: Request,
+  context: Site,
+  server: store.Server,
+  grant: wire.McpGrant,
+  progress: Progress,
+) {
+  const target = new URL(request.url);
+  target.pathname = wire.MCP_LOCAL_PATH;
+  const headers = new Headers(request.headers);
+  for (const name of [...headers.keys()]) {
+    if (STRIPPED_HEADERS.test(name)) headers.delete(name);
+  }
+  for (const name of [site.MACHINE_HEADER, "authorization", "cookie"]) {
+    headers.delete(name);
+  }
+  for (const [name, value] of Object.entries(wire.mcpForwardHeaders(grant))) {
+    headers.set(name, value);
+  }
+  const moved = new Request(target, request);
+  const forwarded = new Request(moved, { headers });
+  return toTunnel(context, server.id, forwarded, progress);
+}
+
+async function mcp(
+  request: Request,
+  context: Site,
+  server: store.Server,
+  progress: Progress,
+): Promise<Response | null> {
+  const { origin, pathname: path } = new URL(request.url);
+  if (wire.isMcpLocalPath(path)) {
+    return refuse(404, "not_found", "There is nothing at this path");
+  }
+  const reading = request.method === "GET" || request.method === "HEAD";
+  if (wire.isMcpMetadataPath(path) && reading) {
+    const { apexOrigin } = context;
+    const body = wire.mcpProtectedResourceMetadata(origin, apexOrigin);
+    const headers = { "cache-control": "public, max-age=300" };
+    return Response.json(body, { headers });
+  }
+  if (path !== wire.MCP_PUBLIC_PATH) return null;
+  const challenge = (error: "invalid_token" | null) => {
+    const headers = {
+      "cache-control": "no-store",
+      "www-authenticate": wire.mcpChallenge(origin, error),
+    };
+    return Response.json({ error: "unauthorized" }, { status: 401, headers });
+  };
+  const offered = wire.readBearerToken(request.headers.get("authorization"));
+  if (offered === null) return challenge(null);
+  const resource = wire.mcpResourceForOrigin(origin);
+  const grant = await oauth.admit(context, offered, resource, server);
+  if (grant === "unconfigured") {
+    return refuse(503, "mcp_unavailable", oauth.SECRET_MISSING);
+  }
+  if (grant === null) return challenge("invalid_token");
+  return forwardMcp(request, context, server, grant, progress);
+}
+
 async function openTunnel(
   request: Request,
   context: Site,
@@ -177,6 +239,9 @@ async function gate(
   if (path.startsWith("/api/connect/") && port === null) {
     return connectApi(request, context, path);
   }
+  const answered =
+    port === null ? await mcp(request, context, server, progress) : null;
+  if (answered !== null) return answered;
   const machineCredential = request.headers.get(site.MACHINE_HEADER);
   if (MACHINE_PATH.test(path) && machineCredential !== null) {
     const machine =
