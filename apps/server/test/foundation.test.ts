@@ -76,6 +76,8 @@ const loopback = { host: "127.0.0.1:48886" };
 const tunnel = { ...loopback, "x-bb-via-tunnel": "1" };
 const session = { ...tunnel, "x-bb-gate-auth": "session" };
 const machine = { ...tunnel, "x-bb-gate-auth": "machine" };
+const oauth = { ...tunnel, "x-bb-gate-auth": "oauth" };
+const mcpRoute = "POST /api/v1/plugins/mcp/http/mcp";
 const relayed = (id: string, owner = "0") => ({
   ...session,
   "x-bb-gate-user-id": id,
@@ -147,6 +149,13 @@ it.each<[string | number, Headers, string?, string?]>([
   [404, tunnel],
   [404, tunnel, "GET /"],
   [404, session, "GET /api/v1/threads", remote],
+  ["anonymous", oauth, mcpRoute],
+  [404, oauth],
+  [404, oauth, "GET /"],
+  [404, oauth, "POST /api/v1/plugins/mcp/cli"],
+  [404, { ...oauth, "x-bb-via-tunnel": "forged" }, mcpRoute],
+  [404, oauth, mcpRoute, remote],
+  [401, { ...loopback, "x-bb-gate-auth": "oauth" }, mcpRoute, remote],
   ["runner", machine, "POST /api/v1/threads/thr_1/send"],
   ["runner", machine, "POST /api/v1/machines"],
   ["anonymous", {}, "POST /internal/runner/join", remote],

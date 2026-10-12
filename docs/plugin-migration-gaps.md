@@ -174,51 +174,52 @@ provider-claude-code now fill.
 One row per plugin bundled with the original bb. "Imported" plugins came over with the original's UI
 before the overnight port and were already on this API.
 
-| Original                       | Status               | Knowingly left out, or why not ported                                                                                           |
-| ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| account-pool                   | Imported             | Per-thread bypass and account reordering; now hooks `sessions.environmentHealth`                                                |
-| agent-annotations              | Not ported           | Needs an in-app desktop browser this bb does not have                                                                           |
-| ask-user-question              | Imported             | Nothing recorded                                                                                                                |
-| automations                    | Ported (3 stages)    | Script editing in the app form, legacy import, overview filters and search, composer pickers, cronstrue text                    |
-| bb-account                     | Ported               | `--base-url`; `login --code` now redeems through `connect.redeem`                                                               |
-| bb-ai                          | Ported               | Nothing now: transcription and commit messages were added after the port                                                        |
-| bb-guide                       | Ported               | Nothing                                                                                                                         |
-| browser-automation             | Ported (2 stages)    | The desktop backend (no desktop contract); never run against a real Chrome; installer locking and progress                      |
-| concurrency-limit              | Ported               | Nothing                                                                                                                         |
-| connect                        | Imported             | Mobile pairing; port shares from other machines came back in `plugins/connect` (HTTP only)                                      |
-| custom-instructions            | Imported             | Nothing recorded                                                                                                                |
-| docs                           | Ported (3 stages)    | Rich editor, HTML sandbox preview, drag reordering; host and thread-storage files were read-only (`files` now takes a `source`) |
-| drafts                         | Ported               | Nothing                                                                                                                         |
-| environment-git-worktree       | Built in as a plugin | Rewritten on `EnvironmentDefinition`, not ported from the original's code                                                       |
-| environment-modal-sandbox      | Ported (2 stages)    | Installing `bb` in a blank sandbox; `sandbox exec` exits 0 when the command fails; no abort mid-exec                            |
-| environment-personal-workspace | Built in as a plugin | Rewritten on `EnvironmentDefinition`, not ported from the original's code                                                       |
-| environment-project-checkout   | Built in as a plugin | Rewritten on `EnvironmentDefinition`, not ported from the original's code                                                       |
-| github                         | Ported (2 stages)    | Filter suggestion dropdown and avatars; app part not exercised in a running app                                                 |
-| inline-vis                     | Ported               | Nothing                                                                                                                         |
-| keep-awake                     | Ported               | Nothing                                                                                                                         |
-| memory                         | Ported               | Nothing                                                                                                                         |
-| monaco-editor                  | Ported (2 stages)    | Toolbar extras, tree resizing, files of a project with no environment                                                           |
-| navigation                     | Removed              | The rail is the only sidebar layout, as in the original; destinations are `shell.navItem` and `shell.navPanel` entries          |
-| pdf-preview                    | Ported               | Nothing                                                                                                                         |
-| plugin-api-docs                | Ported               | Runtime shapes of `z.custom` outputs and the app kernel's slots are not visible to the server                                   |
-| plugin-api-tester              | Ported               | Nothing                                                                                                                         |
-| prompt-library                 | Ported               | Nothing                                                                                                                         |
-| provider-acp                   | Ported               | Forks and native skill root resolvers                                                                                           |
-| provider-claude-code           | Built in as a plugin | Rewritten as a `ProviderAdapter` with the kernel, not ported from the original's bridge                                         |
-| provider-codex                 | Built in as a plugin | Rewritten as a `ProviderAdapter` with the kernel, not ported from the original's bridge                                         |
-| provider-pi                    | Ported (3 stages)    | In-place model switch, the extension-ui renderer, catalog caching, session relocation                                           |
-| provider-retry                 | Ported               | Nothing                                                                                                                         |
-| provider-usage                 | Ported               | Nothing                                                                                                                         |
-| push-notifications             | Ported               | Nothing                                                                                                                         |
-| scheduled-send                 | Ported               | Nothing                                                                                                                         |
-| secrets                        | Imported             | Nothing recorded                                                                                                                |
-| side-chat                      | Ported               | Nothing; waited for `threads.fork`                                                                                              |
-| storage-retention              | Ported (2 stages)    | `~/.bb-dev` developer storage, background cleanup with progress, some report fields, the 30 s archive undo                      |
-| t3sidebar                      | Not ported           | Empty directory in the original                                                                                                 |
-| tasks                          | Imported             | Board view, folders and the preset dialog; does not yet read `pullRequests`                                                     |
-| theme-preview                  | Ported               | Nothing                                                                                                                         |
-| thread-list                    | Imported             | Grouping by project or machine and its customizers                                                                              |
-| workflows                      | Ported (3 stages)    | QuickJS (runs in `node:vm`), truncation flags and origin model in status, the preview card animation                            |
+| Original                       | Status               | Knowingly left out, or why not ported                                                                                                |
+| ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| account-pool                   | Imported             | Per-thread bypass and account reordering; now hooks `sessions.environmentHealth`                                                     |
+| agent-annotations              | Not ported           | Needs an in-app desktop browser this bb does not have                                                                                |
+| ask-user-question              | Imported             | Nothing recorded                                                                                                                     |
+| automations                    | Ported (3 stages)    | Script editing in the app form, legacy import, overview filters and search, composer pickers, cronstrue text                         |
+| bb-account                     | Ported               | `--base-url`; `login --code` now redeems through `connect.redeem`                                                                    |
+| bb-ai                          | Ported               | Nothing now: transcription and commit messages were added after the port                                                             |
+| bb-guide                       | Ported               | Nothing                                                                                                                              |
+| browser-automation             | Ported (2 stages)    | The desktop backend (no desktop contract); never run against a real Chrome; installer locking and progress                           |
+| concurrency-limit              | Ported               | Nothing                                                                                                                              |
+| connect                        | Imported             | Mobile pairing; port shares from other machines came back in `plugins/connect` (HTTP only)                                           |
+| custom-instructions            | Imported             | Nothing recorded                                                                                                                     |
+| docs                           | Ported (3 stages)    | Rich editor, HTML sandbox preview, drag reordering; host and thread-storage files were read-only (`files` now takes a `source`)      |
+| drafts                         | Ported               | Nothing                                                                                                                              |
+| environment-git-worktree       | Built in as a plugin | Rewritten on `EnvironmentDefinition`, not ported from the original's code                                                            |
+| environment-modal-sandbox      | Ported (2 stages)    | Installing `bb` in a blank sandbox; `sandbox exec` exits 0 when the command fails; no abort mid-exec                                 |
+| environment-personal-workspace | Built in as a plugin | Rewritten on `EnvironmentDefinition`, not ported from the original's code                                                            |
+| environment-project-checkout   | Built in as a plugin | Rewritten on `EnvironmentDefinition`, not ported from the original's code                                                            |
+| github                         | Ported (2 stages)    | Filter suggestion dropdown and avatars; app part not exercised in a running app                                                      |
+| inline-vis                     | Ported               | Nothing                                                                                                                              |
+| keep-awake                     | Ported               | Nothing                                                                                                                              |
+| memory                         | Ported               | Nothing                                                                                                                              |
+| monaco-editor                  | Ported (2 stages)    | Toolbar extras, tree resizing, files of a project with no environment                                                                |
+| navigation                     | Removed              | The rail is the only sidebar layout, as in the original; destinations are `shell.navItem` and `shell.navPanel` entries               |
+| pdf-preview                    | Ported               | Nothing                                                                                                                              |
+| plugin-api-docs                | Ported               | Runtime shapes of `z.custom` outputs and the app kernel's slots are not visible to the server                                        |
+| mcp                            | Ported               | `bb guide commands --json` (the index is the CLI's reference plus the kernel's doors); the machine-side refusal of non-regular files |
+| plugin-api-tester              | Ported               | Nothing                                                                                                                              |
+| prompt-library                 | Ported               | Nothing                                                                                                                              |
+| provider-acp                   | Ported               | Forks and native skill root resolvers                                                                                                |
+| provider-claude-code           | Built in as a plugin | Rewritten as a `ProviderAdapter` with the kernel, not ported from the original's bridge                                              |
+| provider-codex                 | Built in as a plugin | Rewritten as a `ProviderAdapter` with the kernel, not ported from the original's bridge                                              |
+| provider-pi                    | Ported (3 stages)    | In-place model switch, the extension-ui renderer, catalog caching, session relocation                                                |
+| provider-retry                 | Ported               | Nothing                                                                                                                              |
+| provider-usage                 | Ported               | Nothing                                                                                                                              |
+| push-notifications             | Ported               | Nothing                                                                                                                              |
+| scheduled-send                 | Ported               | Nothing                                                                                                                              |
+| secrets                        | Imported             | Nothing recorded                                                                                                                     |
+| side-chat                      | Ported               | Nothing; waited for `threads.fork`                                                                                                   |
+| storage-retention              | Ported (2 stages)    | `~/.bb-dev` developer storage, background cleanup with progress, some report fields, the 30 s archive undo                           |
+| t3sidebar                      | Not ported           | Empty directory in the original                                                                                                      |
+| tasks                          | Imported             | Board view, folders and the preset dialog; does not yet read `pullRequests`                                                          |
+| theme-preview                  | Ported               | Nothing                                                                                                                              |
+| thread-list                    | Imported             | Grouping by project or machine and its customizers                                                                                   |
+| workflows                      | Ported (3 stages)    | QuickJS (runs in `node:vm`), truncation flags and origin model in status, the preview card animation                                 |
 
 Plugins here that were not plugins in the original (their features were core there, or new):
 

@@ -191,6 +191,12 @@ Prefer an operation to a route: another plugin can hook or call it, it is record
 served over REST with `doors.http`. Core keeps raw routes only for what an operation cannot carry:
 cookies (sign-in), uploads and file bytes. A plugin reaches another plugin only through a contract.
 
+A raw route is reached by signed-in users and machines whatever its `auth`; `"local"` narrows it to
+the owner and `"token"` to holders of the plugin's token. One more caller reaches raw routes only: a
+request the getbb.dev gate verified an OAuth access token for (`x-bb-gate-auth: oauth`, arriving
+through the tunnel). It has no user, so `"local"` refuses it, and a route that wants it checks the
+gate's headers itself, as `plugins/mcp/src/access.ts` does.
+
 ### Doors
 
 - Every operation that is not `internal` is callable from an app (`POST /api/v1/ops/<name>`, `useOp`,
