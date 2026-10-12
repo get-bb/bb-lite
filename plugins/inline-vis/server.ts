@@ -60,8 +60,9 @@ export default function inlineVisServer(bb: PluginServerApi): void {
       );
     }
     const kind = previewKind(file);
+    const { content, sha256 } = read;
     return kind === "html"
-      ? { kind, file, source, url }
-      : { kind, file, source, url, content: read.content };
+      ? { kind, file, source, url, content, sha256 }
+      : { kind, file, source, url, content };
   });
 }

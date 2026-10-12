@@ -82,7 +82,7 @@ export function ThreadContextWindowCard({
   return (
     <div
       className={cn(
-        "@container/context-window w-56 rounded-md border bg-popover p-2 text-popover-foreground shadow-md max-md:px-4",
+        "@container/context-window w-56 rounded-[calc(var(--radius)+2px)] border border-border-raised bg-popover p-2 text-popover-foreground shadow-md max-md:px-4",
         details &&
           "transition-[width] duration-200 ease-out motion-reduce:transition-none",
         details && detailsExpanded && "w-90",

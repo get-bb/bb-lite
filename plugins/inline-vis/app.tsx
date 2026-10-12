@@ -1,4 +1,11 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import {
   CONTEXT_CARD_CHEVRON_CLASS,
   CONTEXT_CARD_CLASS,
@@ -10,17 +17,31 @@ import { Skeleton } from "@bb/shared-ui/skeleton";
 import {
   Icon,
   Markdown,
+  sidePanel,
   threadView,
   useBbNavigate,
   useOp,
   type MessageDirectiveProps,
   type PluginAppApi,
+  type SidePanelPanelProps,
 } from "@bb/plugin/app";
 import { inlineVis, type Preview } from "./contract";
+import {
+  FRAME_HEIGHT_BEFORE_FIRST_REPORT,
+  FRAME_MAX_HEIGHT,
+  FRAME_MIN_HEIGHT,
+  frameDocument,
+  frameHeight,
+  frameResult,
+  frameThemeMessage,
+  readFrameContentHeight,
+  readFrameLinkRequest,
+} from "./frame";
+import { appFontCss, useFrameTheme } from "./theme";
 
-const DEFAULT_HEIGHT_PX = 224;
-const MIN_HEIGHT_PX = 120;
-const MAX_HEIGHT_PX = 1_200;
+const MIN_HEIGHT_PX = FRAME_MIN_HEIGHT;
+const MAX_HEIGHT_PX = FRAME_MAX_HEIGHT;
+const PANEL_ID = "preview";
 const COLLAPSED_STORAGE_KEY = "bb.inline-vis.collapsed";
 
 function readCollapsed(): boolean {
@@ -39,13 +60,17 @@ function writeCollapsed(collapsed: boolean): void {
   }
 }
 
-function previewHeight(value: string | undefined): number | null {
+function requestedHeight(value: string | undefined): number | null | "invalid" {
   const normalized = value?.trim() ?? "";
-  if (normalized.length === 0) return DEFAULT_HEIGHT_PX;
-  if (!/^\d+$/.test(normalized)) return null;
+  if (normalized.length === 0) return null;
+  if (!/^\d+$/.test(normalized)) return "invalid";
   const height = Number(normalized);
-  return height >= MIN_HEIGHT_PX && height <= MAX_HEIGHT_PX ? height : null;
+  return height >= MIN_HEIGHT_PX && height <= MAX_HEIGHT_PX
+    ? height
+    : "invalid";
 }
+
+const isHtmlFile = (file: string) => /\.html?$/i.test(file);
 
 function Notice({
   source,
@@ -145,12 +170,18 @@ const isModifiedClick = (event: MouseEvent<HTMLAnchorElement>) =>
 function OpenAction({
   preview,
   open,
+  label = "Open in sidebar",
+  icon = "ExternalLink",
+  className = OPEN_ACTION_CLASS,
 }: {
   preview: Exclude<Preview, { kind: "not-found" }>;
-  open: (() => void) | null;
+  open: () => void;
+  label?: string;
+  icon?: "ExternalLink" | "Maximize2";
+  className?: string;
 }) {
-  const icon = <Icon name="ExternalLink" aria-hidden className="size-3" />;
-  const sidebar = `Open ${preview.file} in sidebar`;
+  const glyph = <Icon name={icon} aria-hidden className="size-3" />;
+  const sidebar = `${label}: ${preview.file}`;
   if (preview.kind === "html") {
     const mac = /Mac|iPhone|iPad/.test(navigator.platform);
     return (
@@ -158,35 +189,200 @@ function OpenAction({
         href={preview.url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={open === null ? `Open ${preview.file}` : sidebar}
-        title={
-          open === null
-            ? "Open in the browser"
-            : `Open in sidebar\n${mac ? "⌘-click" : "Ctrl-click"} to open in the browser`
-        }
-        className={OPEN_ACTION_CLASS}
+        aria-label={sidebar}
+        title={`${label}\n${mac ? "⌘-click" : "Ctrl-click"} to open in the browser`}
+        className={className}
         onClick={(event) => {
-          if (open === null || event.defaultPrevented) return;
-          if (isModifiedClick(event)) return;
+          if (event.defaultPrevented || isModifiedClick(event)) return;
           event.preventDefault();
           open();
         }}
       >
-        {icon}
+        {glyph}
       </a>
     );
   }
-  if (open === null) return <span aria-hidden className="h-6 w-7 shrink-0" />;
   return (
     <button
       type="button"
       aria-label={sidebar}
-      title="Open in sidebar"
-      className={OPEN_ACTION_CLASS}
+      title={label}
+      className={className}
       onClick={open}
     >
-      {icon}
+      {glyph}
     </button>
+  );
+}
+
+const lastReportedHeightByPage = new Map<string, number>();
+
+const FRAME_OPEN_ACTION_CLASS =
+  "flex size-6 cursor-pointer items-center justify-center rounded-md border border-border-raised bg-background/90 text-muted-foreground shadow-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+
+type HtmlPreview = Extract<Preview, { kind: "html" }>;
+
+function HtmlFrame({
+  preview,
+  requested,
+  fill = false,
+  action,
+}: {
+  preview: HtmlPreview;
+  requested: number | null;
+  fill?: boolean;
+  action: ReactNode;
+}) {
+  const theme = useFrameTheme();
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const latestTheme = useRef(theme);
+  latestTheme.current = theme;
+  const [srcDoc, setSrcDoc] = useState<string | null>(null);
+  const { content, url } = preview;
+  useEffect(() => {
+    let live = true;
+    void appFontCss().then((fontCss) => {
+      if (!live) return;
+      const baseHref = new URL(url, window.location.href).href;
+      const options = { theme: latestTheme.current, baseHref, fontCss };
+      setSrcDoc(frameDocument(content, options));
+    });
+    return () => {
+      live = false;
+    };
+  }, [content, url]);
+  const [loaded, setLoaded] = useState(false);
+  const [contentHeight, setContentHeight] = useState<number>();
+  const height = frameHeight({
+    requested,
+    contentHeight,
+    remembered: lastReportedHeightByPage.get(preview.sha256),
+  });
+
+  const postTheme = () => {
+    const message = frameThemeMessage(theme);
+    frameRef.current?.contentWindow?.postMessage(message, "*");
+  };
+  useEffect(postTheme, [theme]);
+
+  useLayoutEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const frame = frameRef.current;
+      if (frame === null || event.source !== frame.contentWindow) return;
+      const reported = readFrameContentHeight(event.data);
+      if (reported !== undefined) {
+        if (!fill) lastReportedHeightByPage.set(preview.sha256, reported);
+        setContentHeight(reported);
+        return;
+      }
+      const link = readFrameLinkRequest(event.data);
+      if (
+        link === undefined ||
+        document.activeElement !== frame ||
+        navigator.userActivation?.isActive === false
+      ) {
+        return;
+      }
+      window.open(link.url, "_blank", "noopener,noreferrer");
+      frame.contentWindow?.postMessage(frameResult(link.id), "*");
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [preview.sha256, fill]);
+
+  return (
+    <div
+      data-inline-vis-frame=""
+      className={cn(
+        "group/inline-vis relative",
+        fill ? "size-full bg-background p-4" : "my-2",
+      )}
+      style={fill ? undefined : { height }}
+    >
+      {srcDoc === null ? null : (
+        <iframe
+          ref={frameRef}
+          title={`inline-vis: ${preview.file}`}
+          srcDoc={srcDoc}
+          sandbox="allow-scripts allow-forms"
+          onLoad={() => {
+            setLoaded(true);
+            postTheme();
+          }}
+          className="block size-full border-0"
+          style={{ colorScheme: loaded ? theme.appearance : "light" }}
+        />
+      )}
+      <div
+        className={cn(
+          "absolute opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/inline-vis:opacity-100 pointer-coarse:opacity-100",
+          fill ? "right-6 top-6" : "right-2 top-2",
+        )}
+      >
+        {action}
+      </div>
+    </div>
+  );
+}
+
+interface PanelTarget {
+  file: string;
+  source?: string;
+}
+
+function panelTarget(
+  params: SidePanelPanelProps["params"],
+): PanelTarget | null {
+  if (typeof params !== "object" || params === null || Array.isArray(params)) {
+    return null;
+  }
+  const { file, source } = params;
+  if (typeof file !== "string" || file.length === 0) return null;
+  return typeof source === "string" ? { file, source } : { file };
+}
+
+function PreviewPanel({ threadId, params }: SidePanelPanelProps) {
+  const navigate = useBbNavigate();
+  const target = panelTarget(params);
+  const query = useOp(
+    inlineVis.preview,
+    { threadId, file: target?.file ?? "", source: target?.source },
+    { enabled: target !== null },
+  );
+  const preview = query.data;
+  if (target === null || preview?.kind === "not-found") {
+    return (
+      <p className="p-4 text-sm text-muted-foreground">
+        {target === null
+          ? "Open a preview from a message to see it here."
+          : `Preview file not found: ${target.file}`}
+      </p>
+    );
+  }
+  if (preview === undefined) {
+    return query.error === null ? null : (
+      <p role="alert" className="p-4 text-sm text-destructive-text">
+        Failed to load {target.file}: {query.error.message}
+      </p>
+    );
+  }
+  if (preview.kind !== "html") return null;
+  const { file: path, source } = preview;
+  return (
+    <HtmlFrame
+      key={preview.sha256}
+      preview={preview}
+      requested={null}
+      fill
+      action={
+        <OpenAction
+          preview={preview}
+          label="Open the file"
+          open={() => navigate.openFile({ threadId, path, source })}
+          className={FRAME_OPEN_ACTION_CLASS}
+        />
+      }
+    />
   );
 }
 
@@ -197,7 +393,7 @@ function InlineVisDirective({
 }: MessageDirectiveProps) {
   const navigate = useBbNavigate();
   const file = attributes.file?.trim() ?? "";
-  const height = previewHeight(attributes.height);
+  const requested = requestedHeight(attributes.height);
   const query = useOp(
     inlineVis.preview,
     {
@@ -205,10 +401,10 @@ function InlineVisDirective({
       file,
       ...(attributes.source === undefined ? {} : { source: attributes.source }),
     },
-    { enabled: file.length > 0 && height !== null },
+    { enabled: file.length > 0 && requested !== "invalid" },
   );
 
-  if (height === null) {
+  if (requested === "invalid") {
     return (
       <Notice source={source}>
         inline-vis height must be a whole number from {MIN_HEIGHT_PX} to{" "}
@@ -224,6 +420,7 @@ function InlineVisDirective({
       </Notice>
     );
   }
+  const height = requested ?? FRAME_HEIGHT_BEFORE_FIRST_REPORT;
   const preview = query.data;
   if (preview === undefined) {
     if (query.error !== null) {
@@ -233,18 +430,19 @@ function InlineVisDirective({
         </Notice>
       );
     }
+    const loading = {
+      role: "status",
+      "aria-busy": true,
+      "aria-label": `Loading visualization ${file}`,
+      style: { height },
+    } as const;
+    if (isHtmlFile(file)) return <div {...loading} className="my-2" />;
     return (
       <PreviewCard
         file={file}
         action={<span aria-hidden className="h-6 w-7 shrink-0" />}
       >
-        <div
-          role="status"
-          aria-busy="true"
-          aria-label={`Loading visualization ${file}`}
-          style={{ height }}
-          className="w-full p-3"
-        >
+        <div {...loading} className="w-full p-3">
           <Skeleton className="size-full" />
         </div>
       </PreviewCard>
@@ -265,24 +463,39 @@ function InlineVisDirective({
   const open = () => {
     navigate.openFile(document);
   };
+  if (preview.kind === "html") {
+    const { file: path, source: from } = preview;
+    const openPanel = () => {
+      const title = path.split("/").pop() ?? path;
+      const params = { file: path, source: from };
+      if (!navigate.openThreadPanel({ actionId: PANEL_ID, title, params })) {
+        open();
+      }
+    };
+    return (
+      <HtmlFrame
+        key={preview.sha256}
+        preview={preview}
+        requested={requested}
+        action={
+          <OpenAction
+            preview={preview}
+            open={openPanel}
+            icon="Maximize2"
+            className={FRAME_OPEN_ACTION_CLASS}
+          />
+        }
+      />
+    );
+  }
   return (
     <PreviewCard
       file={preview.file}
       action={<OpenAction preview={preview} open={open} />}
     >
-      {preview.kind === "markdown" ? (
-        <div style={{ height }} className="overflow-auto p-3">
-          <Markdown content={preview.content} allowHtml document={document} />
-        </div>
-      ) : (
-        <iframe
-          title={`inline-vis: ${preview.file}`}
-          src={preview.url}
-          sandbox="allow-scripts"
-          style={{ height }}
-          className="block w-full border-0 bg-background"
-        />
-      )}
+      <div style={{ height }} className="overflow-auto p-3">
+        <Markdown content={preview.content} allowHtml document={document} />
+      </div>
     </PreviewCard>
   );
 }
@@ -291,5 +504,12 @@ export default function inlineVisApp(bb: PluginAppApi): void {
   bb.add(threadView.messageDirective, {
     id: "inline-vis",
     view: InlineVisDirective,
+  });
+  bb.add(sidePanel.panel, {
+    id: PANEL_ID,
+    title: "Preview",
+    icon: "AppWindow",
+    layout: "flush",
+    view: PreviewPanel,
   });
 }

@@ -16,7 +16,12 @@ export const inlineVis = contract("inline-vis", {
     }),
     output: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("not-found"), file: z.string() }),
-      z.object({ kind: z.literal("html"), ...found }),
+      z.object({
+        kind: z.literal("html"),
+        ...found,
+        content: z.string(),
+        sha256: z.string(),
+      }),
       z.object({
         kind: z.literal("markdown"),
         ...found,
