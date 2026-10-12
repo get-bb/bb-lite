@@ -516,7 +516,7 @@ it("has a path for all but a known few of the original calls plugins use", async
   const none = used
     .filter(({ id }) => pathFor(id).status === "none")
     .map(({ id }) => id);
-  expect(used.length).toBe(580);
+  expect(used.length).toBe(581);
   expect(none).toEqual([]);
 });
 
@@ -534,6 +534,10 @@ it("points calls whose feature arrived since at the new operation", () => {
   expect(pathFor("server.sdk.hosts.providerCliStatus").now).toContain(
     "sessions.providerStatus",
   );
+  expect(pathFor("app.slots.experimental_codeFenceRenderer")).toEqual({
+    status: "renamed",
+    now: "bb.add(threadView.codeFence, { id, languages, view }); the component field is now view",
+  });
   expect(pathFor("server.providers.contributeEnvHealth")).toMatchObject({
     status: "changed",
     now: expect.stringContaining("sessions.environmentHealth"),

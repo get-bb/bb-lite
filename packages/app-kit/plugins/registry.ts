@@ -6,6 +6,7 @@ import {
   createKernel,
   type Caller,
   type Kernel,
+  type CodeFenceRenderer,
   type MessageDirective,
   type Op,
   type PluginAppApi,
@@ -64,7 +65,7 @@ interface Running {
 }
 
 const running = new Map<string, Running>();
-const crashedSlotKeys = new Set<string>();
+const crashedSlotKeys = new Map<string, string | undefined>();
 const addedSlots = new Map<string, Slot<unknown>>();
 const listeners = new Set<() => void>();
 let settled = false;
@@ -303,16 +304,19 @@ export function slotInstanceKey(...parts: (string | undefined)[]): string {
   return parts.filter((part) => part !== undefined).join("/");
 }
 
-export function markSlotCrashed(instanceKey: string): void {
-  crashedSlotKeys.add(instanceKey);
+export function markSlotCrashed(instanceKey: string, resetKey?: string): void {
+  crashedSlotKeys.set(instanceKey, resetKey);
 }
 
-export function isSlotCrashed(instanceKey: string): boolean {
-  return crashedSlotKeys.has(instanceKey);
+export function isSlotCrashed(instanceKey: string, resetKey?: string): boolean {
+  return (
+    crashedSlotKeys.has(instanceKey) &&
+    crashedSlotKeys.get(instanceKey) === resetKey
+  );
 }
 
 export function resetCrashedSlots(pluginId: string): void {
-  for (const key of [...crashedSlotKeys]) {
+  for (const key of [...crashedSlotKeys.keys()]) {
     if (key.startsWith(`${pluginId}/`)) crashedSlotKeys.delete(key);
   }
 }
@@ -376,6 +380,37 @@ export function resolveMessageDirectives(
     if (first === undefined) continue;
     resolved.set(
       id,
+      rest.length === 0
+        ? { status: "ok", slot: first }
+        : {
+            status: "collision",
+            pluginIds: [
+              ...new Set([first, ...rest].map((slot) => slot.pluginId)),
+            ].sort(),
+          },
+    );
+  }
+  return resolved;
+}
+
+export type ResolvedCodeFenceRenderer =
+  | { status: "ok"; slot: Owned<CodeFenceRenderer> }
+  | { status: "collision"; pluginIds: readonly string[] };
+
+export function resolveCodeFenceRenderers(
+  slots: readonly Owned<CodeFenceRenderer>[],
+): ReadonlyMap<string, ResolvedCodeFenceRenderer> {
+  const claimants = new Map<string, Owned<CodeFenceRenderer>[]>();
+  for (const slot of slots) {
+    for (const language of slot.languages) {
+      claimants.set(language, [...(claimants.get(language) ?? []), slot]);
+    }
+  }
+  const resolved = new Map<string, ResolvedCodeFenceRenderer>();
+  for (const [language, [first, ...rest]] of claimants) {
+    if (first === undefined) continue;
+    resolved.set(
+      language,
       rest.length === 0
         ? { status: "ok", slot: first }
         : {

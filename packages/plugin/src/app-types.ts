@@ -118,6 +118,17 @@ export interface MessageDirectiveProps {
   openWorkspaceFile: ((path: string) => boolean) | null;
 }
 
+export type CodeFenceStatus = "streaming" | "closed" | "unclosed";
+
+export interface CodeFenceProps {
+  code: string;
+  language: string;
+  status: CodeFenceStatus;
+  index: number;
+  message: MessageDirectiveMessage;
+  Original: ComponentType;
+}
+
 export type SidebarNavigationAction =
   | { kind: "new-thread" }
   | { kind: "search-threads" }
@@ -201,6 +212,12 @@ export interface InteractionRenderer {
 export interface MessageDirective {
   id: string;
   view: ComponentType<MessageDirectiveProps>;
+}
+
+export interface CodeFenceRenderer {
+  id: string;
+  languages: readonly string[];
+  view: ComponentType<CodeFenceProps>;
 }
 
 export interface ShellProvider<Props = object> {

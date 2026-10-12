@@ -13,6 +13,10 @@ import ReactMarkdown, {
 import type { Nodes, Root } from "mdast";
 import { EXIT, visit } from "unist-util-visit";
 import {
+  remarkCodeFenceRenderers,
+  type CodeFenceRendererRegistry,
+} from "./markdown-code-fence-renderers";
+import {
   EMPTY_MOUNTED_MESSAGE_DIRECTIVES,
   MESSAGE_DIRECTIVE_MOUNT_LIMIT,
   remarkMessageDirectives,
@@ -33,6 +37,7 @@ import {
 type MarkdownPluginList = NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
 
 export interface MarkdownPieceRenderConfig {
+  codeFenceRendererRegistry: CodeFenceRendererRegistry | null;
   components: Components;
   messageDirectiveRegistry: MessageDirectiveRegistry | null;
   remarkPlugins: MarkdownPluginList;
@@ -329,6 +334,12 @@ function parseMarkdownPiece({
         mounts,
         registry: config.messageDirectiveRegistry,
       },
+    ]);
+  }
+  if (config.codeFenceRendererRegistry !== null) {
+    remarkPlugins.push([
+      remarkCodeFenceRenderers,
+      { registry: config.codeFenceRendererRegistry, sourceOffset },
     ]);
   }
   remarkPlugins.push(() => (tree: Root) => {

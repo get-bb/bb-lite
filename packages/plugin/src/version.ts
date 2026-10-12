@@ -1,4 +1,4 @@
-export const API_VERSION = "1.10.0";
+export const API_VERSION = "1.11.0";
 export const API_VERSION_HEADER = "x-bb-api";
 
 type Triple = [number, number, number];

@@ -227,6 +227,8 @@ const VIEW_SLOTS: Rule[] = Object.entries({
   appOverlay: "shell.overlay, { id, view }",
   pendingInteraction: "threadView.interaction, { id, view }",
   messageDirective: "threadView.messageDirective, { id, view }",
+  experimental_codeFenceRenderer:
+    "threadView.codeFence, { id, languages, view }",
   threadList: "shell.threadList, { id, title, view }",
 }).map(([name, target]) => [
   new RegExp(`^app\\.slots\\.${name}$`, "u"),

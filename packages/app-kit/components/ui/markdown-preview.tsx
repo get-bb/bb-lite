@@ -49,6 +49,12 @@ import { RouteAnchor } from "./app-route-anchor";
 import { CopyButton } from "./copy-button";
 import { ImageLightbox, getWrappedImageIndex } from "./image-lightbox";
 import { InlineImageGalleryContext } from "./inline-image-gallery-context";
+import {
+  CodeFencePlaceholder,
+  remarkCodeFenceRenderers,
+  useCodeFenceLanguages,
+  type CodeFenceElementProps,
+} from "./markdown-code-fence-renderers";
 import { highlightMarkdownCode } from "./markdown-code-highlight";
 import "./markdown-code-highlight.css";
 import {
@@ -172,6 +178,11 @@ const HTML_REHYPE_PLUGINS: NonNullable<ReactMarkdownOptions["rehypePlugins"]> =
             "height",
             "title",
             "ariaLabel",
+          ],
+          code: [
+            ...(defaultSchema.attributes?.code ?? []),
+            "dataCodeFenceOffset",
+            "dataCodeFenceClosed",
           ],
           "bb-thread-mention": [
             "dataThreadId",
@@ -393,64 +404,94 @@ function MarkdownAnchor({
   );
 }
 
+function MarkdownCodeBlock({
+  codeProps,
+  codeText,
+  language,
+}: {
+  codeProps: ComponentPropsWithoutRef<"code">;
+  codeText: string;
+  language: string | null;
+}) {
+  const [softWrap, setSoftWrap] = useState(false);
+  const highlightedMarkup = useMemo(
+    () => ({ __html: highlightMarkdownCode(codeText, language) }),
+    [language, codeText],
+  );
+  return (
+    <div className="my-2 overflow-hidden rounded-md border border-border bg-surface-recessed">
+      <div className="flex items-center justify-between pl-3 pr-1.5 pt-1.5">
+        <span className="font-mono text-xs uppercase text-muted-foreground">
+          {language ?? ""}
+        </span>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            aria-pressed={softWrap}
+            aria-label={softWrap ? "Disable line wrap" : "Wrap long lines"}
+            onClick={() => {
+              setSoftWrap((value) => !value);
+            }}
+            className="inline-flex size-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground aria-pressed:text-foreground"
+          >
+            <Icon name="TextWrap" className="size-3" />
+          </button>
+          <CopyButton text={codeText} label="Copy code" />
+        </div>
+      </div>
+      <pre
+        className={cn(
+          "bb-code-highlight px-3 pb-3 pt-1",
+          softWrap
+            ? "whitespace-pre-wrap [overflow-wrap:anywhere]"
+            : "overflow-x-auto",
+        )}
+      >
+        <code
+          className={cn(
+            "font-mono text-xs",
+            language ? `language-${language}` : "",
+          )}
+          dangerouslySetInnerHTML={highlightedMarkup}
+          {...codeProps}
+        />
+      </pre>
+    </div>
+  );
+}
+
 function MarkdownCode({
   className,
   children,
   node: _node,
+  "data-code-fence-offset": codeFenceOffset,
+  "data-code-fence-closed": codeFenceClosed,
   ...props
-}: ElementProps<"code">) {
-  const { linkRouting } = useContext(MarkdownRenderContext);
+}: ElementProps<"code"> & CodeFenceElementProps) {
+  const { imageSourceOffset, linkRouting } = useContext(MarkdownRenderContext);
   const codeText =
     typeof children === "string" ? children.replace(/\n$/, "") : "";
   const language =
     /(?:^|\s)language-(\S+)/u.exec(className ?? "")?.[1]?.toLowerCase() ?? null;
   const isBlock = language !== null || codeText.includes("\n");
-  const [softWrap, setSoftWrap] = useState(false);
-  const highlightedMarkup = useMemo(
-    () =>
-      isBlock ? { __html: highlightMarkdownCode(codeText, language) } : null,
-    [isBlock, language, codeText],
-  );
-  if (highlightedMarkup !== null) {
-    return (
-      <div className="my-2 overflow-hidden rounded-md border border-border bg-surface-recessed">
-        <div className="flex items-center justify-between pl-3 pr-1.5 pt-1.5">
-          <span className="font-mono text-xs uppercase text-muted-foreground">
-            {language ?? ""}
-          </span>
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              aria-pressed={softWrap}
-              aria-label={softWrap ? "Disable line wrap" : "Wrap long lines"}
-              onClick={() => {
-                setSoftWrap((value) => !value);
-              }}
-              className="inline-flex size-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground aria-pressed:text-foreground"
-            >
-              <Icon name="TextWrap" className="size-3" />
-            </button>
-            <CopyButton text={codeText} label="Copy code" />
-          </div>
-        </div>
-        <pre
-          className={cn(
-            "bb-code-highlight px-3 pb-3 pt-1",
-            softWrap
-              ? "whitespace-pre-wrap [overflow-wrap:anywhere]"
-              : "overflow-x-auto",
-          )}
-        >
-          <code
-            className={cn(
-              "font-mono text-xs",
-              language ? `language-${language}` : "",
-            )}
-            dangerouslySetInnerHTML={highlightedMarkup}
-            {...props}
-          />
-        </pre>
-      </div>
+  if (isBlock) {
+    const original = (
+      <MarkdownCodeBlock
+        codeProps={props}
+        codeText={codeText}
+        language={language}
+      />
+    );
+    return codeFenceOffset === undefined || language === null ? (
+      original
+    ) : (
+      <CodeFencePlaceholder
+        closed={codeFenceClosed === "true"}
+        code={codeText}
+        language={language}
+        offset={imageSourceOffset + Number(codeFenceOffset)}
+        original={original}
+      />
     );
   }
 
@@ -875,15 +916,49 @@ function MarkdownPreviewComponent({
         : undefined,
     [linkRouting],
   );
+  const codeFenceRegistry = useCodeFenceLanguages();
   const pieceConfig = useMemo<MarkdownPieceRenderConfig>(
     () => ({
+      codeFenceRendererRegistry: codeFenceRegistry,
       components,
       messageDirectiveRegistry: directiveRegistry,
       remarkPlugins: baseRemarkPlugins,
       urlTransform,
     }),
-    [components, directiveRegistry, baseRemarkPlugins, urlTransform],
+    [
+      codeFenceRegistry,
+      components,
+      directiveRegistry,
+      baseRemarkPlugins,
+      urlTransform,
+    ],
   );
+  const wholeDocumentRemarkPlugins = useMemo(() => {
+    const plugins: MarkdownPlugins = [...baseRemarkPlugins];
+    if (directiveRegistry !== null) {
+      plugins.push([
+        remarkMessageDirectives,
+        {
+          indexBase: 0,
+          limit: MESSAGE_DIRECTIVE_MOUNT_LIMIT,
+          mounts: directiveMounts,
+          registry: directiveRegistry,
+        },
+      ]);
+    }
+    if (codeFenceRegistry !== null) {
+      plugins.push([
+        remarkCodeFenceRenderers,
+        { registry: codeFenceRegistry, sourceOffset: 0 },
+      ]);
+    }
+    return plugins;
+  }, [
+    baseRemarkPlugins,
+    directiveRegistry,
+    directiveMounts,
+    codeFenceRegistry,
+  ]);
   const pieces =
     incrementalBlocks && !rendersHtml && !hasPromptMentions
       ? resolveMarkdownPieces(pieceCache, pieceConfig, body)
@@ -905,22 +980,7 @@ function MarkdownPreviewComponent({
     pieces === null ? (
       <ReactMarkdown
         rehypePlugins={rendersHtml ? HTML_REHYPE_PLUGINS : undefined}
-        remarkPlugins={
-          directiveRegistry === null
-            ? baseRemarkPlugins
-            : [
-                ...baseRemarkPlugins,
-                [
-                  remarkMessageDirectives,
-                  {
-                    indexBase: 0,
-                    limit: MESSAGE_DIRECTIVE_MOUNT_LIMIT,
-                    mounts: directiveMounts,
-                    registry: directiveRegistry,
-                  },
-                ],
-              ]
-        }
+        remarkPlugins={wholeDocumentRemarkPlugins}
         components={components}
         urlTransform={urlTransform}
       >

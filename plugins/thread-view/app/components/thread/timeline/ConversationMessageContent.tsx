@@ -13,6 +13,10 @@ import {
   USER_MESSAGE_CHAR_CAP,
 } from "@bb/client-core";
 import { cn } from "@bb/shared-ui/lib/utils";
+import {
+  CodeFenceRendererHost,
+  useCodeFenceRendererRegistry,
+} from "@bb/app-kit/components/ui/markdown-code-fence-renderers";
 import { MarkdownPreview } from "@bb/app-kit/components/ui/markdown-preview";
 import type { MarkdownLinkRouting } from "@bb/app-kit/components/ui/markdown-link-routing";
 import {
@@ -315,6 +319,11 @@ export function AssistantConversationMessage({
     return streaming ? repairStreamingMarkdownTail(tail) : tail;
   }, [streaming, streamingSplit, text]);
   const linkRouting = useMessageLinkRouting(threadId);
+  const codeFenceRegistry = useCodeFenceRendererRegistry();
+  const codeFenceMessage = useMemo(
+    () => ({ id, threadId, turnId, projectId: projectId ?? null }),
+    [id, threadId, turnId, projectId],
+  );
   const registry = useMessageDirectiveRegistry();
   const messageDirectives = useMemo<
     MarkdownMessageDirectives | undefined
@@ -359,6 +368,38 @@ export function AssistantConversationMessage({
     onOpenPluginPanel,
   ]);
 
+  const markdown = (
+    <>
+      <MarkdownPreview
+        allowHtml
+        className={
+          streamingSplit === null
+            ? MESSAGE_READING_SIZE_CLASS_NAME
+            : STREAMING_SETTLED_MARKDOWN_CLASS_NAME
+        }
+        content={
+          streamingSplit === null ? liveMarkdown : streamingSplit.settled
+        }
+        incrementalBlocks
+        linkRouting={linkRouting}
+        messageDirectives={messageDirectives}
+        threadMentions={ASSISTANT_THREAD_MENTIONS}
+      />
+      {streamingSplit === null ? null : (
+        <MarkdownPreview
+          allowHtml
+          className={STREAMING_TAIL_MARKDOWN_CLASS_NAME}
+          content={liveMarkdown}
+          sourcePrefix={streamingSplit.settled}
+          incrementalBlocks
+          linkRouting={linkRouting}
+          messageDirectives={messageDirectives}
+          threadMentions={ASSISTANT_THREAD_MENTIONS}
+        />
+      )}
+    </>
+  );
+
   return (
     <div
       className={cn(
@@ -367,32 +408,17 @@ export function AssistantConversationMessage({
       )}
     >
       <div data-sidebar-swipe-selectable>
-        <MarkdownPreview
-          allowHtml
-          className={
-            streamingSplit === null
-              ? MESSAGE_READING_SIZE_CLASS_NAME
-              : STREAMING_SETTLED_MARKDOWN_CLASS_NAME
-          }
-          content={
-            streamingSplit === null ? liveMarkdown : streamingSplit.settled
-          }
-          incrementalBlocks
-          linkRouting={linkRouting}
-          messageDirectives={messageDirectives}
-          threadMentions={ASSISTANT_THREAD_MENTIONS}
-        />
-        {streamingSplit === null ? null : (
-          <MarkdownPreview
-            allowHtml
-            className={STREAMING_TAIL_MARKDOWN_CLASS_NAME}
-            content={liveMarkdown}
-            sourcePrefix={streamingSplit.settled}
-            incrementalBlocks
-            linkRouting={linkRouting}
-            messageDirectives={messageDirectives}
-            threadMentions={ASSISTANT_THREAD_MENTIONS}
-          />
+        {codeFenceRegistry === null ? (
+          markdown
+        ) : (
+          <CodeFenceRendererHost
+            registry={codeFenceRegistry}
+            message={codeFenceMessage}
+            openThreadPanel={onOpenPluginPanel ?? null}
+            streaming={streaming}
+          >
+            {markdown}
+          </CodeFenceRendererHost>
         )}
       </div>
       <ConversationAttachments
