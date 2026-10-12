@@ -196,3 +196,32 @@ it("refuses the plugin's local path for every visitor", async () => {
   const missing = await visit("/mcp", nobody);
   expect(missing.status).toBe(404);
 });
+
+it("never takes a session cookie or a machine credential for a token", async () => {
+  const before = seen.length;
+  const wellKnown = "/.well-known/oauth-protected-resource";
+  for (const path of [wellKnown, `${wellKnown}/mcp`]) {
+    const described = await visit(path, {}, "GET");
+    expect(described.status).toBe(200);
+    expect(described.headers["cache-control"]).toBe("public, max-age=300");
+    expect(JSON.parse(described.text)).toEqual({
+      resource: `${OWN}/mcp`,
+      authorization_servers: [relayUrl],
+      scopes_supported: ["bb"],
+      bearer_methods_supported: ["header"],
+      resource_name: "bb",
+    });
+  }
+  const challenge = `Bearer resource_metadata="${METADATA}", scope="bb"`;
+  const callers: Record<string, string>[] = [
+    { cookie: "bbr_session=anything" },
+    { "x-bb-connect-machine": "bbmach_guess" },
+  ];
+  for (const headers of callers) {
+    const refused = await visit("/mcp", headers);
+    expect(refused.status).toBe(401);
+    expect(refused.headers["www-authenticate"]).toBe(challenge);
+    expect(refused.headers["cache-control"]).toBe("no-store");
+  }
+  expect(seen.length).toBe(before);
+});

@@ -1284,6 +1284,120 @@ it("signs an app in with OAuth and serves it MCP through the gate", async () => 
   expect((await call(String(fourth.body.access_token))).status).toBe(401);
 });
 
+it("never takes a session cookie or a machine credential for an MCP token", async () => {
+  const relay = await startRelay({ MCP_TOKEN_SECRET: "mcp-secret" });
+  const { alice, address, dial, frames } = await rawLink(relay);
+  dial(true);
+  const anyone = browser();
+  const described = {
+    resource: `${address}/mcp`,
+    authorization_servers: [relay.apex],
+    scopes_supported: ["bb"],
+    bearer_methods_supported: ["header"],
+    resource_name: "bb",
+  };
+  const wellKnown = `${address}/.well-known/oauth-protected-resource`;
+  for (const url of [wellKnown, `${wellKnown}/mcp`]) {
+    const metadata = await anyone.visit(url);
+    expect(metadata.status).toBe(200);
+    expect(metadata.headers.get("cache-control")).toBe("public, max-age=300");
+    expect(metadata.body).toEqual(described);
+  }
+  const nobody = `${relay.origin("nobody")}/.well-known/oauth-protected-resource`;
+  expect((await anyone.visit(`${nobody}/mcp`)).status).toBe(404);
+  const challenge = `Bearer resource_metadata="${wellKnown}/mcp", scope="bb"`;
+  const callers = [
+    { cookie: alice.cookies() },
+    { "x-bb-connect-machine": "bbmach_guess" },
+    { authorization: "Basic YWxpY2U6cGFzcw==" },
+  ];
+  for (const headers of callers) {
+    const refused = await anyone.visit(`${address}/mcp`, {
+      method: "POST",
+      headers,
+    });
+    expect(refused.status).toBe(401);
+    expect(refused.headers.get("www-authenticate")).toBe(challenge);
+    expect(refused.headers.get("cache-control")).toBe("no-store");
+  }
+  const share = `${relay.origin("raw--3000")}/mcp`;
+  const shared = await anyone.visit(share, { method: "POST" });
+  expect(shared.headers.get("www-authenticate")).toBeNull();
+  const local = `${relay.origin("raw--3000")}/api/v1/plugins/mcp/http/mcp`;
+  const kept = await anyone.visit(local, { method: "POST" });
+  expect(kept.body).toMatchObject({ code: "unauthenticated" });
+  expect(frames).toEqual([]);
+});
+
+it("streams an MCP event stream as it arrives and says plainly when the server is offline", async () => {
+  const relay = await startRelay({ MCP_TOKEN_SECRET: "mcp-secret" });
+  const { apex } = relay;
+  const { alice, address, dial } = await rawLink(relay);
+  const client = await oauthClient();
+  const own = `${address}/mcp`;
+  const json = { query: client.query(own), approved: true };
+  const decision = `${apex}/api/dashboard/oauth/decision`;
+  const decided = await alice.visit(decision, { json });
+  const code = new URL(String(decided.body.url)).searchParams.get("code");
+  const form = {
+    grant_type: "authorization_code",
+    code: String(code),
+    client_id: client.clientId,
+    code_verifier: client.verifier,
+  };
+  const granted = await browser().visit(`${apex}/oauth/token`, { form });
+  const headers = {
+    authorization: `Bearer ${String(granted.body.access_token)}`,
+    accept: "application/json, text/event-stream",
+  };
+  const call = () => fetch(own, { method: "POST", headers, body: "{}" });
+
+  const offline = await call();
+  expect(offline.status).toBe(503);
+  expect(offline.headers.get("www-authenticate")).toBeNull();
+  expect(offline.headers.get("content-type")).toContain("text/plain");
+  expect(await offline.text()).toBe(
+    "This bb server is not connected right now.\n",
+  );
+
+  const tunnel = dial(false);
+  const opened: number[] = [];
+  const say = (streamId: number, text: string) => {
+    const data = Buffer.from(`event: message\ndata: ${text}\n\n`);
+    tunnel.send(wire.encodeFrame({ type: "body-chunk", streamId, data }));
+  };
+  tunnel.on("message", (data: Buffer, isBinary) => {
+    if (!isBinary) return;
+    const frame = wire.decodeFrame(data);
+    if (frame.type !== "open-http") return;
+    const { streamId } = frame;
+    const sent: [string, string][] = [
+      ["content-type", "text/event-stream"],
+      ["cache-control", "no-cache"],
+    ];
+    const head = { status: 200, headers: sent };
+    tunnel.send(wire.encodeFrame({ type: "resp-head", streamId, ...head }));
+    say(streamId, "one");
+    opened.push(streamId);
+  });
+  await once(tunnel, "open");
+  const streamed = await call();
+  expect(streamed.status).toBe(200);
+  expect(streamed.headers.get("content-type")).toBe("text/event-stream");
+  expect(streamed.headers.get("cache-control")).toBe("no-cache");
+  expect(streamed.headers.get("content-encoding")).toBeNull();
+  const reader = streamed.body?.getReader();
+  const decoder = new TextDecoder();
+  const first = await reader?.read();
+  expect(decoder.decode(first?.value)).toBe("event: message\ndata: one\n\n");
+  const [streamId = 0] = opened;
+  say(streamId, "two");
+  const second = await reader?.read();
+  expect(decoder.decode(second?.value)).toBe("event: message\ndata: two\n\n");
+  tunnel.send(wire.encodeFrame({ type: "body-end", streamId }));
+  expect((await reader?.read())?.done).toBe(true);
+});
+
 it("says so when the relay has no MCP token secret", async () => {
   const relay = await startRelay();
   const { address, dial } = await rawLink(relay);

@@ -70,3 +70,45 @@ it("reads a bearer token only from a bearer authorization header", () => {
   expect(wire.readBearerToken("Bearer")).toBe("");
   expect(wire.readBearerToken("  bearer   abc  ")).toBe("abc");
 });
+
+it.each([
+  wire.MCP_LOCAL_PATH,
+  `${wire.MCP_LOCAL_PATH}/`,
+  `${wire.MCP_LOCAL_PATH}/messages`,
+  `${wire.MCP_LOCAL_PATH};v=1`,
+  "//api/v1/plugins/mcp/http/mcp",
+  "/api/v1/plugins/mcp/http//mcp",
+  "/API/v1/Plugins/MCP/http/Mcp",
+  "/api/v1/plugins/mcp/http%2Fmcp",
+  "/api/v1/plugins/mcp/http%252fmcp",
+  "/api/v1/plugins/%6dcp/http/mcp",
+  "/api/v1/plugins/mcp/http/mc%70",
+  "/api/v1/threads/..%2fplugins/mcp/http/mcp",
+  "/api/v1/plugins/mcp/http/./mcp",
+  "/api/v1/plugins/mcp/http%5cmcp",
+  "/api/v1/plugins/mcp/http/mcp%20",
+  "/api/v1/plugins/mcp/http/mcp%00",
+])("treats %s as the plugin's local path", (path) => {
+  expect(wire.isMcpLocalPath(path)).toBe(true);
+});
+
+it.each([
+  "/api/v1/plugins/mcp/http/mcpx",
+  "/api/v1/plugins/mcp/http/status",
+  "/api/v1/plugins/other/http/mcp",
+  "/api/v1/files/api/v1/plugins/mcp/http/mcp",
+])("leaves the neighbouring path %s alone", (path) => {
+  expect(wire.isMcpLocalPath(path)).toBe(false);
+});
+
+it("keeps printable ASCII in a client name, replaces the rest, trims and caps the length", () => {
+  expect(wire.headerSafeClientName("  Claude  ")).toBe("Claude");
+  expect(wire.headerSafeClientName("Chat\u2028GPT\t\u{1f600}")).toBe(
+    "Chat?GPT??",
+  );
+  expect(wire.headerSafeClientName("\r\n")).toBe("??");
+  expect(wire.headerSafeClientName("   ")).toBe("unknown");
+  expect(wire.headerSafeClientName(`${"x".repeat(79)} yz`)).toBe(
+    "x".repeat(79),
+  );
+});

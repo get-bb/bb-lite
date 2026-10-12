@@ -764,8 +764,7 @@ async function revoke(request: Request, context: Site): Promise<Response> {
   const done = new Response(null, { headers: TOKEN_HEADERS });
   const form = await formOf(request).catch(() => null);
   const offered = form?.get("token") ?? "";
-  const secret = secretOf(context);
-  if (offered === "" || secret === null) return done;
+  if (offered === "") return done;
   const { db } = context;
   let grantId: string | null = null;
   if (REFRESH_PATTERN.test(offered)) {
@@ -773,7 +772,9 @@ async function revoke(request: Request, context: Site): Promise<Response> {
     const hash = await sha256Hex(offered);
     grantId = (await store.one<RefreshRow>(db, find, hash))?.grant_id ?? null;
   } else {
-    grantId = (await verify(offered, secret))?.grantId ?? null;
+    const secret = secretOf(context);
+    const claims = secret === null ? null : await verify(offered, secret);
+    grantId = claims?.grantId ?? null;
   }
   if (grantId !== null) await revokeGrant(db, grantId, Date.now());
   return done;

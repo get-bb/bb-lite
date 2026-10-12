@@ -65,7 +65,8 @@ forwards the call to the bb server's `mcp` plugin. The paths, header names and t
   A refresh rotates the refresh token; the old one still answers with the same successor for 60
   seconds (a retry), and after that using it revokes the whole grant. `POST /oauth/revoke` takes
   either token. One person keeps at most 10 live grants per client and server; older ones are revoked.
-  Without `MCP_TOKEN_SECRET` the token endpoint and `/mcp` answer 503 and the consent page says why.
+  Without `MCP_TOKEN_SECRET` the token endpoint and `/mcp` answer 503 and the consent page says why;
+  `POST /oauth/revoke` still revokes the grant behind a refresh token.
 - **The gate.** With a valid token the gate forwards `/mcp` to `/api/v1/plugins/mcp/http/mcp` with
   `authorization`, every cookie and any `x-bb-gate-*` the caller sent removed, and `x-bb-gate-auth:
 oauth`, `x-bb-gate-oauth-scope`, `x-bb-gate-oauth-grant` and `x-bb-gate-oauth-client` set. It reads
