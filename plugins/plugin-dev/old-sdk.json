@@ -1230,6 +1230,11 @@
     "manifest": false
   },
   {
+    "id": "app.slots.experimental_codeFenceRenderer",
+    "pattern": "\\bslots\\s*[?!]?\\.\\s*experimental_codeFenceRenderer\\s*(?:<[^()]*>)?\\(",
+    "manifest": false
+  },
+  {
     "id": "app.slots.messageAction",
     "pattern": "\\bslots\\s*[?!]?\\.\\s*messageAction\\s*(?:<[^()]*>)?\\(",
     "manifest": false

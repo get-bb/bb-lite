@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { identified } from "../app-contracts.js";
 import type {
+  CodeFenceRenderer,
   InteractionRenderer,
   MessageDirective,
   TargetedPanelOpenOptions,
@@ -82,6 +83,32 @@ export interface ThreadViewApi {
   ThreadTitle: ComponentType<{ threadId: string }>;
 }
 
+const CODE_FENCE_LANGUAGE = /^[a-z0-9][a-z0-9+#._-]*$/u;
+const hasView = identified<CodeFenceRenderer>("view");
+
+function codeFenceCheck(
+  item: CodeFenceRenderer,
+  mine: readonly CodeFenceRenderer[],
+): string | null {
+  const refused = hasView(item, mine);
+  if (refused !== null) return refused;
+  const { id, languages } = item;
+  if (!Array.isArray(languages) || languages.length === 0) {
+    return `"${id}": "languages" must list at least one language`;
+  }
+  const claimed = new Set(mine.flatMap((other) => other.languages));
+  for (const language of languages) {
+    if (typeof language !== "string" || !CODE_FENCE_LANGUAGE.test(language)) {
+      return `"${id}": language ${JSON.stringify(language)} must match ${CODE_FENCE_LANGUAGE}`;
+    }
+    if (claimed.has(language)) {
+      return `"${id}": language "${language}" is claimed twice`;
+    }
+    claimed.add(language);
+  }
+  return null;
+}
+
 export const threadView = contract("threadView", {
   api: service<ThreadViewApi>(),
   row: slot<TimelineRowRenderer>({ key: "kind" }),
@@ -91,4 +118,5 @@ export const threadView = contract("threadView", {
   header: slot<ThreadHeaderItem>(),
   interaction: slot<InteractionRenderer>({ check: identified("view") }),
   messageDirective: slot<MessageDirective>({ check: identified("view") }),
+  codeFence: slot<CodeFenceRenderer>({ check: codeFenceCheck }),
 });

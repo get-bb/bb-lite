@@ -9,32 +9,50 @@ interface BoundaryProps {
   instanceKey: string;
   children: ReactNode;
   fallback?: ReactNode;
+  resetKey?: string;
   onCrash?: (pluginId: string) => void;
 }
 
-class PluginSlotBoundary extends Component<
-  BoundaryProps,
-  { crashed: boolean }
-> {
-  override state = { crashed: false };
+interface BoundaryState {
+  crashed: boolean;
+  resetKey: string | undefined;
+}
 
-  static getDerivedStateFromError(): { crashed: boolean } {
+class PluginSlotBoundary extends Component<BoundaryProps, BoundaryState> {
+  constructor(props: BoundaryProps) {
+    super(props);
+    this.state = { crashed: false, resetKey: props.resetKey };
+  }
+
+  static getDerivedStateFromError(): Pick<BoundaryState, "crashed"> {
     return { crashed: true };
   }
 
+  static getDerivedStateFromProps(
+    props: BoundaryProps,
+    state: BoundaryState,
+  ): BoundaryState | null {
+    if (props.resetKey === state.resetKey) return null;
+    return { crashed: false, resetKey: props.resetKey };
+  }
+
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    const { pluginId, instanceKey, onCrash } = this.props;
-    markSlotCrashed(instanceKey);
+    const { pluginId, instanceKey, resetKey, onCrash } = this.props;
+    markSlotCrashed(instanceKey, resetKey);
+    const until =
+      resetKey === undefined ? "for this session" : "until its input changes";
     console.warn(
-      `[plugin:${pluginId}] slot "${instanceKey}" crashed and is disabled for this session: ${error.message}`,
+      `[plugin:${pluginId}] slot "${instanceKey}" crashed and is disabled ${until}: ${error.message}`,
       info.componentStack,
     );
     onCrash?.(pluginId);
   }
 
   override render(): ReactNode {
-    const { pluginId, instanceKey, fallback, children } = this.props;
-    if (!this.state.crashed && !isSlotCrashed(instanceKey)) return children;
+    const { pluginId, instanceKey, resetKey, fallback, children } = this.props;
+    if (!this.state.crashed && !isSlotCrashed(instanceKey, resetKey)) {
+      return children;
+    }
     return fallback === undefined ? (
       <Pill variant="outline" className="text-muted-foreground">
         plugin {pluginId} crashed
@@ -51,6 +69,7 @@ export function PluginSlotMount({
   slotId,
   children,
   crashFallback,
+  crashResetKey,
   instanceId,
   onCrash,
 }: {
@@ -59,6 +78,7 @@ export function PluginSlotMount({
   slotId: string;
   children: ReactNode;
   crashFallback?: ReactNode;
+  crashResetKey?: string;
   instanceId?: string;
   onCrash?: (pluginId: string) => void;
 }) {
@@ -69,6 +89,7 @@ export function PluginSlotMount({
         pluginId={pluginId}
         instanceKey={slotInstanceKey(pluginId, slotKind, slotId, instanceId)}
         fallback={crashFallback}
+        resetKey={crashResetKey}
         onCrash={onCrash}
       >
         <div

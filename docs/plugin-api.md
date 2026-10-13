@@ -606,14 +606,14 @@ kernel the way `describeKernel` does the server's: what is implemented, hooked a
 
 Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills them the same way.
 
-| Contract     | Slots                                                                                                                                                                                                                                          |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shell`      | `route`, `navItem`, `navPanel`, `overlay`, `command`, `threadAction`, `sidebarFooter`, `threadRowStatus`; a provider the user picks: `threadList`                                                                                              |
-| `threadView` | `row` (a renderer per timeline row kind), `rowDetail` (per work-row kind), `pluginRow` (rows a plugin stored), `messageAction`, `header` (a component in the thread header), `interaction` (a form for `interactions.ask`), `messageDirective` |
-| `composer`   | `menuItem` (the "+" menu), `footerControl`, `sendMenuItem`, `banner`, `popup`, `textEffect`, `environmentInputs` (per environment kind), `homeSection`                                                                                         |
-| `sidePanel`  | `tab` (per tab kind: body, icon, title), `fileViewer` (per file extension), `panel` (a plugin's own panel and the action that opens it)                                                                                                        |
-| `settings`   | `page`, `section` (a section on the plugin's own settings page)                                                                                                                                                                                |
-| `app`        | `icon` (`{ name, view }`, usable wherever an icon name is taken); `parts` (a plugin's published components); `root` is the service that draws the screen, provided by the shell                                                                |
+| Contract     | Slots                                                                                                                                                                                                                                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shell`      | `route`, `navItem`, `navPanel`, `overlay`, `command`, `threadAction`, `sidebarFooter`, `threadRowStatus`; a provider the user picks: `threadList`                                                                                                                                                                          |
+| `threadView` | `row` (a renderer per timeline row kind), `rowDetail` (per work-row kind), `pluginRow` (rows a plugin stored), `messageAction`, `header` (a component in the thread header), `interaction` (a form for `interactions.ask`), `messageDirective`, `codeFence` (fenced code blocks of chosen languages in assistant messages) |
+| `composer`   | `menuItem` (the "+" menu), `footerControl`, `sendMenuItem`, `banner`, `popup`, `textEffect`, `environmentInputs` (per environment kind), `homeSection`                                                                                                                                                                     |
+| `sidePanel`  | `tab` (per tab kind: body, icon, title), `fileViewer` (per file extension), `panel` (a plugin's own panel and the action that opens it)                                                                                                                                                                                    |
+| `settings`   | `page`, `section` (a section on the plugin's own settings page)                                                                                                                                                                                                                                                            |
+| `app`        | `icon` (`{ name, view }`, usable wherever an icon name is taken); `parts` (a plugin's published components); `root` is the service that draws the screen, provided by the shell                                                                                                                                            |
 
 - An entry's component is always `view`. Entries with an `id` are checked when added: the id must
   match `[a-zA-Z0-9_-]+`, be unique within the plugin and come with its `view` (or `run`, for a
@@ -634,6 +634,20 @@ Every slot is filled with `bb.add` and can be changed with `bb.wrap`. Core fills
   message. `context` is the message plus `selectedText` (the selection inside that message, or
   null), `seq` (its sequence position, what `threads.fork`'s `sourceSeqEnd` wants) and
   `openPanel({ actionId, title?, params? })` (opens a `sidePanel.panel` for this thread).
+- `bb.add(threadView.codeFence, { id, languages: ["ui"], view })` draws fenced code blocks whose
+  info-string language is one of `languages` (lowercase; letters, digits and `+ # . _ -`, starting
+  with a letter or digit) inside assistant messages. Fences anywhere else (your own messages, file
+  previews, a plugin's `Markdown`) keep bb's code block. The view gets `CodeFenceProps`: `code` (the
+  body so far, without the delimiters), `language`, `status`, `index` (the ordinal among fences of
+  that language in the message; it does not change while the message streams), `message`
+  (`{ id, threadId, turnId, projectId }`) and `Original` (bb's own code block for this fence).
+  `status` is `"streaming"` (no closing delimiter yet and the reply is still being written),
+  `"closed"` (the body is final) or `"unclosed"` (the reply ended without a closing delimiter).
+  The view is mounted once per fence and kept for the whole reply, so its state survives the fence
+  closing and the reply finishing; where the browser has `Element.moveBefore` an iframe inside it
+  is not reloaded when its block settles. bb's code block is shown instead when two plugins claim
+  the same language (a warning names them) and for a fence whose view throws; a throw affects that
+  fence only, and the view is tried again when the fence's `code` or `status` changes.
 - `bb.add(sidePanel.fileViewer, { id, extensions: ["pdf"], names?: ["Dockerfile"], view })` draws
   files with those extensions, or with exactly those names (for files without one); the view gets
   `{ path, threadId, source, projectId, hostId, name, url, mimeType, content, refresh }`
