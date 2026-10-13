@@ -670,6 +670,7 @@ describe("token endpoint: authorization_code", () => {
       grantId: grant?.id,
       scope: "bb",
       clientName: "Claude",
+      expiresAt: T0 + oauth.ACCESS_TOKEN_TTL_MS,
     });
     context = siteFor(APEX, "other-secret");
     expect(await admit(body.access_token)).toBeNull();
@@ -1131,6 +1132,7 @@ describe("MCP bearer authentication", () => {
       grantId: "grant-1",
       scope: "bb",
       clientName: "Claude",
+      expiresAt: claimsOf(valid).expiresAt,
     });
     expect(await admit(valid, FRP)).toBeNull();
     await seedGrant({ id: "grant-frp", resource: FRP });

@@ -53,7 +53,9 @@ export function relayAccounts(
     (key) => ask(JSON.parse(key) as Record<string, string>),
     (found) => {
       if (found.oauth != null) {
-        return Math.min(cacheMs, wire.MCP_GRANT_CACHE_TTL_MS);
+        const untilExpiry = found.oauth.expiresAt - Date.now();
+        const kept = Math.min(cacheMs, wire.MCP_GRANT_CACHE_TTL_MS);
+        return Math.max(0, Math.min(kept, untilExpiry));
       }
       const missed = found.server === null || found.user === null;
       return missed ? Math.min(cacheMs, MISS_CACHE_MS) : cacheMs;

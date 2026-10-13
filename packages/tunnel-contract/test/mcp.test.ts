@@ -52,7 +52,8 @@ it("names the metadata paths, the challenge and the forwarded headers", () => {
   expect(wire.mcpChallenge(origin, "invalid_token")).toBe(
     `Bearer error="invalid_token", resource_metadata="${metadata}", scope="bb"`,
   );
-  const grant = { grantId: "g1", scope: "bb", clientName: "  Chät\r\n " };
+  const named = { scope: "bb", clientName: "  Chät\r\n " };
+  const grant = { grantId: "g1", ...named, expiresAt: 1 };
   expect(wire.mcpForwardHeaders(grant)).toEqual({
     "x-bb-gate-auth": "oauth",
     "x-bb-gate-oauth-scope": "bb",

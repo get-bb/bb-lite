@@ -840,6 +840,6 @@ export async function admit(
        WHERE id = ? AND last_used_at IS NULL`;
     await store.run(context.db, first, Date.now(), grant.id);
   }
-  const { grantId, clientName } = claims;
-  return { grantId, scope: wire.MCP_SCOPE, clientName };
+  const { grantId, clientName, expiresAt } = claims;
+  return { grantId, scope: wire.MCP_SCOPE, clientName, expiresAt };
 }

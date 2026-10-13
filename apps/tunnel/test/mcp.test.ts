@@ -14,10 +14,11 @@ const HOST = "bee.fly.bb.test";
 const OWN = `http://${HOST}`;
 const METADATA = `${OWN}/.well-known/oauth-protected-resource/mcp`;
 const GRANT = { grantId: "grant-1", scope: "bb", clientName: "Chat é App" };
+const HOUR_MS = 60 * 60_000;
 const seen: { url: string; headers: IncomingHttpHeaders }[] = [];
 const asked: Record<string, string>[] = [];
 const servers: Server[] = [];
-const state = { revoked: false, configured: true };
+const state = { revoked: false, configured: true, lifetimeMs: HOUR_MS };
 let gate: string;
 let relayUrl: string;
 
@@ -72,7 +73,9 @@ beforeAll(async () => {
         ? { server, address: "http://bee.bb.test", user: null }
         : { server: null };
       if (known && body.oauth !== undefined) {
-        answer.oauth = valid && !state.revoked ? GRANT : null;
+        const expiresAt = Date.now() + state.lifetimeMs;
+        const granted = { ...GRANT, expiresAt };
+        answer.oauth = valid && !state.revoked ? granted : null;
         if (!state.configured) answer.oauthUnavailable = true;
       }
       response.writeHead(200, { "content-type": "application/json" });
@@ -169,6 +172,20 @@ it("stops serving a revoked grant once the short cache runs out", async () => {
   const other = { authorization: "Bearer other" };
   expect((await visit("/mcp", other)).status).toBe(503);
   state.configured = true;
+});
+
+it("asks again as soon as a token has expired, however short the cache", async () => {
+  const headers = { authorization: "Bearer good" };
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  state.lifetimeMs = 40;
+  expect((await visit("/mcp", headers)).status).toBe(200);
+  const before = asked.length;
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  state.lifetimeMs = HOUR_MS;
+  expect((await visit("/mcp", headers)).status).toBe(200);
+  expect(asked.length).toBe(before + 1);
+  expect((await visit("/mcp", headers)).status).toBe(200);
+  expect(asked.length).toBe(before + 1);
 });
 
 it("refuses the plugin's local path for every visitor", async () => {

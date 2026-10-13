@@ -1203,6 +1203,7 @@ it("signs an app in with OAuth and serves it MCP through the gate", async () => 
     grantId,
     scope: "bb",
     clientName: "Test App",
+    expiresAt: expect.any(Number),
   });
   expect((await resolve({ oauth: access, resource: frp })).oauth).toBeNull();
   expect("oauth" in (await resolve({}))).toBe(false);

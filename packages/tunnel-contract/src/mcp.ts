@@ -24,6 +24,7 @@ export interface McpGrant {
   grantId: string;
   scope: string;
   clientName: string;
+  expiresAt: number;
 }
 
 export interface McpGrantView {
