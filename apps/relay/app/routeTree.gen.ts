@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LinkRouteImport } from './routes/link'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OauthAuthorizeRouteImport } from './routes/oauth.authorize'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,44 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
+  id: '/oauth/authorize',
+  path: '/oauth/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/link': typeof LinkRoute
   '/login': typeof LoginRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/link': typeof LinkRoute
   '/login': typeof LoginRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/link': typeof LinkRoute
   '/login': typeof LoginRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/link' | '/login'
+  fullPaths: '/' | '/link' | '/login' | '/oauth/authorize'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/link' | '/login'
-  id: '__root__' | '/' | '/link' | '/login'
+  to: '/' | '/link' | '/login' | '/oauth/authorize'
+  id: '__root__' | '/' | '/link' | '/login' | '/oauth/authorize'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LinkRoute: typeof LinkRoute
   LoginRoute: typeof LoginRoute
+  OauthAuthorizeRoute: typeof OauthAuthorizeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/oauth/authorize': {
+      id: '/oauth/authorize'
+      path: '/oauth/authorize'
+      fullPath: '/oauth/authorize'
+      preLoaderRoute: typeof OauthAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LinkRoute: LinkRoute,
   LoginRoute: LoginRoute,
+  OauthAuthorizeRoute: OauthAuthorizeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

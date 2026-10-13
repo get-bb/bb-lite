@@ -65,6 +65,22 @@ and `HOOKS_PORT`, then start `pnpm dev` there with `BB_CONNECT_FRP_SERVER=tcp://
 and `BB_CONNECT_FRPC=<path to frpc>`. Clear every `BB_*` variable first when starting it from inside
 a bb thread, or its CLI talks to the bb that runs the thread.
 
+## MCP
+
+The gate serves `/mcp` and the protected resource metadata on `<label>.fly.getbb.dev` the way the
+relay's own gate does (`docs/relay.md`, "MCP and OAuth"), with `RELAY_URL` as authorization server.
+It holds no signing secret: it sends the bearer token and `<own origin>/mcp` to the relay's
+`/api/gate/resolve` and keeps the answer for 30 seconds, so one relay call serves a burst of MCP
+calls and a revoked grant stops working within 30 seconds. A token issued for the relay address of
+the same server is refused here, and the other way round. With a valid token it forwards to
+`/api/v1/plugins/mcp/http/mcp` without `authorization` or cookies and with the `x-bb-gate-oauth-*`
+headers; a request from outside for that local path gets 404 in both account modes. Nothing new is
+set on the Fly app; the relay needs `FRP_BASE_DOMAIN=fly.getbb.dev` and `MCP_TOKEN_SECRET`.
+
+The image is now built from the repository root (`docker build -f apps/tunnel/Dockerfile .`),
+because the gate bundles `packages/tunnel-contract`; the workflow passes `--config`, `--dockerfile`
+and `--ignorefile apps/tunnel/Dockerfile.dockerignore` to `flyctl deploy`.
+
 ## The server's side
 
 `BB_CONNECT_FRP=tls://bb-next-tunnel.fly.dev:7000` makes the connect plugin start `frpc` next to its

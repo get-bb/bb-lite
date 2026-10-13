@@ -1,5 +1,6 @@
 import * as http from "node:http";
 import type { Duplex } from "node:stream";
+import { isMcpLocalPath } from "@bb/tunnel-contract";
 import {
   header,
   plain,
@@ -21,6 +22,7 @@ export interface GateOptions {
 interface Admission {
   headers: http.OutgoingHttpHeaders;
   responseHeaders: Record<string, string>;
+  path: string;
 }
 
 interface PluginCall {
@@ -114,6 +116,7 @@ export function createGate(options: GateOptions) {
       headers.origin = new URL(admitted.address).origin;
     }
     headers.host = `${label}.${subdomainHost}`;
+    for (const name of admitted.dropHeaders ?? []) delete headers[name];
     return { ...headers, ...admitted.identity };
   }
 
@@ -127,6 +130,11 @@ export function createGate(options: GateOptions) {
     const path = request.url ?? "/";
     const method = request.method ?? "GET";
     const own = `${scheme}://${host}`;
+    const [pathname = ""] = path.split("?");
+    const parsed = URL.parse(path, own)?.pathname ?? "";
+    if (target === null && [pathname, parsed].some(isMcpLocalPath)) {
+      return plain(404, "There is nothing at this path.\n");
+    }
     const visit = { request, label, target, method, path, own };
     const outcome = await accounts.admit(visit);
     if ("status" in outcome) return outcome;
@@ -134,6 +142,7 @@ export function createGate(options: GateOptions) {
     return {
       headers: forwarded(request, label, own, outcome),
       responseHeaders: outcome.responseHeaders ?? {},
+      path: outcome.path ?? path,
     };
   }
 
@@ -160,8 +169,8 @@ export function createGate(options: GateOptions) {
       response.writeHead(outcome.status, outcome.headers).end(outcome.body);
       return;
     }
-    const { method, url: path } = request;
-    const { headers, responseHeaders } = outcome;
+    const { method } = request;
+    const { headers, responseHeaders, path } = outcome;
     const target = { ...upstream, method, path, headers, agent };
     const outgoing = http.request(target, (answer) => {
       clearTimeout(deadline);
@@ -213,7 +222,8 @@ export function createGate(options: GateOptions) {
     const wanted = header(request, "upgrade") ?? "websocket";
     const switching = { connection: "Upgrade", upgrade: wanted };
     const headers = { ...outcome.headers, ...switching };
-    const outgoing = http.request({ ...upstream, path: request.url, headers });
+    const { path } = outcome;
+    const outgoing = http.request({ ...upstream, path, headers });
     outgoing.on("error", () => socket.destroy());
     outgoing.on("response", (answer) => {
       const code = answer.statusCode ?? 502;

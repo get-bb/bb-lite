@@ -10,6 +10,8 @@ export interface Admitted {
   identity: Record<string, string>;
   address: string;
   responseHeaders?: Record<string, string>;
+  path?: string;
+  dropHeaders?: string[];
 }
 
 export interface Visit {

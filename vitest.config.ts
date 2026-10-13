@@ -14,5 +14,14 @@ export default defineConfig({
     environment: "node",
     testTimeout: 20_000,
     pool: "forks",
+    server: {
+      deps: {
+        inline: [
+          "@modelcontextprotocol/client",
+          "eventsource",
+          "eventsource-parser",
+        ],
+      },
+    },
   },
 });

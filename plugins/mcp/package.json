@@ -1,0 +1,42 @@
+{
+  "name": "bb-plugin-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Control bb from ChatGPT, Claude and other MCP clients.",
+  "engines": {
+    "bb": "^1"
+  },
+  "bb": {
+    "name": "MCP server",
+    "description": "Control bb from ChatGPT, Claude and other MCP clients.",
+    "icon": "Plug02",
+    "enabledByDefault": false,
+    "server": "./server.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "keywords": [
+    "bb-plugin"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bb/plugin": "workspace:*",
+    "@bb/server-kit": "workspace:*",
+    "@bb/tunnel-contract": "workspace:*",
+    "@jitl/quickjs-singlefile-cjs-release-sync": "^0.32.0",
+    "@modelcontextprotocol/server": "^2.3.1",
+    "bb-plugin-connect": "workspace:*",
+    "quickjs-emscripten-core": "^0.32.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/node": "^22.0.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

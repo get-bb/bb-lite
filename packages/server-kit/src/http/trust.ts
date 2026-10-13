@@ -40,6 +40,7 @@ const API_PREFIX = "/api/v1/";
 const AUTH_PREFIX = "/api/v1/auth/";
 const GUARDED_PREFIXES = ["/api/", "/internal/", "/ws"];
 const VIA_TUNNEL_HEADER = "x-bb-via-tunnel";
+const PLUGIN_ROUTE = /^\/api\/v1\/plugins\/[^/]+\/http\//u;
 const AVATAR_MAX = 500;
 const PROXY_HEADERS = [
   "x-forwarded-for",
@@ -234,6 +235,14 @@ function assertAnonymousAccess(
   throw new ApiError(401, "unauthenticated", "Sign in to use this bb");
 }
 
+function isGateOauthRoute(request: TrustRequest, lookups: TrustLookups) {
+  const marker = requestHeader(request, VIA_TUNNEL_HEADER);
+  const viaGate = marker === lookups.tunnelToken;
+  const oauth = requestHeader(request, "x-bb-gate-auth") === "oauth";
+  const local = isLoopbackAddress(request.socket.remoteAddress);
+  return viaGate && oauth && local && PLUGIN_ROUTE.test(request.path);
+}
+
 export function authorize(
   request: TrustRequest,
   lookups: TrustLookups,
@@ -244,6 +253,7 @@ export function authorize(
     if (principal.implicit) assertOwnBrowserRequest(request, lookups);
     else assertOwnOrigin(request, lookups);
   } else if (principal.kind === "anonymous") {
+    if (isGateOauthRoute(request, lookups)) return principal;
     assertAnonymousAccess(request, principal.identity);
   } else if (!path.startsWith(RUNNER_PREFIX) && !path.startsWith(API_PREFIX)) {
     throw notFound();

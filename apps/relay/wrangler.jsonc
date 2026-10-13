@@ -15,6 +15,7 @@
   },
   "vars": {
     "BASE_DOMAIN": "getbb.dev",
+    "FRP_BASE_DOMAIN": "fly.getbb.dev",
     "HOSTING": "approved",
     "ADMIN_LOGIN": "SawyerHood",
     "FLY_ORG": "bb-953",

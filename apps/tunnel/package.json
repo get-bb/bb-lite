@@ -6,6 +6,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@bb/tunnel-contract": "workspace:*"
+  },
   "devDependencies": {
     "@bb/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",

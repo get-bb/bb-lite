@@ -1,3 +1,4 @@
+import * as wire from "@bb/tunnel-contract";
 import * as accounts from "./accounts.js";
 
 export interface RelayAccountsOptions {
@@ -17,6 +18,8 @@ interface Resolution {
   } | null;
   linked?: boolean;
   machineId?: string | null;
+  oauth?: wire.McpGrant | null;
+  oauthUnavailable?: boolean;
 }
 
 const SESSION_COOKIE = "bbr_session";
@@ -49,10 +52,65 @@ export function relayAccounts(
   const resolve = accounts.remembering(
     (key) => ask(JSON.parse(key) as Record<string, string>),
     (found) => {
+      if (found.oauth != null) {
+        const untilExpiry = found.oauth.expiresAt - Date.now();
+        const kept = Math.min(cacheMs, wire.MCP_GRANT_CACHE_TTL_MS);
+        return Math.max(0, Math.min(kept, untilExpiry));
+      }
       const missed = found.server === null || found.user === null;
       return missed ? Math.min(cacheMs, MISS_CACHE_MS) : cacheMs;
     },
   );
+  const issuer = options.relayUrl.replace(/\/+$/u, "");
+  const missing = () => {
+    return accounts.plain(404, "Nothing is linked to this address.\n");
+  };
+
+  async function mcp(visit: accounts.Visit) {
+    const { request, label, path, method, own } = visit;
+    const cut = path.indexOf("?");
+    const pathname = cut < 0 ? path : path.slice(0, cut);
+    const reading = method === "GET" || method === "HEAD";
+    if (wire.isMcpMetadataPath(pathname) && reading) {
+      const found = await resolve(JSON.stringify({ label }));
+      if (found.server === null) return missing();
+      const headers = {
+        "content-type": "application/json",
+        "cache-control": "public, max-age=300",
+      };
+      const body = wire.mcpProtectedResourceMetadata(own, issuer);
+      return { status: 200, headers, body: JSON.stringify(body) };
+    }
+    if (pathname !== wire.MCP_PUBLIC_PATH) return null;
+    const challenge = (error: "invalid_token" | null) => {
+      const headers = {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+        "www-authenticate": wire.mcpChallenge(own, error),
+      };
+      const body = JSON.stringify({ error: "unauthorized" });
+      return { status: 401, headers, body };
+    };
+    const authorization = accounts.header(request, "authorization");
+    const offered = wire.readBearerToken(authorization);
+    const resource = wire.mcpResourceForOrigin(own);
+    const asked = offered === null ? { label } : { label, oauth: offered };
+    const found = await resolve(JSON.stringify({ ...asked, resource }));
+    const { server, address } = found;
+    if (server === null || address === undefined) return missing();
+    if (offered === null) return challenge(null);
+    if (found.oauthUnavailable === true) {
+      const message = "MCP is not set up on this relay";
+      return accounts.refuse(503, "mcp_unavailable", message);
+    }
+    if (found.oauth == null) return challenge("invalid_token");
+    return {
+      identity: wire.mcpForwardHeaders(found.oauth),
+      address,
+      path: `${wire.MCP_LOCAL_PATH}${cut < 0 ? "" : path.slice(cut)}`,
+      dropHeaders: ["authorization", "cookie"],
+    };
+  }
 
   return {
     shares: false,
@@ -62,6 +120,8 @@ export function relayAccounts(
     },
     async admit(visit) {
       const { request, label, path, method, own } = visit;
+      const answered = visit.target === null ? await mcp(visit) : null;
+      if (answered !== null) return answered;
       const machine = accounts.header(request, MACHINE_HEADER);
       const cookies = accounts.header(request, "cookie") ?? "";
       const session = accounts.readCookie(cookies, SESSION_COOKIE);

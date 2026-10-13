@@ -37,8 +37,29 @@ export interface PersonView {
   self: boolean;
 }
 
+export interface AppView {
+  id: string;
+  clientId: string;
+  clientName: string;
+  serverLabel: string;
+  address: string;
+  scope: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export interface ConsentView {
+  clientName: string;
+  clientIdHost: string;
+  redirectHost: string;
+  loopbackRedirect: boolean;
+  serverLabel: string;
+  address: string;
+}
+
 export interface Dashboard {
   viewer: Viewer;
+  apps: AppView[];
   baseHost: string;
   servers: ServerView[];
   people: PersonView[];

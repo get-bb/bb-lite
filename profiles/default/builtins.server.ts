@@ -24,6 +24,7 @@ import inlineVis from "../../plugins/inline-vis/server.js";
 import keepAwake from "../../plugins/keep-awake/server.js";
 import machines from "../../plugins/machines/server.js";
 import marketplace from "../../plugins/marketplace/server.js";
+import mcp from "../../plugins/mcp/server.js";
 import memory from "../../plugins/memory/server.js";
 import monacoEditor from "../../plugins/monaco-editor/server.js";
 import pluginApiDocs from "../../plugins/plugin-api-docs/server.js";
@@ -80,6 +81,7 @@ export const serverEntries: Record<string, PluginServerEntry | null> = {
   "keep-awake": keepAwake,
   machines: machines,
   marketplace: marketplace,
+  mcp: mcp,
   memory: memory,
   "monaco-editor": monacoEditor,
   "pdf-preview": null,

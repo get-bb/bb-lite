@@ -1,5 +1,7 @@
+import * as wire from "@bb/tunnel-contract";
 import { newToken, sha256Hex } from "./crypto.js";
 import { dashboardApi } from "./dashboard.js";
+import * as oauth from "./oauth.js";
 import * as pages from "./pages.js";
 import * as site from "./site.js";
 import * as store from "./store.js";
@@ -224,6 +226,16 @@ export async function connectApi(
     if (code !== null) return site.json({ code });
     return site.json({ error: "machine limit" }, 409);
   }
+  if (path === wire.MCP_GRANTS_PATH && request.method === "GET") {
+    const grants = await oauth.grantsOfServer(context.db, server);
+    return site.json({ grants });
+  }
+  if (path === wire.MCP_GRANTS_REVOKE_PATH && request.method === "POST") {
+    const { grantId = "" } = await jsonBody(request);
+    if (grantId === "") return site.json({ error: "invalid-request" }, 400);
+    const revoked = await oauth.revokeForServer(context.db, server, grantId);
+    return site.json({ revoked });
+  }
   if (path === "/api/connect/revoke-machine") {
     const { machineId = "" } = await jsonBody(request);
     await store.revokeMachine(context.db, server.id, machineId);
@@ -248,6 +260,17 @@ async function resolveForGate(request: Request, context: Site) {
   const { db } = context;
   const server = await store.serverByLabel(db, label);
   if (server === null) return site.json({ server: null });
+  const { oauth: offered, resource = "" } = asked;
+  const admitted =
+    offered === undefined
+      ? undefined
+      : await oauth.admit(context, offered, resource, server);
+  const grant =
+    admitted === undefined
+      ? {}
+      : admitted === "unconfigured"
+        ? { oauth: null, oauthUnavailable: true }
+        : { oauth: admitted };
   const [user, linked, runner] = await Promise.all([
     session === "" ? null : store.sessionUser(db, session),
     credential === "" ? null : store.serverByCredential(db, credential),
@@ -265,6 +288,7 @@ async function resolveForGate(request: Request, context: Site) {
     user: visitor,
     linked: linked?.id === server.id,
     machineId: runner?.server_id === server.id ? runner.id : null,
+    ...grant,
   });
 }
 
@@ -276,6 +300,9 @@ async function accountApi(request: Request, context: Site, path: string) {
     const { id: serverId, label: serverLabel } = server;
     const serverUrl = context.origin(serverLabel);
     return site.json({ serverId, serverLabel, serverUrl });
+  }
+  if (path === wire.MCP_GRANTS_PATH && method === "GET") {
+    return connectApi(request, context, path);
   }
   if (method !== "POST") return site.json({ error: "not found" }, 404);
   if (path === "/api/gate/resolve") return resolveForGate(request, context);
@@ -297,6 +324,8 @@ export async function apex(
     return dashboardApi(request, context, path);
   }
   if (path.startsWith("/api/")) return accountApi(request, context, path);
+  const answered = oauth.apexRoute(request, context, path);
+  if (answered !== null) return answered;
   if (method !== "GET" && method !== "HEAD") return null;
   if (path === "/auth/github/callback") return finishGithub(request, context);
   if (path !== "/auth/github") return null;

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/tunnel/**"
+      - "packages/tunnel-contract/**"
       - ".github/workflows/deploy-tunnel.yml"
   workflow_dispatch:
 
@@ -71,8 +72,10 @@ jobs:
           echo "$RUNNER_TEMP/flyctl" >> "$GITHUB_PATH"
 
       - name: Deploy the gate
-        working-directory: apps/tunnel
-        run: flyctl deploy --ha=false
+        run: >-
+          flyctl deploy --config apps/tunnel/fly.toml
+          --dockerfile apps/tunnel/Dockerfile
+          --ignorefile apps/tunnel/Dockerfile.dockerignore --ha=false
 
       - name: Check the gate answers
         run: |

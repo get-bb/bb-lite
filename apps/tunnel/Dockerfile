@@ -1,10 +1,14 @@
 # The frp tunnel test on Fly: frp's server with the bb gate in front of it.
-# Build from this directory: docker build .
+# Build from the repository root, which also holds the shared contract:
+#   docker build -f apps/tunnel/Dockerfile .
+# (apps/tunnel/Dockerfile.dockerignore keeps the context to the two sources.)
 FROM node:24-bookworm-slim AS build
 WORKDIR /build
 RUN npm install --no-save esbuild@0.28.0
-COPY src ./src
-RUN npx esbuild src/main.ts --bundle --platform=node --format=esm \
+COPY apps/tunnel/src ./apps/tunnel/src
+COPY packages/tunnel-contract/src ./packages/tunnel-contract/src
+RUN npx esbuild apps/tunnel/src/main.ts --bundle --platform=node --format=esm \
+  --alias:@bb/tunnel-contract=./packages/tunnel-contract/src/index.ts \
   --target=node24 --outfile=gate.mjs
 
 FROM node:24-bookworm-slim

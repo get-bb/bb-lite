@@ -60,14 +60,18 @@ const MACHINE_CODE_TTL_MS = 10 * 60_000;
 export const MACHINE_LIMIT = 50;
 export const SESSION_MAX_AGE_SECONDS = SESSION_TTL_MS / 1_000;
 
-function one<Row>(db: D1Database, sql: string, ...values: Value[]) {
+export function one<Row>(db: D1Database, sql: string, ...values: Value[]) {
   return db
     .prepare(sql)
     .bind(...values)
     .first<Row>();
 }
 
-async function all<Row>(db: D1Database, sql: string, ...values: Value[]) {
+export async function all<Row>(
+  db: D1Database,
+  sql: string,
+  ...values: Value[]
+) {
   const { results } = await db
     .prepare(sql)
     .bind(...values)
@@ -75,7 +79,7 @@ async function all<Row>(db: D1Database, sql: string, ...values: Value[]) {
   return results;
 }
 
-async function run(db: D1Database, sql: string, ...values: Value[]) {
+export async function run(db: D1Database, sql: string, ...values: Value[]) {
   const { meta } = await db
     .prepare(sql)
     .bind(...values)
