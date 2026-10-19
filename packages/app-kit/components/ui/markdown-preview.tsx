@@ -733,8 +733,6 @@ function heading(Tag: `h${1 | 2 | 3 | 4 | 5 | 6}`, className: string) {
   );
 }
 
-const BODY_SIZE_HEADING_CLASS = "text-[1em] leading-[1.43]";
-
 const MARKDOWN_COMPONENTS: Components = {
   a: MarkdownAnchor,
   blockquote: ({ children }) => (
@@ -745,14 +743,8 @@ const MARKDOWN_COMPONENTS: Components = {
   code: MarkdownCode,
   h1: heading("h1", "mb-2 mt-4 text-lg font-semibold text-foreground"),
   h2: heading("h2", "mb-2 mt-4 text-base font-semibold text-foreground"),
-  h3: heading(
-    "h3",
-    `mb-2 mt-3 ${BODY_SIZE_HEADING_CLASS} font-semibold text-foreground`,
-  ),
-  h4: heading(
-    "h4",
-    `mb-1 mt-3 ${BODY_SIZE_HEADING_CLASS} font-medium text-foreground`,
-  ),
+  h3: heading("h3", "mb-2 mt-3 text-sm font-semibold text-foreground"),
+  h4: heading("h4", "mb-1 mt-3 text-sm font-medium text-foreground"),
   h5: heading(
     "h5",
     "mb-1 mt-2 text-sm font-semibold uppercase text-muted-foreground",

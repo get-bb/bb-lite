@@ -461,10 +461,7 @@ export function NavRailNewThreadButton() {
       type="button"
       size="sm"
       variant="ghost"
-      className={cn(
-        PROJECT_LIST_ACTION_BUTTON_CLASS,
-        "w-auto flex-1 font-medium text-sidebar-foreground",
-      )}
+      className={cn(PROJECT_LIST_ACTION_BUTTON_CLASS, "w-auto flex-1")}
       disabled={item.isDisabled}
       aria-keyshortcuts={item.shortcut?.ariaKeyShortcuts}
       aria-label={

@@ -337,7 +337,7 @@ function OpenAction({
 const rememberedFrameHeights = new Map<string, number>();
 
 const FRAME_OPEN_ACTION_CLASS =
-  "flex size-6 cursor-pointer items-center justify-center rounded-md border border-border-raised bg-background/90 text-muted-foreground shadow-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+  "flex size-6 cursor-pointer items-center justify-center rounded-md border border-border bg-background/90 text-muted-foreground shadow-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 function HtmlFrame({
   title,

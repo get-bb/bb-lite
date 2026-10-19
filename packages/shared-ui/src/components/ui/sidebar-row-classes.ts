@@ -35,8 +35,6 @@ export const SIDEBAR_STANDARD_ROW_PADDING_CLASS = "pl-2";
 
 const SIDEBAR_ROW_TEXT_CLASS = "text-sidebar-foreground";
 
-const SIDEBAR_ROW_IDLE_TEXT_CLASS = "text-muted-foreground";
-
 export const SIDEBAR_GROUP_TEXT_CLASS = "text-muted-foreground";
 
 const SIDEBAR_CONTROL_TONE_CLASS =
@@ -69,12 +67,9 @@ export function getSidebarThreadGroupLineLeft(depth: number): number {
   );
 }
 
-export const SIDEBAR_ROW_INTERACTIVE_STATE_CLASS = `cursor-pointer ${SIDEBAR_ROW_IDLE_TEXT_CLASS} hover:bg-sidebar-accent hover:text-sidebar-accent-foreground`;
+export const SIDEBAR_ROW_INTERACTIVE_STATE_CLASS = `cursor-pointer ${SIDEBAR_ROW_TEXT_CLASS} hover:bg-sidebar-accent hover:text-sidebar-accent-foreground`;
 
-const SIDEBAR_ROW_SELECTED_SURFACE_CLASS =
-  "bg-sidebar-selected shadow-[var(--sidebar-selected-shadow)]";
-
-export const SIDEBAR_ROW_SELECTED_STATE_CLASS = `${SIDEBAR_ROW_SELECTED_SURFACE_CLASS} font-medium ${SIDEBAR_ROW_TEXT_CLASS}`;
+export const SIDEBAR_ROW_SELECTED_STATE_CLASS = `bg-state-active bb-sidebar-selected-row ${SIDEBAR_ROW_TEXT_CLASS}`;
 
 export const SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS =
   "bb-sidebar-open-in-split-row";

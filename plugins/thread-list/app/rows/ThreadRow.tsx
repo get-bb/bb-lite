@@ -223,10 +223,6 @@ function ThreadRowComponent({
       ? mergeThreadActivity(threadStatus, parent.childActivity)
       : threadStatus;
   const trailingIndicator = resolveThreadStatus(trailingIndicatorState);
-  const needsAttention =
-    trailingIndicatorState.hasUnreadError ||
-    trailingIndicatorState.hasUnreadSuccess ||
-    trailingIndicatorState.hasPendingInteraction;
   const linkLabel = hasComposerDraft
     ? `Open ${labelTitle} (unsubmitted draft)`
     : `Open ${labelTitle}`;
@@ -569,7 +565,6 @@ function ThreadRowComponent({
       isActive
         ? SIDEBAR_ROW_SELECTED_STATE_CLASS
         : SIDEBAR_ROW_INTERACTIVE_STATE_CLASS,
-      !isActive && needsAttention && "text-sidebar-foreground",
       !isActive && miniMap !== null && SIDEBAR_ROW_OPEN_IN_SPLIT_STATE_CLASS,
       !isActive &&
         "has-[[data-state=open]]:bg-sidebar-accent has-[[data-sidebar-rename-anchor]:focus-visible]:bg-sidebar-accent",
