@@ -1,4 +1,4 @@
-# Inventory: bb → bb-150k
+# Inventory: bb → bb-lite
 
 Source: `~/projects/bb` at `2573ad5e85` (read-only). Target: this repo, at most **150,000 counted lines**.
 

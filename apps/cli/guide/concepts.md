@@ -17,7 +17,7 @@ the same CLI to start, message and read other threads.
 ## Where the CLI points
 
 - `BB_SERVER_URL` selects the server. Default: `http://127.0.0.1:48886`.
-- The server keeps its data in `~/.bb-150k` (`BB_DATA_DIR`).
+- The server keeps its data in `~/.bb-lite` (`BB_DATA_DIR`).
 - `bb server` runs the server in the foreground; `bb server status` checks it.
 
 ## Inside a thread

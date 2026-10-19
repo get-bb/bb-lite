@@ -11,7 +11,7 @@ terminals and git operations there.
 bb machine add --name build-box       # prints: bb runner join <blob>
 
 # on the new machine, within 15 minutes
-bb runner join <blob>                 # stores ~/.bb-150k-runner/<server>/runner.json
+bb runner join <blob>                 # stores ~/.bb-lite-runner/<server>/runner.json
 bb runner run                         # foreground; keep it under your supervisor
 ```
 

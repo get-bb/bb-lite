@@ -459,14 +459,14 @@
         <p>Contents</p>
         <a href="#summary">Summary</a>
         <a href="#status">Status</a>
-        <a href="#today">1. Where bb-150k was</a>
+        <a href="#today">1. Where bb-lite was</a>
         <a href="#refs">2. What the references teach</a>
         <a href="#difference">3. How bb differs from them</a>
         <a href="#kernel">4. The kernel</a>
         <a href="#primitives">5. Three primitives</a>
         <a href="#runtimes">6. One plugin, several runtimes</a>
         <a href="#ui">7. The app is plugins too</a>
-        <a href="#map">8. bb-150k as plugins</a>
+        <a href="#map">8. bb-lite as plugins</a>
         <a href="#walk">9. A message's path</a>
         <a href="#profiles">10. Profiles</a>
         <a href="#trust">11. Trust, audit and order</a>
@@ -479,7 +479,7 @@
       <main>
         <h1>Everything is a plugin</h1>
         <p class="sub">
-          A proposal for rewriting bb-150k's plugin API so that the product
+          A proposal for rewriting bb-lite's plugin API so that the product
           itself is built from the same plugins third parties write. Draft for
           discussion, 8 October 2026.
         </p>
@@ -891,7 +891,7 @@
         </div>
 
         <h2 id="today">
-          <span class="num">1</span>Where bb-150k was before this work
+          <span class="num">1</span>Where bb-lite was before this work
         </h2>
         <p>
           A plugin is a directory with a <code>bb</code> block in
@@ -1002,7 +1002,7 @@
         </div>
         <p>
           The original bb has a far larger API (24 app slots, a host tier on
-          every machine, providers and environments as plugins), and bb-150k
+          every machine, providers and environments as plugins), and bb-lite
           pared that back on purpose. Both share one model, though:
           <em>core decides what can be extended, one surface at a time</em>. The
           original shows where that model goes when it grows, which is the first
@@ -1295,7 +1295,7 @@
               <th>Where plugin code runs</th>
             </tr>
             <tr>
-              <td><strong>bb-150k today</strong></td>
+              <td><strong>bb-lite today</strong></td>
               <td>It cannot; 8 events after the fact</td>
               <td>8 add-ons; engine, providers and environments are core</td>
               <td>9 slots defined by core</td>
@@ -1883,7 +1883,7 @@ const unread = bb.live("unread", 0);              // held by the server, pushed 
             <strong>Precedent.</strong> The original bb already has this third
             part: a plugin's <code>host</code> entry runs in the daemon on each
             machine, and that is how its Claude Code, Codex and worktree plugins
-            work. bb-150k dropped it when it folded the daemon into the runner.
+            work. bb-lite dropped it when it folded the daemon into the runner.
             Pi is trying the same split in its experimental "chord" plugins: a
             plugin declares <em>facets</em> (a session worker and a TUI), they
             share a typed service contract, and the server builds the UI facet
@@ -2099,7 +2099,7 @@ function App() {
           which the thread-view plugin would export through its contract.
         </p>
 
-        <h2 id="map"><span class="num">8</span>bb-150k as plugins</h2>
+        <h2 id="map"><span class="num">8</span>bb-lite as plugins</h2>
         <p>
           A first cut of how today's code would divide. Line counts are
           approximate and exclude tests. "Parts" says where the plugin's code
@@ -3177,7 +3177,7 @@ bb.on(interactions.request, { kind: "approval" }, async (e, next) =&gt; {
               <th>What was read</th>
             </tr>
             <tr>
-              <td>bb-150k</td>
+              <td>bb-lite</td>
               <td>
                 This repository: <code>packages/plugin</code>,
                 <code>docs/architecture.md</code>, <code>REPORT.md</code>, and a
@@ -3252,9 +3252,9 @@ bb.on(interactions.request, { kind: "approval" }, async (e, next) =&gt; {
           </table>
         </div>
         <p class="small">
-          How much to trust the details: I read the bb-150k plugin package, its
+          How much to trust the details: I read the bb-lite plugin package, its
           architecture document and the Claude Code material myself. The other
-          four codebases, and the sweep of bb-150k's core, were read by research
+          four codebases, and the sweep of bb-lite's core, were read by research
           agents working from the clones; I spot-checked their main claims
           (commits, the host tier, Pi's replaceable built-ins, Hermes's ledger,
           the Cordis base) and did not recheck every count. Line counts and
