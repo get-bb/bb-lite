@@ -95,7 +95,7 @@ export function parseExperiments(list: string): Record<string, boolean> {
 
 export function loadConfig(env: ServerEnv = process.env): ServerConfig {
   const parsed = envSchema.parse(env);
-  const dataDir = resolve(parsed.BB_DATA_DIR ?? join(homedir(), ".bb-150k"));
+  const dataDir = resolve(parsed.BB_DATA_DIR ?? join(homedir(), ".bb-lite"));
   return {
     dataDir,
     port: parsed.BB_SERVER_PORT ?? DEFAULT_PORT,

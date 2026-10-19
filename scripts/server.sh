@@ -23,7 +23,7 @@ A setting is taken from the first of these that has it:
 
 The port itself comes from BB_SERVER_PORT (1 or 2), else 48886. Example .env.server:
 
-  BB_DATA_DIR=/home/me/.bb-150k
+  BB_DATA_DIR=/home/me/.bb-lite
   BB_SERVER_PORT=48886
   BB_SERVER_ALLOWED_HOSTS=my-host,my-host.example.ts.net
 EOF
@@ -148,7 +148,7 @@ remember_settings() {
 }
 
 adopt_settings
-data_dir=${BB_DATA_DIR:-$HOME/.bb-150k}
+data_dir=${BB_DATA_DIR:-$HOME/.bb-lite}
 case $data_dir in
   /*) ;;
   *) data_dir=$PWD/$data_dir ;;

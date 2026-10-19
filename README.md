@@ -1,4 +1,4 @@
-# bb-150k
+# bb-lite
 
 A smaller rewrite of [bb](https://github.com/get-bb/bb). bb runs coding agents (Codex and Claude
 Code) as **threads**: you follow a thread live, steer it while it runs, queue messages, and let
@@ -6,7 +6,7 @@ agents start and manage other threads. This repository does the same job for the
 actually used day to day, in a fraction of the code, and adds multiplayer: several people can
 share one server.
 
-It started as an experiment: rebuild bb under a hard cap of 150,000 lines (hence the name) by
+It started as an experiment called bb-150k: rebuild bb under a hard cap of 150,000 lines by
 keeping what is used, cutting what is not, and redesigning the parts that had grown too large. The
 cap was later lifted so features could come back as plugins. `pnpm count` reports the current size:
 about 263,000 counted lines (42,000 of them tests), against about 1.6 million in get-bb/bb by the
@@ -86,7 +86,7 @@ so there is nothing to sign in to. `apps/cli/bin/bb` is the CLI (`bb guide` is t
 
 | Setting                   | Default                  |                                                            |
 | ------------------------- | ------------------------ | ---------------------------------------------------------- |
-| `BB_DATA_DIR`             | `~/.bb-150k`             | Database, worktrees, plugin data, `config.json`            |
+| `BB_DATA_DIR`             | `~/.bb-lite`             | Database, worktrees, plugin data, `config.json`            |
 | `BB_SERVER_PORT`          | `48886`                  |                                                            |
 | `BB_SERVER_BIND_HOST`     | `127.0.0.1`              |                                                            |
 | `BB_SERVER_ALLOWED_HOSTS` |                          | Extra host names, for a reverse proxy or `tailscale serve` |
@@ -94,6 +94,8 @@ so there is nothing to sign in to. `apps/cli/bin/bb` is the CLI (`bb guide` is t
 | `BB_SERVER_URL`           | `http://127.0.0.1:48886` | Which server the CLI talks to                              |
 
 The data directory and port differ from the original bb on purpose, so both can run side by side.
+Before the rename to bb-lite the defaults were `~/.bb-150k` and `~/.bb-150k-runner`; move those
+directories to `~/.bb-lite` and `~/.bb-lite-runner` (or set `BB_DATA_DIR`) to keep an existing install.
 The server refuses to open an original bb database; `bb import-legacy --from ~/.bb` copies projects,
 machines, sections, threads (with their events and provider sessions) and settings across
 (`apps/cli/guide/migrating.md`).
@@ -225,7 +227,7 @@ bump.
 
 ## How it differs from get-bb/bb
 
-|            | get-bb/bb                                                                                    | bb-150k                                                                                                                                                         |
+|            | get-bb/bb                                                                                    | bb-lite                                                                                                                                                         |
 | ---------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Size       | ~1.6M counted lines, ~800K of them tests                                                     | ~263K, ~42K tests                                                                                                                                               |
 | Apps       | Desktop (Electron), web, mobile, CLI, server, host daemon, connect service, AI gateway, demo | Web app, CLI (Node + native Rust), server, relay. No desktop or native mobile app                                                                               |
@@ -236,7 +238,7 @@ bump.
 | CLI        | Commands written one by one                                                                  | One declarative table and engine; plugin commands come from operations; native binary for agents                                                                |
 | Users      | Single-user: one owner; the auth tables hold machine credentials and API keys                | Multiplayer: owner and member roles, invites, shared or private machines, per-person state, presence                                                            |
 | Plugins    | Marketplace, installer, updater, safe mode, version gating                                   | `bb plugin add`, `bb dev install`, `bb marketplace`; versioned against an API lock                                                                              |
-| Defaults   | `~/.bb`, ports 38886/38887                                                                   | `~/.bb-150k`, port 48886                                                                                                                                        |
+| Defaults   | `~/.bb`, ports 38886/38887                                                                   | `~/.bb-lite`, port 48886                                                                                                                                        |
 
 What the UI does not have (desktop, compared side by side with the original): forking or editing a
 sent message, goal mode, the table-of-contents rail, Mermaid and math rendering, rich-text compose,

@@ -1,6 +1,6 @@
 # Moving from an original bb install
 
-This build keeps its data in its own directory (`~/.bb-150k`, or `BB_DATA_DIR`)
+This build keeps its data in its own directory (`~/.bb-lite`, or `BB_DATA_DIR`)
 and never opens an original data directory in place. `bb import-legacy` copies
 what carries over.
 

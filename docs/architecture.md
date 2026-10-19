@@ -30,7 +30,7 @@ and the operations runner parts implement.
 
 ## Process and data model
 
-- Default data directory `~/.bb-150k` (`BB_DATA_DIR`), default port `48886` (`BB_SERVER_PORT`), bind
+- Default data directory `~/.bb-lite` (`BB_DATA_DIR`), default port `48886` (`BB_SERVER_PORT`), bind
   `127.0.0.1` (`BB_SERVER_BIND_HOST`). These differ from the original on purpose.
 - The server refuses to start when the data directory contains a database with a
   `__drizzle_migrations` table (an original bb data directory).
@@ -197,7 +197,7 @@ Remote transport rules:
 - `<dataDir>/runner.json` (0600) holds `{serverUrl, hostId, runnerToken, headers}`; `headers` (from the
   join blob, a reused legacy machine config and `--header`, later ones winning) go on the join request,
   the socket upgrade and everything the CLI proxy forwards. Default directory
-  `~/.bb-150k-runner/<server host>`.
+  `~/.bb-lite-runner/<server host>`.
 
 Rules:
 

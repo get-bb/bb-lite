@@ -1,4 +1,4 @@
-# bb-150k: final report
+# bb-lite: final report
 
 A rewrite of `~/projects/bb` (frozen at `2573ad5e85`) under a hard cap of 150,000 counted lines.
 
@@ -6,7 +6,7 @@ A rewrite of `~/projects/bb` (frozen at `2573ad5e85`) under a hard cap of 150,00
 - `pnpm check` passes: line cap, typecheck of all 25 packages, lint with zero errors, 167 tests.
 - The web UI was copied and cut, then its containers and data plumbing were rewritten smaller. The
   server, the machine runtime, the CLI and the plugin system were redesigned.
-- Defaults differ from the original on purpose so the two can run side by side: data in `~/.bb-150k`
+- Defaults differ from the original on purpose so the two can run side by side: data in `~/.bb-lite`
   (`BB_DATA_DIR`), port 48886 (`BB_SERVER_PORT`). The server refuses to open an original database.
 
 ## Since this report was written

@@ -60,7 +60,7 @@ export interface RunningRunner {
 }
 
 export function defaultRunnerDataDir(serverUrl: string): string {
-  return join(homedir(), ".bb-150k-runner", new URL(serverUrl).host);
+  return join(homedir(), ".bb-lite-runner", new URL(serverUrl).host);
 }
 
 export function defaultLegacyMachineConfigPath(serverUrl: string): string {

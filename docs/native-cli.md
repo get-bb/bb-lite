@@ -40,5 +40,5 @@ directory; the other tests use a fake HTTP server.
   milliseconds; check `bb --help` timing after adding a dependency.
 - `cargo fmt` (100 columns, `rustfmt.toml`) and `cargo clippy` without warnings. No code comments
   beyond a doc comment on a public item whose name cannot carry its contract.
-- Tests never touch `~/.bb`, `~/.bb-150k*` or ports 38886, 38887 and 48886. Use temp directories
+- Tests never touch `~/.bb`, `~/.bb-lite*` or ports 38886, 38887 and 48886. Use temp directories
   and port 0.
