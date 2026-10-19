@@ -63,9 +63,9 @@ const ASSISTANT_THREAD_MENTIONS: MarkdownThreadMentions = {
   preserveSoftBreaks: false,
 };
 
-const MESSAGE_READING_SIZE_CLASS_NAME = "text-md";
-const STREAMING_SETTLED_MARKDOWN_CLASS_NAME = `${MESSAGE_READING_SIZE_CLASS_NAME} [&>p:last-child]:mb-2`;
-const STREAMING_TAIL_MARKDOWN_CLASS_NAME = `${MESSAGE_READING_SIZE_CLASS_NAME} [&>h1:first-child]:mt-4 [&>h2:first-child]:mt-4 [&>h3:first-child]:mt-3 [&>h4:first-child]:mt-3 [&>h5:first-child]:mt-2 [&>h6:first-child]:mt-2`;
+const STREAMING_SETTLED_MARKDOWN_CLASS_NAME = "[&>p:last-child]:mb-2";
+const STREAMING_TAIL_MARKDOWN_CLASS_NAME =
+  "[&>h1:first-child]:mt-4 [&>h2:first-child]:mt-4 [&>h3:first-child]:mt-3 [&>h4:first-child]:mt-3 [&>h5:first-child]:mt-2 [&>h6:first-child]:mt-2";
 
 export function useMessageLinkRouting(
   threadId: string | undefined,
@@ -179,7 +179,6 @@ function CollapsibleMessageText({
           <span>{body.text}</span>
         ) : (
           <MarkdownPreview
-            className={MESSAGE_READING_SIZE_CLASS_NAME}
             content={
               collapsedPreview?.wasCapped === true
                 ? closeUnterminatedMarkdownCodeSpan(body.text)
@@ -245,7 +244,7 @@ export function UserConversationMessage({
           </div>
         ) : null}
         <div className="flex w-fit max-w-full flex-col items-end">
-          <div className="max-w-full rounded-2xl bg-surface-recessed px-4 py-2.5 text-md text-foreground">
+          <div className="max-w-full rounded-xl border border-border-seam bg-surface-recessed px-4 py-2.5 text-sm leading-relaxed text-foreground">
             {messageText ? (
               <CollapsibleMessageText
                 mentions={row.mentions}
@@ -374,7 +373,7 @@ export function AssistantConversationMessage({
         allowHtml
         className={
           streamingSplit === null
-            ? MESSAGE_READING_SIZE_CLASS_NAME
+            ? undefined
             : STREAMING_SETTLED_MARKDOWN_CLASS_NAME
         }
         content={
@@ -403,7 +402,7 @@ export function AssistantConversationMessage({
   return (
     <div
       className={cn(
-        "group/message w-full text-md font-normal",
+        "group/message w-full text-sm font-normal leading-relaxed",
         PROSE_COLUMN_INSET_CLASS,
       )}
     >

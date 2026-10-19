@@ -14,7 +14,6 @@ import {
 } from "@bb/app-kit/components/sidebar/SidebarChrome";
 import {
   PROJECT_LIST_ACTION_BUTTON_CLASS,
-  SIDEBAR_ROW_SELECTED_STATE_CLASS,
   SIDEBAR_STANDARD_ROW_PADDING_CLASS,
 } from "@bb/shared-ui/sidebar-row-classes";
 import { CHROME_SECTION_LABEL_CLASS } from "@bb/shared-ui/chrome-style-tokens";
@@ -43,8 +42,7 @@ export function SectionSidebarRow({
       className={cn(
         PROJECT_LIST_ACTION_BUTTON_CLASS,
         "w-full",
-        active &&
-          `${SIDEBAR_ROW_SELECTED_STATE_CLASS} hover:bg-sidebar-selected`,
+        active && "bg-sidebar-accent text-sidebar-foreground",
       )}
     >
       <Link

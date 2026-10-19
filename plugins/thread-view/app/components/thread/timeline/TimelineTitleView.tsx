@@ -287,7 +287,7 @@ export function TimelineTitleView({
   return (
     <span
       className={cn(
-        "min-w-0 max-w-full text-xs leading-5 tabular-nums",
+        "min-w-0 max-w-full text-sm leading-5",
         wrap
           ? "whitespace-pre-wrap [overflow-wrap:anywhere]"
           : "inline-flex items-baseline gap-1 overflow-hidden whitespace-nowrap",
@@ -331,7 +331,7 @@ export function ExpandableTimelineTitle(props: TimelineTitleViewProps) {
     <span className="block min-w-0 flex-1">
       <span
         ref={ref}
-        className={cn("block text-xs leading-5", !expanded && "line-clamp-2")}
+        className={cn("block text-sm leading-5", !expanded && "line-clamp-2")}
       >
         <TimelineTitleView {...props} wrap />
       </span>
