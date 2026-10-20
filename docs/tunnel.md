@@ -94,7 +94,9 @@ gate's certificate against Node's root certificates.
 - Tests: `pnpm exec vitest run apps/tunnel` covers the gate's rules for the original bb's accounts
   against stand-in servers. `FRP_BIN_DIR=<folder with frps and frpc> pnpm exec vitest run apps/relay` adds a run of the
   real binaries against the relay in Miniflare and a real bb server. Without `FRP_BIN_DIR` that test is
-  skipped.
+  skipped. `FRP_BIN_DIR=... pnpm exec vitest run plugins/connect` also runs frpc against a real frps
+  behind a TLS front with a self-signed certificate: frpc must refuse it without sending the link
+  credential, and connect once the certificate is trusted through `NODE_EXTRA_CA_CERTS`.
 - Deploy: `.github/workflows/deploy-tunnel.yml` runs on every push to `main` that touches
   `apps/tunnel` (and on demand): typecheck, the frp test above with a pinned frp, `flyctl deploy
 --ha=false` from `apps/tunnel`, then a check that the gate answers. It uses the repository secret
