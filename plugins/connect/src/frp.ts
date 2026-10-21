@@ -75,6 +75,17 @@ async function downloadClient(dir: string): Promise<string> {
   return target;
 }
 
+export async function trustedCertificates(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string[]> {
+  const certificates = [...rootCertificates];
+  const extra = env.NODE_EXTRA_CA_CERTS;
+  if (extra !== undefined && extra !== "") {
+    certificates.push((await fs.readFile(extra, "utf8")).trim());
+  }
+  return certificates;
+}
+
 export class FrpTunnel {
   private link: Link | null = null;
   private child: ChildProcess | undefined;
@@ -130,7 +141,10 @@ export class FrpTunnel {
     const binary = this.options.binary ?? (await downloadClient(dir));
     const roots = join(dir, "roots.pem");
     const secure = server.protocol === "tls:";
-    if (secure) await fs.writeFile(roots, rootCertificates.join("\n"));
+    if (secure) {
+      const certificates = await trustedCertificates();
+      await fs.writeFile(roots, `${certificates.join("\n")}\n`);
+    }
     const tls = secure
       ? { enable: true, serverName: server.hostname, trustedCaFile: roots }
       : { enable: false };
